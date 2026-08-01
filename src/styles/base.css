@@ -1,0 +1,135 @@
+/* Source: secret/Asset Manager v14.dc.html L320-451 — transcribed verbatim (named classes / resets only; */
+/* one-off inline styles are NOT promoted here — see extraction discipline in the plan) */
+
+a { color: var(--accent); text-decoration: none }
+a:hover { color: var(--accent-hover) }
+
+* {
+  box-sizing: border-box
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0
+}
+
+body {
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif;
+  background: var(--canvas);
+  color: var(--text-strong);
+  -webkit-font-smoothing: antialiased
+}
+
+.ms {
+  font-family: 'Material Symbols Rounded';
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased
+}
+
+.navbtn {
+  will-change: transform
+}
+
+.qbtn:hover {
+  transform: translateY(-1px)
+}
+
+.scrim {
+  scrollbar-width: thin
+}
+
+@media (max-width:1300px) {
+  .rgrid-outer {
+    grid-template-columns: 1fr !important
+  }
+}
+
+@media (max-width:900px) {
+  .rgrid-cards {
+    grid-template-columns: 1fr !important
+  }
+}
+
+@media (max-width:1000px) {
+  .auth-brand { display: none !important }
+}
+
+input, textarea, select { background: transparent; color: var(--text-strong); font-family: inherit }
+button { color: inherit }
+input::placeholder, textarea::placeholder { color: var(--text-weak) }
+input:focus, textarea:focus, select:focus { border-color: var(--accent) !important }
+
+* { scrollbar-color: var(--border) transparent; scrollbar-width: thin }
+*::-webkit-scrollbar { width: 8px; height: 8px }
+*::-webkit-scrollbar-track { background: transparent }
+*::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px }
+*::-webkit-scrollbar-thumb:hover { background: var(--text-weak) }
+
+.card-hov {
+  transition: transform .18s cubic-bezier(.2, .7, .3, 1), box-shadow .18s ease, background-color .18s ease, border-color .18s ease
+}
+
+.card-hov:hover {
+  box-shadow: 0 6px 14px -8px rgba(20, 23, 30, .12)
+}
+
+.mini-hov {
+  transition: transform .15s ease, background-color .15s ease, border-color .15s ease
+}
+
+.mini-hov:hover {
+  transform: translateY(-2px);
+  background: var(--fill-subtle);
+  border-color: var(--border)
+}
+
+.pill-btn {
+  transition: background-color .15s ease, color .15s ease, transform .15s ease
+}
+
+.pill-btn:hover {
+  transform: translateY(-1px)
+}
+
+.tmap-block {
+  transition: transform .16s ease, filter .16s ease
+}
+
+.tmap-block:hover {
+  transform: scale(1.015);
+  filter: brightness(1.04)
+}
+
+@media (max-width:1380px) {
+  .asset-2col {
+    grid-template-columns: 1fr !important
+  }
+}
+
+.dkblk-hov {
+  transition: transform .15s ease, background-color .15s ease, border-color .15s ease
+}
+
+.dkblk-hov:hover {
+  transform: translateY(-2px);
+  background: var(--track) !important;
+  border-color: var(--border) !important
+}
+
+html.theme-dark body { color: var(--text-strong); background: var(--canvas) }
+.deep-card { border: 0.5px solid var(--deep-border) }
+.monit-logo-dark { display: none }
+html.theme-dark .monit-logo-light { display: none }
+html.theme-dark .monit-logo-dark { display: block }
+.row-actions { opacity: 0; transition: opacity .12s ease }
+.mini-hov:hover .row-actions { opacity: 1 }

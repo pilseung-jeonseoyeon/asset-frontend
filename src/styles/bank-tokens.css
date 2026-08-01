@@ -1,0 +1,276 @@
+/* Source: secret/Asset Manager v14.dc.html L33-166 (:root), L184-317 (html.theme-dark) — transcribed verbatim */
+/* ds_rules_v2_5.md §12: 125 financial-institution icon tokens, 7 categories */
+
+:root {
+  /* 은행 · 상호금융 */
+  --bank-kb-bg: #FFF7E3; --bank-kb-fg: #C28F08;
+  --bank-shinhan-bg: #E3EBFF; --bank-shinhan-fg: #0A4BF5;
+  --bank-hana-bg: #E3FFFF; --bank-hana-fg: #058283;
+  --bank-woori-bg: #E3F4FF; --bank-woori-fg: #0766A6;
+  --bank-nh-bg: #E3FFF0; --bank-nh-fg: #07A653;
+  --bank-ibk-bg: #E3F3FF; --bank-ibk-fg: #0768B2;
+  --bank-sc-bg: #E3F1FF; --bank-sc-fg: #0A74E5;
+  --bank-citi-bg: #E3F2FF; --bank-citi-fg: #06559B;
+  --bank-suhyup-bg: #E3F5FF; --bank-suhyup-fg: #0883C6;
+  --bank-kdb-bg: #E3F1FF; --bank-kdb-fg: #07559F;
+  --bank-kbank-bg: #E3E3FF; --bank-kbank-fg: #4D4DF8;
+  --bank-kakaobank-bg: #FFFCE3; --bank-kakaobank-fg: #B69408;
+  --bank-tossbank-bg: #E4EFFE; --bank-tossbank-fg: #3282F6;
+  --bank-imbank-bg: #E3F5FF; --bank-imbank-fg: #087EC2;
+  --bank-busan-bg: #FFE3E8; --bank-busan-fg: #E10932;
+  --bank-kyongnam-bg: #E5EFFD; --bank-kyongnam-fg: #1053A9;
+  --bank-gwangju-bg: #E3F7FF; --bank-gwangju-fg: #099FD9;
+  --bank-jeonbuk-bg: #FCE6E9; --bank-jeonbuk-fg: #E61937;
+  --bank-jeju-bg: #E3F4FF; --bank-jeju-fg: #0871B6;
+  --bank-post-bg: #FFE3E8; --bank-post-fg: #E10932;
+  --bank-mg-bg: #E7EFFB; --bank-mg-fg: #1D51A4;
+  --bank-shinhyup-bg: #E3F3FF; --bank-shinhyup-fg: #0768AE;
+  --bank-forest-bg: #E3FFF3; --bank-forest-fg: #057B48;
+  /* 증권 */
+  --bank-mirae-bg: #FFEDE3; --bank-mirae-fg: #F56816;
+  --bank-koreainv-bg: #E3EDFF; --bank-koreainv-fg: #084AC6;
+  --bank-nhinv-bg: #E3FFF0; --bank-nhinv-fg: #07A653;
+  --bank-samsungsec-bg: #E6E9FC; --bank-samsungsec-fg: #203CE3;
+  --bank-kbsec-bg: #FFF7E3; --bank-kbsec-fg: #C28F08;
+  --bank-shinhansec-bg: #E3EBFF; --bank-shinhansec-fg: #0A4BF5;
+  --bank-kiwoom-bg: #FFE3E5; --bank-kiwoom-fg: #E50A1B;
+  --bank-hanasec-bg: #E3FFFF; --bank-hanasec-fg: #058283;
+  --bank-meritz-bg: #FDE6E5; --bank-meritz-fg: #EE2F25;
+  --bank-daishin-bg: #E3EFFF; --bank-daishin-fg: #0750AE;
+  --bank-yuanta-bg: #FDE5E9; --bank-yuanta-fg: #C6102E;
+  --bank-kyobosec-bg: #FEF0E4; --bank-kyobosec-fg: #EC720B;
+  --bank-imsec-bg: #E3F5FF; --bank-imsec-fg: #087EC2;
+  --bank-hyundaisec-bg: #E3F0FF; --bank-hyundaisec-fg: #0753AA;
+  --bank-ibksec-bg: #E3F3FF; --bank-ibksec-fg: #0768B2;
+  --bank-shinyoung-bg: #E3F3FF; --bank-shinyoung-fg: #065797;
+  --bank-sksec-bg: #FFE3E8; --bank-sksec-fg: #E90A34;
+  --bank-daol-bg: #E5EFFD; --bank-daol-fg: #0C51AA;
+  --bank-hanwhasec-bg: #FEEEE4; --bank-hanwhasec-fg: #F26B15;
+  --bank-dbsec-bg: #E3FFF8; --bank-dbsec-fg: #069B78;
+  --bank-eugene-bg: #E3F3FF; --bank-eugene-fg: #0768AE;
+  --bank-bnk-bg: #FDEAE5; --bank-bnk-fg: #F04E23;
+  --bank-sangsangin-bg: #F0E9F9; --bank-sangsangin-fg: #6B3FA0;
+  --bank-lssec-bg: #E3F2FF; --bank-lssec-fg: #075BA6;
+  --bank-tosssec-bg: #E4EFFE; --bank-tosssec-fg: #3282F6;
+  --bank-kakaopaysec-bg: #FFFCE3; --bank-kakaopaysec-fg: #B69408;
+  --bank-bookook-bg: #E3F1FF; --bank-bookook-fg: #0753A3;
+  --bank-hanyang-bg: #E5EEFD; --bank-hanyang-fg: #0F52BB;
+  --bank-heungkuksec-bg: #FFE3E8; --bank-heungkuksec-fg: #E10932;
+  /* 카드 */
+  --bank-shinhancard-bg: #E3EBFF; --bank-shinhancard-fg: #0A4BF5;
+  --bank-samsungcard-bg: #E6E9FC; --bank-samsungcard-fg: #203CE3;
+  --bank-hyundaicard-bg: #F4F4F4; --bank-hyundaicard-fg: #515151;
+  --bank-kbcard-bg: #FFF7E3; --bank-kbcard-fg: #C28F08;
+  --bank-lottecard-bg: #FCE8E6; --bank-lottecard-fg: #DB291C;
+  --bank-hanacard-bg: #E3FFFF; --bank-hanacard-fg: #058283;
+  --bank-wooricard-bg: #E3F4FF; --bank-wooricard-fg: #0766A6;
+  --bank-bccard-bg: #FDE5E6; --bank-bccard-fg: #EB1C24;
+  --bank-nhcard-bg: #E3FFF0; --bank-nhcard-fg: #07A653;
+  /* 생명보험 */
+  --bank-samsunglife-bg: #E6E9FC; --bank-samsunglife-fg: #203CE3;
+  --bank-hanwhalife-bg: #FEEEE4; --bank-hanwhalife-fg: #F26B15;
+  --bank-kyobolife-bg: #FEF0E4; --bank-kyobolife-fg: #EC720B;
+  --bank-shinhanlife-bg: #E3EBFF; --bank-shinhanlife-fg: #0A4BF5;
+  --bank-nhlife-bg: #E3FFF0; --bank-nhlife-fg: #07A653;
+  --bank-miraelife-bg: #FFEDE3; --bank-miraelife-fg: #F56816;
+  --bank-tongyang-bg: #FFE3E8; --bank-tongyang-fg: #E10932;
+  --bank-kblife-bg: #FFF7E3; --bank-kblife-fg: #C28F08;
+  --bank-heungkuklife-bg: #FFE3E8; --bank-heungkuklife-fg: #E10932;
+  --bank-dblife-bg: #E3FFF8; --bank-dblife-fg: #069B78;
+  --bank-abl-bg: #FEE4E5; --bank-abl-fg: #E10916;
+  --bank-lina-bg: #FCE6E9; --bank-lina-fg: #E31837;
+  --bank-metlife-bg: #E3F5FF; --bank-metlife-fg: #0990D5;
+  --bank-fubon-bg: #E3F2FF; --bank-fubon-fg: #06569B;
+  --bank-imlife-bg: #E3F5FF; --bank-imlife-fg: #087EC2;
+  --bank-kdblife-bg: #E3F1FF; --bank-kdblife-fg: #07559F;
+  --bank-hanalife-bg: #E3FFFF; --bank-hanalife-fg: #058283;
+  --bank-chubb-bg: #F9E9EB; --bank-chubb-fg: #9A2C3B;
+  --bank-ibkpension-bg: #E3F3FF; --bank-ibkpension-fg: #0768B2;
+  --bank-lifeplanet-bg: #FEF0E4; --bank-lifeplanet-fg: #EC720B;
+  /* 손해보험 */
+  --bank-samsungfire-bg: #E6E9FC; --bank-samsungfire-fg: #203CE3;
+  --bank-dbins-bg: #E3FFF8; --bank-dbins-fg: #069B78;
+  --bank-hyundaimarine-bg: #E3F0FF; --bank-hyundaimarine-fg: #0753A6;
+  --bank-kbins-bg: #FFF7E3; --bank-kbins-fg: #C28F08;
+  --bank-meritzfire-bg: #FDE6E5; --bank-meritzfire-fg: #EE2F25;
+  --bank-hanwhains-bg: #FEEEE4; --bank-hanwhains-fg: #F26B15;
+  --bank-lotteins-bg: #FCE8E6; --bank-lotteins-fg: #DB291C;
+  --bank-heungkukfire-bg: #FFE3E8; --bank-heungkukfire-fg: #E10932;
+  --bank-mgins-bg: #E7EFFB; --bank-mgins-fg: #1D51A4;
+  --bank-nhins-bg: #E3FFF0; --bank-nhins-fg: #07A653;
+  --bank-hanains-bg: #E3FFFF; --bank-hanains-fg: #058283;
+  --bank-axa-bg: #E3E3FF; --bank-axa-fg: #2D2DF6;
+  --bank-carrot-bg: #FFEFE3; --bank-carrot-fg: #F16E0A;
+  --bank-sgi-bg: #E3F2FF; --bank-sgi-fg: #06559B;
+  /* 저축은행 */
+  --bank-sbi-bg: #FFE3E5; --bank-sbi-fg: #E50A1B;
+  --bank-ok-bg: #FFE3E8; --bank-ok-fg: #E10932;
+  --bank-welcome-bg: #FEF0E4; --bank-welcome-fg: #E8710A;
+  --bank-pepper-bg: #FFE3E8; --bank-pepper-fg: #E10932;
+  --bank-koreainvsb-bg: #E3EDFF; --bank-koreainvsb-fg: #084AC6;
+  --bank-acuon-bg: #E3FCFF; --bank-acuon-fg: #079FAE;
+  --bank-daolsb-bg: #E5EFFD; --bank-daolsb-fg: #0C51AA;
+  --bank-jt-bg: #FFE3E8; --bank-jt-fg: #E10932;
+  --bank-sangsanginsb-bg: #F0E9F9; --bank-sangsanginsb-fg: #6B3FA0;
+  --bank-moa-bg: #E3F2FF; --bank-moa-fg: #075BA6;
+  --bank-shinhansb-bg: #E3EBFF; --bank-shinhansb-fg: #0A4BF5;
+  --bank-kbsb-bg: #FFF7E3; --bank-kbsb-fg: #C28F08;
+  --bank-hanasb-bg: #E3FFFF; --bank-hanasb-fg: #058283;
+  --bank-nhsb-bg: #E3FFF0; --bank-nhsb-fg: #07A653;
+  --bank-woorisb-bg: #E3F4FF; --bank-woorisb-fg: #0766A6;
+  /* 가상자산 거래소 */
+  --bank-upbit-bg: #E5EDFD; --bank-upbit-fg: #0D4CBD;
+  --bank-bithumb-bg: #FEEEE4; --bank-bithumb-fg: #F26B15;
+  --bank-coinone-bg: #E6EBFC; --bank-coinone-fg: #1B48D4;
+  --bank-korbit-bg: #E3EDFF; --bank-korbit-fg: #0A5AF5;
+  --bank-gopax-bg: #E6EFFC; --bank-gopax-fg: #1451A9;
+  /* 핀테크 · 페이 */
+  --bank-toss-bg: #E4EFFE; --bank-toss-fg: #3282F6;
+  --bank-kakaopay-bg: #FFFCE3; --bank-kakaopay-fg: #B69408;
+  --bank-naverpay-bg: #E3FFEF; --bank-naverpay-fg: #07AA50;
+  --bank-payco-bg: #FFE3E8; --bank-payco-fg: #E10932;
+  --bank-banksalad-bg: #E3EDFE; --bank-banksalad-fg: #2A6EF6;
+  /* 연금 · 공공기금 */
+  --bank-nps-bg: #E3FFFD; --bank-nps-fg: #05837B;
+  --bank-gepco-bg: #E3F2FF; --bank-gepco-fg: #075BA6;
+  --bank-tp-bg: #E5EFFD; --bank-tp-fg: #1053A9;
+  --bank-mps-bg: #ECF9E9; --bank-mps-fg: #3F5B3A;
+  --bank-hug-bg: #E3F4FF; --bank-hug-fg: #0871B6;
+}
+
+html.theme-dark {
+  /* 은행 · 상호금융 */
+  --bank-kb-bg: rgba(227, 166, 15, .16); --bank-kb-fg: #E3A60F;
+  --bank-shinhan-bg: rgba(72, 119, 243, .14); --bank-shinhan-fg: #4877F3;
+  --bank-hana-bg: rgba(12, 192, 193, .14); --bank-hana-fg: #0CC0C1;
+  --bank-woori-bg: rgba(13, 131, 210, .14); --bank-woori-fg: #0D83D2;
+  --bank-nh-bg: rgba(12, 193, 98, .14); --bank-nh-fg: #0CC162;
+  --bank-ibk-bg: rgba(14, 131, 221, .14); --bank-ibk-fg: #0E83DD;
+  --bank-sc-bg: rgba(20, 126, 240, .14); --bank-sc-fg: #147EF0;
+  --bank-citi-bg: rgba(15, 129, 231, .14); --bank-citi-fg: #0F81E7;
+  --bank-suhyup-bg: rgba(13, 134, 200, .14); --bank-suhyup-fg: #0D86C8;
+  --bank-kdb-bg: rgba(15, 129, 234, .14); --bank-kdb-fg: #0F81EA;
+  --bank-kbank-bg: rgba(110, 110, 246, .14); --bank-kbank-fg: #6E6EF6;
+  --bank-kakaobank-bg: rgba(200, 179, 13, .16); --bank-kakaobank-fg: #C8B30D;
+  --bank-tossbank-bg: rgba(51, 130, 242, .14); --bank-tossbank-fg: #3382F2;
+  --bank-imbank-bg: rgba(13, 134, 203, .14); --bank-imbank-fg: #0D86CB;
+  --bank-busan-bg: rgba(242, 44, 82, .16); --bank-busan-fg: #F22C52;
+  --bank-kyongnam-bg: rgba(44, 126, 235, .14); --bank-kyongnam-fg: #2C7EEB;
+  --bank-gwangju-bg: rgba(13, 155, 210, .14); --bank-gwangju-fg: #0D9BD2;
+  --bank-jeonbuk-bg: rgba(234, 60, 85, .16); --bank-jeonbuk-fg: #EA3C55;
+  --bank-jeju-bg: rgba(13, 133, 210, .14); --bank-jeju-fg: #0D85D2;
+  --bank-post-bg: rgba(242, 44, 82, .16); --bank-post-fg: #F22C52;
+  --bank-mg-bg: rgba(68, 127, 221, .14); --bank-mg-fg: #447FDD;
+  --bank-shinhyup-bg: rgba(14, 132, 217, .14); --bank-shinhyup-fg: #0E84D9;
+  --bank-forest-bg: rgba(12, 193, 114, .14); --bank-forest-fg: #0CC172;
+  /* 증권 */
+  --bank-mirae-bg: rgba(241, 110, 34, .16); --bank-mirae-fg: #F16E22;
+  --bank-koreainv-bg: rgba(58, 122, 242, .14); --bank-koreainv-fg: #3A7AF2;
+  --bank-nhinv-bg: rgba(12, 193, 98, .14); --bank-nhinv-fg: #0CC162;
+  --bank-samsungsec-bg: rgba(98, 118, 235, .14); --bank-samsungsec-fg: #6276EB;
+  --bank-kbsec-bg: rgba(227, 166, 15, .16); --bank-kbsec-fg: #E3A60F;
+  --bank-shinhansec-bg: rgba(72, 119, 243, .14); --bank-shinhansec-fg: #4877F3;
+  --bank-kiwoom-bg: rgba(242, 48, 63, .16); --bank-kiwoom-fg: #F2303F;
+  --bank-hanasec-bg: rgba(12, 192, 193, .14); --bank-hanasec-fg: #0CC0C1;
+  --bank-meritz-bg: rgba(239, 57, 47, .16); --bank-meritz-fg: #EF392F;
+  --bank-daishin-bg: rgba(34, 124, 241, .14); --bank-daishin-fg: #227CF1;
+  --bank-yuanta-bg: rgba(239, 51, 82, .16); --bank-yuanta-fg: #EF3352;
+  --bank-kyobosec-bg: rgba(241, 129, 34, .16); --bank-kyobosec-fg: #F18122;
+  --bank-imsec-bg: rgba(13, 134, 203, .14); --bank-imsec-fg: #0D86CB;
+  --bank-hyundaisec-bg: rgba(27, 126, 240, .14); --bank-hyundaisec-fg: #1B7EF0;
+  --bank-ibksec-bg: rgba(14, 131, 221, .14); --bank-ibksec-fg: #0E83DD;
+  --bank-shinyoung-bg: rgba(14, 131, 224, .14); --bank-shinyoung-fg: #0E83E0;
+  --bank-sksec-bg: rgba(242, 44, 82, .16); --bank-sksec-fg: #F22C52;
+  --bank-daol-bg: rgba(35, 125, 240, .14); --bank-daol-fg: #237DF0;
+  --bank-hanwhasec-bg: rgba(241, 115, 34, .16); --bank-hanwhasec-fg: #F17322;
+  --bank-dbsec-bg: rgba(12, 193, 151, .14); --bank-dbsec-fg: #0CC197;
+  --bank-eugene-bg: rgba(14, 132, 217, .14); --bank-eugene-fg: #0E84D9;
+  --bank-bnk-bg: rgba(240, 78, 35, .16); --bank-bnk-fg: #F04E23;
+  --bank-sangsangin-bg: rgba(150, 110, 198, .14); --bank-sangsangin-fg: #966EC6;
+  --bank-lssec-bg: rgba(15, 129, 231, .14); --bank-lssec-fg: #0F81E7;
+  --bank-tosssec-bg: rgba(51, 130, 242, .14); --bank-tosssec-fg: #3382F2;
+  --bank-kakaopaysec-bg: rgba(200, 179, 13, .16); --bank-kakaopaysec-fg: #C8B30D;
+  --bank-bookook-bg: rgba(17, 127, 240, .14); --bank-bookook-fg: #117FF0;
+  --bank-hanyang-bg: rgba(51, 125, 239, .14); --bank-hanyang-fg: #337DEF;
+  --bank-heungkuksec-bg: rgba(242, 44, 82, .16); --bank-heungkuksec-fg: #F22C52;
+  /* 카드 */
+  --bank-shinhancard-bg: rgba(72, 119, 243, .14); --bank-shinhancard-fg: #4877F3;
+  --bank-samsungcard-bg: rgba(98, 118, 235, .14); --bank-samsungcard-fg: #6276EB;
+  --bank-hyundaicard-bg: rgba(128, 128, 128, .14); --bank-hyundaicard-fg: #808080;
+  --bank-kbcard-bg: rgba(227, 166, 15, .16); --bank-kbcard-fg: #E3A60F;
+  --bank-lottecard-bg: rgba(230, 68, 57, .16); --bank-lottecard-fg: #E64439;
+  --bank-hanacard-bg: rgba(12, 192, 193, .14); --bank-hanacard-fg: #0CC0C1;
+  --bank-wooricard-bg: rgba(13, 131, 210, .14); --bank-wooricard-fg: #0D83D2;
+  --bank-bccard-bg: rgba(237, 56, 63, .16); --bank-bccard-fg: #ED383F;
+  --bank-nhcard-bg: rgba(12, 193, 98, .14); --bank-nhcard-fg: #0CC162;
+  /* 생명보험 */
+  --bank-samsunglife-bg: rgba(98, 118, 235, .14); --bank-samsunglife-fg: #6276EB;
+  --bank-hanwhalife-bg: rgba(241, 115, 34, .16); --bank-hanwhalife-fg: #F17322;
+  --bank-kyobolife-bg: rgba(241, 129, 34, .16); --bank-kyobolife-fg: #F18122;
+  --bank-shinhanlife-bg: rgba(72, 119, 243, .14); --bank-shinhanlife-fg: #4877F3;
+  --bank-nhlife-bg: rgba(12, 193, 98, .14); --bank-nhlife-fg: #0CC162;
+  --bank-miraelife-bg: rgba(241, 110, 34, .16); --bank-miraelife-fg: #F16E22;
+  --bank-tongyang-bg: rgba(242, 44, 82, .16); --bank-tongyang-fg: #F22C52;
+  --bank-kblife-bg: rgba(227, 166, 15, .16); --bank-kblife-fg: #E3A60F;
+  --bank-heungkuklife-bg: rgba(242, 44, 82, .16); --bank-heungkuklife-fg: #F22C52;
+  --bank-dblife-bg: rgba(12, 193, 151, .14); --bank-dblife-fg: #0CC197;
+  --bank-abl-bg: rgba(242, 48, 59, .16); --bank-abl-fg: #F2303B;
+  --bank-lina-bg: rgba(234, 59, 86, .16); --bank-lina-fg: #EA3B56;
+  --bank-metlife-bg: rgba(13, 139, 203, .14); --bank-metlife-fg: #0D8BCB;
+  --bank-fubon-bg: rgba(15, 129, 227, .14); --bank-fubon-fg: #0F81E3;
+  --bank-imlife-bg: rgba(13, 134, 203, .14); --bank-imlife-fg: #0D86CB;
+  --bank-kdblife-bg: rgba(15, 129, 234, .14); --bank-kdblife-fg: #0F81EA;
+  --bank-hanalife-bg: rgba(12, 192, 193, .14); --bank-hanalife-fg: #0CC0C1;
+  --bank-chubb-bg: rgba(208, 89, 105, .16); --bank-chubb-fg: #D05969;
+  --bank-ibkpension-bg: rgba(14, 131, 221, .14); --bank-ibkpension-fg: #0E83DD;
+  --bank-lifeplanet-bg: rgba(241, 129, 34, .16); --bank-lifeplanet-fg: #F18122;
+  /* 손해보험 */
+  --bank-samsungfire-bg: rgba(98, 118, 235, .14); --bank-samsungfire-fg: #6276EB;
+  --bank-dbins-bg: rgba(12, 193, 151, .14); --bank-dbins-fg: #0CC197;
+  --bank-hyundaimarine-bg: rgba(24, 126, 240, .14); --bank-hyundaimarine-fg: #187EF0;
+  --bank-kbins-bg: rgba(227, 166, 15, .16); --bank-kbins-fg: #E3A60F;
+  --bank-meritzfire-bg: rgba(239, 57, 47, .16); --bank-meritzfire-fg: #EF392F;
+  --bank-hanwhains-bg: rgba(241, 115, 34, .16); --bank-hanwhains-fg: #F17322;
+  --bank-lotteins-bg: rgba(230, 68, 57, .16); --bank-lotteins-fg: #E64439;
+  --bank-heungkukfire-bg: rgba(242, 44, 82, .16); --bank-heungkukfire-fg: #F22C52;
+  --bank-mgins-bg: rgba(68, 127, 221, .14); --bank-mgins-fg: #447FDD;
+  --bank-nhins-bg: rgba(12, 193, 98, .14); --bank-nhins-fg: #0CC162;
+  --bank-hanains-bg: rgba(12, 192, 193, .14); --bank-hanains-fg: #0CC0C1;
+  --bank-axa-bg: rgba(110, 110, 246, .14); --bank-axa-fg: #6E6EF6;
+  --bank-carrot-bg: rgba(240, 113, 17, .16); --bank-carrot-fg: #F07111;
+  --bank-sgi-bg: rgba(15, 129, 231, .14); --bank-sgi-fg: #0F81E7;
+  /* 저축은행 */
+  --bank-sbi-bg: rgba(242, 48, 63, .16); --bank-sbi-fg: #F2303F;
+  --bank-ok-bg: rgba(242, 44, 82, .16); --bank-ok-fg: #F22C52;
+  --bank-welcome-bg: rgba(241, 131, 38, .16); --bank-welcome-fg: #F18326;
+  --bank-pepper-bg: rgba(242, 44, 82, .16); --bank-pepper-fg: #F22C52;
+  --bank-koreainvsb-bg: rgba(58, 122, 242, .14); --bank-koreainvsb-fg: #3A7AF2;
+  --bank-acuon-bg: rgba(12, 176, 193, .14); --bank-acuon-fg: #0CB0C1;
+  --bank-daolsb-bg: rgba(35, 125, 240, .14); --bank-daolsb-fg: #237DF0;
+  --bank-jt-bg: rgba(242, 44, 82, .16); --bank-jt-fg: #F22C52;
+  --bank-sangsanginsb-bg: rgba(150, 110, 198, .14); --bank-sangsanginsb-fg: #966EC6;
+  --bank-moa-bg: rgba(15, 129, 231, .14); --bank-moa-fg: #0F81E7;
+  --bank-shinhansb-bg: rgba(72, 119, 243, .14); --bank-shinhansb-fg: #4877F3;
+  --bank-kbsb-bg: rgba(227, 166, 15, .16); --bank-kbsb-fg: #E3A60F;
+  --bank-hanasb-bg: rgba(12, 192, 193, .14); --bank-hanasb-fg: #0CC0C1;
+  --bank-nhsb-bg: rgba(12, 193, 98, .14); --bank-nhsb-fg: #0CC162;
+  --bank-woorisb-bg: rgba(13, 131, 210, .14); --bank-woorisb-fg: #0D83D2;
+  /* 가상자산 거래소 */
+  --bank-upbit-bg: rgba(55, 122, 242, .14); --bank-upbit-fg: #377AF2;
+  --bank-bithumb-bg: rgba(241, 115, 34, .16); --bank-bithumb-fg: #F17322;
+  --bank-coinone-bg: rgba(86, 121, 234, .14); --bank-coinone-fg: #5679EA;
+  --bank-korbit-bg: rgba(62, 123, 243, .14); --bank-korbit-fg: #3E7BF3;
+  --bank-gopax-bg: rgba(55, 127, 231, .14); --bank-gopax-fg: #377FE7;
+  /* 핀테크 · 페이 */
+  --bank-toss-bg: rgba(51, 130, 242, .14); --bank-toss-fg: #3382F2;
+  --bank-kakaopay-bg: rgba(200, 179, 13, .16); --bank-kakaopay-fg: #C8B30D;
+  --bank-naverpay-bg: rgba(12, 193, 92, .14); --bank-naverpay-fg: #0CC15C;
+  --bank-payco-bg: rgba(242, 44, 82, .16); --bank-payco-fg: #F22C52;
+  --bank-banksalad-bg: rgba(62, 122, 243, .14); --bank-banksalad-fg: #3E7AF3;
+  /* 연금 · 공공기금 */
+  --bank-nps-bg: rgba(12, 193, 181, .14); --bank-nps-fg: #0CC1B5;
+  --bank-gepco-bg: rgba(15, 129, 231, .14); --bank-gepco-fg: #0F81E7;
+  --bank-tp-bg: rgba(44, 126, 235, .14); --bank-tp-fg: #2C7EEB;
+  --bank-mps-bg: rgba(95, 139, 88, .14); --bank-mps-fg: #5F8B58;
+  --bank-hug-bg: rgba(13, 133, 210, .14); --bank-hug-fg: #0D85D2;
+}
