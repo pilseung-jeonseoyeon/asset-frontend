@@ -1,0 +1,69 @@
+{
+  "outputStyle": "monit-friendly",
+  "permissions": {
+    "allow": [
+      "Edit(./src/**)",
+      "Edit(./docs/**)",
+      "Edit(./public/**)",
+      "Bash(pnpm install)", "Bash(pnpm dev)", "Bash(pnpm build)",
+      "Bash(pnpm lint)", "Bash(pnpm preview)",
+      "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)",
+      "Bash(git add *)", "Bash(git commit*)", "Bash(git branch)",
+      "Bash(git pull*)"
+    ],
+    "deny": [
+      "Read(./.env)", "Read(./.env.*)",
+      "Edit(./.env)", "Edit(./.env.*)",
+      "Edit(./secret/**)",
+      "Bash(rm -rf *)", "Bash(sudo *)",
+      "Bash(git add -f *)", "Bash(git add --force *)",
+      "Bash(git reset --hard*)", "Bash(git clean -f*)",
+      "Bash(git branch -D *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command' | grep -qE 'git\\s+push\\s+(.*\\s+)?(--force(-with-lease)?|-f)(\\s|$)' && { echo 'BLOCKED: git push --force(강제 푸시)는 금지되어 있습니다.' >&2; exit 1; } || exit 0"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start-pull.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/verify-before-stop.sh"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "osascript -e 'display notification \"Claude가 확인을 기다리고 있어요\" with title \"Monit 작업\"'"
+          }
+        ]
+      }
+    ]
+  }
+}
