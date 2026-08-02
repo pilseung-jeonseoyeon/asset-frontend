@@ -49,6 +49,9 @@ const HOLDING_STOCKS = ['NVIDIA', 'SK하이닉스', 'Apple', '삼성전자', 'NA
 export function QuickStockModal() {
   const { state, setState } = useAppState()
   const closeModal = useCloseModal()
+  const ddStockHolding = useDropdown('stockHolding', HOLDING_STOCKS, HOLDING_STOCKS[0])
+  const ddStockAcct = useDropdown('stockAcct', acctOptions, '미래에셋 (국내)')
+  const ddStockDate = useDatePicker('stock', '2026.06.28')
 
   if (state.modalOpen !== 'quickStock') return null
 
@@ -61,10 +64,6 @@ export function QuickStockModal() {
   const stockDateLabel = stockModeSell ? '매도일' : '매수일'
   const stockSaveLabel = stockModeSell ? '매도 기록 저장' : '매수 기록 저장'
   const stockSellSummaryValue = stockCurrencySymbol === '$' ? '$600' : '920,000원'
-
-  const ddStockHolding = useDropdown('stockHolding', HOLDING_STOCKS, HOLDING_STOCKS[0])
-  const ddStockAcct = useDropdown('stockAcct', acctOptions, '미래에셋 (국내)')
-  const ddStockDate = useDatePicker('stock', '2026.06.28')
 
   return (
     <Modal onClose={closeModal} zIndex={80} width={480} panelStyle={{ maxHeight: '86vh' }}>

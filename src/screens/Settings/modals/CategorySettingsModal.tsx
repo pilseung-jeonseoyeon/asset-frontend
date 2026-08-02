@@ -5,7 +5,7 @@
 
 import type { KeyboardEvent } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
-import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
+import { Modal } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
 import { useCloseModal } from '../../../state/selectors/modal'
 

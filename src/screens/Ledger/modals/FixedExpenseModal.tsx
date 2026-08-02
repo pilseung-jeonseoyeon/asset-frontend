@@ -33,6 +33,8 @@ const RECUR_FREQ_LABELS: Record<string, string> = { weekly: '매주', monthly: '
 export function FixedExpenseModal() {
   const { state, setState } = useAppState()
   const closeModal = useCloseModal()
+  const ddRecurPayMethod = useDropdown('recurPayMethod', acctOptions, '파킹통장')
+  const ddRecurDate = useDatePicker('recur', '2026.06.28')
 
   if (state.modalOpen !== 'fixedExpense') return null
 
@@ -99,9 +101,6 @@ export function FixedExpenseModal() {
       pick: () => setState({ recurYearDay: d, openDropdown: null }),
     })),
   }
-  const ddRecurPayMethod = useDropdown('recurPayMethod', acctOptions, '파킹통장')
-  const ddRecurDate = useDatePicker('recur', '2026.06.28')
-
   const recurFreqYearly = state.recurFreq === 'yearly'
   const recurFreqWeekly = state.recurFreq === 'weekly'
   const recurFreqNotYearly = !recurFreqYearly

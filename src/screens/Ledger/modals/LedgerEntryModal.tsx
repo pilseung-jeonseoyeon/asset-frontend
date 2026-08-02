@@ -33,6 +33,9 @@ const ENTRY_CAT_KEY_MAP: Record<string, string> = { income: '수입', saving: '�
 export function LedgerEntryModal() {
   const { state, setState } = useAppState()
   const closeModal = useCloseModal()
+  const ddWithdrawAcct = useDropdown('withdrawAcct', acctOptions, '파킹통장')
+  const ddLedgerEntryAcct = useDropdown('ledgerEntryAcct', acctOptions, '파킹통장')
+  const ddEntryDate = useDatePicker('entry', state.entryDateOverride || '2026.06.28')
 
   if (state.modalOpen !== 'ledgerEntry') return null
 
@@ -67,10 +70,6 @@ export function LedgerEntryModal() {
       pick: () => setState({ entryCatSubIdx: entryCatSubsArr.indexOf(sub), openDropdown: null }),
     })),
   }
-
-  const ddWithdrawAcct = useDropdown('withdrawAcct', acctOptions, '파킹통장')
-  const ddLedgerEntryAcct = useDropdown('ledgerEntryAcct', acctOptions, '파킹통장')
-  const ddEntryDate = useDatePicker('entry', state.entryDateOverride || '2026.06.28')
 
   const withdrawAcctObj = accounts.find((a) => a.name.indexOf(ddWithdrawAcct.value) === 0 || ddWithdrawAcct.value.indexOf(a.name) === 0)
   const showInvestBreakdown = entryType === 'transfer' && !!(withdrawAcctObj && withdrawAcctObj.group === '주식 · 투자')
