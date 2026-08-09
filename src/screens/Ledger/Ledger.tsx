@@ -3,7 +3,7 @@
 // account services + src/data/ledgerView.ts. See ledgerView.ts header for which formulas are
 // design-system rules (kept verbatim) vs. new server-input plumbing.
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
 import { Card } from '../../components/primitives/Card/Card'
 import { DeepCard } from '../../components/primitives/DeepCard/DeepCard'
@@ -11,6 +11,7 @@ import { SegmentedTab } from '../../components/primitives/SegmentedTab/Segmented
 import { useAppState } from '../../state/AppStateContext'
 import { isoDateToDisplay, shiftYearMonth, todayYearMonth, yearMonthLabel } from '../../utils/date'
 import { fmt } from '../../utils/format'
+import { useIsMobile } from '../../utils/useMediaQuery'
 import {
   buildLedgerCategories,
   buildLedgerTx,
@@ -66,11 +67,31 @@ function ErrorLine({ message, muted }: { message: string; muted: boolean }) {
 }
 
 function CalendarCellView({ cell, onOpen }: { cell: CalendarCell; onOpen: () => void }) {
+  // 그리드 아이템은 기본적으로 내용물의 min-content보다 작아지지 않는다(min-width:auto). 금액
+  // 배지의 안 끊어지는 숫자 문자열이 이 칸의 min-content라 좁은 폭(모바일)에서 칸 너비를 그대로
+  // 강제로 늘려 캘린더 전체가 뷰포트 밖으로 밀려났었다(가로 스크롤 발생 확인됨). minWidth:0으로
+  // 그리드 트랙이 실제 배정된 몫만큼만 차지하게 하고, 배지는 그 안에서 넘치면 말줄임표로 자른다
+  // (모바일의 고정폭 칼럼과 함께 쓰면 대부분 값은 안 잘리고, 아주 큰 금액만 말줄임 처리된다).
+  // 데스크톱은 칸이 이미 배지보다 넓어 이 값들이 실제로 작동할 일이 없어 렌더링이 그대로다.
+  //
+  // 모바일 가로 스크롤 캘린더는 기본적으로 맨 왼쪽(1일)부터 보인다 — "오늘"이 스크롤 영역
+  // 오른쪽에 있으면 "오늘로 이동"을 눌러도 화면 밖이라 못 찾는다. 오늘 칸을 자동으로 보이는
+  // 위치까지 스크롤한다(데스크톱은 overflow:visible이라 이 호출이 사실상 아무 일도 안 한다).
+  const isMobile = useIsMobile()
+  const cellRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (isMobile && cell.highlighted) {
+      cellRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' })
+    }
+  }, [isMobile, cell.highlighted])
+
   return (
     <div
+      ref={cellRef}
       onClick={onOpen}
       style={{
         height: 96,
+        minWidth: 0,
         borderRadius: 8,
         border: cell.highlighted ? '0.5px solid var(--accent)' : '0.5px solid var(--track)',
         padding: 7,
@@ -98,7 +119,11 @@ function CalendarCellView({ cell, onOpen }: { cell: CalendarCell; onOpen: () => 
         {cell.lines.map((ln: DayLine, i: number) => (
           <div
             key={i}
-            style={{ fontSize: 11.5, fontWeight: 700, color: ln.color, background: 'var(--fill-subtle)', borderRadius: 8, padding: '3px 5px', width: 'fit-content' }}
+            style={{
+              fontSize: 11.5, fontWeight: 700, color: ln.color, background: 'var(--fill-subtle)', borderRadius: 8,
+              padding: '3px 5px', width: 'fit-content', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap', boxSizing: 'border-box',
+            }}
           >
             {ln.text}
           </div>
@@ -131,6 +156,7 @@ export function Ledger() {
 
 function LedgerOverview() {
   const { state, setState } = useAppState()
+  const isMobile = useIsMobile()
   const period = state.ledgerPeriod
   const today = todayYearMonth()
 
@@ -180,9 +206,11 @@ function LedgerOverview() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* 이번달/올해 수지 하이라이트 */}
       <DeepCard style={{ justifyContent: 'flex-start' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+        {/* 좁은 폭에서는 제목이 두 줄로 접힌다 — center 정렬이면 탭이 두 줄 사이 애매한 높이에
+            떠 보여서, 모바일에서는 첫 줄과 나란히 뜨도록 위쪽 기준으로 맞춘다. */}
+        <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', marginBottom: 22, gap: 12 }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{getLedgerHeroTitle(period, today.year)}</div>
-          <div style={{ display: 'flex', background: 'var(--deep-seg-track)', borderRadius: 10, padding: 4, gap: 2 }}>
+          <div style={{ display: 'flex', background: 'var(--deep-seg-track)', borderRadius: 10, padding: 4, gap: 2, flex: 'none' }}>
             <SegmentedTab variant="deep" active={period === 'month'} onClick={() => setState({ ledgerPeriod: 'month' })}>
               이번 달
             </SegmentedTab>
@@ -208,7 +236,7 @@ function LedgerOverview() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 22, paddingTop: 18, borderTop: '0.5px solid var(--deep-divider)' }}>
                 <span style={{ fontSize: 12, color: 'var(--deep-label)', fontWeight: 400 }}>저축률</span>
                 <span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>
-                  {summary.data.incomeTotal === 0 ? '—' : `${Math.round(summary.data.savingsRatePercent)}%`}
+                  {summary.data.savingsRatePercent === null ? '—' : `${Math.round(summary.data.savingsRatePercent)}%`}
                 </span>
                 {recentAvg !== null && (
                   <span style={{ fontSize: 11.5, color: 'var(--deep-label)', fontWeight: 400 }}>· 최근 6개월 평균 {recentAvg}%</span>
@@ -528,6 +556,7 @@ function DeltaChip({ delta }: { delta: DeltaBadge }) {
 
 function LedgerHistory() {
   const { state, setState } = useAppState()
+  const isMobile = useIsMobile()
   const range = state.ledgerRange
   const cursor = { year: state.ledgerYear, month: state.ledgerMonth }
 
@@ -659,32 +688,38 @@ function LedgerHistory() {
         ) : (
           <>
             {range === 'week' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 8 }}>
-                {/* 빈 칸의 key(인덱스)와 날짜 셀의 key(일자)가 같은 네임스페이스를 쓰면 겹친다
-                    (예: 인덱스 1의 빈 칸 vs 1일 셀) — 접두사로 분리한다. */}
-                {weekRow.map((cell, i) =>
-                  cell ? (
-                    <CalendarCellView key={`d-${cell.day}`} cell={cell} onOpen={openDayEntry(cell.day)} />
-                  ) : (
-                    <div key={`e-${i}`} />
-                  ),
-                )}
+              // 모바일에서는 7칸을 1fr로 욱여넣으면 배지 안 끊어지는 숫자 때문에 셀이 너무
+              // 좁아진다(칸당 40px 미만) — 칸 너비를 고정하고 가로 스크롤로 넘긴다.
+              <div style={{ overflowX: isMobile ? 'auto' : 'visible' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(7,64px)' : 'repeat(7,1fr)', gap: 8 }}>
+                  {/* 빈 칸의 key(인덱스)와 날짜 셀의 key(일자)가 같은 네임스페이스를 쓰면 겹친다
+                      (예: 인덱스 1의 빈 칸 vs 1일 셀) — 접두사로 분리한다. */}
+                  {weekRow.map((cell, i) =>
+                    cell ? (
+                      <CalendarCellView key={`d-${cell.day}`} cell={cell} onOpen={openDayEntry(cell.day)} />
+                    ) : (
+                      <div key={`e-${i}`} />
+                    ),
+                  )}
+                </div>
               </div>
             )}
             {range === 'month' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 8 }}>
-                {WEEKDAY_HEADERS.map((h) => (
-                  <div key={h.label} style={{ fontSize: 11.5, fontWeight: 700, color: h.color, textAlign: 'center', paddingBottom: 4 }}>
-                    {h.label}
-                  </div>
-                ))}
-                {monthRows.flat().map((cell, i) =>
-                  cell ? (
-                    <CalendarCellView key={`d-${cell.day}`} cell={cell} onOpen={openDayEntry(cell.day)} />
-                  ) : (
-                    <div key={`e-${i}`} />
-                  ),
-                )}
+              <div style={{ overflowX: isMobile ? 'auto' : 'visible' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(7,64px)' : 'repeat(7,1fr)', gap: 8 }}>
+                  {WEEKDAY_HEADERS.map((h) => (
+                    <div key={h.label} style={{ fontSize: 11.5, fontWeight: 700, color: h.color, textAlign: 'center', paddingBottom: 4 }}>
+                      {h.label}
+                    </div>
+                  ))}
+                  {monthRows.flat().map((cell, i) =>
+                    cell ? (
+                      <CalendarCellView key={`d-${cell.day}`} cell={cell} onOpen={openDayEntry(cell.day)} />
+                    ) : (
+                      <div key={`e-${i}`} />
+                    ),
+                  )}
+                </div>
               </div>
             )}
           </>
