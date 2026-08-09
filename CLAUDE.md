@@ -33,15 +33,17 @@
 - [`docs/api-conventions.md`](./docs/api-conventions.md) — axios/React Query 기반 API 통신 규칙, 서비스 폴더 구조
 - [`docs/backend-requests.md`](./docs/backend-requests.md) — 연동 중 확인된 백엔드 스펙 누락·불일치와 요청 목록
 - `secret/API-SPEC.md` — 백엔드 API 스펙 (git에 커밋되지 않는 폴더 — 절대 규칙 1 참고).
-  **주의: 이 문서는 인증 도입 전 기준이라 `/auth/*`와 401 동작이 빠져 있고, "인증 불필요"라는
-  서술도 더 이상 사실이 아닙니다.** 실제 계약은 실행 중인 서버의 `GET /v3/api-docs`(OpenAPI)가
-  기준이며, 확인된 차이는 `docs/backend-requests.md`에 정리되어 있습니다.
+  2026-08-09에 전면 갱신되어 **인증(§16), 대시보드(§4), 목표(§5), 알림 SSE(§9.1)와
+  "부록: 응답 타입 총람"까지 포함**합니다. 필드의 null 여부와 enum 값은 각 절의 JSON 예시가
+  아니라 **부록을 기준**으로 삼으세요(예시에는 null이 되는 필드가 안 드러납니다).
+  스펙에도 없는 세부는 추측하지 말고 `docs/backend-requests.md`에 요청 항목으로 남기세요.
 
 ## 아키텍처
 
 - 기술 스택: Vite + React 19 + TypeScript. 라우터는 없고, `state.screen` 값에 따라 `AppShell`이 화면을 전환합니다. CSS 프레임워크 없음. 테스트 러너 아직 미구성.
 - 상태는 세 레이어로 나뉩니다: 앱 자체 reducer/context(`AppState`) + React Query(서버 상태) + Zustand(`src/stores/` — 전역 로딩, 인증 토큰). 경계는 `docs/state-management.md` 참고.
-- **데이터는 서버에서 옵니다.** axios + React Query 기반 API 레이어가 `src/services/{domain}/`에 도메인별로 있고(`auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex`), 자산·가계부·주식 화면은 조회와 생성/수정/삭제가 모두 실제 API에 연결되어 있습니다. 대시보드·알림만 아직 `src/data/mock*.ts`를 씁니다.
+- **데이터는 서버에서 옵니다.** axios + React Query 기반 API 레이어가 `src/services/{domain}/`에 도메인별로 있고(`auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification`), 자산·가계부·주식 화면과 헤더 알림·자산 목표는 조회와 생성/수정/삭제가 모두 실제 API에 연결되어 있습니다.
+  **아직 목업인 곳은 대시보드 화면(`src/screens/Dashboard/Dashboard.tsx` → `src/data/mockDashboard.ts`)과 월간 리포트 오버레이(`ReportOverlay.tsx`) 두 곳뿐입니다.** 대시보드는 서버 통신(`src/services/dashboard`)과 뷰모델 변환(`src/data/dashboardView.ts`)까지 준비돼 있고 화면 연결만 남았습니다.
 - 진입점: `src/main.tsx`가 `AppStateProvider`로 감싼 `App`을 `index.html`의 `#root`에 마운트합니다. `src/index.css`는 `tokens.css` → `bank-tokens.css` → `base.css` 순으로 import합니다. `App.tsx`는 현재 테마를 적용(`useApplyTheme`)한 뒤 `AppShell`을 렌더링합니다.
 - `tsconfig.json`은 project references 구조입니다: `src/`는 `tsconfig.app.json`, Vite 설정은 `tsconfig.node.json`을 사용합니다. 전체 빌드는 항상 `tsc -b`로 실행하세요(단순 `tsc` 아님).
 
@@ -64,7 +66,7 @@ src/
   stores/                Zustand. ui.ts(전역 로딩 카운터), auth.ts(액세스 토큰 — 메모리 전용)
   data/                  {screen}View.ts — 서버 응답 → 화면용 뷰모델 변환(순수 함수).
                          색상·아이콘·포맷 문자열 등 디자인 시스템 규칙이 여기 산다.
-                         mock*.ts는 아직 서버에 연결하지 않은 화면(대시보드·알림)만 남아 있음
+                         mock*.ts는 아직 화면을 연결하지 않은 대시보드(mockDashboard.ts)만 남아 있음
   design/                bank-institutions.ts(125개 기관 마스터 테이블),
                          bank-archetypes.ts(공용 SVG 아이콘 경로 25종) — BankIcon에 사용
   components/
@@ -101,7 +103,11 @@ pnpm preview       # 프로덕션 빌드 미리보기
 - **가계부 거래유형**(`EntryType`): `income`(수입, 초록 — `--inc-*`), `expense`(지출, 빨강/살몬 — `--exp-*`), `saving`(저축, 보라 — `--sav-*`), `transfer`(이체, 전용 색상 없음, `--text-strong`으로 렌더링). 거래 내역 목록에서는 수입에 `+`, 지출에 `−`, 저축/이체는 부호 없음(`src/data/ledgerView.ts`의 `buildLedgerTx` 참고). 단, 히어로/딥카드의 증감 배지는 항상 명시적으로 부호를 표시합니다.
   서버 `TransactionType`(`INCOME`/`EXPENSE`/`SAVING`/`TRANSFER`)이 이 화면 타입과 1:1로 대응합니다.
 - **가계부 카테고리는 서버 리소스**입니다(`GET /categories`). 수입/저축/지출 3개 구분(`CategoryKind`) 아래 대분류가 있고, 그 아래 소분류가 붙습니다. **대분류는 서버 시드 고정이라 API로 만들 수 없고, 소분류만 추가·삭제할 수 있습니다.** 입력 폼은 배열 인덱스가 아니라 **`subcategoryId`(서버 id)** 로 선택을 추적합니다.
-  거래 등록 시 타입별 필드 규칙을 어기면 400입니다: 수입/지출/저축은 `subcategoryId` 필수 + `transferAccountId` 금지, 이체는 그 반대입니다.
+  거래 등록 시 타입별 필드 규칙을 어기면 400입니다.
+  **수입/지출**은 `subcategoryId` 필수 + `transferAccountId` 금지, **이체**는 그 반대,
+  **저축은 둘 다 필수**입니다 — 저축액이 들어간 계좌(`transferAccountId`)를 받지 않으면 출금만
+  잡혀 총자산이 줄어들기 때문입니다(출금 계좌 −amount, 상대 계좌 +amount로 총자산은 그대로고
+  자산 구성만 바뀝니다).
 - **자산 분류**: 현금 / 예적금 / 국내주식 / 해외주식 / 가상자산 / 연금·기타, 6개 고정 카테고리이며 각각 아이콘·금액·전체 대비 비중을 가집니다. 트리맵("맵") 뷰는 비중에 따라 3단계 렌더 티어로 분류합니다: `full`(15% 이상), `medium`(6% 이상), `icon`(그 미만). 5% 미만 항목은 합쳐서 `기타` 블록으로 만듭니다. `mapSort`(자연/기관별 정렬 토글)는 상태에는 존재하지만 소스에서도 어떤 UI에도 연결되지 않은 죽은 토글입니다 — 명시적 요청 없이 "완성"시키지 마세요.
 - **금융기관**: `src/design/bank-institutions.ts`는 9개 카테고리(`bank`/`securities`/`card`/`lifeInsurance`/`fireInsurance`/`savingsBank`/`crypto`/`fintech`/`pension`)에 걸친 국내 금융기관 125개의 마스터 목록입니다. 각 기관은 `tokenKey`(해당 `--bank-{tokenKey}-bg/-fg` 색상을 결정)와 `archetype`(공용 SVG 아이콘 모양 25종 중 하나)을 가집니다. KB 계열과 카카오 계열은 노란색 브랜드 컬러의 대비 확보를 위해 아이콘 stroke가 더 두껍습니다(기본 1.8 대비 2.0) — `BANK_YELLOW_STROKE_EXCEPTIONS` 참고.
 - **포맷팅**: `fmt(n)`은 `n.toLocaleString('ko-KR')`이며 통화 기호를 포함하지 않습니다 — `원`은 소스가 그렇게 하는 위치마다 JSX에 리터럴 문자열로 붙입니다(`fmt` 내부가 아님). "약 12억 8,450만 원" 같은 억/만 축약 표기는 목업 데이터마다 하드코딩된 리터럴 문자열이며 공용 계산 함수가 없습니다 — 일반화된 축약 헬퍼를 임의로 추가하지 마세요.
