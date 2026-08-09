@@ -561,7 +561,7 @@ function LedgerHistory() {
   const cursor = { year: state.ledgerYear, month: state.ledgerMonth }
 
   const txQuery = useGetTransactions({
-    year: cursor.year, month: cursor.month, page: state.ledgerPage, size: 5, sort: 'transactionDate,desc',
+    year: cursor.year, month: cursor.month, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'],
   })
   const dailyQuery = useGetDailySummaries(cursor)
   const accountsQuery = useGetAccounts()
