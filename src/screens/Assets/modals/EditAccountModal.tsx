@@ -15,6 +15,7 @@ import { Modal } from '../../../components/primitives/Modal/Modal'
 import { Dropdown } from '../../../components/primitives/Dropdown/Dropdown'
 import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker'
 import { useAppState } from '../../../state/AppStateContext'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
@@ -41,9 +42,12 @@ const FIELD_BORDER_STYLE: CSSProperties = { border: '0.5px solid var(--border)',
 
 export function EditAccountModal() {
   const { state, setState } = useAppState()
+  const isMobile = useIsMobile()
   const accountId = state.editAccount
   const isOpen = state.modalOpen === 'editAccount' && accountId !== null
   const form = state.accountForm
+  // AddAccountModal과 동일한 이유(좁은 폭에서 Dropdown 팝오버가 잘림)로 모바일에서 세로로 쌓는다.
+  const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
 
   const accountQuery = useGetAccount(isOpen ? accountId : null)
   const institutionsQuery = useGetInstitutions({ enabled: isOpen })
@@ -221,7 +225,7 @@ export function EditAccountModal() {
               style={{ width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box' }}
             />
           </div>
-          <div style={{ display: 'flex', gap: 14 }}>
+          <div style={fieldRowStyle}>
             <div style={{ flex: 1, position: 'relative' }}>
               <div style={LABEL_STYLE}>금융기관 (선택)</div>
               {institutions.length === 0 ? (

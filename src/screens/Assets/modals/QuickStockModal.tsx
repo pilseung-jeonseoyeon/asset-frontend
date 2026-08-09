@@ -25,6 +25,7 @@ import { Modal } from '../../../components/primitives/Modal/Modal'
 import { Dropdown } from '../../../components/primitives/Dropdown/Dropdown'
 import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker'
 import { useAppState } from '../../../state/AppStateContext'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { fmt, sanitizeDecimalInput } from '../../../utils/format'
@@ -58,7 +59,10 @@ const FIELD_BORDER_STYLE: CSSProperties = { border: '0.5px solid var(--border)',
 
 export function QuickStockModal() {
   const { state, setState } = useAppState()
+  const isMobile = useIsMobile()
   const isOpen = state.modalOpen === 'quickStock'
+  // 좁은 폭에서 Dropdown/DatePicker 팝오버가 옆 칼럼 밖으로 잘리는 것을 막기 위해 세로로 쌓는다.
+  const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
   const stockModeSell = state.stockTradeMode === 'sell'
   const stockModeBuy = !stockModeSell
   const market = buyMarketToMarket(state.stockBuyMarket)
@@ -329,7 +333,7 @@ export function QuickStockModal() {
         {stockModeBuy && newStockMode && (
           <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)' }}>새 종목 등록</div>
-            <div style={{ display: 'flex', gap: 14 }}>
+            <div style={fieldRowStyle}>
               <div style={{ flex: 1 }}>
                 <div style={LABEL_STYLE}>티커</div>
                 <input
@@ -387,7 +391,7 @@ export function QuickStockModal() {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 14 }}>
+        <div style={fieldRowStyle}>
           <div style={{ flex: 1 }}>
             <div style={LABEL_STYLE}>수량</div>
             <input
@@ -437,7 +441,7 @@ export function QuickStockModal() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 14 }}>
+        <div style={fieldRowStyle}>
           <div style={{ flex: 1, position: 'relative' }}>
             <div style={LABEL_STYLE}>계좌</div>
             {accountsQuery.isPending ? (

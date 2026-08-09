@@ -12,6 +12,7 @@ import { Icon } from '../../components/primitives/Icon/Icon'
 import { Card } from '../../components/primitives/Card/Card'
 import { Treemap } from '../../components/primitives/Treemap/Treemap'
 import { useAppState } from '../../state/AppStateContext'
+import { useIsMobile } from '../../utils/useMediaQuery'
 import { buildAssetCats, buildLiquidityView, buildMapTiers, pickNearestMaturity } from '../../data/assetsView'
 import { useGetAccounts } from '@/services/account'
 import { useGetAssetDistributionByClass, useGetAssetLiquidity } from '@/services/asset'
@@ -36,6 +37,7 @@ function EmptyAccountsState({ onAdd, style }: { onAdd: () => void; style?: CSSPr
 
 export function Assets() {
   const { setState } = useAppState()
+  const isMobile = useIsMobile()
   const distribution = useGetAssetDistributionByClass()
   const accountsQuery = useGetAccounts()
   const liquidity = useGetAssetLiquidity()
@@ -126,6 +128,12 @@ export function Assets() {
             <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{distribution.error.message}</div>
           ) : !hasDistributionData ? (
             <EmptyAccountsState onAdd={openAddAccount} />
+          ) : isMobile ? (
+            // 좁은 폭에서는 블록의 최소 너비(Treemap 내부 고정값)가 카드 폭을 넘어설 수 있어 잘라내는
+            // 대신 가로 스크롤로 감싼다 — 렌더 티어·5% 미만 '기타' 병합 로직 자체는 그대로 둔다.
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', flex: 1 }}>
+              <Treemap blocks={mapBlocks} />
+            </div>
           ) : (
             <Treemap blocks={mapBlocks} />
           )}

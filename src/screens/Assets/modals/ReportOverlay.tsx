@@ -5,9 +5,11 @@
 
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { useAppState } from '../../../state/AppStateContext'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 
 export function ReportOverlay() {
   const { state, setState } = useAppState()
+  const isMobile = useIsMobile()
 
   if (!state.reportOpen) return null
 
@@ -25,23 +27,31 @@ export function ReportOverlay() {
     display: 'flex', flexDirection: 'column' as const, color: 'var(--text-strong)',
   }
 
+  // 이 오버레이는 공용 Modal을 쓰지 않아 모바일 대응을 직접 한다. 좁은 화면에서는 바깥 여백을 줄여
+  // 카드에 더 넓은 폭을 준다(§2 본문 패딩 16px과 맞춤). 아이콘 버튼은 터치 영역만 44px로 키우고
+  // 시각적 아이콘/배경 크기는 그대로 둔다.
+  const overlayPadding = isMobile ? 16 : 32
+  const topIconBtnSize = isMobile ? 44 : 40
+  const navBtnSize = isMobile ? 44 : 36
+  const topIconOffset = isMobile ? 'calc(26px + env(safe-area-inset-top))' : 26
+
   return (
     <div
       style={{
         position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', zIndex: 90,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: overlayPadding,
       }}
     >
       <button
         onClick={closeReport}
-        style={{ position: 'absolute', top: 26, right: 28, width: 40, height: 40, borderRadius: 8, border: 'none', background: 'var(--deep-chip)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+        style={{ position: 'absolute', top: topIconOffset, right: 28, width: topIconBtnSize, height: topIconBtnSize, borderRadius: 8, border: 'none', background: 'var(--deep-chip)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
       >
         <Icon name="close" size={20} color="#fff" />
       </button>
       <button
         onClick={toggleAmountsHidden}
         title={amountsHidden ? '금액 보기' : '금액 숨기기'}
-        style={{ position: 'absolute', top: 26, right: 78, width: 40, height: 40, borderRadius: 8, border: 'none', background: 'var(--deep-chip)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+        style={{ position: 'absolute', top: topIconOffset, right: 28 + topIconBtnSize + 10, width: topIconBtnSize, height: topIconBtnSize, borderRadius: 8, border: 'none', background: 'var(--deep-chip)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
       >
         <Icon name={amountsHidden ? 'visibility_off' : 'visibility'} size={20} color="#fff" />
       </button>
@@ -54,11 +64,15 @@ export function ReportOverlay() {
       >
         <div style={{ position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', gap: 4, zIndex: 5 }}>
           {[0, 1, 2, 3, 4].map((i) => (
-            <span
+            <div
               key={i}
               onClick={() => setState({ reportSlide: i })}
-              style={{ flex: 1, height: 3, borderRadius: 999, background: i <= reportSlide ? 'var(--accent)' : 'var(--border)', cursor: 'pointer' }}
-            />
+              style={{ flex: 1, cursor: 'pointer', padding: isMobile ? '10px 0' : 0 }}
+            >
+              <span
+                style={{ display: 'block', height: 3, borderRadius: 999, background: i <= reportSlide ? 'var(--accent)' : 'var(--border)' }}
+              />
+            </div>
           ))}
         </div>
 
@@ -228,7 +242,7 @@ export function ReportOverlay() {
         {!isFirstReportSlide && (
           <button
             onClick={prevReportSlide}
-            style={{ position: 'absolute', top: '50%', left: 10, transform: 'translateY(-50%)', width: 36, height: 36, borderRadius: 999, border: '0.5px solid var(--border)', background: 'var(--surface)', boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+            style={{ position: 'absolute', top: '50%', left: 10, transform: 'translateY(-50%)', width: navBtnSize, height: navBtnSize, borderRadius: 999, border: '0.5px solid var(--border)', background: 'var(--surface)', boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
           >
             <Icon name="chevron_left" size={20} color="var(--text-mid)" />
           </button>
@@ -236,7 +250,7 @@ export function ReportOverlay() {
         {!isLastReportSlide && (
           <button
             onClick={nextReportSlide}
-            style={{ position: 'absolute', top: '50%', right: 10, transform: 'translateY(-50%)', width: 36, height: 36, borderRadius: 999, border: '0.5px solid var(--border)', background: 'var(--surface)', boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+            style={{ position: 'absolute', top: '50%', right: 10, transform: 'translateY(-50%)', width: navBtnSize, height: navBtnSize, borderRadius: 999, border: '0.5px solid var(--border)', background: 'var(--surface)', boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
           >
             <Icon name="chevron_right" size={20} color="var(--text-mid)" />
           </button>

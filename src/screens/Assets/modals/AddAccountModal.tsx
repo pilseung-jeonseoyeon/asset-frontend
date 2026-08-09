@@ -14,6 +14,7 @@ import { Modal } from '../../../components/primitives/Modal/Modal'
 import { Dropdown } from '../../../components/primitives/Dropdown/Dropdown'
 import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker'
 import { useAppState } from '../../../state/AppStateContext'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
@@ -44,11 +45,15 @@ const CURRENCY_OPTIONS: { value: Currency; label: string }[] = [
 
 export function AddAccountModal() {
   const { state, setState } = useAppState()
+  const isMobile = useIsMobile()
   const isOpen = state.modalOpen === 'addAccount'
   const form = state.accountForm
   const institutionsQuery = useGetInstitutions({ enabled: isOpen })
   const institutions = institutionsQuery.data ?? []
   const postAccount = usePostAccount()
+  // 좁은 폭에서는 절반씩 나눈 두 필드(특히 Dropdown/DatePicker 팝오버)가 서로를 가리거나 잘리므로
+  // 세로로 쌓는다 — 데스크톱은 기존 그대로 좌우 2열.
+  const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
 
   const ddInstitution = useEntityDropdown(
     'addAcctInst',
@@ -173,7 +178,7 @@ export function AddAccountModal() {
             ))}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 14 }}>
+        <div style={fieldRowStyle}>
           <div style={{ flex: 1, position: 'relative' }}>
             <div style={LABEL_STYLE}>금융기관 (선택)</div>
             {institutionsQuery.isPending ? (
@@ -209,7 +214,7 @@ export function AddAccountModal() {
             ))}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 14 }}>
+        <div style={fieldRowStyle}>
           <div style={{ flex: 1 }}>
             <div style={LABEL_STYLE}>이자율 % (선택)</div>
             <input

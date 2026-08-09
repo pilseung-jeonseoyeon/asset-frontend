@@ -17,6 +17,7 @@ import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
 import { Dropdown } from '../../../components/primitives/Dropdown/Dropdown'
 import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker'
 import { useAppState } from '../../../state/AppStateContext'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { fmt, sanitizeDecimalInput } from '../../../utils/format'
@@ -39,7 +40,10 @@ function sideTabStyle(active: boolean): CSSProperties {
 
 export function ExchangeAddModal() {
   const { state, setState } = useAppState()
+  const isMobile = useIsMobile()
   const isOpen = state.modalOpen === 'exchangeAdd'
+  // 좁은 폭에서 Dropdown/DatePicker 팝오버가 옆 칼럼 밖으로 잘리는 것을 막기 위해 세로로 쌓는다.
+  const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
 
   const [side, setSide] = useState<ForeignExchangeSide>('BUY')
   const [accountId, setAccountId] = useState<number | null>(null)
@@ -129,7 +133,7 @@ export function ExchangeAddModal() {
             <button onClick={() => setSide('SELL')} style={sideTabStyle(side === 'SELL')}>달러 → 원</button>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 14 }}>
+        <div style={fieldRowStyle}>
           <div style={{ flex: 1 }}>
             <div style={LABEL_STYLE}>{side === 'BUY' ? '매수 금액 (USD)' : '매도 금액 (USD)'}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...FIELD_BORDER_STYLE }}>
@@ -168,7 +172,7 @@ export function ExchangeAddModal() {
             원화 환산 총액 <b style={{ color: 'var(--text-strong)' }}>{fmt(krwAmountEstimate)}원</b>
           </div>
         )}
-        <div style={{ display: 'flex', gap: 14 }}>
+        <div style={fieldRowStyle}>
           <div style={{ flex: 1, position: 'relative' }}>
             <div style={LABEL_STYLE}>계좌</div>
             {accountsQuery.isPending ? (

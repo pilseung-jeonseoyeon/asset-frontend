@@ -10,6 +10,7 @@ import { StatBadge } from '../../components/primitives/StatBadge/StatBadge'
 import { BankIcon } from '../../components/primitives/BankIcon/BankIcon'
 import { DonutChart } from '../../components/primitives/DonutChart/DonutChart'
 import { useAppState } from '../../state/AppStateContext'
+import { useIsMobile } from '../../utils/useMediaQuery'
 import { fmt } from '../../utils/format'
 import { assetCompositionSegments, assetGoals, dashboardInstitutions, totalAssetsNow } from '../../data/mockDashboard'
 
@@ -17,6 +18,7 @@ const MONTH_LABELS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8
 
 export function Dashboard() {
   const { setState } = useAppState()
+  const isMobile = useIsMobile()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
@@ -211,12 +213,16 @@ export function Dashboard() {
           <div style={{ fontSize: 15, fontWeight: 700 }}>주요 자산 보관처</div>
           <span
             onClick={() => setState({ modalOpen: 'institutions' })}
-            style={{ fontSize: 12, color: 'var(--text-weak)', cursor: 'pointer' }}
+            style={
+              isMobile
+                ? { fontSize: 12, color: 'var(--text-weak)', cursor: 'pointer', display: 'inline-block', padding: '15px 10px', margin: '-15px -10px' }
+                : { fontSize: 12, color: 'var(--text-weak)', cursor: 'pointer' }
+            }
           >
             전체 보기 ›
           </span>
         </div>
-        <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
+        <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 14 }}>
           {dashboardInstitutions.map((inst) => (
             <div key={inst.tokenKey} style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>
