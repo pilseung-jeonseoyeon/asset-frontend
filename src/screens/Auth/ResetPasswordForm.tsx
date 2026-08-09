@@ -49,7 +49,7 @@ export function ResetPasswordForm() {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (state.authCode.length !== 6) {
+    if (!/^\d{6}$/.test(state.authCode)) {
       setValidationError('인증 코드 6자리를 입력해 주세요.')
       return
     }
@@ -111,6 +111,10 @@ export function ResetPasswordForm() {
               autoComplete="email"
               placeholder="name@example.com"
               value={state.authEmail}
+              // 코드 발송 요청이 이 이메일로 나가 있는 동안 값을 바꾸면, 다음 단계 안내 문구는 새 이메일을
+              // 보여주는데 실제 코드는 옛 이메일로 발급된 채라 재설정 요청이 반드시 실패한다 —
+              // 요청이 끝날 때까지 잠근다(SignupForm.tsx의 같은 입력란과 동일한 이유).
+              disabled={codeMutation.isPending}
               onInput={filterEmailInput}
               onChange={(e) => setState({ authEmail: e.target.value })}
               style={authInput}

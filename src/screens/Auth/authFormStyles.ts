@@ -92,3 +92,40 @@ export function filterPwInput(e: FormEvent<HTMLInputElement>) {
 
 /** 서버 정규식과 별개로, 제출 전에 형식만 빠르게 걸러주는 프론트 전용 이메일 검증. */
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** 회원가입 1/3 "모두 동의합니다" 토글 버튼 — source L557. */
+export const agreeAllBtn: CSSProperties = {
+  width: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 11,
+  background: 'var(--fill-subtle)',
+  border: '0.5px solid var(--border)',
+  borderRadius: 10,
+  padding: '15px 14px',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  marginBottom: 8,
+  textAlign: 'left',
+}
+
+/** 약관 항목 한 줄 — source L565. */
+export const agreementRow: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '12px 4px',
+  borderTop: '0.5px solid var(--track)',
+}
+
+/** 약관 항목 체크 토글(아이콘 + 라벨) — source L566. */
+export const agreementToggleBtn: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  border: 'none',
+  background: 'transparent',
+  padding: 0,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+}

@@ -104,6 +104,6 @@ export const initialState: AppState = {
   authName: '',
   authCode: '',
   authKeepLogin: false,
-  authMarketingOptIn: false,
+  authAgreements: { service: false, privacy: false, marketing: false },
   authCodeSentAt: null,
 }

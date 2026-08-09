@@ -8,18 +8,19 @@ import type { AuthScreen } from '../types'
 
 /** 로그인/회원가입/비밀번호 찾기 화면 전환. 이전 화면에서 입력하던 이메일·이름·코드·동의 상태를
  * 다음 화면으로 들고 가지 않도록 매번 초기화한다(비밀번호는 애초에 여기 없다 — 각 폼의 로컬 state,
- * screens/Auth/LoginForm.tsx 헤더 주석 참고). */
+ * screens/Auth/LoginForm.tsx 헤더 주석 참고). 회원가입은 1/3 약관 동의부터 시작하므로 다른 화면과
+ * 달리 첫 단계가 'terms'다. */
 export function useGoAuthScreen() {
   const { setState } = useAppState()
   return (screen: AuthScreen) =>
     setState({
       authScreen: screen,
-      authStep: 'form',
+      authStep: screen === 'signup' ? 'terms' : 'form',
       authEmail: '',
       authName: '',
       authCode: '',
       authKeepLogin: false,
-      authMarketingOptIn: false,
+      authAgreements: { service: false, privacy: false, marketing: false },
       authCodeSentAt: null,
     })
 }

@@ -21,9 +21,12 @@ export type RecurringType = 'fixed' | 'subscription'
 export type EntryType = 'income' | 'expense' | 'saving' | 'transfer'
 export type DashTab = 'A' | 'B' | 'C' | null
 export type AuthScreen = 'login' | 'signup' | 'resetPassword'
-/** 'form' → 이메일만 입력된 상태. 'sent' → 인증 코드 발송 완료, 나머지 필드 노출.
+/** 'terms'는 signup 전용(1/3 약관 동의). 'form' → 이메일 등 정보 입력 단계(signup 2/3, resetPassword
+ * 1/2). 'sent' → 인증 코드 발송 완료, 코드 입력 단계 노출(signup 3/3, resetPassword 2/2).
  * 'done'은 resetPassword 전용(비밀번호 변경 완료 안내). */
-export type AuthStep = 'form' | 'sent' | 'done'
+export type AuthStep = 'terms' | 'form' | 'sent' | 'done'
+/** 회원가입 1/3 약관 동의 항목. `age`/`service`/`privacy`는 필수, `marketing`은 선택. */
+export type AuthAgreementKey = 'service' | 'privacy' | 'marketing'
 
 // AddAccountModal/EditAccountModal이 공유하는 계좌 폼 초안. id가 null이면 신규(POST), 아니면 수정(PATCH
 // 대상 accountId). 서버가 부분 수정을 허용하는 필드(institutionId/name/type/interestRate/maturityDate/
@@ -182,8 +185,8 @@ export interface AppState {
   authCode: string
   /** 로그인 화면의 "로그인 상태 유지" 체크박스 → LoginRequest.rememberMe */
   authKeepLogin: boolean
-  /** 회원가입 화면의 마케팅 수신 동의(선택) 체크박스 → SignupRequest.hasMarketingOptIn */
-  authMarketingOptIn: boolean
+  /** 회원가입 1/3 약관 동의 체크 상태. `marketing` 값이 SignupRequest.hasMarketingOptIn으로 전송된다. */
+  authAgreements: Record<AuthAgreementKey, boolean>
   /** 인증 코드를 마지막으로 요청한 시각(ms). 재발송 버튼 쿨다운 계산에 사용, 발송 전엔 null. */
   authCodeSentAt: number | null
 }
