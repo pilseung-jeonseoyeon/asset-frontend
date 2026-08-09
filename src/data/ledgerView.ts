@@ -146,9 +146,13 @@ export interface SavingsRingView {
   expenseFmt: string
 }
 
-/** incomeTotal이 0이면 저축률 자체가 계산 불가 — ds_rules §3-1의 "단일 링 게이지" 대상에서 제외(빈 상태로 치환). */
+/**
+ * 저축률이 계산 불가한 기간은 링 게이지 대상에서 제외한다(빈 상태로 치환).
+ * 서버는 수입이 0이면 savingsRatePercent를 0이 아니라 null로 내려준다(API-SPEC §6.6) —
+ * null을 그대로 Math.round에 넘기면 0%로 그려져 "저축을 하나도 안 한 달"처럼 보인다.
+ */
 export function buildSavingsRing(summary: PeriodSummaryResponse): SavingsRingView | null {
-  if (summary.incomeTotal === 0) return null
+  if (summary.incomeTotal === 0 || summary.savingsRatePercent === null) return null
   const ratePct = Math.max(0, Math.min(100, Math.round(summary.savingsRatePercent)))
   return {
     ratePct,

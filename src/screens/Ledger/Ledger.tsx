@@ -754,10 +754,10 @@ function LedgerHistory() {
                       // 서버에 단일 거래 조회(GET /transactions/{id})가 없어, 이미 이 목록 조회로 받아둔
                       // 원본 값(t.accountId/subcategoryId/transferAccountId/amountRaw)을 그대로 채운다.
                       entrySubcategoryId: t.subcategoryId,
-                      // TRANSFER는 출금(accountId)·입금(transferAccountId) 두 계좌를 쓴다. 그 외 유형은
-                      // accountId 하나뿐이라 "출금계좌" 필드에 넣을 값이 없다.
-                      entryAccountId: t.type === 'TRANSFER' ? t.transferAccountId : t.accountId,
-                      entryWithdrawAccountId: t.type === 'TRANSFER' ? t.accountId : null,
+                      // TRANSFER·SAVING은 출금(accountId)·상대(transferAccountId) 두 계좌를 쓴다. 그 외
+                      // 유형은 accountId 하나뿐이라 "출금계좌" 필드에 넣을 값이 없다.
+                      entryAccountId: t.type === 'TRANSFER' || t.type === 'SAVING' ? t.transferAccountId : t.accountId,
+                      entryWithdrawAccountId: t.type === 'TRANSFER' || t.type === 'SAVING' ? t.accountId : null,
                       entryAmount: t.amountRaw,
                       entryDescription: t.desc,
                       entryDateOverride: isoDateToDisplay(t.isoDate),

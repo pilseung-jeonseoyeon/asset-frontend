@@ -3,16 +3,18 @@
 // z-index 80, width 480px, maxHeight 86vh (confirmed per-instance, NOT the 90vh some other modals use).
 //
 // 계좌 매핑(secret/API-SPEC.md §6): 서버는 계좌를 accountId 하나로만 다룬다("거래가 발생한 계좌") —
-// TRANSFER만 예외로 transferAccountId(상대 계좌)를 추가로 받는다. 그래서
-//   - INCOME/EXPENSE/SAVING: "계좌"/"저축처" 필드(entryAccountId) = accountId. 출금계좌 필드는 없다.
+// TRANSFER·SAVING만 예외로 transferAccountId(상대 계좌)를 추가로 받는다. 그래서
+//   - INCOME/EXPENSE: "계좌" 필드(entryAccountId) = accountId. 출금계좌 필드는 없다.
+//   - SAVING: "출금계좌"(entryWithdrawAccountId) = accountId, "저축계좌"(entryAccountId) = transferAccountId.
 //   - TRANSFER: "출금계좌"(entryWithdrawAccountId) = accountId, "입금계좌"(entryAccountId) = transferAccountId.
-// 원본 프로토타입은 저축에도 출금계좌를 보여줬지만 서버에 대응 필드가 없어(SAVING엔 계좌가 하나뿐) 뺐다.
+// SAVING도 TRANSFER와 동일하게 출금 계좌(−amount)·상대 계좌(+amount) 두 계좌를 받는다 — 상대 계좌가
+// 없으면 출금만 반영되어 총자산이 줄어들기 때문에 서버가 필수로 요구한다.
 //
 // PUT은 accountId를 받지 않는다(UpdateTransactionRequest에 필드 자체가 없음 — 수정 불가). 그래서 편집
-// 중에는 "이 거래가 발생한 계좌" 필드(비-이체면 계좌/저축처, 이체면 출금계좌)를 읽기 전용으로 바꾼다.
-// 이체의 입금계좌(transferAccountId)는 PUT에도 있어 편집 중에도 그대로 바꿀 수 있다. 같은 이유로
-// 거래 유형(수입/지출/저축/이체) 탭도 편집 중에는 숨긴다 — 유형이 바뀌면 "발생한 계좌"의 의미 자체가
-// 바뀌는데 그 계좌는 애초에 수정 대상이 아니기 때문이다.
+// 중에는 "이 거래가 발생한 계좌" 필드(출금계좌가 없는 유형이면 계좌, 있으면 출금계좌)를 읽기 전용으로
+// 바꾼다. 상대 계좌(transferAccountId, SAVING의 저축계좌·TRANSFER의 입금계좌)는 PUT에도 있어 편집
+// 중에도 그대로 바꿀 수 있다. 같은 이유로 거래 유형(수입/지출/저축/이체) 탭도 편집 중에는 숨긴다 —
+// 유형이 바뀌면 "발생한 계좌"의 의미 자체가 바뀌는데 그 계좌는 애초에 수정 대상이 아니기 때문이다.
 //
 // 하드코딩 "투자 수익/원금 회수" 블록(구 showInvestBreakdown)은 대응 API가 없어 제거했다(주석 없이
 // 지우면 히스토리 추적이 어려워 여기 남긴다 — ds_rules 10-4의 "투자 실현 수익" 분리 기록은 매도
@@ -67,6 +69,9 @@ export function LedgerEntryModal() {
   const isEditing = state.editingTxId !== null
   const entryType = state.entryType
   const isTransfer = entryType === 'transfer'
+  const isSaving = entryType === 'saving'
+  // SAVING·TRANSFER 둘 다 출금 계좌(accountId) + 상대 계좌(transferAccountId) 두 개를 받는다.
+  const needsTransferAccount = isTransfer || isSaving
   const categoryKind = isTransfer ? undefined : ENTRY_TYPE_TO_CATEGORY_KIND[entryType]
 
   const categoriesQuery = useGetCategories(categoryKind, { enabled: isOpen && !!categoryKind })
@@ -76,24 +81,27 @@ export function LedgerEntryModal() {
   const putTx = usePutTransaction()
   const deleteTx = useDeleteTransaction()
 
+  const [amountInvalid, setAmountInvalid] = useState(false)
+  const [descInvalid, setDescInvalid] = useState(false)
+  const [sameAccountInvalid, setSameAccountInvalid] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+
   const effectiveWithdrawAccountId = state.entryWithdrawAccountId ?? accounts[0]?.id ?? null
   const ddWithdrawAcct = useEntityDropdown(
     'withdrawAcct', accounts, (a) => a.id, (a) => a.name,
-    effectiveWithdrawAccountId, (id) => setState({ entryWithdrawAccountId: id }),
+    effectiveWithdrawAccountId,
+    (id) => { setState({ entryWithdrawAccountId: id }); setSameAccountInvalid(false) },
   )
   const effectiveEntryAccountId = state.entryAccountId ?? accounts[0]?.id ?? null
   const ddLedgerEntryAcct = useEntityDropdown(
     'ledgerEntryAcct', accounts, (a) => a.id, (a) => a.name,
-    effectiveEntryAccountId, (id) => setState({ entryAccountId: id }),
+    effectiveEntryAccountId,
+    (id) => { setState({ entryAccountId: id }); setSameAccountInvalid(false) },
   )
   const entryDateDefault = isoDateToDisplay(toISODate(new Date()))
   const entryDateDisplay = state.entryDateOverride || entryDateDefault
   const [entryNavY, entryNavM] = entryDateDisplay.split('.').map(Number)
   const ddEntryDate = useDatePicker('entry', entryDateDisplay, { y: entryNavY, m: entryNavM })
-
-  const [amountInvalid, setAmountInvalid] = useState(false)
-  const [descInvalid, setDescInvalid] = useState(false)
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   const activeMutation = isEditing ? putTx : postTx
   const saveError = activeMutation.error
@@ -147,14 +155,16 @@ export function LedgerEntryModal() {
       ? '가계부 입력'
       : entryType === 'income' ? '수입 입력' : entryType === 'saving' ? '저축 입력' : isTransfer ? '이체 입력' : '지출 입력'
   const entryCatVisible = !isTransfer
-  const entryShowWithdraw = isTransfer
-  const ledgerEntryAcctLabel = entryType === 'saving' ? '저축처' : isTransfer ? '입금계좌' : '계좌'
+  const entryShowWithdraw = needsTransferAccount
+  const ledgerEntryAcctLabel = isSaving ? '저축계좌' : isTransfer ? '입금계좌' : '계좌'
   const entrySaveLabel = isEditing
     ? '변경사항 저장'
     : entryType === 'income' ? '수입 저장' : entryType === 'saving' ? '저축 저장' : isTransfer ? '이체 저장' : '지출 저장'
 
-  const setEntryType = (t: EntryType) =>
+  const setEntryType = (t: EntryType) => {
     setState({ entryType: t, entrySubcategoryId: null, entryWithdrawAccountId: null })
+    setSameAccountInvalid(false)
+  }
 
   const resetAndClose = () => {
     setState((st) => ({
@@ -175,6 +185,7 @@ export function LedgerEntryModal() {
     // mutation 에러를 직접 지우지 않으면 다음에 열었을 때 지난 세션의 실패·확인창이 그대로 보인다.
     setAmountInvalid(false)
     setDescInvalid(false)
+    setSameAccountInvalid(false)
     setDeleteConfirmOpen(false)
     postTx.reset()
     putTx.reset()
@@ -217,11 +228,43 @@ export function LedgerEntryModal() {
       const accountId = effectiveWithdrawAccountId
       const transferAccountId = effectiveEntryAccountId
       if (!accountId || !transferAccountId) return
+      // 두 계좌가 같으면 출금과 입금이 같은 계좌에 겹쳐 기록돼 아무것도 바뀌지 않는 거래가 남는다.
+      // 두 드롭다운 모두 값이 없으면 accounts[0]으로 채워지므로, 계좌가 하나뿐이거나 아직 아무것도
+      // 고르지 않은 상태에서 그대로 저장하면 실제로 이 조합이 만들어진다. 서버에는 이를 막는 에러
+      // 코드가 없어(API-SPEC §6.2 에러 표) 조용히 통과하므로 여기서 막는다.
+      if (accountId === transferAccountId) {
+        setSameAccountInvalid(true)
+        return
+      }
+      setSameAccountInvalid(false)
       if (isEditing) {
         const body: UpdateTransactionRequest = { type, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
         putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
       } else {
         const body: CreateTransactionRequest = { type, accountId, transferAccountId, amount: state.entryAmount, transactionDate, description }
+        postTx.mutate(body, { onSuccess: resetAndClose, onError: handleMutationError })
+      }
+      return
+    }
+
+    if (isSaving) {
+      // 저축은 이체와 마찬가지로 출금 계좌(accountId) + 상대 계좌(transferAccountId) 둘 다 필요하고,
+      // 소분류(subcategoryId)도 여전히 필수다.
+      const accountId = effectiveWithdrawAccountId
+      const transferAccountId = effectiveEntryAccountId
+      if (!accountId || !transferAccountId || !submitSubcategoryId) return
+      // 자기 자신에게 저축하면 출금만 반영되고 상대 계좌에는 아무 변화가 없어 총자산이 그대로 줄어든다
+      // — 서버에 보내기 전에 막는다.
+      if (accountId === transferAccountId) {
+        setSameAccountInvalid(true)
+        return
+      }
+      setSameAccountInvalid(false)
+      if (isEditing) {
+        const body: UpdateTransactionRequest = { type, subcategoryId: submitSubcategoryId, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
+        putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
+      } else {
+        const body: CreateTransactionRequest = { type, accountId, subcategoryId: submitSubcategoryId, transferAccountId, amount: state.entryAmount, transactionDate, description }
         postTx.mutate(body, { onSuccess: resetAndClose, onError: handleMutationError })
       }
       return
@@ -248,7 +291,12 @@ export function LedgerEntryModal() {
   // 계좌가 하나도 없으면(신규 사용자 등) 저장 버튼을 눌러도 accountId를 채울 수 없다 — 눌러도 아무 일도
   // 안 일어나는 "죽은 클릭"을 만들지 않도록 아예 비활성화한다.
   const noAccountAvailable = !accountsQuery.isPending && !accountsQuery.error && accounts.length === 0
-  const canSave = !isBusy && !noCategoryAvailable && !noAccountAvailable
+  // 이체·저축은 서로 다른 두 계좌가 필요하다. 계좌가 하나뿐이면 두 드롭다운이 같은 계좌로
+  // 폴백되어 저장할 때마다 "같은 계좌예요" 에러만 반복되는 막다른 골목이 된다 — 진짜 원인은
+  // 계좌가 부족한 것이므로 저장을 막고 그 사실을 그대로 안내한다.
+  const notEnoughAccounts =
+    needsTransferAccount && !accountsQuery.isPending && !accountsQuery.error && accounts.length === 1
+  const canSave = !isBusy && !noCategoryAvailable && !noAccountAvailable && !notEnoughAccounts
 
   const categoryErrorMessage =
     saveErrorCode === 'SUBCATEGORY_REQUIRED' || saveErrorCode === 'SUBCATEGORY_NOT_ALLOWED' || saveErrorCode === 'SUBCATEGORY_NOT_FOUND'
@@ -352,13 +400,20 @@ export function LedgerEntryModal() {
           <div style={{ position: 'relative' }}>
             <div style={LABEL_STYLE}>출금계좌</div>
             {isEditing ? <LockedAccountField accountId={effectiveWithdrawAccountId} accounts={accounts} /> : <Dropdown dd={ddWithdrawAcct} maxHeight={180} />}
+            {notEnoughAccounts ? (
+              <div style={{ fontSize: 12.5, color: 'var(--text-weak)', marginTop: 6 }}>
+                계좌가 하나뿐이라 등록할 수 없어요. 서로 다른 두 계좌가 필요해요.
+              </div>
+            ) : (
+              sameAccountInvalid && <div style={ERROR_STYLE}>출금 계좌와 {ledgerEntryAcctLabel}가 같아요. 다른 계좌를 선택해주세요.</div>
+            )}
           </div>
         )}
 
         <div style={{ display: 'flex', gap: 14 }}>
           <div style={{ flex: 1, position: 'relative' }}>
             <div style={LABEL_STYLE}>{ledgerEntryAcctLabel}</div>
-            {isEditing && !isTransfer ? (
+            {isEditing && !needsTransferAccount ? (
               <LockedAccountField accountId={effectiveEntryAccountId} accounts={accounts} />
             ) : (
               <Dropdown
