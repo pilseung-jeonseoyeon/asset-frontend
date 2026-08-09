@@ -1,7 +1,27 @@
-// Source: secret/Asset Manager v14.dc.html L3480-3522 — default values transcribed verbatim
-// (auth-only fields excluded, see types.ts header comment).
+// Source: secret/Asset Manager v14.dc.html L3480-3522 — default values transcribed verbatim.
+// The `// auth` block at the bottom has no source equivalent (see types.ts header comment) — its
+// defaults are this port's own, not transcribed from dc.html.
 
+import { todayYearMonth } from '../utils/date'
+import type { AccountForm } from './types'
 import type { AppState } from './types'
+
+// AddAccountModal/EditAccountModal이 재사용하는 빈 폼. 두 모달 모두 닫을 때(저장/취소 불문) 이 값으로
+// 되돌려, 다음에 여는 모달(다른 계좌 수정이든 새 계좌 추가든)이 이전 세션의 잔재를 물려받지 않게 한다.
+export const BLANK_ACCOUNT_FORM: AccountForm = {
+  id: null,
+  institutionId: null,
+  name: '',
+  type: 'CASH',
+  currency: 'KRW',
+  initialBalance: 0,
+  interestRate: null,
+  openedAt: null,
+  maturityDate: null,
+  isLiquid: true,
+}
+
+const todayCursor = todayYearMonth()
 
 export const initialState: AppState = {
   screen: 'dashboard',
@@ -30,8 +50,6 @@ export const initialState: AppState = {
   quickAddOpen: false,
   notifOpen: false,
 
-  profileName: '정다은',
-
   theme: 'light',
   amountsHidden: true,
 
@@ -40,36 +58,39 @@ export const initialState: AppState = {
   stockTradeMode: 'buy',
 
   editAccount: null,
+  accountForm: BLANK_ACCOUNT_FORM,
+  institutionForm: null,
   addingCatGroup: null,
   addAccountReturnTo: null,
   addGoalReturnTo: null,
 
   recurringType: 'fixed',
-  recurCatMajorIdx: 0,
-  recurCatSubIdx: 0,
+  recurSubcategoryId: null,
+  recurAccountId: null,
   recurFreq: 'monthly',
   recurPayDay: '25일',
   recurYearMonth: '1월',
   recurYearDay: '1일',
+  recurName: '',
+  recurAmount: 0,
   editingRecurId: null,
-  fixedExpenseEnded: false,
-  endedSubIds: [],
 
   entryType: 'income',
   rowMenuOpen: null,
-  editingTx: false,
-  editingTxKey: null,
-  deletedTxKeys: [],
-  catDetailName: null,
+  editingTxId: null,
+  catDetailCategoryId: null,
   entryTabsVisible: false,
-  entryCatMajorIdx: 0,
-  entryCatSubIdx: 0,
+  entrySubcategoryId: null,
+  entryAccountId: null,
+  entryWithdrawAccountId: null,
+  entryAmount: 0,
+  entryDescription: '',
+  entryPreserved: null,
   ledgerPage: 1,
   entryDateOverride: null,
-  monthStartDay: '25일',
+  ledgerYear: todayCursor.year,
+  ledgerMonth: todayCursor.month,
 
-  assetTypeSel: '현금',
-  liquiditySel: 'liquid',
   expenseCatSel: '식비',
   incomeTypeSel: '급여',
   savingAcctSel: '신한은행 정기예금',
@@ -77,32 +98,12 @@ export const initialState: AppState = {
   dpPicked: {},
   dpNav: {},
 
-  customCats: {
-    '수입': [
-      { major: '월급', subs: ['월급'] },
-      { major: '상여/수당', subs: ['상여', '수당'] },
-      { major: '부수입', subs: ['유튜브'] },
-      { major: '기타', subs: ['투자소득', '은행소득', '용돈'] },
-    ],
-    '저축': [
-      { major: '예적금', subs: ['주택청약', '자유적금'] },
-      { major: '투자', subs: ['주식', '펀드'] },
-      { major: '연금', subs: ['개인연금', '퇴직연금', '국민연금'] },
-      { major: '목적통장', subs: ['여행통장', '비상금통장'] },
-    ],
-    '지출': [
-      { major: '주거', subs: ['관리비', '대출이자'] },
-      { major: '보험', subs: ['자동차보험'] },
-      { major: '식비', subs: ['식자재', '외식', '간식/카페'] },
-      { major: '생활용품', subs: ['소모품', '가전/수리', '홈데코/가구'] },
-      { major: '꾸밈비', subs: ['의류/잡화', '미용/헤어'] },
-      { major: '교통비', subs: ['차량유지비', '대중교통', '차량기타'] },
-      { major: '자기계발', subs: ['교육/학습', '운동/도서'] },
-      { major: '여가', subs: ['취미/문화', '여행'] },
-      { major: '통신비', subs: ['핸드폰', '인터넷', '구독료'] },
-      { major: '건강/의료', subs: ['병원/약국', '건강관리'] },
-      { major: '경조사', subs: ['경조사', '선물', '가족'] },
-      { major: '기타', subs: ['기타'] },
-    ],
-  },
+  authScreen: 'login',
+  authStep: 'form',
+  authEmail: '',
+  authName: '',
+  authCode: '',
+  authKeepLogin: false,
+  authMarketingOptIn: false,
+  authCodeSentAt: null,
 }
