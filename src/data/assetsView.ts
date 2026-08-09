@@ -260,8 +260,11 @@ export function buildAccountDetailHeader(account: AccountResponse): AccountDetai
  */
 export function formatBigAmountCaption(n: number): string | null {
   if (n < 100_000_000) return null
-  const eok = Math.floor(n / 100_000_000)
-  const man = Math.round((n % 100_000_000) / 10_000)
+  // 억과 만을 따로 계산하면 만 단위 반올림이 10,000이 될 때 억으로 올라가지 못한다
+  // (199,999,999 → "1억 10,000만 원"). 만 원 단위로 먼저 반올림한 뒤 억/만으로 쪼갠다.
+  const manTotal = Math.round(n / 10_000)
+  const eok = Math.floor(manTotal / 10_000)
+  const man = manTotal % 10_000
   return man === 0 ? `약 ${eok}억 원` : `약 ${eok}억 ${man.toLocaleString('ko-KR')}만 원`
 }
 

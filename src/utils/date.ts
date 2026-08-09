@@ -76,7 +76,13 @@ export function isoDateToNav(iso: string | null): { y: number; m: number } | und
  * "최근 N개월" 스냅샷을 조회하는 곳에서 쓴다. from/to 둘 다 필수인 GET .../snapshots 파라미터에 맞춘다.
  */
 export function recentMonthsRange(monthsBack: number, today: Date = new Date()): DateRange {
-  const from = new Date(today)
-  from.setMonth(from.getMonth() - monthsBack)
+  const y = today.getFullYear()
+  const m = today.getMonth()
+  const d = today.getDate()
+  // setMonth()는 대상 월의 일수를 넘기면 다음 달로 넘어간다(8/31에서 6개월 전 → 2/31 → 3/2).
+  // 그러면 "최근 6개월"이 실제로는 5개월 남짓이 되어 2월 초 스냅샷이 통째로 빠진다.
+  // 목표 월의 말일로 clamp해서 막는다.
+  const lastDayOfTargetMonth = new Date(y, m - monthsBack + 1, 0).getDate()
+  const from = new Date(y, m - monthsBack, Math.min(d, lastDayOfTargetMonth))
   return { from: toISODate(from), to: toISODate(today) }
 }
