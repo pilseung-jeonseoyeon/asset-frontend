@@ -228,10 +228,14 @@ export function buildLiquidityView(liquidAccounts: { balance: number }[], locked
  * 우선하고, 전부 만기가 지났으면 그중 가장 최근에 지난 것을 보여준다. dDay < 0이면 "만기 경과"로 렌더할 것.
  */
 export function pickNearestMaturity(lockedAccounts: LockedAccount[]): LockedAccount | null {
-  if (lockedAccounts.length === 0) return null
-  const upcoming = lockedAccounts.filter((a) => a.dDay >= 0).sort((a, b) => a.dDay - b.dDay)
+  // lockedAccounts의 기준은 isLiquid=false이지 만기 유무가 아니라, 만기가 없는 계좌도 섞여 온다.
+  // 그때 서버는 dDay를 0으로 내려주므로(API-SPEC §3.2) 걸러내지 않으면 그 계좌가 "가장 임박한 만기"
+  // 1순위로 뽑혀 "만기까지 D−0"이라는 없는 사실을 표시하게 된다.
+  const withMaturity = lockedAccounts.filter((a) => a.maturityDate !== null)
+  if (withMaturity.length === 0) return null
+  const upcoming = withMaturity.filter((a) => a.dDay >= 0).sort((a, b) => a.dDay - b.dDay)
   if (upcoming.length > 0) return upcoming[0]
-  return [...lockedAccounts].sort((a, b) => b.dDay - a.dDay)[0]
+  return [...withMaturity].sort((a, b) => b.dDay - a.dDay)[0]
 }
 
 // ---------- 계좌 상세 모달 ----------
