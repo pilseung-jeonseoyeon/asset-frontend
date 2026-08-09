@@ -1,7 +1,17 @@
 // Source: secret/Asset Manager v14.dc.html L454-456 (root hasOpenSelect scrim, z-index 70),
 // L701-761 (outer flex shell: sidebar + main), L840 onward (per-screen sc-if routing, isDash/isAsset/
-// isStock/isLedger/isSet). Auth gate (isAuthed, L701) is skipped — this port always starts authenticated.
-// Screen components are wired in as their own phases complete (see the placeholder note below).
+// isStock/isLedger/isSet).
+//
+// Auth gating (source's isAuthed, L701) is real now that the backend requires a JWT — see
+// src/stores/auth.ts. Three states:
+//   'unknown'       — boot, refresh not attempted yet. Render nothing but a minimal `—` placeholder so
+//                     an already-logged-in user doesn't see the login screen flash before the silent
+//                     refresh resolves.
+//   'anonymous'     — render ONLY screens/Auth/Auth.tsx. Deliberately skip SidebarNav/Header/every
+//                     modalXxx here — several of them fire queries on mount (useGetMe, category lists,
+//                     etc.), and mounting them while anonymous would fire a burst of 401s against
+//                     endpoints that now require a token.
+//   'authenticated' — original behavior, unchanged.
 
 import { useAppState } from '../../state/AppStateContext'
 import { SidebarNav } from './SidebarNav'
@@ -29,9 +39,36 @@ import { InstitutionsModal } from '../../screens/Assets/modals/InstitutionsModal
 import { ReportOverlay } from '../../screens/Assets/modals/ReportOverlay'
 import { AccountDetailModal } from '../../screens/Assets/modals/AccountDetailModal'
 import { CategoryDetailModal } from '../../screens/Ledger/modals/CategoryDetailModal'
+import { Auth } from '../../screens/Auth/Auth'
+import { useRestoreSession } from '@/services/auth'
 
 export function AppShell() {
   const { state, setState } = useAppState()
+  const authStatus = useRestoreSession()
+
+  if (authStatus === 'unknown') {
+    return (
+      <div
+        aria-busy="true"
+        style={{
+          display: 'flex',
+          minHeight: '100vh',
+          width: '100%',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--canvas)',
+          color: 'var(--text-weak)',
+          fontSize: 13.5,
+        }}
+      >
+        —
+      </div>
+    )
+  }
+
+  if (authStatus === 'anonymous') {
+    return <Auth />
+  }
 
   return (
     <>
