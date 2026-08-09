@@ -5,9 +5,16 @@
 // `perf`/`perfAmt` are optional (not `string`) because the real asset distribution API
 // (GET /assets/distribution) has no performance/return figures — only mock data had them. The tooltip
 // simply omits that line when absent instead of inventing a placeholder value.
+//
+// Mobile (<=767px, docs/mobile.md §5): `:hover` never fires on touch, so a hover-only tooltip would never
+// be reachable. Each block already has its own tap action (`b.open`, opens the category detail modal),
+// so gating the tooltip behind a second tap would shadow that primary action instead of complementing
+// it — showing the tooltip unconditionally (per docs/mobile.md §5's own fallback) avoids a second hidden
+// gesture. Render tiers (full/medium/icon) and the <5% "기타" merge are untouched.
 
 import { useState } from 'react'
 import { Icon } from '../Icon/Icon'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 
 export interface TreemapBlock {
   id: string
@@ -30,7 +37,9 @@ export interface TreemapBlock {
 }
 
 function TreemapTile({ b }: { b: TreemapBlock }) {
+  const isMobile = useIsMobile()
   const [hovered, setHovered] = useState(false)
+  const tooltipVisible = isMobile || hovered
 
   return (
     <div
@@ -68,7 +77,7 @@ function TreemapTile({ b }: { b: TreemapBlock }) {
       <div
         className="tmap-tip"
         style={{
-          opacity: hovered ? 1 : 0, pointerEvents: 'none', position: 'absolute', left: 8, right: 8, bottom: 8,
+          opacity: tooltipVisible ? 1 : 0, pointerEvents: 'none', position: 'absolute', left: 8, right: 8, bottom: 8,
           background: 'var(--deep-bg)', borderRadius: 10, padding: '10px 12px', boxShadow: 'var(--shadow-pop)', transition: 'opacity .15s ease',
         }}
       >
