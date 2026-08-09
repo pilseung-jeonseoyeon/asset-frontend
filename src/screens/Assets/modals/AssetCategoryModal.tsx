@@ -6,6 +6,10 @@
 // 계좌 목록은 GET /assets/distribution?groupBy=CLASS의 byClass[].accounts에서 온다. 이 응답에는
 // 기관명이 없어 GET /accounts 결과와 accountId로 조인한다(src/data/assetsView.ts buildAssetCats) —
 // 조인에 실패하면 기관명 자리를 비워둔다.
+//
+// 계좌 행을 탭하면 AccountDetailModal(z-index 90, §7-1 2단 모달)이 이 모달 위에 열린다
+// (`accountDetail: accountId`). 행 안의 "계좌 수정" 버튼은 같은 클릭을 상세로 새지 않도록
+// stopPropagation 처리한다.
 
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
@@ -62,7 +66,15 @@ export function AssetCategoryModal() {
           <div
             key={ca.accountId}
             className="mini-hov"
-            style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8 }}
+            role="button"
+            tabIndex={0}
+            onClick={() => setState({ accountDetail: ca.accountId })}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return
+              e.preventDefault()
+              setState({ accountDetail: ca.accountId })
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8, cursor: 'pointer' }}
           >
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13.5, fontWeight: 700 }}>{ca.name}</div>
@@ -70,7 +82,11 @@ export function AssetCategoryModal() {
             </div>
             <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{ca.amtFmt}원</div>
             <button
-              onClick={() => setState({ editAccount: ca.accountId, modalOpen: 'editAccount' })}
+              onClick={(e) => {
+                e.stopPropagation()
+                setState({ editAccount: ca.accountId, modalOpen: 'editAccount' })
+              }}
+              onKeyDown={(e) => e.stopPropagation()}
               title="계좌 수정"
               style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: 'var(--track)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flex: 'none' }}
             >

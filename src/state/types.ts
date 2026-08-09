@@ -71,7 +71,8 @@ export interface AppState {
 
   // modal / overlay state
   modalOpen: string | null
-  accountDetail: unknown | null // shape confirmed during Phase 10 (계좌상세 드릴다운)
+  /** 계좌 상세 모달 대상 accountId. null이면 닫혀 있음(AccountDetailModal). */
+  accountDetail: number | null
   reportOpen: boolean
   reportSlide: number
   accountModalView: string // initial 'main'

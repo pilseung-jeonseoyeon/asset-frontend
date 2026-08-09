@@ -273,3 +273,16 @@
 - 알림 `linkType`이 `"ACCOUNT"` 고정 문자열인지 enum인지.
 - `FX_RATE_NOT_FOUND`가 422로 오는데, 해외 종목 1개 때문에 국내 보유 목록까지 통째로 실패하는지.
 - `GET /notifications/stream`(SSE)이 새로 생겼는데 스펙에 없다 — 이벤트 형식과 인증 방법.
+
+---
+
+## 🟠 21. `AccountResponse`에 원금(초기 투자금)이 없다
+
+계좌 상세 모달(`AccountDetailModal`)에서 "현재 잔액"은 `balance`로 그릴 수 있지만, 그 옆에 함께
+보여주던 "원금 대비 +N%" 배지를 그릴 근거가 없다. `CreateAccountRequest.initialBalance`는 생성
+요청에만 있고, 이후 응답 어디에도 원금(또는 누적 입출금 기준 원가)이 내려오지 않는다.
+
+**못 그리는 것**: 계좌 상세의 원금 대비 증감 배지. 배지 자체를 제거했다(하드코딩·추정값 없음).
+
+**요청**: `AccountResponse`에 원금 필드(예: `initialBalance` 또는 원가 재계산치)를 추가하거나,
+스냅샷 원장에서 서버가 계산한 손익률을 별도 필드로 내려주세요.

@@ -53,8 +53,7 @@ src/
                          같은 디자인 시스템 규칙이 여기 산다
     assetsView.ts, ledgerView.ts, stocksView.ts
     mock*.ts                 아직 서버에 연결하지 않은 화면만 남아 있음
-                             (mockDashboard: 대시보드·자산 목표, mockNotifications: 헤더 알림,
-                              mockAccounts: AccountDetailModal — 여는 버튼이 없는 죽은 화면)
+                             (mockDashboard: 대시보드·자산 목표, mockNotifications: 헤더 알림)
 
   design/                bank-institutions.ts(금융기관 마스터 테이블),
                          bank-archetypes.ts(공용 SVG 아이콘) — BankIcon에 사용

@@ -1,5 +1,7 @@
 // Source: secret/Asset Manager v14.dc.html L3925-3927 — transcribed verbatim.
 
+import type { DateRange } from '@/services/common.type'
+
 export const DP_MONTH_NAMES = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
 
 export function daysInMonth(y: number, m: number): number {
@@ -67,4 +69,14 @@ export function isoDateToNav(iso: string | null): { y: number; m: number } | und
   const [y, m] = iso.split('-').map(Number)
   if (!y || !m) return undefined
   return { y, m }
+}
+
+/**
+ * 오늘로부터 최근 monthsBack개월의 DateRange('YYYY-MM-DD', 양끝 포함). 계좌 잔액 추이처럼
+ * "최근 N개월" 스냅샷을 조회하는 곳에서 쓴다. from/to 둘 다 필수인 GET .../snapshots 파라미터에 맞춘다.
+ */
+export function recentMonthsRange(monthsBack: number, today: Date = new Date()): DateRange {
+  const from = new Date(today)
+  from.setMonth(from.getMonth() - monthsBack)
+  return { from: toISODate(from), to: toISODate(today) }
 }

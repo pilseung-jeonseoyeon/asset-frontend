@@ -9,7 +9,8 @@
 
 import type { TreemapBlock } from '../components/primitives/Treemap/Treemap'
 import { fmt } from '../utils/format'
-import type { AccountResponse } from '@/services/account'
+import { isoDateToDisplay } from '../utils/date'
+import type { AccountResponse, AccountSnapshotResponse } from '@/services/account'
 import type { AssetClassGroup, LockedAccount } from '@/services/asset'
 import type { AccountType, AssetClass, InstitutionType } from '@/services/common.type'
 
@@ -231,4 +232,63 @@ export function pickNearestMaturity(lockedAccounts: LockedAccount[]): LockedAcco
   const upcoming = lockedAccounts.filter((a) => a.dDay >= 0).sort((a, b) => a.dDay - b.dDay)
   if (upcoming.length > 0) return upcoming[0]
   return [...lockedAccounts].sort((a, b) => b.dDay - a.dDay)[0]
+}
+
+// ---------- 계좌 상세 모달 ----------
+
+export interface AccountDetailHeader {
+  name: string
+  /** "기관명 · 계좌종류[ · 통화]" — 값이 없는 조각은 건너뛴다. */
+  subtitle: string
+  /** '만기 2026.12.14' 형태. 만기일이 없으면 null. */
+  maturityLabel: string | null
+}
+
+export function buildAccountDetailHeader(account: AccountResponse): AccountDetailHeader {
+  const parts = [account.institutionName, ACCOUNT_TYPE_LABELS[account.type]]
+  if (account.currency !== 'KRW') parts.push(account.currency)
+  return {
+    name: account.name,
+    subtitle: parts.filter((p): p is string => !!p).join(' · '),
+    maturityLabel: account.maturityDate ? `만기 ${isoDateToDisplay(account.maturityDate)}` : null,
+  }
+}
+
+/**
+ * 1억 원 이상 금액을 카드 대표 금액 아래 캡션으로 축약한다(ds_rules_v2_5 §4-2, 만 원 단위 반올림).
+ * 1억 미만이면 null — 호출부는 이 값이 있을 때만 캡션을 렌더한다.
+ */
+export function formatBigAmountCaption(n: number): string | null {
+  if (n < 100_000_000) return null
+  const eok = Math.floor(n / 100_000_000)
+  const man = Math.round((n % 100_000_000) / 10_000)
+  return man === 0 ? `약 ${eok}억 원` : `약 ${eok}억 ${man.toLocaleString('ko-KR')}만 원`
+}
+
+const TREND_VIEWBOX_TOP = 6
+const TREND_VIEWBOX_BOTTOM = 40
+
+/**
+ * 계좌 스냅샷 → SVG path(`viewBox="0 0 100 44"`, x는 스냅샷 순서를 0~100에 균등 배치, y는 최소/최대
+ * 값을 6~40에 매핑). 스냅샷이 0~1개면 선을 그릴 수 없으므로 null — 호출부는 그래프 영역 자체를 숨기거나
+ * 빈 상태로 대체할 것(직선을 억지로 그리지 않는다).
+ */
+export function buildAccountTrendPath(snapshots: AccountSnapshotResponse[]): string | null {
+  if (snapshots.length < 2) return null
+  const sorted = [...snapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate))
+  const values = sorted.map((s) => s.valueKrw)
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const span = max - min
+
+  const points = sorted.map((s, i) => {
+    const x = (i / (sorted.length - 1)) * 100
+    const y =
+      span === 0
+        ? (TREND_VIEWBOX_TOP + TREND_VIEWBOX_BOTTOM) / 2
+        : TREND_VIEWBOX_BOTTOM - ((s.valueKrw - min) / span) * (TREND_VIEWBOX_BOTTOM - TREND_VIEWBOX_TOP)
+    return `${x.toFixed(1)} ${y.toFixed(1)}`
+  })
+
+  return `M${points[0]} L${points.slice(1).join(' L')}`
 }
