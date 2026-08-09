@@ -8,8 +8,11 @@ import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
 import { useCloseModal } from '../../../state/selectors/modal'
-import { assetGoals } from '../../../data/mockDashboard'
 import { useGetUserSettings, usePatchUserSettings } from '@/services/user'
+import { useGetGoal } from '@/services/goal'
+// 목표 진행률 행은 대시보드 위젯과 완전히 같은 계산식(API-SPEC §5.1 각주의 D-Day·초과 저축액)을
+// 쓴다. 두 벌로 두면 한쪽만 고쳤을 때 같은 화면의 두 자리에서 다른 숫자가 나오므로 공용 함수를 쓴다.
+import { buildAssetGoals } from '../../../data/dashboardView'
 
 const ROW_STYLE: CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 0', borderBottom: '0.5px solid var(--track)',
@@ -27,8 +30,16 @@ export function CustomModal() {
   const isOpen = state.modalOpen === 'custom'
   const { settings, error: settingsError } = useGetUserSettings({ enabled: isOpen })
   const patchSettings = usePatchUserSettings()
+  const {
+    goal,
+    isUnset: isGoalUnset,
+    error: goalError,
+    isPending: isGoalPending,
+  } = useGetGoal({}, { enabled: isOpen })
 
   if (!isOpen) return null
+
+  const goalRows = !isGoalUnset && goal ? buildAssetGoals(goal) : []
 
   const ddMonthStart = {
     value: `${settings.monthStartDay}일`,
@@ -118,26 +129,39 @@ export function CustomModal() {
               style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'transform .12s' }}
             >
               <Icon name="edit" size={15} />
-              목표 수정
+              {isGoalUnset ? '목표 설정' : '목표 수정'}
             </button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {assetGoals.map((ag) => (
-              <div key={ag.id}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700 }}>{ag.name}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: ag.color }}>{ag.pct}%</div>
+          {goalError ? (
+            <div style={{ fontSize: 11.5, color: 'var(--down)' }}>목표를 불러오지 못했어요: {goalError.message}</div>
+          ) : isGoalPending ? (
+            // 로딩과 "목표 미설정"을 반드시 구분한다 — 목표를 저장하고 돌아오면 쿼리가 무효화되어
+            // 다시 로딩 상태가 되는데, 그 순간 "아직 목표를 설정하지 않았어요"가 뜨면 방금 한 저장이
+            // 실패한 것처럼 보인다.
+            <div aria-busy style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>불러오는 중…</div>
+          ) : isGoalUnset ? (
+            <div style={{ fontSize: 11.5, color: 'var(--text-weak)', lineHeight: 1.6 }}>
+              아직 목표를 설정하지 않았어요. 목표를 설정하면 연간·월간 진행률을 여기서 볼 수 있어요.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {goalRows.map((ag) => (
+                <div key={ag.id}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700 }}>{ag.name}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: ag.color }}>{ag.pct}%</div>
+                  </div>
+                  <div style={{ height: 7, background: 'var(--track)', borderRadius: 4 }}>
+                    <div style={{ height: '100%', width: `${ag.barPct}%`, background: ag.color, borderRadius: 4 }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>
+                    {ag.currentFmt} / {ag.targetFmt}원
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>{ag.subCaption}</div>
                 </div>
-                <div style={{ height: 7, background: 'var(--track)', borderRadius: 4 }}>
-                  <div style={{ height: '100%', width: `${ag.barPct}%`, background: ag.color, borderRadius: 4 }} />
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>
-                  {ag.currentFmt} / {ag.targetFmt}원
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>{ag.subCaption}</div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 0' }}>
           <div>
