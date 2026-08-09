@@ -12,10 +12,20 @@ import type {
   UpdateTransactionRequest,
 } from './transaction.type'
 
+/**
+ * 서버에는 기본 정렬이 없다. `sort`를 생략하면 DB가 돌려주는 순서 그대로라 페이지를 넘길 때
+ * 같은 항목이 두 번 나오거나 아예 빠질 수 있다 — 2차 정렬 키(id)까지 항상 못 박는다(API-SPEC §6.1).
+ * 엔티티 필드명만 유효하고(조인 결과인 subcategoryName 등은 불가), 없는 필드는 500이 되므로
+ * 정렬 키는 이 화이트리스트 밖으로 나가지 않게 한다.
+ */
+const DEFAULT_TRANSACTION_SORT = ['transactionDate,desc', 'id,desc']
+
 /** 이 백엔드에서 유일하게 페이지네이션이 있는 목록. page는 0-base. */
 export async function getTransactions(params: TransactionSearchParams) {
   return unwrap(
-    await api.get<ApiResponse<Page<TransactionResponse>>>('/transactions', { params }),
+    await api.get<ApiResponse<Page<TransactionResponse>>>('/transactions', {
+      params: { sort: DEFAULT_TRANSACTION_SORT, ...params },
+    }),
   )
 }
 

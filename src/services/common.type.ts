@@ -75,7 +75,11 @@ export interface TransactionSearchParams {
   /** 서버는 0-base. 화면의 1-base 페이지는 훅에서 변환한다. */
   page?: number
   size?: number
-  sort?: string
+  /**
+   * `'필드명,asc|desc'` 형태를 여러 개 넘길 수 있다(반복 파라미터로 직렬화됨).
+   * 엔티티 필드명만 쓸 수 있고, 없는 필드를 보내면 400이 아니라 500이 난다(API-SPEC §6.1).
+   */
+  sort?: string[]
 }
 
 export interface TradeSearchParams {

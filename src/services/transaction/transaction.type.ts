@@ -3,8 +3,12 @@ import type { Currency, TransactionType } from '../common.type'
 // API-SPEC §6.
 //
 // 타입별 필드 규칙 (등록·수정 공통, 위반 시 400):
-//   INCOME / EXPENSE / SAVING → subcategoryId 필수, transferAccountId 지정 불가
-//   TRANSFER                  → transferAccountId 필수, subcategoryId 지정 불가
+//   INCOME / EXPENSE → subcategoryId 필수, transferAccountId 지정 불가
+//   SAVING           → subcategoryId 필수 + transferAccountId도 필수(저축액이 들어간 계좌)
+//   TRANSFER         → transferAccountId 필수, subcategoryId 지정 불가
+//
+// SAVING에 상대 계좌가 필수인 이유: 출금 계좌는 −amount, 상대 계좌는 +amount로 잡혀 총자산은
+// 그대로고 자산 구성만 바뀐다. 상대 계좌가 없으면 출금만 반영되어 총자산이 줄어든다.
 
 export interface TransactionResponse {
   id: number
@@ -53,8 +57,8 @@ export interface PeriodSummaryResponse {
   incomeTotal: number
   expenseTotal: number
   savingTotal: number
-  /** savingTotal / incomeTotal * 100. incomeTotal이 0이면 0으로 온다. */
-  savingsRatePercent: number
+  /** savingTotal / incomeTotal * 100 (정수 반올림). 해당 기간 수입이 0이면 0이 아니라 **null**. */
+  savingsRatePercent: number | null
   incomeTotalPrevious: number
   expenseTotalPrevious: number
   savingTotalPrevious: number

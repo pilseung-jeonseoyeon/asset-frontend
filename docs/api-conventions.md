@@ -34,8 +34,18 @@ export const api = axios.create({
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true, // 리프레시 토큰이 httpOnly 쿠키로 오가므로 필수 (아래 "인터셉터 사용" 절)
+  paramsSerializer: { indexes: null }, // 배열을 sort=a&sort=b로 (아래 "반복 파라미터" 참고)
 })
 ```
+
+**반복 파라미터**: Spring Data의 `Pageable`은 정렬을 `sort=transactionDate,desc&sort=id,desc`처럼
+같은 키를 반복해서 받습니다. axios 기본 직렬화는 `sort[]=a&sort[]=b`라 서버가 정렬 조건을 하나도
+읽지 못하므로 인스턴스에 `paramsSerializer: { indexes: null }`을 걸어 두었습니다.
+
+**정렬은 항상 명시하세요.** `GET /transactions`에는 서버 기본 정렬이 없어(API-SPEC §6.1) `sort`를
+빼면 페이지를 넘길 때 같은 항목이 두 번 나오거나 빠집니다. `transaction.service.ts`의
+`DEFAULT_TRANSACTION_SORT`가 2차 정렬 키(`id`)까지 못 박아 두었고, 없는 필드명을 보내면 400이
+아니라 **500**이 나므로 정렬 키는 화이트리스트 밖으로 나가면 안 됩니다.
 
 반복되는 요청/응답 가공(에러 메시지 정규화 등)은 개별 서비스 함수가 아니라
 `api.interceptors`에서 한 번만 처리합니다.
@@ -103,15 +113,23 @@ export const api = axios.create({
 
 ## 인터셉터 사용 (인증, 에러 처리)
 
-**[상태: 구현됨]** 백엔드가 개발 도중 JWT 인증을 켜면서 모든 API가 인증을 요구하게 됐습니다
-(`secret/API-SPEC.md`는 인증 도입 전 문서라 `/auth/*`가 빠져 있습니다 — 실제 스펙은 서버의
-OpenAPI 문서에서 확인했고 `src/services/auth/auth.type.ts` 헤더 주석에 출처를 남겨뒀습니다).
+**[상태: 구현됨]** 백엔드가 개발 도중 JWT 인증을 켜면서 모든 API가 인증을 요구하게 됐습니다.
+갱신된 `secret/API-SPEC.md` §16이 이제 정식 계약입니다 — 액세스 토큰 30분(`expiresIn: 1800`),
+리프레시 토큰은 `refresh_token` httpOnly 쿠키(`Path=/api/v1/auth`, 14일, **rotation**)입니다.
+폐기된 리프레시 토큰을 다시 쓰면 서버가 탈취로 보고 **그 유저의 모든 세션을 종료**합니다
+(`REFRESH_TOKEN_REUSED`) — 그래서 refresh 호출은 반드시 single-flight여야 합니다.
 `src/services/api.ts`에 아래가 모두 구현되어 있습니다.
 
 - **요청 인터셉터**가 `useAuthStore.getState().accessToken`을 읽어 `Authorization: Bearer`
   헤더를 붙입니다. 단, `PUBLIC_PATHS`(로그인·회원가입·코드 발송·refresh·비밀번호 재설정)는
   토큰이 있어도 붙이지 않습니다 — 토큰이 만료된 상태에서 로그인을 다시 시도하는 경우 등을
   방어하기 위함입니다.
+- **`INVALID_REFRESH_TOKEN` / `REFRESH_TOKEN_REUSED`는 `POST /auth/refresh` 응답에만 나옵니다**
+  (보호된 엔드포인트의 401은 `UNAUTHENTICATED`/`TOKEN_EXPIRED`뿐). 그리고 그 호출은 무한 재귀를
+  막으려고 인터셉터가 없는 `refreshClient`로만 나갑니다 — 즉 **응답 인터셉터에서 이 두 코드를
+  분기하면 절대 도달하지 않는 죽은 코드**가 됩니다. 구분이 필요하면 재발급이 실패한 자리
+  (`api.ts`의 `describeRefreshFailure`)에서 하세요. `REFRESH_TOKEN_REUSED`는 단순 만료가 아니라
+  서버가 탈취로 판단해 계정의 모든 세션을 끊은 상태라 사용자 안내 문구가 달라야 합니다.
 - **401 응답과 토큰 갱신**은 `refreshAccessToken()`의 단일 비행(single-flight) Promise로
   처리합니다: 첫 401이 `POST /auth/refresh`(쿠키 기반, 바디 없음)를 시작하고, 같은 순간의
   다른 401들은 새로 refresh를 트리거하지 않고 같은 Promise를 기다린 뒤 원래 요청을
