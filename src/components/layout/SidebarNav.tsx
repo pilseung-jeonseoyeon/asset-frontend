@@ -8,6 +8,7 @@ import type { Screen } from '../../state/types'
 import { useAppState } from '../../state/AppStateContext'
 import { navHover, navStyle } from '../../state/selectors/nav'
 import { getAvatarInitial } from '../primitives/Avatar/Avatar'
+import { useProfileName } from '@/services/user'
 
 const NAV_ITEMS: { screen: Screen; icon: string; label: string }[] = [
   { screen: 'dashboard', icon: 'grid_view', label: '대시보드' },
@@ -73,8 +74,9 @@ function MonitLogo() {
 }
 
 export function SidebarNav() {
-  const { state, setState } = useAppState()
-  const initial = getAvatarInitial(state.profileName)
+  const { setState } = useAppState()
+  const profileName = useProfileName()
+  const initial = getAvatarInitial(profileName)
 
   return (
     <aside
@@ -112,7 +114,7 @@ export function SidebarNav() {
         </nav>
         <div
           onClick={() => setState({ modalOpen: 'account', accountModalView: 'main', withdrawConfirmOpen: false })}
-          title={state.profileName}
+          title={profileName}
           style={{ position: 'relative', width: 36, height: 36, flex: 'none', cursor: 'pointer' }}
         >
           <div

@@ -2,62 +2,21 @@
 // globally from the sidebar avatar (openAccountProfile, L751), not owned by any single screen — see the
 // plan's Phase 5 note on why this is NOT built as a Ledger-owned modal despite its line range sitting
 // near the Ledger section of the source file.
-// authInput/authPrimary/authSecondary (source L3572-3589) and filterPwInput (L3636) are defined in the
-// source's "인증 화면 공통 스타일" block but reused verbatim here for the password-change subview —
-// transcribed locally since the auth screens themselves are out of scope.
+// authInput/authPrimary/authSecondary (source L3572-3589) and filterPwInput (L3636) live in
+// screens/Auth/authFormStyles.ts (the real auth screens' canonical home for these constants) and are
+// reused here verbatim for the password-change subview instead of keeping a second copy.
+// 로그아웃 버튼은 usePostLogout()에 연결되어 있다 — 실패해도 클라이언트 세션은 끊는다
+// (auth.hook.ts의 usePostLogout onSettled 주석 참고), 되돌리기 쉬운 동작이라 확인 모달은 두지 않는다.
 
-import type { CSSProperties, FormEvent } from 'react'
+import { useState } from 'react'
+import type { CSSProperties } from 'react'
 import { Icon } from '../../primitives/Icon/Icon'
 import { Avatar } from '../../primitives/Avatar/Avatar'
 import { useAppState } from '../../../state/AppStateContext'
 import { stopPropagation, useCloseModal } from '../../../state/selectors/modal'
-
-const authInput: CSSProperties = {
-  width: '100%',
-  height: 46,
-  borderRadius: 10,
-  border: '0.5px solid var(--border)',
-  background: 'var(--fill-subtle)',
-  padding: '0 14px',
-  fontSize: 13.5,
-  fontFamily: 'inherit',
-  color: 'var(--text-strong)',
-  outline: 'none',
-  boxSizing: 'border-box',
-}
-
-const authPrimary: CSSProperties = {
-  width: '100%',
-  height: 48,
-  borderRadius: 10,
-  border: 'none',
-  background: 'var(--accent)',
-  color: '#FFFFFF',
-  fontSize: 14,
-  fontWeight: 700,
-  fontFamily: 'inherit',
-  cursor: 'pointer',
-  letterSpacing: '-0.01em',
-}
-
-const authSecondary: CSSProperties = {
-  width: '100%',
-  height: 48,
-  borderRadius: 10,
-  border: '0.5px solid var(--border)',
-  background: 'var(--surface)',
-  color: 'var(--text-mid)',
-  fontSize: 13.5,
-  fontWeight: 700,
-  fontFamily: 'inherit',
-  cursor: 'pointer',
-  marginTop: 8,
-}
-
-function filterPwInput(e: FormEvent<HTMLInputElement>) {
-  const target = e.target as HTMLInputElement
-  target.value = target.value.replace(/[^\x21-\x7E]/g, '')
-}
+import { authInput, authPrimary, authSecondary, filterPwInput } from '../../../screens/Auth/authFormStyles'
+import { useGetMe, usePatchPassword, useProfileName } from '@/services/user'
+import { usePostLogout, PASSWORD_PATTERN, PASSWORD_RULE_TEXT } from '@/services/auth'
 
 const ROW_STYLE: CSSProperties = {
   display: 'flex',
@@ -69,20 +28,84 @@ const ROW_STYLE: CSSProperties = {
 
 export function AccountModal() {
   const { state, setState } = useAppState()
+  const { data: me } = useGetMe()
+  const profileName = useProfileName()
   const closeModal = useCloseModal()
+  const logoutMutation = usePostLogout()
+  const patchPassword = usePatchPassword()
+
+  // 비밀번호는 전역 상태(AppState)에 두지 않는다 — 평문이 앱 전역 상태에 남게 된다.
+  // 이 모달은 AppShell에 항상 마운트되므로 닫을 때 반드시 직접 지운다.
+  const [currentPw, setCurrentPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [confirmPw, setConfirmPw] = useState('')
+  const [localPwError, setLocalPwError] = useState<string | null>(null)
 
   if (state.modalOpen !== 'account') return null
 
   const isAccountMain = state.accountModalView !== 'password'
   const isAccountPassword = state.accountModalView === 'password'
 
-  // No auth screen exists in this port (out of scope) — logout/withdraw just close the modal.
-  const doLogout = () => closeModal()
+  const resetPasswordForm = () => {
+    setCurrentPw('')
+    setNewPw('')
+    setConfirmPw('')
+    setLocalPwError(null)
+    patchPassword.reset()
+  }
+  const closePasswordView = () => {
+    resetPasswordForm()
+    setState({ accountModalView: 'main' })
+  }
+
+  // 서버 메시지는 이미 완성된 한국어 문장이라 그대로 노출한다. 프론트 검증은 서버에 보내기 전에
+  // 확실히 걸러지는 것만 본다(서버 규칙과 동일한 PASSWORD_PATTERN 재사용).
+  const pwError = localPwError ?? (patchPassword.error ? patchPassword.error.message : null)
+
+  const handleChangePassword = () => {
+    if (!currentPw) {
+      setLocalPwError('현재 비밀번호를 입력해주세요.')
+      return
+    }
+    if (!PASSWORD_PATTERN.test(newPw)) {
+      setLocalPwError(`새 비밀번호는 ${PASSWORD_RULE_TEXT}이어야 해요.`)
+      return
+    }
+    if (newPw !== confirmPw) {
+      setLocalPwError('새 비밀번호가 서로 달라요.')
+      return
+    }
+    if (newPw === currentPw) {
+      setLocalPwError('지금 쓰는 비밀번호와 다른 것으로 정해주세요.')
+      return
+    }
+    setLocalPwError(null)
+    patchPassword.reset()
+    patchPassword.mutate(
+      { currentPassword: currentPw, newPassword: newPw },
+      {
+        onSuccess: () => {
+          setCurrentPw('')
+          setNewPw('')
+          setConfirmPw('')
+        },
+      },
+    )
+  }
+
+  // 실패해도 usePostLogout이 onSettled에서 클라이언트 세션을 끊는다 — 여기서는 그냥 호출만 한다.
+  const doLogout = () => logoutMutation.mutate()
+  // 이 모달은 AppShell에 항상 마운트되어 닫아도 언마운트되지 않는다 — 평문 비밀번호가 다음 세션까지
+  // 메모리에 남지 않도록 닫을 때 직접 지운다.
+  const closeAndReset = () => {
+    resetPasswordForm()
+    closeModal()
+  }
   const confirmWithdraw = () => setState({ modalOpen: null, withdrawConfirmOpen: false, accountModalView: 'main' })
 
   return (
     <div
-      onClick={closeModal}
+      onClick={closeAndReset}
       style={{
         position: 'fixed',
         inset: 0,
@@ -129,7 +152,7 @@ export function AccountModal() {
                 <div style={{ fontSize: 16.5, fontWeight: 700 }}>계정 및 프로필</div>
               </div>
               <button
-                onClick={closeModal}
+                onClick={closeAndReset}
                 style={{
                   width: 34,
                   height: 34,
@@ -158,10 +181,12 @@ export function AccountModal() {
                 marginBottom: 8,
               }}
             >
-              <Avatar name={state.profileName} size="m" />
+              <Avatar name={profileName} size="m" />
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.01em' }}>{state.profileName}</div>
-                <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 3 }}>name@example.com</div>
+                <div style={{ fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.01em' }}>{profileName}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 3 }}>
+                  {me?.email ?? 'name@example.com'}
+                </div>
               </div>
             </div>
 
@@ -189,10 +214,15 @@ export function AccountModal() {
               <div style={ROW_STYLE}>
                 <div>
                   <div style={{ fontSize: 13.5, fontWeight: 600 }}>비밀번호 변경</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>마지막 변경 2026.05.12</div>
+                  {/* 원본에는 "마지막 변경 2026.05.12"가 있었지만 서버가 그 값을 주지 않는다 —
+                      하드코딩된 날짜를 사실처럼 보여주지 않기 위해 규칙 안내로 바꿨다. */}
+                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>{PASSWORD_RULE_TEXT}</div>
                 </div>
                 <button
-                  onClick={() => setState({ accountModalView: 'password' })}
+                  onClick={() => {
+                    resetPasswordForm()
+                    setState({ accountModalView: 'password' })
+                  }}
                   style={{
                     fontSize: 12,
                     fontWeight: 700,
@@ -236,6 +266,8 @@ export function AccountModal() {
                 </div>
                 <button
                   onClick={doLogout}
+                  disabled={logoutMutation.isPending}
+                  aria-busy={logoutMutation.isPending}
                   style={{
                     fontSize: 12,
                     fontWeight: 700,
@@ -244,12 +276,13 @@ export function AccountModal() {
                     border: '0.5px solid var(--border)',
                     borderRadius: 8,
                     padding: '7px 13px',
-                    cursor: 'pointer',
+                    cursor: logoutMutation.isPending ? 'default' : 'pointer',
                     fontFamily: 'inherit',
                     whiteSpace: 'nowrap',
+                    opacity: logoutMutation.isPending ? 0.7 : 1,
                   }}
                 >
-                  로그아웃
+                  {logoutMutation.isPending ? '로그아웃 중…' : '로그아웃'}
                 </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 0' }}>
@@ -300,24 +333,78 @@ export function AccountModal() {
               </button>
               <div style={{ fontSize: 16.5, fontWeight: 700 }}>비밀번호 변경</div>
             </div>
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 7 }}>현재 비밀번호</div>
-              <input type="password" placeholder="현재 비밀번호 입력" onInput={filterPwInput} style={authInput} />
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 7 }}>새 비밀번호</div>
-              <input type="password" placeholder="영문 · 숫자 · 기호 조합 8자 이상" onInput={filterPwInput} style={authInput} />
-            </div>
-            <div style={{ marginBottom: 22 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 7 }}>새 비밀번호 확인</div>
-              <input type="password" placeholder="비밀번호 다시 입력" onInput={filterPwInput} style={authInput} />
-            </div>
-            <button className="pill-btn" onClick={() => setState({ accountModalView: 'main' })} style={authPrimary}>
-              저장
-            </button>
-            <button className="pill-btn" onClick={() => setState({ accountModalView: 'main' })} style={authSecondary}>
-              취소
-            </button>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                handleChangePassword()
+              }}
+            >
+              <div style={{ marginBottom: 14 }}>
+                <label htmlFor="pw-current" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 7 }}>
+                  현재 비밀번호
+                </label>
+                <input
+                  id="pw-current"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="현재 비밀번호 입력"
+                  value={currentPw}
+                  onChange={(e) => setCurrentPw(e.target.value)}
+                  onInput={filterPwInput}
+                  style={authInput}
+                />
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label htmlFor="pw-new" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 7 }}>
+                  새 비밀번호
+                </label>
+                <input
+                  id="pw-new"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder={PASSWORD_RULE_TEXT}
+                  value={newPw}
+                  onChange={(e) => setNewPw(e.target.value)}
+                  onInput={filterPwInput}
+                  style={authInput}
+                />
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label htmlFor="pw-confirm" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 7 }}>
+                  새 비밀번호 확인
+                </label>
+                <input
+                  id="pw-confirm"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="비밀번호 다시 입력"
+                  value={confirmPw}
+                  onChange={(e) => setConfirmPw(e.target.value)}
+                  onInput={filterPwInput}
+                  style={authInput}
+                />
+              </div>
+
+              <div aria-live="polite" style={{ marginBottom: 14, minHeight: 16 }}>
+                {pwError && <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{pwError}</div>}
+                {patchPassword.isSuccess && !pwError && (
+                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>비밀번호를 바꿨어요.</div>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                className="pill-btn"
+                disabled={patchPassword.isPending}
+                aria-busy={patchPassword.isPending}
+                style={{ ...authPrimary, opacity: patchPassword.isPending ? 0.7 : 1 }}
+              >
+                {patchPassword.isPending ? '저장 중…' : '저장'}
+              </button>
+              <button type="button" className="pill-btn" onClick={closePasswordView} style={authSecondary}>
+                취소
+              </button>
+            </form>
           </div>
         )}
 
