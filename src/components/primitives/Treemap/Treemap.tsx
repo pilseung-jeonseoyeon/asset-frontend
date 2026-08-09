@@ -2,6 +2,9 @@
 // .tmap-block hover scale/brightness lives in base.css. The tooltip's hover-reveal (`style-hover`,
 // mapTipHover: {opacity:1}, L4559) is a dc-runtime-specific mechanism — reimplemented here with local
 // hover state, same pattern as SidebarNav's NavButton.
+// `perf`/`perfAmt` are optional (not `string`) because the real asset distribution API
+// (GET /assets/distribution) has no performance/return figures — only mock data had them. The tooltip
+// simply omits that line when absent instead of inventing a placeholder value.
 
 import { useState } from 'react'
 import { Icon } from '../Icon/Icon'
@@ -21,8 +24,8 @@ export interface TreemapBlock {
   cursor: 'pointer' | 'default'
   isEtc?: boolean
   subs?: string[]
-  perf: string
-  perfAmt: string
+  perf?: string
+  perfAmt?: string
   open?: () => void
 }
 
@@ -80,9 +83,11 @@ function TreemapTile({ b }: { b: TreemapBlock }) {
             ))}
           </div>
         ) : (
-          <div style={{ fontSize: 10.5, color: 'var(--deep-label)', marginTop: 4 }}>
-            이번 달 {b.perf} · {b.perfAmt}
-          </div>
+          b.perf && (
+            <div style={{ fontSize: 10.5, color: 'var(--deep-label)', marginTop: 4 }}>
+              이번 달 {b.perf} · {b.perfAmt}
+            </div>
+          )
         )}
       </div>
     </div>

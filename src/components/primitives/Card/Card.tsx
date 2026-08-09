@@ -9,13 +9,16 @@ interface CardProps {
   style?: CSSProperties
   className?: string
   onClick?: () => void
+  /** React Query의 isPending을 그대로 연결 — docs/code-convention.md 접근성 절 참고. */
+  'aria-busy'?: boolean
 }
 
-export function Card({ children, style, className, onClick }: CardProps) {
+export function Card({ children, style, className, onClick, ...rest }: CardProps) {
   return (
     <section
       className={className ? `card-hov ${className}` : 'card-hov'}
       onClick={onClick}
+      {...rest}
       style={{
         background: 'var(--surface)',
         borderRadius: 10,
