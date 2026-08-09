@@ -44,7 +44,8 @@ export interface HoldingGroupResponse {
   groupKey: string
   totalValuationKrw: number
   totalPnlKrw: number
-  returnRatePercent: number
+  /** 원가(totalValuationKrw − totalPnlKrw)가 0이면 null — 0으로 나눌 수 없어 "계산 불가"다. */
+  returnRatePercent: number | null
 }
 
 /** 현재 청산 상태만 반영한다 — 재매수하면 목록에서 사라진다(누적 청산 로그가 아님). */
@@ -56,6 +57,7 @@ export interface ClosedHoldingResponse {
   principalKrw: number
   proceedsKrw: number
   realizedPnlKrw: number
-  returnRatePercent: number
+  /** 원금이 0이면 null. */
+  returnRatePercent: number | null
   closedAt: string
 }

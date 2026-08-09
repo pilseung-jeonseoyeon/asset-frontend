@@ -17,8 +17,12 @@ export interface AssetClassGroup {
 }
 
 export interface AssetInstitutionGroup {
-  institutionId: number
-  institutionName: string
+  /**
+   * 기관에 연결되지 않은 계좌(현금 등)를 모은 버킷이 섞여 나오고, 그 버킷은 id·name이 둘 다
+   * null이다. 리스트 key나 라우팅 파라미터로 그대로 쓰면 깨지므로 "미지정"으로 따로 처리할 것.
+   */
+  institutionId: number | null
+  institutionName: string | null
   totalValueKrw: number
   accounts: DistributionAccount[]
 }
@@ -36,8 +40,12 @@ export interface LiquidAccount {
 }
 
 export interface LockedAccount extends LiquidAccount {
-  maturityDate: string
-  /** 만기가 지나면 음수가 된다 — dDay < 0이면 "만기 경과"로 분기할 것. */
+  /**
+   * lockedAccounts의 기준은 isLiquid=false이지 만기 유무가 아니다 — 만기 없는 계좌가 섞여
+   * 나오고 그때 이 값은 null이다. null이면 D-Day 표시 자체를 생략할 것.
+   */
+  maturityDate: string | null
+  /** 만기가 지나면 음수. maturityDate가 null이면 0이 오므로 "오늘 만기"로 읽으면 안 된다. */
   dDay: number
 }
 
