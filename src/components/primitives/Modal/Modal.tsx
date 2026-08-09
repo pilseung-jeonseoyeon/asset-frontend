@@ -4,8 +4,14 @@
 // maxHeight/overflow AND z-index are NOT uniform — modalAddAccount itself uses z-index:90, not the
 // §7-1 "1st-level modal = 80" default, so every caller must pass its own literal zIndex/width/panelStyle
 // read from that modal's own dc.html block. Nothing here is a safe-to-reuse default.
+//
+// Mobile (<=767px, docs/mobile.md §4): the panel becomes a bottom sheet. `panelStyle` is still merged in
+// (so callers keep their padding/overflow tweaks), but width/borderRadius/maxHeight are re-applied AFTER
+// panelStyle so a caller's desktop-only values for those three (e.g. an explicit width or 90vh maxHeight)
+// can never win on mobile. zIndex is untouched — callers' §7-1 nesting order still applies.
 
 import type { CSSProperties, ReactNode } from 'react'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 
 interface ModalProps {
   onClose: () => void
@@ -16,6 +22,41 @@ interface ModalProps {
 }
 
 export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalProps) {
+  const isMobile = useIsMobile()
+
+  const basePanelStyle: CSSProperties = isMobile
+    ? {
+        background: 'var(--surface)',
+        borderRadius: '10px 10px 0 0',
+        padding: '20px 18px calc(20px + env(safe-area-inset-bottom))',
+        width: '100%',
+        maxWidth: '100%',
+        maxHeight: '88vh',
+        overflowY: 'auto',
+        boxShadow: 'var(--shadow-modal)',
+      }
+    : {
+        background: 'var(--surface)',
+        borderRadius: 10,
+        padding: 30,
+        width,
+        maxWidth: '100%',
+        maxHeight: '90vh',
+        overflow: 'visible',
+        boxShadow: 'var(--shadow-modal)',
+      }
+
+  // `padding` is forced too: EditAccountModal passes a desktop padding ('42px 30px') that would drop the
+  // safe-area bottom inset, leaving the sheet's last row under the iPhone home indicator.
+  const mobileForcedStyle: CSSProperties | undefined = isMobile
+    ? {
+        width: '100%',
+        borderRadius: '10px 10px 0 0',
+        maxHeight: '88vh',
+        padding: '20px 18px calc(20px + env(safe-area-inset-bottom))',
+      }
+    : undefined
+
   return (
     <div
       onClick={onClose}
@@ -24,26 +65,27 @@ export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalPro
         inset: 0,
         background: 'var(--overlay-scrim)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: isMobile ? 'flex-end' : 'center',
         justifyContent: 'center',
         zIndex,
-        padding: 24,
+        padding: isMobile ? 0 : 24,
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        className={isMobile ? 'sheet-up' : undefined}
         style={{
-          background: 'var(--surface)',
-          borderRadius: 10,
-          padding: 30,
-          width,
-          maxWidth: '100%',
-          maxHeight: '90vh',
-          overflow: 'visible',
-          boxShadow: 'var(--shadow-modal)',
+          ...basePanelStyle,
           ...panelStyle,
+          ...mobileForcedStyle,
         }}
       >
+        {isMobile && (
+          <div
+            aria-hidden="true"
+            style={{ width: 36, height: 4, borderRadius: 999, background: 'var(--border)', margin: '0 auto 14px' }}
+          />
+        )}
         {children}
       </div>
     </div>

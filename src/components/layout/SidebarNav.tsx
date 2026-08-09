@@ -5,18 +5,11 @@
 
 import { useState } from 'react'
 import type { Screen } from '../../state/types'
+import { NAV_ITEMS } from './navItems'
+import { getAvatarInitial } from '../primitives/Avatar/Avatar'
 import { useAppState } from '../../state/AppStateContext'
 import { navHover, navStyle } from '../../state/selectors/nav'
-import { getAvatarInitial } from '../primitives/Avatar/Avatar'
 import { useProfileName } from '@/services/user'
-
-const NAV_ITEMS: { screen: Screen; icon: string; label: string }[] = [
-  { screen: 'dashboard', icon: 'grid_view', label: '대시보드' },
-  { screen: 'asset', icon: 'account_balance_wallet', label: '자산' },
-  { screen: 'stock', icon: 'trending_up', label: '주식' },
-  { screen: 'ledger', icon: 'receipt_long', label: '가계부' },
-  { screen: 'settings', icon: 'settings', label: '설정' },
-]
 
 function NavButton({ screen, icon, label }: { screen: Screen; icon: string; label: string }) {
   const { state, setState } = useAppState()

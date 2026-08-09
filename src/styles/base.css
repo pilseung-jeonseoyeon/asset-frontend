@@ -133,3 +133,26 @@ html.theme-dark .monit-logo-light { display: none }
 html.theme-dark .monit-logo-dark { display: block }
 .row-actions { opacity: 0; transition: opacity .12s ease }
 .mini-hov:hover .row-actions { opacity: 1 }
+
+/* Mobile shell (<=767px, docs/mobile.md) */
+@media (max-width:767px) {
+  .sheet-up {
+    animation: sheet-up-in .22s cubic-bezier(.2, .7, .3, 1)
+  }
+
+  @keyframes sheet-up-in {
+    from { transform: translateY(100%) }
+    to { transform: translateY(0) }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-up {
+    animation: none
+  }
+}
+
+/* Touch devices never trigger :hover, so hover-only UI must stay visible instead of never appearing. */
+@media (hover: none) {
+  .row-actions { opacity: 1 }
+}

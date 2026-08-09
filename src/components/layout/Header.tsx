@@ -2,11 +2,19 @@
 // — transcribed verbatim, incl. the exact (slightly asymmetric) close-dropdown behavior per handler:
 // openStockSell (L4465) does NOT close quickAddOpen unlike its siblings — that is the source's own
 // behavior, not a bug to "fix" here.
+//
+// Mobile (<=767px, docs/mobile.md §3): the profile avatar that lives at the bottom of SidebarNav on
+// desktop is rendered here instead, since SidebarNav isn't mounted at all below the breakpoint. Style/
+// click behavior mirrors SidebarNav's avatar exactly (Avatar 's' = 36px, opens modalAccount). The
+// notification dropdown width also clamps to the viewport so it doesn't overflow narrow screens.
 
 import type { MouseEvent } from 'react'
+import { Avatar } from '../primitives/Avatar/Avatar'
 import { Icon } from '../primitives/Icon/Icon'
 import { useAppState } from '../../state/AppStateContext'
+import { useIsMobile } from '../../utils/useMediaQuery'
 import { NOTIFICATIONS } from '../../data/mockNotifications'
+import { useProfileName } from '@/services/user'
 
 const MINI_HOV_ITEM_STYLE = {
   display: 'flex',
@@ -26,6 +34,8 @@ const MINI_HOV_ITEM_STYLE = {
 
 export function Header() {
   const { state, setState } = useAppState()
+  const isMobile = useIsMobile()
+  const profileName = useProfileName()
   const anyDropdownOpen = state.quickAddOpen || state.notifOpen
   const hasNotifs = NOTIFICATIONS.length > 0
 
@@ -170,7 +180,7 @@ export function Header() {
                 position: 'absolute',
                 top: 50,
                 right: 0,
-                width: 344,
+                width: 'min(344px, calc(100vw - 32px))',
                 maxHeight: 440,
                 overflow: 'auto',
                 background: 'var(--surface)',
@@ -237,6 +247,16 @@ export function Header() {
             </div>
           )}
         </div>
+
+        {isMobile && (
+          <div
+            onClick={() => setState({ modalOpen: 'account', accountModalView: 'main', withdrawConfirmOpen: false })}
+            title={profileName}
+            style={{ cursor: 'pointer' }}
+          >
+            <Avatar name={profileName} size="s" />
+          </div>
+        )}
       </div>
     </header>
   )

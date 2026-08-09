@@ -12,9 +12,14 @@
 //                     etc.), and mounting them while anonymous would fire a burst of 401s against
 //                     endpoints that now require a token.
 //   'authenticated' — original behavior, unchanged.
+//
+// Mobile shell (<=767px, docs/mobile.md §2): SidebarNav is swapped for the fixed BottomTabNav and
+// `main` padding drops to leave room for it. Auth gating above is untouched by this branch.
 
 import { useAppState } from '../../state/AppStateContext'
+import { useIsMobile } from '../../utils/useMediaQuery'
 import { SidebarNav } from './SidebarNav'
+import { BottomTabNav } from './BottomTabNav'
 import { Header } from './Header'
 import { AccountModal } from './modals/AccountModal'
 import { Dashboard } from '../../screens/Dashboard/Dashboard'
@@ -45,6 +50,7 @@ import { useRestoreSession } from '@/services/auth'
 export function AppShell() {
   const { state, setState } = useAppState()
   const authStatus = useRestoreSession()
+  const isMobile = useIsMobile()
 
   if (authStatus === 'unknown') {
     return (
@@ -76,8 +82,14 @@ export function AppShell() {
         <div onClick={() => setState({ openDropdown: null })} style={{ position: 'fixed', inset: 0, zIndex: 70 }} />
       )}
       <div style={{ display: 'flex', minHeight: '100vh', width: '100%', background: 'var(--canvas)' }}>
-        <SidebarNav />
-        <main style={{ flex: 1, minWidth: 0, padding: '30px 40px 56px' }}>
+        {!isMobile && <SidebarNav />}
+        <main
+          style={{
+            flex: 1,
+            minWidth: 0,
+            padding: isMobile ? '18px 16px calc(64px + env(safe-area-inset-bottom) + 20px)' : '30px 40px 56px',
+          }}
+        >
           <Header />
           {state.screen === 'dashboard' && <Dashboard />}
           {state.screen === 'asset' && <Assets />}
@@ -86,6 +98,7 @@ export function AppShell() {
           {state.screen === 'settings' && <Settings />}
         </main>
       </div>
+      {isMobile && <BottomTabNav />}
       {/* All 14 modalXxx blocks in dc.html are top-level siblings gated only by s.modalOpen — NOT
           nested inside their "owning" screen's sc-if block (confirmed: modalLedgerEntry's markup sits
           inside the Assets line-range, L1605, yet opens from the Header on any screen). So every modal
