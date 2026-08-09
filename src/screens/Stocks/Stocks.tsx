@@ -1,8 +1,16 @@
-// Source: secret/Asset Manager v14.dc.html L2368-2636 (isStock block) — transcribed verbatim.
-// This screen owns the 2nd (and last allowed) DonutChart usage app-wide — ds_rules_v2_5.md §3-4 caps
-// donuts at exactly 2 locations (Dashboard asset composition + this 섹터 비중 chart). No modals owned
-// by this screen (quickStock/exchangeAdd modals live in Assets/Phase 10 & header quick-add, not here).
+// Source: secret/Asset Manager v14.dc.html L2371-2632 (Stock screen literal markup) — layout
+// transcribed verbatim, then wired to GET /indices, GET /stocks, GET /stocks/holdings,
+// GET /stocks/holdings/groups, GET /exchanges/summary (previously hardcoded mock data — see git
+// history for src/data/mockStocks.ts). This screen owns the 2nd (and last allowed) DonutChart usage
+// app-wide — ds_rules_v2_5.md §3-4 caps donuts at exactly 2 locations (Dashboard asset composition +
+// this 섹터 비중 chart).
+//
+// Dropped vs. the old mock: "주식 비중 총자산의 40%" (needs a dashboard total-assets API that doesn't
+// exist yet), the 억/만 축약 캡션 on 총 평가금액 (CLAUDE.md explicitly forbids inventing a general
+// abbreviation helper — assetsView.ts/Assets.tsx already dropped the same caption for the same reason),
+// and USD/KRW from 시장 지표 (the server doesn't send it — see stocksView.ts).
 
+import type { CSSProperties } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
 import { Card } from '../../components/primitives/Card/Card'
 import { DeepCard } from '../../components/primitives/DeepCard/DeepCard'
@@ -10,110 +18,183 @@ import { DonutChart } from '../../components/primitives/DonutChart/DonutChart'
 import { SegmentedTab } from '../../components/primitives/SegmentedTab/SegmentedTab'
 import { useAppState } from '../../state/AppStateContext'
 import { darkTab, liteTab } from '../../state/selectors/stocks'
-import { marketIndices, stockHoldings, getGroupReturns, getGroupReturnCaption, sectorComposition } from '../../data/mockStocks'
+import { fmt } from '../../utils/format'
+import {
+  buildGroupReturns,
+  buildHoldingCards,
+  buildMarketIndexViews,
+  buildPortfolioSummary,
+  buildSectorComposition,
+  stockTabToMarket,
+} from '../../data/stocksView'
+import { useGetMarketIndices } from '@/services/marketIndex'
+import { useGetHoldingGroups, useGetHoldings, useGetStocks } from '@/services/stock'
+import { useGetExchangeSummary } from '@/services/exchange'
+
+const EMPTY_TEXT_STYLE: CSSProperties = { fontSize: 12.5, color: 'var(--text-weak)' }
+const EMPTY_TEXT_STYLE_DEEP: CSSProperties = { fontSize: 12.5, color: 'var(--deep-label)' }
+const ERROR_TEXT_STYLE: CSSProperties = { fontSize: 11.5, color: 'var(--down)' }
 
 export function Stocks() {
   const { state, setState } = useAppState()
   const stockTab = state.stockTab
+  const market = stockTabToMarket(stockTab)
 
   const setStAll = () => setState({ stockTab: '전체' })
   const setStKr = () => setState({ stockTab: '국내' })
   const setStUs = () => setState({ stockTab: '해외' })
 
-  const groupReturns = getGroupReturns(state.stockGroupTab)
-  const groupReturnCaption = getGroupReturnCaption(state.stockGroupTab)
+  const openBuy = () => setState({ modalOpen: 'quickStock', stockTradeMode: 'buy' })
+  const openSell = () => setState({ modalOpen: 'quickStock', stockTradeMode: 'sell' })
+
+  const indicesQuery = useGetMarketIndices()
+  const indexViews = buildMarketIndexViews(indicesQuery.indices)
+
+  // 이 화면의 전체/국내/해외 탭은 딥 카드(포트폴리오 요약)와 보유 종목 그리드가 공유한다 — 소스에서도
+  // 두 블록이 같은 stockTab을 읽는다.
+  const holdingsQuery = useGetHoldings(market)
+  const stocksQuery = useGetStocks('') // ticker 조인용 전체 종목 목록
+  const holdingCards = buildHoldingCards(holdingsQuery.holdings, stocksQuery.stocks)
+  const portfolioSummary = buildPortfolioSummary(holdingsQuery.holdings)
+
+  const groupsByTab = useGetHoldingGroups(state.stockGroupTab === 'country' ? 'market' : 'sector')
+  const groupReturns = buildGroupReturns(groupsByTab.groups, state.stockGroupTab === 'country' ? 'market' : 'sector')
+  const groupReturnCaption = state.stockGroupTab === 'sector' ? '보유 섹터별 평가 수익률' : '국내·해외 평가 수익률'
+
+  // 섹터 비중 도넛은 그룹별 수익률 탭과 무관하게 항상 섹터 기준이다. by='sector' 쿼리는 React Query가
+  // 키로 중복 제거하므로, 그룹별 수익률 탭이 '섹터'일 때는 위 groupsByTab과 같은 캐시를 공유한다.
+  const sectorGroups = useGetHoldingGroups('sector')
+  const sectorComposition = buildSectorComposition(sectorGroups.groups)
+  const topSector = sectorComposition[0]
+
+  const exchangeSummary = useGetExchangeSummary('USD')
+
+  const holdingsHasError = !!holdingsQuery.error && !holdingsQuery.isFxRateMissing
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* 실시간 시장 지표 */}
-      <Card style={{ padding: '16px 20px' }}>
+      {/* 실시간 시장 지표 — Yahoo Finance를 매 요청 실시간 조회해 느릴 수 있다. */}
+      <Card style={{ padding: '16px 20px' }} aria-busy={indicesQuery.isPending}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <div style={{ fontSize: 15, fontWeight: 700 }}>시장 지표</div>
           </div>
         </div>
-        <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-          {marketIndices.map((idx) => (
-            <div
-              key={idx.name}
-              style={{
-                background: 'var(--fill-subtle)',
-                borderRadius: 10,
-                padding: '10px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 8,
-              }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 700 }}>{idx.name}</div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 15, fontWeight: 700 }}>{idx.value}</div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: idx.positive ? 'var(--up)' : 'var(--down)', marginTop: 1 }}>
-                  {idx.change}
+        {indicesQuery.isPending ? (
+          <div aria-busy style={EMPTY_TEXT_STYLE}>—</div>
+        ) : indicesQuery.error ? (
+          <div style={ERROR_TEXT_STYLE}>{indicesQuery.error.message}</div>
+        ) : indexViews.length === 0 ? (
+          <div style={EMPTY_TEXT_STYLE}>불러올 수 있는 시장 지표가 없어요</div>
+        ) : (
+          <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: `repeat(${indexViews.length},1fr)`, gap: 12 }}>
+            {indexViews.map((idx) => (
+              <div
+                key={idx.symbol}
+                style={{
+                  background: 'var(--fill-subtle)',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{idx.label}</div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>{idx.valueFmt}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: idx.positive ? 'var(--up)' : 'var(--down)', marginTop: 1 }}>
+                    {idx.changeFmt}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       {/* 요약 + 외화 */}
       <div className="rgrid-outer" style={{ display: 'grid', gridTemplateColumns: '1.55fr 1fr', gap: 20 }}>
-        <DeepCard style={{ padding: 26, width: '100%', height: '100%', justifyContent: 'flex-start' }}>
+        <DeepCard style={{ padding: 26, width: '100%', height: '100%', justifyContent: 'flex-start' }} aria-busy={holdingsQuery.isPending}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>주식 포트폴리오 요약</div>
           <div style={{ display: 'flex', borderBottom: '0.5px solid var(--deep-divider)', marginBottom: 22 }}>
             <button onClick={setStAll} style={darkTab(stockTab === '전체')}>전체</button>
             <button onClick={setStKr} style={darkTab(stockTab === '국내')}>국내 주식</button>
             <button onClick={setStUs} style={darkTab(stockTab === '해외')}>해외 주식</button>
           </div>
-          <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>총 평가금액</div>
-              <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em' }}>513,800,000</div>
-              <div style={{ fontSize: 11.5, color: 'var(--deep-label)', fontWeight: 500, marginTop: 3 }}>약 5억 1,380만 원</div>
+          {holdingsQuery.isPending ? (
+            <div aria-busy style={EMPTY_TEXT_STYLE_DEEP}>—</div>
+          ) : holdingsQuery.isFxRateMissing ? (
+            <div style={EMPTY_TEXT_STYLE_DEEP}>해외 주식 환율 정보가 아직 없어 평가금액을 계산할 수 없어요</div>
+          ) : holdingsHasError ? (
+            <div style={{ fontSize: 11.5, color: 'var(--deep-down)' }}>{holdingsQuery.error?.message}</div>
+          ) : holdingsQuery.holdings.length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={EMPTY_TEXT_STYLE_DEEP}>아직 보유한 주식이 없어요. 매수하면 포트폴리오 요약이 여기 표시돼요.</div>
+              <button
+                onClick={openBuy}
+                className="qbtn"
+                style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: 10, border: '0.5px dashed var(--deep-label)', background: 'transparent', color: 'var(--deep-label)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'transform .12s' }}
+              >
+                <Icon name="add" size={16} />
+                매수
+              </button>
             </div>
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>총 매수금액</div>
-              <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em' }}>393,680,000</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>평가손익</div>
-              <div className="dk-accent" style={{ fontSize: 22, fontWeight: 700, marginTop: 6, color: 'var(--deep-up)', letterSpacing: '-.02em' }}>
-                +120,120,000
+          ) : (
+            <>
+              <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>총 평가금액</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em' }}>
+                    {portfolioSummary.totalValueFmt}
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--deep-label)' }}>원</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>총 매수금액</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em' }}>
+                    {portfolioSummary.totalCostFmt}
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--deep-label)' }}>원</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>평가손익</div>
+                  <div className="dk-accent" style={{ fontSize: 22, fontWeight: 700, marginTop: 6, color: portfolioSummary.pnlPositive ? 'var(--deep-up)' : 'var(--deep-down)', letterSpacing: '-.02em' }}>
+                    {portfolioSummary.pnlFmt}
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>원</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>평가 수익률</div>
+                  <div className="dk-accent" style={{ fontSize: 22, fontWeight: 700, marginTop: 6, color: portfolioSummary.pnlPositive ? 'var(--deep-up)' : 'var(--deep-down)', letterSpacing: '-.02em' }}>
+                    {portfolioSummary.returnRateFmt}
+                  </div>
+                </div>
               </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>평가 수익률</div>
-              <div className="dk-accent" style={{ fontSize: 22, fontWeight: 700, marginTop: 6, color: 'var(--deep-up)', letterSpacing: '-.02em' }}>
-                +30.5%
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 24,
+                  marginTop: 22,
+                  paddingTop: 18,
+                  borderTop: '0.5px solid var(--deep-divider)',
+                  fontSize: 12.5,
+                  color: 'var(--deep-label)',
+                }}
+              >
+                <span>
+                  보유 종목 <b style={{ color: 'var(--deep-value)' }}>{portfolioSummary.holdingCount}종목</b>
+                </span>
+                <span>
+                  평단가 <b style={{ color: 'var(--deep-value)' }}>가중평균</b>
+                </span>
               </div>
-            </div>
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              gap: 24,
-              marginTop: 22,
-              paddingTop: 18,
-              borderTop: '0.5px solid var(--deep-divider)',
-              fontSize: 12.5,
-              color: 'var(--deep-label)',
-            }}
-          >
-            <span>
-              보유 종목 <b style={{ color: 'var(--deep-value)' }}>6종목</b>
-            </span>
-            <span>
-              주식 비중 <b style={{ color: 'var(--deep-value)' }}>총자산의 40%</b>
-            </span>
-            <span>
-              평단가 <b style={{ color: 'var(--deep-value)' }}>가중평균</b>
-            </span>
-          </div>
+            </>
+          )}
         </DeepCard>
 
-        <Card style={{ padding: 26, justifyContent: 'space-between', height: '100%', width: '100%' }}>
+        <Card style={{ padding: 26, justifyContent: 'space-between', height: '100%', width: '100%' }} aria-busy={exchangeSummary.isPending}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ fontSize: 15, fontWeight: 700 }}>외화 자산 &amp; 가중 평균 환율</div>
             <button
@@ -134,36 +215,51 @@ export function Stocks() {
               + 환전 추가
             </button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 600 }}>총 보유 USD</div>
-              <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em', color: 'var(--text-strong)' }}>
-                $ 167,725.00{' '}
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-weak)', letterSpacing: 0 }}>
-                  (원화 약 231,209,000원)
-                </span>
+          {exchangeSummary.isPending ? (
+            <div aria-busy style={{ ...EMPTY_TEXT_STYLE, marginTop: 16 }}>—</div>
+          ) : exchangeSummary.isFxRateMissing ? (
+            <div style={{ ...EMPTY_TEXT_STYLE, marginTop: 16 }}>USD 환율 정보가 아직 없어요</div>
+          ) : exchangeSummary.error ? (
+            <div style={{ ...ERROR_TEXT_STYLE, marginTop: 16 }}>{exchangeSummary.error.message}</div>
+          ) : !exchangeSummary.data ? (
+            <div style={{ ...EMPTY_TEXT_STYLE, marginTop: 16 }}>외화 보유 내역이 없어요</div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 600 }}>총 보유 USD</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em', color: 'var(--text-strong)' }}>
+                    $ {fmt(exchangeSummary.data.heldForeignAmount)}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>평단가 (가중평균)</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4, color: 'var(--text-strong)' }}>
+                    {fmt(exchangeSummary.data.weightedAvgRate)}원
+                  </div>
+                </div>
               </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>평단가 (가중평균)</div>
-              <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4, color: 'var(--text-strong)' }}>1,280.40원</div>
-            </div>
-          </div>
-          <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 16 }}>
-            <div style={{ background: 'var(--fill-subtle)', borderRadius: 10, padding: '12px 14px' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>환차익</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--up)', marginTop: 4 }}>+16,450,000원</div>
-            </div>
-            <div style={{ background: 'var(--fill-subtle)', borderRadius: 10, padding: '12px 14px' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>누적 실현 차익</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--up)', marginTop: 4 }}>+41,900,000원</div>
-            </div>
-          </div>
+              <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 16 }}>
+                <div style={{ background: 'var(--fill-subtle)', borderRadius: 10, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>환차익</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: signColor(exchangeSummary.data.unrealizedGainKrw), marginTop: 4 }}>
+                    {signedAmount(exchangeSummary.data.unrealizedGainKrw)}원
+                  </div>
+                </div>
+                <div style={{ background: 'var(--fill-subtle)', borderRadius: 10, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>누적 실현 차익</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: signColor(exchangeSummary.data.realizedGainKrw), marginTop: 4 }}>
+                    {signedAmount(exchangeSummary.data.realizedGainKrw)}원
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </Card>
       </div>
 
       {/* 보유 종목 */}
-      <Card style={{ padding: 26 }}>
+      <Card style={{ padding: 26 }} aria-busy={holdingsQuery.isPending}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button onClick={setStAll} style={liteTab(stockTab === '전체')}>전체</button>
@@ -172,7 +268,7 @@ export function Stocks() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
-              onClick={() => setState({ modalOpen: 'quickStock', stockTradeMode: 'buy' })}
+              onClick={openBuy}
               className="qbtn"
               style={{
                 display: 'flex',
@@ -193,7 +289,7 @@ export function Stocks() {
               매수
             </button>
             <button
-              onClick={() => setState({ modalOpen: 'quickStock', stockTradeMode: 'sell' })}
+              onClick={openSell}
               className="qbtn"
               style={{
                 display: 'flex',
@@ -215,42 +311,55 @@ export function Stocks() {
             </button>
           </div>
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-weak)', marginBottom: 14 }}>수익률 높은 순</div>
-        <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
-          {stockHoldings.map((h) => (
-            <div key={h.name} style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 18 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14.5, fontWeight: 700 }}>{h.name}</span>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: 'var(--text-mid)',
-                      background: 'var(--fill-subtle)',
-                      padding: '2px 7px',
-                      borderRadius: 8,
-                    }}
-                  >
-                    {h.market}
-                  </span>
+        {holdingsQuery.isPending ? (
+          <div aria-busy style={EMPTY_TEXT_STYLE}>—</div>
+        ) : holdingsQuery.isFxRateMissing ? (
+          <div style={EMPTY_TEXT_STYLE}>해외 주식 환율 정보가 아직 없어 평가금액을 계산할 수 없어요</div>
+        ) : holdingsHasError ? (
+          <div style={ERROR_TEXT_STYLE}>{holdingsQuery.error?.message}</div>
+        ) : holdingCards.length === 0 ? (
+          <div style={EMPTY_TEXT_STYLE}>보유 중인 종목이 없어요. 위 매수 버튼으로 첫 종목을 등록해보세요.</div>
+        ) : (
+          <>
+            <div style={{ fontSize: 11, color: 'var(--text-weak)', marginBottom: 14 }}>수익률 높은 순</div>
+            <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
+              {holdingCards.map((h) => (
+                <div key={h.stockId} style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 18 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 14.5, fontWeight: 700 }}>{h.name}</span>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: 'var(--text-mid)',
+                          background: 'var(--fill-subtle)',
+                          padding: '2px 7px',
+                          borderRadius: 8,
+                        }}
+                      >
+                        {h.marketLabel}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 11, color: 'var(--text-weak)' }}>{h.sector}</span>
+                  </div>
+                  {h.ticker && <div style={{ fontSize: 10.5, color: 'var(--text-weak)', marginBottom: 4 }}>{h.ticker}</div>}
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>
+                    {h.valueFmt}
+                    <span style={{ fontSize: 12, color: 'var(--text-weak)', fontWeight: 600 }}>원 · {h.qtyFmt}주</span>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: h.positive ? 'var(--up)' : 'var(--down)', marginTop: 5 }}>
+                    {h.gainFmt}
+                  </div>
                 </div>
-                <span style={{ fontSize: 11, color: 'var(--text-weak)' }}>{h.sector}</span>
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>
-                {h.value}
-                <span style={{ fontSize: 12, color: 'var(--text-weak)', fontWeight: 600 }}> · {h.qty}</span>
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: h.positive ? 'var(--up)' : 'var(--down)', marginTop: 5 }}>
-                {h.gain}
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        )}
       </Card>
 
       <div className="rgrid-outer" style={{ display: 'grid', gridTemplateColumns: '1.75fr 1fr', gap: 20, width: '100%' }}>
-        <Card style={{ padding: 26, width: '100%', height: '100%' }}>
+        <Card style={{ padding: 26, width: '100%', height: '100%' }} aria-busy={groupsByTab.isPending}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ fontSize: 16, fontWeight: 700 }}>그룹별 수익률</div>
             <div style={{ display: 'flex', background: 'var(--track)', borderRadius: 10, padding: 4, gap: 2 }}>
@@ -263,50 +372,83 @@ export function Stocks() {
             </div>
           </div>
           <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginTop: 4 }}>{groupReturnCaption}</div>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignContent: 'center', flex: 1, marginTop: 16 }}>
-            {groupReturns.map((gr) => (
-              <div
-                key={gr.name}
-                style={{
-                  flex: 1,
-                  minWidth: 130,
-                  border: '0.5px solid var(--border)',
-                  borderRadius: 10,
-                  padding: 18,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-mid)' }}>{gr.name}</div>
-                <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.01em', color: gr.color }}>{gr.pctFmt}</div>
-              </div>
-            ))}
-          </div>
+          {groupsByTab.isPending ? (
+            <div aria-busy style={{ ...EMPTY_TEXT_STYLE, marginTop: 16 }}>—</div>
+          ) : groupsByTab.isFxRateMissing ? (
+            <div style={{ ...EMPTY_TEXT_STYLE, marginTop: 16 }}>해외 주식 환율 정보가 아직 없어 계산할 수 없어요</div>
+          ) : groupsByTab.error ? (
+            <div style={{ ...ERROR_TEXT_STYLE, marginTop: 16 }}>{groupsByTab.error.message}</div>
+          ) : groupReturns.length === 0 ? (
+            <div style={{ ...EMPTY_TEXT_STYLE, marginTop: 16 }}>보유 중인 종목이 없어요</div>
+          ) : (
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignContent: 'center', flex: 1, marginTop: 16 }}>
+              {groupReturns.map((gr) => (
+                <div
+                  key={gr.key}
+                  style={{
+                    flex: 1,
+                    minWidth: 130,
+                    border: '0.5px solid var(--border)',
+                    borderRadius: 10,
+                    padding: 18,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-mid)' }}>{gr.label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.01em', color: gr.color }}>{gr.pctFmt}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
 
-        <Card style={{ padding: 26, width: '100%', height: '100%' }}>
+        <Card style={{ padding: 26, width: '100%', height: '100%' }} aria-busy={sectorGroups.isPending}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>섹터 비중</div>
           <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginTop: 4, marginBottom: 16 }}>
             보유 주식 산업군 분포
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24, flex: 1 }}>
-            <DonutChart segments={sectorComposition} size={118} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12.5, flex: 1 }}>
-              {sectorComposition.map((seg) => (
-                <div key={seg.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: 4, background: seg.color }} />
-                  <span style={{ color: 'var(--text-mid)', flex: 1 }}>{seg.label}</span>
-                  <b>{seg.pct}%</b>
+          {sectorGroups.isPending ? (
+            <div aria-busy style={EMPTY_TEXT_STYLE}>—</div>
+          ) : sectorGroups.isFxRateMissing ? (
+            <div style={EMPTY_TEXT_STYLE}>해외 주식 환율 정보가 아직 없어 계산할 수 없어요</div>
+          ) : sectorGroups.error ? (
+            <div style={ERROR_TEXT_STYLE}>{sectorGroups.error.message}</div>
+          ) : sectorComposition.length === 0 ? (
+            <div style={EMPTY_TEXT_STYLE}>보유 중인 종목이 없어요</div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 24, flex: 1 }}>
+                <DonutChart segments={sectorComposition} size={118} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12.5, flex: 1 }}>
+                  {sectorComposition.map((seg) => (
+                    <div key={seg.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 9, height: 9, borderRadius: 4, background: seg.color }} />
+                      <span style={{ color: 'var(--text-mid)', flex: 1 }}>{seg.label}</span>
+                      <b>{seg.pct}%</b>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '0.5px solid var(--track)', fontSize: 12.5, color: 'var(--text-mid)' }}>
-            최대 비중 <b style={{ color: 'var(--text-strong)' }}>반도체</b> <b style={{ color: 'var(--text-strong)' }}>70%</b>
-          </div>
+              </div>
+              {topSector && (
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: '0.5px solid var(--track)', fontSize: 12.5, color: 'var(--text-mid)' }}>
+                  최대 비중 <b style={{ color: 'var(--text-strong)' }}>{topSector.label}</b>{' '}
+                  <b style={{ color: 'var(--text-strong)' }}>{topSector.pct}%</b>
+                </div>
+              )}
+            </>
+          )}
         </Card>
       </div>
     </div>
   )
+}
+
+function signColor(n: number): string {
+  return n >= 0 ? 'var(--up)' : 'var(--down)'
+}
+
+function signedAmount(n: number): string {
+  return (n >= 0 ? '+' : '−') + fmt(Math.abs(n))
 }
