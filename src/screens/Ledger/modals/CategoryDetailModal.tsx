@@ -1,75 +1,93 @@
 // Source: secret/Asset Manager v14.dc.html L2072-2109 (분류별 지출 상세 모달, catDetailModal) —
 // transcribed verbatim. z-index 80, width 460px, maxHeight 86vh. Opened from Ledger's 전월 대비 분류별
-// 지출 rows (cat.open, see Ledger.tsx). catDetailGroups (L4057-4066) is a deterministic pseudo-random
-// generator seeded from the category/sub name lengths — not real transaction data, transcribed exactly.
+// 지출 rows. Data source swapped from the mock's deterministic pseudo-random generator (seeded from
+// name lengths) to GET /transactions/categories/{categoryId}/detail.
 
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
 import { fmt } from '../../../utils/format'
-import { ledgerCategories } from '../../../data/mockLedger'
+import { describeQueryError, formatCategoryDetailChange } from '../../../data/ledgerView'
+import { useGetCategoryDetail } from '@/services/transaction'
 
 export function CategoryDetailModal() {
   const { state, setState } = useAppState()
+  const isOpen = state.modalOpen === 'categoryDetail'
+  const detail = useGetCategoryDetail(state.catDetailCategoryId, {}, { enabled: isOpen })
 
-  if (state.modalOpen !== 'categoryDetail') return null
-
-  const catDetailName = state.catDetailName
-  const catDetailCat = ledgerCategories.find((c) => c.name === catDetailName)
-  const catDetailMajor = state.customCats['지출'].find((c) => c.major === catDetailName)
-  const catDetailSubs = catDetailMajor ? catDetailMajor.subs : []
-  const catDetailGroups = catDetailSubs.map((sub, si) => {
-    const seed = (catDetailName || '').length * 13 + sub.length * 7 + si * 31
-    const items = [0, 1].map((ni) => {
-      const day = 3 + ((seed * 7 + ni * 11) % 24)
-      const amt = 8000 + ((seed * 4231 + ni * 977) % 120000)
-      return { date: '06.' + String(day).padStart(2, '0'), desc: sub + ' 결제', amtFmt: fmt(Math.round(amt / 100) * 100) }
-    })
-    return { sub, items }
-  })
+  if (!isOpen) return null
 
   const closeCatDetail = () => setState({ modalOpen: null })
-
-  if (!catDetailCat) return null
+  const err = describeQueryError(detail.error)
 
   return (
     <Modal onClose={closeCatDetail} zIndex={80} width={460} panelStyle={{ maxHeight: '86vh', overflow: 'auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <div style={{ fontSize: 16.5, fontWeight: 700 }}>{catDetailName} 상세</div>
-        <button
-          onClick={closeCatDetail}
-          style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: 'var(--track)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-        >
-          <Icon name="close" size={19} color="var(--text-mid)" />
-        </button>
-      </div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--exp-text)', marginBottom: 18 }}>
-        {catDetailCat.amtFmt}원 · 전월 대비 {catDetailCat.changeSign}{catDetailCat.changePctFmt}%
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-        {catDetailSubs.map((sub) => (
-          <span key={sub} style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-mid)', background: 'var(--fill-subtle)', padding: '5px 10px', borderRadius: 8 }}>
-            {sub}
-          </span>
-        ))}
-      </div>
-      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>내역</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {catDetailGroups.map((grp) => (
-          <div key={grp.sub}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-weak)', marginBottom: 4 }}>{grp.sub}</div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {grp.items.map((t, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8 }}>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)', width: 44, flex: 'none' }}>{t.date}</div>
-                  <div style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{t.desc}</div>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--exp-text)' }}>−{t.amtFmt}원</div>
-                </div>
-              ))}
-            </div>
+      {detail.isPending ? (
+        <div aria-busy style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
+      ) : err ? (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 6 }}>
+            <button
+              onClick={closeCatDetail}
+              style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: 'var(--track)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+            >
+              <Icon name="close" size={19} color="var(--text-mid)" />
+            </button>
           </div>
-        ))}
-      </div>
+          <div style={{ fontSize: 11.5, color: err.muted ? 'var(--text-weak)' : 'var(--down)' }}>{err.message}</div>
+        </>
+      ) : (
+        detail.data && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontSize: 16.5, fontWeight: 700 }}>{detail.data.categoryName} 상세</div>
+              <button
+                onClick={closeCatDetail}
+                style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: 'var(--track)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              >
+                <Icon name="close" size={19} color="var(--text-mid)" />
+              </button>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--exp-text)', marginBottom: 18 }}>
+              {fmt(detail.data.expenseTotal)}원 · {formatCategoryDetailChange(detail.data.expenseTotal, detail.data.expenseTotalPrevious)}
+            </div>
+            {detail.data.subcategories.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>이 카테고리엔 아직 지출 내역이 없어요.</div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+                  {detail.data.subcategories.map((sub) => (
+                    <span key={sub.subcategoryId} style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-mid)', background: 'var(--fill-subtle)', padding: '5px 10px', borderRadius: 8 }}>
+                      {sub.subcategoryName}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>내역</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {detail.data.subcategories.map((sub) => (
+                    <div key={sub.subcategoryId}>
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-weak)', marginBottom: 4 }}>{sub.subcategoryName}</div>
+                      {sub.transactions.length === 0 ? (
+                        <div style={{ fontSize: 12, color: 'var(--text-weak)', padding: '8px 8px' }}>내역이 없어요.</div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          {sub.transactions.map((t) => (
+                            <div key={t.transactionId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8 }}>
+                              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', width: 44, flex: 'none' }}>{t.date.slice(5).replace('-', '.')}</div>
+                              <div style={{ flex: 1, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</div>
+                              <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--exp-text)' }}>−{fmt(t.amount)}원</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        )
+      )}
     </Modal>
   )
 }

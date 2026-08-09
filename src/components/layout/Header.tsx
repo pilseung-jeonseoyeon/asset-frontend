@@ -112,8 +112,13 @@ export function Header() {
                     modalOpen: 'ledgerEntry',
                     entryType: 'expense',
                     entryTabsVisible: true,
-                    entryCatMajorIdx: 0,
-                    entryCatSubIdx: 0,
+                    editingTxId: null,
+                    entrySubcategoryId: null,
+                    entryAccountId: null,
+                    entryWithdrawAccountId: null,
+                    entryAmount: 0,
+                    entryDescription: '',
+                    entryPreserved: null,
                     entryDateOverride: null,
                   })
                 }
