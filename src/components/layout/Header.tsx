@@ -13,8 +13,20 @@ import { Avatar } from '../primitives/Avatar/Avatar'
 import { Icon } from '../primitives/Icon/Icon'
 import { useAppState } from '../../state/AppStateContext'
 import { useIsMobile } from '../../utils/useMediaQuery'
-import { NOTIFICATIONS } from '../../data/mockNotifications'
+import { formatNotificationTime } from '../../utils/notificationTime'
+import type { NotificationResponse, NotificationType } from '@/services/notification'
+import { useGetNotifications, usePatchNotificationRead } from '@/services/notification'
 import { useProfileName } from '@/services/user'
+
+// 서버는 알림 종류만 내려주고 아이콘은 내려주지 않는다 — 배경/글자색은 두 타입 모두 동일했던
+// mockNotifications의 값을 그대로 유지하고(secret/API-SPEC.md §9는 색상을 규정하지 않음),
+// 타입별로 다른 건 아이콘 하나뿐이다.
+const NOTIF_TYPE_ICON: Record<NotificationType, string> = {
+  MATURITY: 'savings',
+  SYSTEM: 'notifications',
+}
+const NOTIF_ICON_BG = 'var(--fill-subtle)'
+const NOTIF_ICON_COLOR = 'var(--text-mid)'
 
 const MINI_HOV_ITEM_STYLE = {
   display: 'flex',
@@ -32,12 +44,33 @@ const MINI_HOV_ITEM_STYLE = {
   fontFamily: 'inherit',
 }
 
+const NOTIF_ITEM_STYLE = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 11,
+  width: '100%',
+  padding: '11px 8px',
+  borderRadius: 10,
+  border: 'none',
+  background: 'transparent',
+  cursor: 'pointer',
+  textAlign: 'left' as const,
+  fontFamily: 'inherit',
+}
+
 export function Header() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
   const profileName = useProfileName()
+  const notifQuery = useGetNotifications()
+  const patchNotificationRead = usePatchNotificationRead()
   const anyDropdownOpen = state.quickAddOpen || state.notifOpen
-  const hasNotifs = NOTIFICATIONS.length > 0
+  const hasNotifs = notifQuery.notifications.length > 0
+
+  const handleNotificationClick = (nf: NotificationResponse) => {
+    if (nf.read || patchNotificationRead.isPending) return
+    patchNotificationRead.mutate(nf.id)
+  }
 
   const closeDropdowns = () => setState({ quickAddOpen: false, notifOpen: false })
   const stop = (e: MouseEvent) => e.stopPropagation()
@@ -158,7 +191,7 @@ export function Header() {
             }}
           >
             <Icon name="notifications" size={20} color="var(--text-mid)" />
-            {hasNotifs && (
+            {notifQuery.unreadCount > 0 && (
               <span
                 style={{
                   position: 'absolute',
@@ -176,6 +209,7 @@ export function Header() {
           {state.notifOpen && (
             <div
               onClick={stop}
+              aria-busy={notifQuery.isPending}
               style={{
                 position: 'absolute',
                 top: 50,
@@ -192,37 +226,67 @@ export function Header() {
               }}
             >
               <div style={{ fontSize: 13, fontWeight: 700, padding: '8px 8px 12px' }}>알림</div>
-              {hasNotifs ? (
+              {notifQuery.isPending ? (
+                <div style={{ fontSize: 12.5, color: 'var(--text-weak)', padding: '34px 10px', textAlign: 'center' }}>
+                  불러오는 중…
+                </div>
+              ) : notifQuery.error ? (
+                <div style={{ fontSize: 12.5, color: 'var(--down)', padding: '20px 8px', lineHeight: 1.5 }}>
+                  {notifQuery.error.message}
+                </div>
+              ) : hasNotifs ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {NOTIFICATIONS.map((nf) => (
-                    <div
+                  {notifQuery.notifications.map((nf) => (
+                    <button
                       key={nf.id}
                       className="mini-hov"
-                      style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '11px 8px', borderRadius: 10 }}
+                      onClick={() => handleNotificationClick(nf)}
+                      style={NOTIF_ITEM_STYLE}
                     >
                       <span
                         style={{
+                          position: 'relative',
                           width: 34,
                           height: 34,
                           borderRadius: 10,
-                          background: nf.bg,
-                          color: nf.color,
+                          background: NOTIF_ICON_BG,
+                          color: NOTIF_ICON_COLOR,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           flex: 'none',
                         }}
                       >
-                        <Icon name={nf.icon} size={18} />
+                        <Icon name={NOTIF_TYPE_ICON[nf.type]} size={18} />
+                        {!nf.read && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: -2,
+                              right: -2,
+                              width: 8,
+                              height: 8,
+                              background: 'var(--accent)',
+                              borderRadius: 999,
+                              border: '2px solid var(--surface)',
+                            }}
+                          />
+                        )}
                       </span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)' }}>{nf.title}</div>
-                        <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2, lineHeight: 1.4 }}>
-                          {nf.desc}
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: nf.read ? 'var(--text-mid)' : 'var(--text-strong)' }}>
+                          {nf.title}
                         </div>
-                        <div style={{ fontSize: 10.5, color: 'var(--text-weak)', marginTop: 5 }}>{nf.time}</div>
+                        {nf.body && (
+                          <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2, lineHeight: 1.4 }}>
+                            {nf.body}
+                          </div>
+                        )}
+                        <div style={{ fontSize: 10.5, color: 'var(--text-weak)', marginTop: 5 }}>
+                          {formatNotificationTime(nf.createdAt)}
+                        </div>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               ) : (
