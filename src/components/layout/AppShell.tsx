@@ -38,7 +38,6 @@ import { ExchangeAddModal } from '../../screens/Assets/modals/ExchangeAddModal'
 import { AddAccountModal } from '../../screens/Assets/modals/AddAccountModal'
 import { EditAccountModal } from '../../screens/Assets/modals/EditAccountModal'
 import { AssetCategoryModal } from '../../screens/Assets/modals/AssetCategoryModal'
-import { TargetRatioModal } from '../../screens/Assets/modals/TargetRatioModal'
 import { AddGoalModal } from '../../screens/Assets/modals/AddGoalModal'
 import { InstitutionsModal } from '../../screens/Assets/modals/InstitutionsModal'
 import { ReportOverlay } from '../../screens/Assets/modals/ReportOverlay'
@@ -115,7 +114,6 @@ export function AppShell() {
       <AddAccountModal />
       <EditAccountModal />
       <AssetCategoryModal />
-      <TargetRatioModal />
       <AddGoalModal />
       <InstitutionsModal />
       <ReportOverlay />
