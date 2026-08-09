@@ -104,6 +104,8 @@ export function SignupForm() {
             <input
               id="signup-email"
               type="email"
+              inputMode="email"
+              autoComplete="email"
               placeholder="name@example.com"
               value={state.authEmail}
               onInput={filterEmailInput}
@@ -168,6 +170,7 @@ export function SignupForm() {
             <input
               id="signup-name"
               type="text"
+              autoComplete="name"
               placeholder="앱에서 사용할 이름"
               value={state.authName}
               maxLength={NAME_MAX}
@@ -183,6 +186,7 @@ export function SignupForm() {
             <input
               id="signup-password"
               type="password"
+              autoComplete="new-password"
               placeholder="영문 · 숫자 · 기호 조합 8자 이상"
               value={password}
               onInput={filterPwInput}
@@ -199,6 +203,7 @@ export function SignupForm() {
             <input
               id="signup-password-confirm"
               type="password"
+              autoComplete="new-password"
               placeholder="비밀번호 다시 입력"
               value={passwordConfirm}
               onInput={filterPwInput}

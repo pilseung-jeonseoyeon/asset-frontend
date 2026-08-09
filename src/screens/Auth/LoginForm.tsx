@@ -56,6 +56,8 @@ export function LoginForm() {
         <input
           id="login-email"
           type="email"
+          inputMode="email"
+          autoComplete="username"
           placeholder="name@example.com"
           value={state.authEmail}
           onInput={filterEmailInput}
@@ -72,6 +74,7 @@ export function LoginForm() {
           <input
             id="login-password"
             type={showPassword ? 'text' : 'password'}
+            autoComplete="current-password"
             placeholder="비밀번호 입력"
             value={password}
             onInput={(e) => {

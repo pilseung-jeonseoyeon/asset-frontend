@@ -7,6 +7,11 @@
 // reused here verbatim for the password-change subview instead of keeping a second copy.
 // 로그아웃 버튼은 usePostLogout()에 연결되어 있다 — 실패해도 클라이언트 세션은 끊는다
 // (auth.hook.ts의 usePostLogout onSettled 주석 참고), 되돌리기 쉬운 동작이라 확인 모달은 두지 않는다.
+//
+// Mobile (<=767px, docs/mobile.md §4): this modal doesn't use the shared primitives/Modal component
+// (it's the one documented exception, alongside ReportOverlay), so the bottom-sheet conversion is
+// re-implemented locally here — same shape as Modal.tsx: flex-end scrim, 10px 10px 0 0 radius, 88vh
+// max height, safe-area bottom padding, top grabber, sheet-up slide-in.
 
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -15,6 +20,7 @@ import { Avatar } from '../../primitives/Avatar/Avatar'
 import { useAppState } from '../../../state/AppStateContext'
 import { stopPropagation, useCloseModal } from '../../../state/selectors/modal'
 import { authInput, authPrimary, authSecondary, filterPwInput } from '../../../screens/Auth/authFormStyles'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useGetMe, usePatchPassword, useProfileName } from '@/services/user'
 import { usePostLogout, PASSWORD_PATTERN, PASSWORD_RULE_TEXT } from '@/services/auth'
 
@@ -33,6 +39,7 @@ export function AccountModal() {
   const closeModal = useCloseModal()
   const logoutMutation = usePostLogout()
   const patchPassword = usePatchPassword()
+  const isMobile = useIsMobile()
 
   // 비밀번호는 전역 상태(AppState)에 두지 않는다 — 평문이 앱 전역 상태에 남게 된다.
   // 이 모달은 AppShell에 항상 마운트되므로 닫을 때 반드시 직접 지운다.
@@ -111,26 +118,47 @@ export function AccountModal() {
         inset: 0,
         background: 'var(--overlay-scrim)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: isMobile ? 'flex-end' : 'center',
         justifyContent: 'center',
         zIndex: 80,
-        padding: 24,
+        padding: isMobile ? 0 : 24,
       }}
     >
       <div
         onClick={stopPropagation}
-        style={{
-          position: 'relative',
-          background: 'var(--surface)',
-          borderRadius: 10,
-          padding: 30,
-          width: 520,
-          maxWidth: '100%',
-          maxHeight: '86vh',
-          overflow: 'auto',
-          boxShadow: 'var(--shadow-modal)',
-        }}
+        className={isMobile ? 'sheet-up' : undefined}
+        style={
+          isMobile
+            ? {
+                position: 'relative',
+                background: 'var(--surface)',
+                borderRadius: '10px 10px 0 0',
+                padding: '20px 18px calc(20px + env(safe-area-inset-bottom))',
+                width: '100%',
+                maxWidth: '100%',
+                maxHeight: '88vh',
+                overflowY: 'auto',
+                boxShadow: 'var(--shadow-modal)',
+              }
+            : {
+                position: 'relative',
+                background: 'var(--surface)',
+                borderRadius: 10,
+                padding: 30,
+                width: 520,
+                maxWidth: '100%',
+                maxHeight: '86vh',
+                overflow: 'auto',
+                boxShadow: 'var(--shadow-modal)',
+              }
+        }
       >
+        {isMobile && (
+          <div
+            aria-hidden="true"
+            style={{ width: 36, height: 4, borderRadius: 999, background: 'var(--border)', margin: '0 auto 14px' }}
+          />
+        )}
         {isAccountMain && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
@@ -415,8 +443,8 @@ export function AccountModal() {
               position: 'absolute',
               inset: 0,
               background: 'var(--surface)',
-              borderRadius: 10,
-              padding: 30,
+              borderRadius: isMobile ? '10px 10px 0 0' : 10,
+              padding: isMobile ? '20px 18px calc(20px + env(safe-area-inset-bottom))' : 30,
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',

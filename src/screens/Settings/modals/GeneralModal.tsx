@@ -2,16 +2,21 @@
 // z-index 80, width 540px, maxHeight 86vh. "기준 통화" row and both toggle switches have NO onClick in
 // the source (no handler, no state binding) — purely decorative/non-functional, ported as-is (not made
 // interactive) per extraction discipline.
+//
+// Mobile (<=767px): the 라이트/다크/시스템 toggle is the one *interactive* control unique to this file
+// (the desktop padding leaves each button at ~24px tall, under the docs/mobile.md §5 44px touch target
+// floor) — desktop padding is untouched, only the mobile variant grows vertically.
 
 import type { CSSProperties } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
 import { useCloseModal } from '../../../state/selectors/modal'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 
-function themeBtn(active: boolean): CSSProperties {
+function themeBtn(active: boolean, isMobile: boolean): CSSProperties {
   return {
-    fontSize: 11.5, fontWeight: 700, padding: '5px 10px', borderRadius: 8,
+    fontSize: 11.5, fontWeight: 700, padding: isMobile ? '11px 10px' : '5px 10px', borderRadius: 8,
     border: 'none', cursor: 'pointer', fontFamily: 'inherit',
     background: active ? 'var(--seg-active)' : 'transparent',
     color: active ? 'var(--text-strong)' : 'var(--text-weak)',
@@ -29,6 +34,7 @@ const TOGGLE_KNOB_STYLE: CSSProperties = { position: 'absolute', top: 2, right: 
 export function GeneralModal() {
   const { state, setState } = useAppState()
   const closeModal = useCloseModal()
+  const isMobile = useIsMobile()
 
   if (state.modalOpen !== 'general') return null
 
@@ -42,9 +48,9 @@ export function GeneralModal() {
             <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>라이트 · 다크 · 시스템</div>
           </div>
           <div style={{ display: 'flex', background: 'var(--track)', borderRadius: 8, padding: 3, gap: 2 }}>
-            <button onClick={() => setState({ theme: 'light' })} style={themeBtn(state.theme === 'light')}>라이트</button>
-            <button onClick={() => setState({ theme: 'dark' })} style={themeBtn(state.theme === 'dark')}>다크</button>
-            <button onClick={() => setState({ theme: 'system' })} style={themeBtn(state.theme === 'system')}>시스템</button>
+            <button onClick={() => setState({ theme: 'light' })} style={themeBtn(state.theme === 'light', isMobile)}>라이트</button>
+            <button onClick={() => setState({ theme: 'dark' })} style={themeBtn(state.theme === 'dark', isMobile)}>다크</button>
+            <button onClick={() => setState({ theme: 'system' })} style={themeBtn(state.theme === 'system', isMobile)}>시스템</button>
           </div>
         </div>
         <div style={ROW_STYLE}>

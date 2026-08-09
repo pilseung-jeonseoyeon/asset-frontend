@@ -107,6 +107,8 @@ export function ResetPasswordForm() {
             <input
               id="reset-email"
               type="email"
+              inputMode="email"
+              autoComplete="email"
               placeholder="name@example.com"
               value={state.authEmail}
               onInput={filterEmailInput}
@@ -172,6 +174,7 @@ export function ResetPasswordForm() {
             <input
               id="reset-new-password"
               type="password"
+              autoComplete="new-password"
               placeholder="영문 · 숫자 · 기호 조합 8자 이상"
               value={newPassword}
               onInput={filterPwInput}
@@ -188,6 +191,7 @@ export function ResetPasswordForm() {
             <input
               id="reset-new-password-confirm"
               type="password"
+              autoComplete="new-password"
               placeholder="비밀번호 다시 입력"
               value={newPasswordConfirm}
               onInput={filterPwInput}
