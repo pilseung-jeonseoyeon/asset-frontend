@@ -31,11 +31,17 @@
 - [`docs/state-management.md`](./docs/state-management.md) — AppState / Zustand / React Query 상태 경계
 - [`docs/code-convention.md`](./docs/code-convention.md) — 명명 규칙, import 순서, 컴포넌트 작성 스타일
 - [`docs/api-conventions.md`](./docs/api-conventions.md) — axios/React Query 기반 API 통신 규칙, 서비스 폴더 구조
-- `secret/API-SPEC.md` — 실제 백엔드 API 스펙 (git에 커밋되지 않는 폴더 — 절대 규칙 1 참고)
+- [`docs/backend-requests.md`](./docs/backend-requests.md) — 연동 중 확인된 백엔드 스펙 누락·불일치와 요청 목록
+- `secret/API-SPEC.md` — 백엔드 API 스펙 (git에 커밋되지 않는 폴더 — 절대 규칙 1 참고).
+  **주의: 이 문서는 인증 도입 전 기준이라 `/auth/*`와 401 동작이 빠져 있고, "인증 불필요"라는
+  서술도 더 이상 사실이 아닙니다.** 실제 계약은 실행 중인 서버의 `GET /v3/api-docs`(OpenAPI)가
+  기준이며, 확인된 차이는 `docs/backend-requests.md`에 정리되어 있습니다.
 
 ## 아키텍처
 
-- 기술 스택: Vite + React 19 + TypeScript. 라우터는 없고, `state.screen` 값에 따라 `AppShell`이 화면을 전환합니다. CSS 프레임워크 없음. 앱 자체 reducer/context 외의 상태관리 라이브러리 없음. 테스트 러너 아직 미구성. API/데이터 페칭 레이어 없음 — 모든 데이터는 로컬 목업입니다.
+- 기술 스택: Vite + React 19 + TypeScript. 라우터는 없고, `state.screen` 값에 따라 `AppShell`이 화면을 전환합니다. CSS 프레임워크 없음. 테스트 러너 아직 미구성.
+- 상태는 세 레이어로 나뉩니다: 앱 자체 reducer/context(`AppState`) + React Query(서버 상태) + Zustand(`src/stores/` — 전역 로딩, 인증 토큰). 경계는 `docs/state-management.md` 참고.
+- **데이터는 서버에서 옵니다.** axios + React Query 기반 API 레이어가 `src/services/{domain}/`에 도메인별로 있고(`auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex`), 자산·가계부·주식 화면은 조회와 생성/수정/삭제가 모두 실제 API에 연결되어 있습니다. 대시보드·알림만 아직 `src/data/mock*.ts`를 씁니다.
 - 진입점: `src/main.tsx`가 `AppStateProvider`로 감싼 `App`을 `index.html`의 `#root`에 마운트합니다. `src/index.css`는 `tokens.css` → `bank-tokens.css` → `base.css` 순으로 import합니다. `App.tsx`는 현재 테마를 적용(`useApplyTheme`)한 뒤 `AppShell`을 렌더링합니다.
 - `tsconfig.json`은 project references 구조입니다: `src/`는 `tsconfig.app.json`, Vite 설정은 `tsconfig.node.json`을 사용합니다. 전체 빌드는 항상 `tsc -b`로 실행하세요(단순 `tsc` 아님).
 
@@ -49,11 +55,16 @@ src/
     actions.ts              PATCH / PATCH_FN 액션 타입(dc.html의 setState를 미러링)
     reducer.ts               단순 병합 리듀서
     AppStateContext.tsx       Provider + useAppState() 훅
-    selectors/                기능별 순수 헬퍼 함수(datePicker, dropdown, modal, nav,
+    selectors/                기능별 순수 헬퍼 함수(auth, datePicker, dropdown, modal, nav,
                               segTab, stocks) — 메모이즈하지 않은 일반 함수. 소스가
                               렌더마다 재계산하는 방식을 그대로 따른 것
-  data/                  화면별 mock*.ts — 그대로 옮긴 리터럴 데이터 + 소규모 순수
-                         계산 함수(fmt, 페이지네이션, 증감 계산 등). 페칭/API 없음
+  services/              API 통신 레이어. api.ts(axios + ApiError + unwrap), api.types.ts,
+                         common.type.ts(도메인 공용 enum), queryKeys.ts(qk 레지스트리),
+                         queryClient.ts, 그리고 {domain}/{domain}.service|hook|type.ts
+  stores/                Zustand. ui.ts(전역 로딩 카운터), auth.ts(액세스 토큰 — 메모리 전용)
+  data/                  {screen}View.ts — 서버 응답 → 화면용 뷰모델 변환(순수 함수).
+                         색상·아이콘·포맷 문자열 등 디자인 시스템 규칙이 여기 산다.
+                         mock*.ts는 아직 서버에 연결하지 않은 화면(대시보드·알림)만 남아 있음
   design/                bank-institutions.ts(125개 기관 마스터 테이블),
                          bank-archetypes.ts(공용 SVG 아이콘 경로 25종) — BankIcon에 사용
   components/
@@ -61,7 +72,8 @@ src/
                            BankIcon, DatePicker, Modal, Dropdown, SegmentedTab, StatBadge,
                            DeepCard, Avatar)
     layout/                AppShell, Header, SidebarNav, layout/modals/(전역 오버레이 모달)
-  screens/               최상위 화면별 폴더: Dashboard, Assets, Stocks, Ledger, Settings
+  screens/               최상위 화면별 폴더: Auth, Dashboard, Assets, Stocks, Ledger, Settings
+                         (Auth는 useAuthStore().status === 'anonymous'일 때만 렌더됨)
   styles/                tokens.css(디자인 토큰, 라이트/다크), bank-tokens.css(기관별 색상),
                          base.css(리셋 + 지정된 hover/media 클래스만)
   utils/                 format.ts(fmt), deltaBadge.ts(mkDelta/hexToRgba),
@@ -86,13 +98,18 @@ pnpm preview       # 프로덕션 빌드 미리보기
 ## 도메인 컨텍스트
 
 - 앱: Monit(모닛), 개인 자산관리 앱. `state.screen`으로 전환되는 5개 화면: 대시보드(`dashboard`) / 자산(`asset`) / 주식(`stock`) / 가계부(`ledger`) / 설정(`settings`).
-- **가계부 거래유형**(`EntryType`): `income`(수입, 초록 — `--inc-*`), `expense`(지출, 빨강/살몬 — `--exp-*`), `saving`(저축, 보라 — `--sav-*`), `transfer`(이체, 전용 색상 없음, `--text-strong`으로 렌더링). 거래 내역 목록에서는 수입에 `+`, 지출에 `−`, 저축/이체는 부호 없음(`src/data/mockLedger.ts`의 `computeLedgerTx` 참고). 단, 히어로/딥카드의 증감 배지는 항상 명시적으로 부호를 표시합니다.
-- **가계부 카테고리는 사용자 커스터마이즈 가능**(`state.customCats`): 수입/저축/지출 3개 최상위 그룹이 각각 대/소분류 쌍(`CustomCatGroup`)을 가집니다. 입력 폼에서 현재 선택은 id가 아니라 **배열 인덱스**(`entryCatMajorIdx`/`entryCatSubIdx`)로 추적합니다.
+- **가계부 거래유형**(`EntryType`): `income`(수입, 초록 — `--inc-*`), `expense`(지출, 빨강/살몬 — `--exp-*`), `saving`(저축, 보라 — `--sav-*`), `transfer`(이체, 전용 색상 없음, `--text-strong`으로 렌더링). 거래 내역 목록에서는 수입에 `+`, 지출에 `−`, 저축/이체는 부호 없음(`src/data/ledgerView.ts`의 `buildLedgerTx` 참고). 단, 히어로/딥카드의 증감 배지는 항상 명시적으로 부호를 표시합니다.
+  서버 `TransactionType`(`INCOME`/`EXPENSE`/`SAVING`/`TRANSFER`)이 이 화면 타입과 1:1로 대응합니다.
+- **가계부 카테고리는 서버 리소스**입니다(`GET /categories`). 수입/저축/지출 3개 구분(`CategoryKind`) 아래 대분류가 있고, 그 아래 소분류가 붙습니다. **대분류는 서버 시드 고정이라 API로 만들 수 없고, 소분류만 추가·삭제할 수 있습니다.** 입력 폼은 배열 인덱스가 아니라 **`subcategoryId`(서버 id)** 로 선택을 추적합니다.
+  거래 등록 시 타입별 필드 규칙을 어기면 400입니다: 수입/지출/저축은 `subcategoryId` 필수 + `transferAccountId` 금지, 이체는 그 반대입니다.
 - **자산 분류**: 현금 / 예적금 / 국내주식 / 해외주식 / 가상자산 / 연금·기타, 6개 고정 카테고리이며 각각 아이콘·금액·전체 대비 비중을 가집니다. 트리맵("맵") 뷰는 비중에 따라 3단계 렌더 티어로 분류합니다: `full`(15% 이상), `medium`(6% 이상), `icon`(그 미만). 5% 미만 항목은 합쳐서 `기타` 블록으로 만듭니다. `mapSort`(자연/기관별 정렬 토글)는 상태에는 존재하지만 소스에서도 어떤 UI에도 연결되지 않은 죽은 토글입니다 — 명시적 요청 없이 "완성"시키지 마세요.
 - **금융기관**: `src/design/bank-institutions.ts`는 9개 카테고리(`bank`/`securities`/`card`/`lifeInsurance`/`fireInsurance`/`savingsBank`/`crypto`/`fintech`/`pension`)에 걸친 국내 금융기관 125개의 마스터 목록입니다. 각 기관은 `tokenKey`(해당 `--bank-{tokenKey}-bg/-fg` 색상을 결정)와 `archetype`(공용 SVG 아이콘 모양 25종 중 하나)을 가집니다. KB 계열과 카카오 계열은 노란색 브랜드 컬러의 대비 확보를 위해 아이콘 stroke가 더 두껍습니다(기본 1.8 대비 2.0) — `BANK_YELLOW_STROKE_EXCEPTIONS` 참고.
 - **포맷팅**: `fmt(n)`은 `n.toLocaleString('ko-KR')`이며 통화 기호를 포함하지 않습니다 — `원`은 소스가 그렇게 하는 위치마다 JSX에 리터럴 문자열로 붙입니다(`fmt` 내부가 아님). "약 12억 8,450만 원" 같은 억/만 축약 표기는 목업 데이터마다 하드코딩된 리터럴 문자열이며 공용 계산 함수가 없습니다 — 일반화된 축약 헬퍼를 임의로 추가하지 마세요.
-- **데이터 흐름**: 화면은 `src/data/mock*.ts`에서 리터럴/파생 값을 직접 import하고, 인터랙션 상태는 `useAppState()`로 읽고 씁니다. 어디에도 API 레이어, 비동기 페칭, 영속성이 없습니다 — 새로고침하면 항상 `initialState`로 돌아갑니다.
-- **프로필**: 하드코딩된 단일 사용자, `profileName: '정다은'`. 인증도 다중 사용자 개념도 없습니다 — 원본 프로토타입의 인증 플로우는 이번 포팅 범위에서 명시적으로 제외되었습니다(`src/state/types.ts` 상단 주석 참고). 앱은 항상 "인증된" 상태로 시작합니다.
+- **데이터 흐름**: 화면은 `@/services/{domain}`의 훅으로 서버 데이터를 읽고(React Query 캐시에 그대로 두며 AppState로 복사하지 않습니다), `src/data/{screen}View.ts`가 그 응답을 화면이 그릴 형태로 바꿉니다. 인터랙션 상태(탭·모달·폼 입력)만 `useAppState()`로 읽고 씁니다.
+- **"월"의 기준**: 이 앱의 이번 달은 달력 1일이 아니라 사용자 설정 `monthStartDay`(1~28) 기준의 **정산월**입니다. 가계부·목표·대시보드 전역에 적용되며, 대부분의 API가 `year`/`month`를 파라미터로 받고 실제 기간 경계는 서버가 계산합니다. 정산월에 의존하는 쿼리는 queryKey에 `{ year, month }`를 반드시 포함하세요.
+- **서버 응답에 없는 값은 화면에 그리지 않습니다.** 주식 현재가, USD/KRW 환율, 계좌 이자율처럼 API가 주지 않는 값은 하드코딩이나 추정값으로 채우지 말고 비워 두고, `docs/backend-requests.md`에 기록하세요.
+- **인증**: 백엔드가 JWT 인증을 요구합니다. 모든 화면/모달은 `useAuthStore().status`가 `'authenticated'`일 때만 `AppShell`에 마운트되고, `'anonymous'`면 `src/screens/Auth/Auth.tsx`(로그인/회원가입/비밀번호 찾기)만 렌더됩니다. 로그인하지 않은 상태에서 화면을 시작하지 않습니다 — 자세한 경계는 `docs/state-management.md`, 인터셉터 동작은 `docs/api-conventions.md` 참고.
+- **프로필**: 여전히 단일 사용자를 가정한 UI(가족 연동 등은 "준비 중")지만, 실제 이름·이메일은 로그인한 계정 기준으로 `GET /users/me`(`src/services/user`)에서 옵니다. `profileName: '정다은'`은 이제 하드코딩 기본값이 아니라 해당 사용자가 서버에 아직 없을 때(`USER_NOT_FOUND`)의 폴백 문자열일 뿐입니다(`src/services/user/user.hook.ts`의 `FALLBACK_PROFILE_NAME` 참고).
 
 ## 디자인 시스템
 

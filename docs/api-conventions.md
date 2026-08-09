@@ -4,22 +4,25 @@
 규칙을 이 저장소(Vite + React 19, 라우터 없음, `state.screen` 기반 화면 전환) 구조에 맞게 옮긴
 것입니다. 원본과 다르게 조정한 부분은 각 절에 표시해두었습니다.
 
-> 이 문서 작성 시점 기준으로 실제 백엔드 연동은 아직 없습니다. 모든 화면 데이터는 여전히
-> `src/data/mock*.ts`입니다(`CLAUDE.md` 참고). 아래 인프라(axios 인스턴스, React Query,
-> zustand 로딩 스토어, 경로 별칭)는 실제로 설치·구성되어 있지만, **도메인 서비스 폴더는 아직
-> 하나도 없습니다** — 실제 API 연동을 시작할 때 이 문서의 "서비스 폴더 구조" 절을 따라 만드세요.
+> 실제 백엔드 스펙은 `secret/API-SPEC.md`입니다(git 미커밋). 도메인 서비스를 새로 만들 때는
+> 이 문서의 "서비스 폴더 구조" 절을 그대로 따르세요.
 
 ## 설치된 것 / 설정된 것
 
 - 의존성: `axios`, `@tanstack/react-query`, `zustand`, `zod` (`package.json`)
 - 경로 별칭: `@/*` → `src/*` (`tsconfig.app.json`의 `paths`, `vite.config.ts`의 `resolve.alias`)
-- `src/services/api.ts` — axios 인스턴스 + 공통 응답 인터셉터
-- `src/services/api.types.ts` — `ApiResponse<T>` 공통 응답 타입
+- `src/services/api.ts` — axios 인스턴스 + 응답 인터셉터 + `ApiError` + `unwrap`
+- `src/services/api.types.ts` — `ApiResponse<T>` / `ApiErrorPayload` 공통 봉투 타입
+- `src/services/common.type.ts` — 여러 도메인이 함께 쓰는 enum(`Currency`, `AccountType`,
+  `AssetClass`, `TransactionType`, `Market` 등), 목록 조회 파라미터, Spring `Page<T>` 타입
+- `src/services/queryKeys.ts` — React Query 키 중앙 레지스트리(`qk`)
 - `src/services/queryClient.ts` — React Query `QueryClient`, `src/main.tsx`에서
   `QueryClientProvider`로 `AppStateProvider` 바깥을 감싸는 중
 - `src/stores/ui.ts` — 전역 로딩 카운터 zustand 스토어(`useUiStore`)
 - `VITE_API_BASE_URL` 환경변수로 baseURL 주입 (`.env`에 설정 — `.env`는 git에 커밋되지 않음.
-  `import.meta.env` 타입은 `src/vite-env.d.ts`에 선언)
+  `import.meta.env` 타입은 `src/vite-env.d.ts`에 선언). **경로 버전 `/api/v1`을 baseURL에
+  포함**시키므로 서비스 함수에서는 `/accounts`처럼 버전 없이 씁니다.
+  로컬 기본값: `VITE_API_BASE_URL=http://localhost:8080/api/v1`
 
 ## Axios 인스턴스 설정 패턴
 
@@ -30,7 +33,7 @@ export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
-  withCredentials: false, // 쿠키 기반 인증이 필요해지면 true로 전환
+  withCredentials: true, // 리프레시 토큰이 httpOnly 쿠키로 오가므로 필수 (아래 "인터셉터 사용" 절)
 })
 ```
 
@@ -51,16 +54,36 @@ export const api = axios.create({
 
 ## Request/Response 타입 정의
 
-- 도메인별 타입은 `src/services/{domain}/{domain}.types.ts`에 `PascalCase` +
-  `Request`/`Response` 접미사로 정의합니다 (`LoginRequest`, `LoginResponse`).
-- 공통 응답 봉투는 `src/services/api.types.ts`의 `ApiResponse<T>`를 재사용합니다.
+- 도메인별 타입은 `src/services/{domain}/{domain}.type.ts`에 `PascalCase` +
+  `Request`/`Response` 접미사로 정의합니다 (`CreateAccountRequest`, `AccountResponse`).
+- 여러 도메인이 함께 쓰는 enum·파라미터·`Page<T>`는 `src/services/common.type.ts`에 둡니다.
+  도메인 폴더끼리는 서로 import하지 않습니다(순환 방지).
+- 공통 응답 봉투는 `src/services/api.types.ts`의 `ApiResponse<T>`를 재사용합니다. 실제 서버는
+  성공/실패 형태가 다르고, 실패는 `error` 객체 안에 중첩되어 있습니다.
 
   ```ts
+  // 성공: { "success": true, "data": { ... } }
   export interface ApiResponse<T> {
-    success: boolean
-    code: string
-    message: string
-    data: T
+    success: true
+    data?: T // 204/Void 응답은 data 키 자체가 없음(@JsonInclude(NON_NULL))
+  }
+
+  // 실패: { "success": false, "error": { "code": "...", "message": "..." } }
+  export interface ApiErrorPayload {
+    success: false
+    error: { code: string; message: string }
+  }
+  ```
+
+- 서비스 함수는 `unwrap`으로 `data`를 꺼냅니다. 204를 돌려주는 DELETE 계열은 `unwrap`을 쓰지
+  않습니다.
+
+  ```ts
+  export async function getAccounts(params?: AccountListParams) {
+    return unwrap(await api.get<ApiResponse<AccountResponse[]>>('/accounts', { params }))
+  }
+  export async function deleteAccount(accountId: number) {
+    await api.delete(`/accounts/${accountId}`) // 204 No Content
   }
   ```
 
@@ -80,30 +103,62 @@ export const api = axios.create({
 
 ## 인터셉터 사용 (인증, 에러 처리)
 
-**[상태: 문서화만 — 아직 구현하지 않음]** `CLAUDE.md`에 명시된 대로 이 앱은 단일 하드코딩
-사용자이며 인증/로그인 개념이 없습니다("원본 프로토타입의 인증 플로우는 이번 포팅 범위에서
-명시적으로 제외"). 따라서 지금 `useAuthStore`나 `Authorization: Bearer` 헤더 부착, refresh
-token 재인증 큐를 실제로 구현하지 않았습니다. 인증이 실제로 도입되면:
+**[상태: 구현됨]** 백엔드가 개발 도중 JWT 인증을 켜면서 모든 API가 인증을 요구하게 됐습니다
+(`secret/API-SPEC.md`는 인증 도입 전 문서라 `/auth/*`가 빠져 있습니다 — 실제 스펙은 서버의
+OpenAPI 문서에서 확인했고 `src/services/auth/auth.type.ts` 헤더 주석에 출처를 남겨뒀습니다).
+`src/services/api.ts`에 아래가 모두 구현되어 있습니다.
 
-- 요청 인터셉터에서 인증 스토어의 `accessToken`을 읽어 `Authorization: Bearer` 헤더를 붙입니다.
-  붙이는 지점은 `src/services/api.ts`의 주석(`// 인증이 도입되면 여기서...`)으로 표시해뒀습니다.
-- 401 응답과 토큰 갱신은 동시 요청에도 갱신이 한 번만 일어나도록 큐 패턴으로 처리합니다
-  (첫 401이 갱신을 시작하고, 갱신이 끝날 때까지 뒤따르는 401들은 같은 Promise를 기다림).
+- **요청 인터셉터**가 `useAuthStore.getState().accessToken`을 읽어 `Authorization: Bearer`
+  헤더를 붙입니다. 단, `PUBLIC_PATHS`(로그인·회원가입·코드 발송·refresh·비밀번호 재설정)는
+  토큰이 있어도 붙이지 않습니다 — 토큰이 만료된 상태에서 로그인을 다시 시도하는 경우 등을
+  방어하기 위함입니다.
+- **401 응답과 토큰 갱신**은 `refreshAccessToken()`의 단일 비행(single-flight) Promise로
+  처리합니다: 첫 401이 `POST /auth/refresh`(쿠키 기반, 바디 없음)를 시작하고, 같은 순간의
+  다른 401들은 새로 refresh를 트리거하지 않고 같은 Promise를 기다린 뒤 원래 요청을
+  `config._retriedAfterRefresh` 플래그로 **한 번만** 재시도합니다. refresh 자체가 401이면(세션
+  만료) 이 인스턴스가 아니라 인터셉터를 달지 않은 별도의 `refreshClient`로 호출해 무한 재귀를
+  피하고, 실패 시 `useAuthStore().signOut()`으로 세션을 끊습니다 — `AppShell`이 이를 감지해
+  로그인 화면으로 돌려보냅니다.
+- `PUBLIC_PATHS`에 해당하는 경로는 401을 받아도 재발급을 시도하지 않습니다(애초에 토큰이
+  필요 없는 요청이므로).
 
-지금 실제로 구현된 것은 **응답 인터셉터의 에러 정규화**뿐입니다 (`src/services/api.ts`):
+지금까지 구현된 것에 더해 **응답 인터셉터의 에러 정규화**도 그대로 유지됩니다. 서버 실패
+코드를 호출부에서 분기할 수 있도록 `ApiError`로 감싸 reject합니다:
 
 ```ts
 api.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
     if (isAxiosError<ApiErrorPayload>(error)) {
-      const message = error.response?.data?.message ?? error.message
-      return Promise.reject(new Error(message))
+      const payload = error.response?.data
+      return Promise.reject(
+        new ApiError(
+          payload?.error?.code ?? 'NETWORK_ERROR',
+          payload?.error?.message ?? error.message,
+          error.response?.status,
+        ),
+      )
     }
     return Promise.reject(error)
   },
 )
 ```
+
+> `responseType: 'blob'` 요청(엑셀 내보내기, API-SPEC §14)은 실패 시 body가 Blob이라 이 인터셉터가
+> `code`/`message`를 읽을 수 없습니다. 해당 기능은 이 인스턴스를 쓰지 말고 별도로 처리하세요.
+
+### 로그인 화면 (`src/screens/Auth/`)과의 경계
+
+- `AppShell`은 `useRestoreSession()`(`src/services/auth/auth.hook.ts`)이 돌려주는
+  `useAuthStore().status`로 게이팅합니다: `unknown`이면 최소 로딩만, `anonymous`면
+  `screens/Auth/Auth.tsx`만, `authenticated`면 기존 화면 트리 전체를 렌더합니다.
+  `anonymous`일 때 기존 모달/화면을 마운트하지 않는 이유는 `useGetMe` 등 마운트 즉시 쏘는
+  쿼리가 토큰 없이 401을 반복해서 받기 때문입니다.
+- 로그인/회원가입/비밀번호 재설정 자체는 `src/services/auth/`의 `usePostLogin` /
+  `usePostSignupCode` / `usePostSignup` / `usePostPasswordResetCode` / `usePutPassword` /
+  `usePostLogout`을 그대로 씁니다 — 이 도메인만 `services/{domain}` 표준 구조에서 조금
+  벗어나 `auth.service.ts`가 요청 인터셉터가 자동으로 건드리지 않는 `PUBLIC_PATHS`를 직접
+  호출한다는 점이 다릅니다.
 
 ## 에러 핸들링 전략
 
@@ -115,8 +170,11 @@ api.interceptors.response.use(
   컴포넌트가 추가되기 전까지는 에러를 상태로 들고 있다가 화면에 직접 렌더링하거나
   `console.error`로만 남기세요. 임의로 토스트 컴포넌트를 새로 만들지 마세요(디자인 시스템
   결정이 필요한 사안 — `secret/ds_rules_v2_5.md` 기준 확인 필요).
-- 서버가 내려주는 실패 코드는 `ApiResponse.code` 값으로 분기 처리합니다(권한 부족, 잔액 부족 등
-  도메인별 케이스).
+- 서버가 내려주는 실패 코드는 `ApiError.code` 값으로 분기 처리합니다(`INSUFFICIENT_HOLDING`,
+  `SUBCATEGORY_DUPLICATE_NAME`, `INSTITUTION_HAS_ACTIVE_ACCOUNTS` 등). `err.message`는 이미
+  완성된 한국어 문장이므로 기본적으로 그대로 노출하고, 코드 분기는 UX를 바꿔야 할 때만 씁니다.
+- **에러가 아닌 실패**를 구분하세요. `FX_RATE_NOT_FOUND`(422), `USER_SETTINGS_NOT_FOUND`(404)는
+  "데이터가 아직 없음"에 가까우므로 빨간 에러가 아니라 `var(--text-weak)` 안내문으로 렌더합니다.
 
 ## 로딩 상태 관리
 
@@ -146,70 +204,102 @@ api.interceptors.response.use(
 **[조정]** 원본의 `shared/services/{domain}` 대신 이 프로젝트의 기존 `src/{layer}` 평면 구조를
 따라 `src/services/{domain}`으로 둡니다.
 
+**파일명은 단수형**(`.hook.ts` / `.type.ts`)입니다 — `docs/code-convention.md`의 "도메인 전용
+서비스 파일은 단수형" 규칙을 따릅니다.
+
 ```
 src/services/
-  api.ts                 axios 인스턴스 + 공통 인터셉터
-  api.types.ts           ApiResponse<T> 등 공통 타입
-  queryClient.ts          React Query QueryClient
+  api.ts                 axios 인스턴스 + 인터셉터 + ApiError + unwrap
+  api.types.ts           ApiResponse<T> / ApiErrorPayload 공통 봉투 타입
+  common.type.ts         도메인 공용 enum · 목록 파라미터 · Page<T>
+  queryKeys.ts           React Query 키 중앙 레지스트리(qk)
+  queryClient.ts         React Query QueryClient
   {domain}/
-    {domain}.service.ts    api 인스턴스를 직접 사용하는 순수 함수 (postLogin, getCourses 등)
-    {domain}.hooks.ts       useMutation/useQuery로 위 함수를 감싼 훅 (usePostLogin 등)
-    {domain}.types.ts       Request/Response 타입 (+ 필요 시 zod 스키마)
-    index.ts                 위 세 파일의 재export
+    {domain}.service.ts    api 인스턴스를 직접 사용하는 순수 함수 (getAccounts 등)
+    {domain}.hook.ts       useQuery/useMutation으로 위 함수를 감싼 훅 (useGetAccounts 등)
+    {domain}.type.ts       Request/Response 타입 (+ 필요 시 zod 스키마)
+    index.ts               위 세 파일의 재export
 ```
 
-예시 (아직 실제로 존재하지 않는 `auth` 도메인 기준 — 도메인을 새로 추가할 때 이 형태를 그대로
-따라 하면 됩니다):
+도메인 폴더는 백엔드 컨트롤러의 base path와 1:1로 나눕니다(`secret/API-SPEC.md`와 대조하기 쉽게).
+예외: 보유 종목은 `/stocks/holdings`로 통합되어 있으므로 `holding` 폴더를 만들지 말고 `stock`
+도메인 안에 둡니다.
+
+예시 (`account` 도메인 — 새 도메인을 추가할 때 이 형태를 그대로 따라 하면 됩니다):
 
 ```ts
-// src/services/auth/auth.types.ts
-export interface LoginRequest {
-  email: string
-  password: string
-}
-export interface LoginResponse {
-  accessToken: string
-  profileName: string
+// src/services/account/account.type.ts
+import type { AccountType, Currency } from '../common.type'
+
+export interface AccountResponse {
+  id: number
+  name: string
+  type: AccountType
+  institutionName: string | null
+  balance: number
+  currency: Currency
+  isLiquid: boolean
+  maturityDate: string | null
 }
 
-// src/services/auth/auth.service.ts
-import { api } from '../api'
+// src/services/account/account.service.ts
+import { api, unwrap } from '../api'
 import type { ApiResponse } from '../api.types'
-import type { LoginRequest, LoginResponse } from './auth.types'
+import type { AccountListParams } from '../common.type'
+import type { AccountResponse } from './account.type'
 
-export async function postLogin(body: LoginRequest) {
-  const { data } = await api.post<ApiResponse<LoginResponse>>('/auth/login', body)
-  return data.data
+export async function getAccounts(params?: AccountListParams) {
+  return unwrap(await api.get<ApiResponse<AccountResponse[]>>('/accounts', { params }))
 }
 
-// src/services/auth/auth.hooks.ts
-import { useMutation } from '@tanstack/react-query'
-import { postLogin } from './auth.service'
+// src/services/account/account.hook.ts
+import { useQuery } from '@tanstack/react-query'
+import { qk } from '../queryKeys'
+import type { AccountListParams } from '../common.type'
+import { getAccounts } from './account.service'
 
-export function usePostLogin() {
-  return useMutation({ mutationFn: postLogin })
+export function useGetAccounts(params: AccountListParams = {}) {
+  return useQuery({ queryKey: qk.account.list(params), queryFn: () => getAccounts(params) })
 }
 
-// src/services/auth/index.ts
-export * from './auth.service'
-export * from './auth.hooks'
-export * from './auth.types'
+// src/services/account/index.ts
+export * from './account.service'
+export * from './account.hook'
+export * from './account.type'
 ```
 
-화면에서는 `@/services/auth`로 가져다 씁니다:
+화면에서는 `@/services/account`로 가져다 씁니다:
 
 ```ts
-import { usePostLogin } from '@/services/auth'
+import { useGetAccounts } from '@/services/account'
 ```
+
+## queryKey 규칙
+
+키는 배열 리터럴로 흩뿌리지 말고 `src/services/queryKeys.ts`의 중앙 레지스트리 `qk`만 씁니다.
+
+- 도메인별 팩토리로 쪼개지 않은 이유: 이 백엔드는 잔액·평단·손익을 매 요청마다 원장에서
+  재계산합니다. 그래서 거래 1건 등록이 `transaction`·`account`·`asset`·`dashboard`·`goal`을
+  동시에 무효화합니다. 도메인별로 나누면 mutation마다 여러 도메인을 cross-import해야 합니다.
+- 배열 첫 요소는 도메인 이름(폴더명과 동일), 파라미터는 **마지막 하나의 객체**로 둡니다 —
+  prefix 부분 무효화(`invalidateQueries({ queryKey: qk.account.all() })`)를 유지하기 위함입니다.
+- **정산월에 의존하는 쿼리는 `{ year, month }`를 키에 반드시 포함**합니다. 이 앱의 "월"은 사용자
+  설정 `monthStartDay`(1~28) 기준 정산월이라 달력 1일과 다를 수 있습니다.
+- 화면 컴포넌트는 `qk`를 직접 import하지 않습니다 — 훅 안에 캡슐화합니다.
+- `staleTime`은 도메인별로 오버라이드합니다: 시장 지표 30초(외부 실시간 조회라 느림),
+  카테고리·금융기관 5분(마스터성), 나머지는 `queryClient.ts`의 기본값 30초.
 
 ## 요약
 
 | 항목 | 상태 |
 |---|---|
-| axios 인스턴스, 응답 인터셉터 에러 정규화 | 구현됨 (`src/services/api.ts`) |
+| axios 인스턴스, `ApiError` 정규화, `unwrap` | 구현됨 (`src/services/api.ts`) |
+| 공통 봉투 타입 / 도메인 공용 enum | 구현됨 (`api.types.ts`, `common.type.ts`) |
+| queryKey 중앙 레지스트리 `qk` | 구현됨 (`src/services/queryKeys.ts`) |
 | React Query `QueryClient` + Provider 연결 | 구현됨 (`src/services/queryClient.ts`, `src/main.tsx`) |
 | 전역 로딩 zustand 스토어 | 구현됨 (`src/stores/ui.ts`) |
 | `@/` 경로 별칭 | 구현됨 (`tsconfig.app.json`, `vite.config.ts`) |
-| 인증 헤더 부착 / refresh token 큐 | 문서화만 — 인증 도입 전까지 미구현 |
-| 도메인 서비스 폴더(`{domain}.service/hooks/types.ts`) | 패턴만 정의, 실제 도메인 폴더 없음 |
+| 인증 헤더 부착 / refresh token 큐 | 구현됨 (`src/services/api.ts`, `src/stores/auth.ts`) |
+| 도메인 서비스 폴더(`{domain}.service/hook/type.ts`) | 도메인별로 순차 추가 중 |
 | 토스트/알림 UI 연동 | 보류 — 디자인 시스템 컴포넌트 필요, 확인 후 결정 |
+| 엑셀 내보내기(blob 응답) | 미구현 — 공용 axios 인스턴스를 쓰면 안 됨(위 인터셉터 절 참고) |

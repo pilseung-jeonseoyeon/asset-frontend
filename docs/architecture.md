@@ -33,22 +33,28 @@ src/
     actions.ts              PATCH/PATCH_FN 액션 타입
     reducer.ts               병합 리듀서
     AppStateContext.tsx       Provider + useAppState()
-    selectors/                기능별 순수 헬퍼(datePicker, dropdown, modal, nav, segTab, stocks)
+    selectors/                기능별 순수 헬퍼(auth, datePicker, dropdown, modal, nav, segTab, stocks)
 
-  services/              axios + React Query 기반 API 레이어 (도메인 서비스 폴더는 실제 백엔드
-                         연동을 시작할 때 하나씩 추가 — 지금은 공용 인프라만 존재)
-    api.ts                  axios 인스턴스 + 응답 인터셉터
-    api.types.ts             공용 ApiResponse<T>
+  services/              axios + React Query 기반 API 레이어
+    api.ts                  axios 인스턴스 + ApiError + unwrap + Bearer 부착 + 401 재발급 큐
+    api.types.ts             공용 봉투 타입(ApiResponse<T> / ApiErrorPayload)
+    common.type.ts            도메인 공용 enum · 목록 파라미터 · Spring Page<T>
+    queryKeys.ts              queryKey 중앙 레지스트리(qk)
     queryClient.ts            React Query QueryClient
-    {domain}/                 도메인 추가 시: {domain}.service.ts / .hook.ts / .type.ts / index.ts
+    {domain}/                 {domain}.service.ts / .hook.ts / .type.ts / index.ts
+                              auth, user, institution, account, asset, category, transaction,
+                              subscription, stock, trade, exchange, marketIndex
 
-  stores/                화면 트리와 무관한 전역 UI 상태만 두는 Zustand store
+  stores/                화면 트리와 무관한 전역 상태만 두는 Zustand store
     ui.ts                   전역 로딩 카운터(useUiStore)
+    auth.ts                 액세스 토큰 + 로그인 상태(useAuthStore) — 메모리 전용, 저장소 미사용
 
-  data/                  화면별 mock*.ts — 리터럴 데이터 + 소규모 순수 계산 함수. 실제 API
-                         연동 전까지 모든 도메인 데이터의 출처
-    mockAccounts.ts, mockAssets.ts, mockDashboard.ts, mockLedger.ts,
-    mockNotifications.ts, mockStocks.ts
+  data/                  서버 응답 → 화면용 뷰모델 변환 계층(순수 함수). 색상·아이콘·포맷 문자열
+                         같은 디자인 시스템 규칙이 여기 산다
+    assetsView.ts, ledgerView.ts, stocksView.ts
+    mock*.ts                 아직 서버에 연결하지 않은 화면만 남아 있음
+                             (mockDashboard: 대시보드·자산 목표, mockNotifications: 헤더 알림,
+                              mockAccounts: AccountDetailModal — 여는 버튼이 없는 죽은 화면)
 
   design/                bank-institutions.ts(금융기관 마스터 테이블),
                          bank-archetypes.ts(공용 SVG 아이콘) — BankIcon에 사용
@@ -59,6 +65,8 @@ src/
     layout/                AppShell, Header, SidebarNav, layout/modals/(전역 오버레이 모달)
 
   screens/               화면별 폴더, 각각 자기 전용 모달을 하위 modals/에 둠
+    Auth/                   로그인·회원가입·비밀번호 찾기. useAuthStore().status가
+                            'anonymous'일 때 AppShell이 이것만 렌더한다
     Dashboard/, Assets/(+modals/), Stocks/, Ledger/(+modals/), Settings/(+modals/)
 
   styles/                tokens.css(디자인 토큰), bank-tokens.css(기관별 색상),
@@ -70,8 +78,15 @@ src/
 
 ## 레이어 간 규칙
 
-- 화면 컴포넌트(`screens/*`)는 `useAppState()`를 직접 호출하고 필요한 `data/mock*` 를 직접
-  import합니다 — container/presenter 분리나 `App`으로부터의 prop drilling이 없습니다.
+- 화면 컴포넌트(`screens/*`)는 `useAppState()`와 `@/services/{domain}`의 훅을 직접 호출하고,
+  응답을 `data/{screen}View.ts`로 넘겨 화면용 형태로 바꿉니다 — container/presenter 분리나
+  `App`으로부터의 prop drilling이 없습니다.
+- **`services/`에는 UI 관심사를 넣지 않습니다.** 색상·아이콘·포맷 문자열·티어 계산 같은
+  디자인 시스템 규칙은 `data/{screen}View.ts`에 둡니다. 반대로 `data/`는 페칭하지 않습니다.
+- **모달은 `AppShell`에 항상 마운트**되어 있고 닫아도 언마운트되지 않습니다. 그래서 모달을 닫을
+  때 로컬 `useState`, mutation의 `.reset()`, `openDropdown`, 해당 `dpPicked`/`dpNav` 키를 직접
+  초기화해야 합니다 — 안 하면 이전 세션의 확인창·에러가 다음에 열 때 그대로 남습니다.
+  같은 이유로 열려 있지 않은 모달이 요청을 쏘지 않도록 fetch 훅에 `enabled` 가드를 겁니다.
 - 새 화면/모달을 추가할 땐 기존 화면과 같은 패턴(폴더 하나, 전용 모달은 `modals/` 하위)을
   따릅니다. 새로운 최상위 폴더(예: `_components`, `shared/`)를 만들지 않습니다 — 여러 화면이
   공유하는 컴포넌트는 `components/primitives`(원자 단위) 또는 `components/layout`(구조/전역

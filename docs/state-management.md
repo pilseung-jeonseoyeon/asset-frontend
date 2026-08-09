@@ -23,14 +23,31 @@
 ### Zustand는 좁은 예외입니다
 
 Zustand는 `AppState`로 표현하기 어려운, **화면 트리와 무관하게 여러 곳에서 동시에 읽고 써야
-하는 전역 상태**에만 씁니다. 지금 존재하는 건 `src/stores/ui.ts`의 `useUiStore`
-(여러 API 요청이 동시에 떠 있어도 정확히 추적해야 하는 전역 로딩 카운터) 하나뿐입니다. 새
-도메인 store(`auth`, `user` 등)를 만들기 전에, 정말 `AppState`나 React Query 캐시로 표현할 수
-없는지부터 확인하세요.
+하는 전역 상태**에만 씁니다. 지금 존재하는 건 `src/stores/ui.ts`의 `useUiStore`(여러 API
+요청이 동시에 떠 있어도 정확히 추적해야 하는 전역 로딩 카운터)와 `src/stores/auth.ts`의
+`useAuthStore`(아래) 둘뿐입니다. 새 도메인 store(`user` 등)를 만들기 전에, 정말 `AppState`나
+React Query 캐시로 표현할 수 없는지부터 확인하세요.
 
-- **인증/사용자 store는 없습니다.** `CLAUDE.md`에 명시된 대로 이 앱은 단일 하드코딩 사용자이고
-  로그인 개념이 없습니다 — 인증 플로우는 이번 포팅 범위에서 제외되어 있습니다. `useAuthStore`나
-  토큰 영속화(`persist` + 쿠키 스토리지)는 실제로 인증이 도입되기 전까지 만들지 않습니다.
+- **인증 store가 있습니다: `src/stores/auth.ts`의 `useAuthStore`.** 백엔드가 JWT 인증을 요구하게
+  되면서 추가했습니다. 화면 트리 전체(`AppShell`의 게이팅 자체, 모든 API 요청의 인터셉터)가 동시에
+  참조해야 하는 상태라 `AppState`로 표현할 수 없는 케이스입니다 — 위 "Zustand는 좁은 예외입니다"
+  기준에 정확히 부합합니다.
+  - **액세스 토큰은 메모리에만 둡니다.** `useAuthStore`의 `accessToken`은 `persist` 미들웨어 없이
+    순수 인메모리 상태이고, `localStorage`/`sessionStorage`에 절대 쓰지 않습니다. 저장소에 넣으면
+    XSS 한 번으로 토큰이 통째로 새어나가고 만료도 직접 관리해야 하기 때문입니다.
+  - **리프레시 토큰은 httpOnly 쿠키로 서버가 관리합니다** (`src/services/api.ts`의
+    `withCredentials: true`, `POST /auth/refresh`가 요청 바디를 받지 않는 것도 이 때문). 새로고침
+    직후에는 액세스 토큰이 없으므로(메모리이므로 날아감) 부팅 시 `useRestoreSession()`
+    (`src/services/auth/auth.hook.ts`)이 refresh를 한 번 호출해 되찾아옵니다 — 실패하면
+    `status: 'anonymous'`로 떨어집니다.
+  - `status: 'unknown' | 'authenticated' | 'anonymous'`를 `AppShell`이 그대로 읽어 렌더 여부를
+    가릅니다: `unknown`이면 최소 로딩 표시만, `anonymous`면 `screens/Auth`만, `authenticated`면
+    기존 화면 트리 전체. 이 3단계 게이팅이 없으면 `unknown` 구간에서 로그인 화면이 잠깐 깜빡이거나,
+    `anonymous`인데 모달이 마운트되어 401을 쏟아내는 문제가 생긴다(`docs/api-conventions.md`
+    참고).
+  - 로그인 이메일/비밀번호 같은 **폼 입력값 자체는 이 store에 두지 않습니다** — 화면
+    인터랙션이라 `AppState`(비밀번호 제외, `src/screens/Auth/*`) 몫입니다. 이 store는 오직
+    "지금 인증되어 있는가"와 토큰 값만 다룹니다.
 - store를 새로 추가할 땐 `src/stores/{domain}.ts`에 하나씩 분리하고, `set`으로 액션을 명시적으로
   이름 붙여 노출합니다(`useUiStore`의 `startLoading`/`stopLoading` 참고). 컴포넌트에서 스토어
   전체 객체를 구조분해하지 말고 필요한 필드/액션만 selector로 가져오세요.
