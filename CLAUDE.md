@@ -43,7 +43,7 @@
 - 기술 스택: Vite + React 19 + TypeScript. 라우터는 없고, `state.screen` 값에 따라 `AppShell`이 화면을 전환합니다. CSS 프레임워크 없음. 테스트 러너 아직 미구성.
 - 상태는 세 레이어로 나뉩니다: 앱 자체 reducer/context(`AppState`) + React Query(서버 상태) + Zustand(`src/stores/` — 전역 로딩, 인증 토큰). 경계는 `docs/state-management.md` 참고.
 - **데이터는 서버에서 옵니다.** axios + React Query 기반 API 레이어가 `src/services/{domain}/`에 도메인별로 있고(`auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification`), 자산·가계부·주식 화면과 헤더 알림·자산 목표는 조회와 생성/수정/삭제가 모두 실제 API에 연결되어 있습니다.
-  **아직 목업인 곳은 대시보드 화면(`src/screens/Dashboard/Dashboard.tsx` → `src/data/mockDashboard.ts`)과 월간 리포트 오버레이(`ReportOverlay.tsx`) 두 곳뿐입니다.** 대시보드는 서버 통신(`src/services/dashboard`)과 뷰모델 변환(`src/data/dashboardView.ts`)까지 준비돼 있고 화면 연결만 남았습니다.
+  **아직 목업인 곳은 월간 리포트 오버레이(`ReportOverlay.tsx`) 한 곳뿐입니다.** 대시보드 화면은 서버 통신(`src/services/dashboard`)과 뷰모델 변환(`src/data/dashboardView.ts`)을 거쳐 실제 API에 연결되어 있습니다(`mockDashboard.ts`는 삭제됨).
 - 진입점: `src/main.tsx`가 `AppStateProvider`로 감싼 `App`을 `index.html`의 `#root`에 마운트합니다. `src/index.css`는 `tokens.css` → `bank-tokens.css` → `base.css` 순으로 import합니다. `App.tsx`는 현재 테마를 적용(`useApplyTheme`)한 뒤 `AppShell`을 렌더링합니다.
 - `tsconfig.json`은 project references 구조입니다: `src/`는 `tsconfig.app.json`, Vite 설정은 `tsconfig.node.json`을 사용합니다. 전체 빌드는 항상 `tsc -b`로 실행하세요(단순 `tsc` 아님).
 
@@ -66,7 +66,7 @@ src/
   stores/                Zustand. ui.ts(전역 로딩 카운터), auth.ts(액세스 토큰 — 메모리 전용)
   data/                  {screen}View.ts — 서버 응답 → 화면용 뷰모델 변환(순수 함수).
                          색상·아이콘·포맷 문자열 등 디자인 시스템 규칙이 여기 산다.
-                         mock*.ts는 아직 화면을 연결하지 않은 대시보드(mockDashboard.ts)만 남아 있음
+                         mock*.ts는 모두 제거됨 — 화면이 쓰는 데이터는 전부 서버에서 온다
   design/                bank-institutions.ts(125개 기관 마스터 테이블),
                          bank-archetypes.ts(공용 SVG 아이콘 경로 25종) — BankIcon에 사용
   components/
@@ -82,7 +82,7 @@ src/
                          theme.ts(useApplyTheme), date.ts
 ```
 
-- 화면 컴포넌트는 `useAppState()`를 호출하고 자신에게 필요한 `mock*` 데이터를 직접 import하는 단순한 구조입니다 — container/presenter 분리나 `App`으로부터의 prop drilling이 없습니다.
+- 화면 컴포넌트는 `useAppState()`와 `@/services/{domain}`의 훅을 직접 호출하는 단순한 구조입니다 — container/presenter 분리나 `App`으로부터의 prop drilling이 없습니다.
 - `BankIcon`은 기관의 `tokenKey`로 `bank-institutions.ts`에서 `archetype`을 조회한 뒤, 해당 archetype의 SVG 경로(`bank-archetypes.ts`)를 `--bank-{tokenKey}-bg/-fg` 색상으로 렌더링합니다.
 
 ## 빌드 & 테스트
@@ -110,11 +110,12 @@ pnpm preview       # 프로덕션 빌드 미리보기
   자산 구성만 바뀝니다).
 - **자산 분류**: 현금 / 예적금 / 국내주식 / 해외주식 / 가상자산 / 연금·기타, 6개 고정 카테고리이며 각각 아이콘·금액·전체 대비 비중을 가집니다. 트리맵("맵") 뷰는 비중에 따라 3단계 렌더 티어로 분류합니다: `full`(15% 이상), `medium`(6% 이상), `icon`(그 미만). 5% 미만 항목은 합쳐서 `기타` 블록으로 만듭니다. `mapSort`(자연/기관별 정렬 토글)는 상태에는 존재하지만 소스에서도 어떤 UI에도 연결되지 않은 죽은 토글입니다 — 명시적 요청 없이 "완성"시키지 마세요.
 - **금융기관**: `src/design/bank-institutions.ts`는 9개 카테고리(`bank`/`securities`/`card`/`lifeInsurance`/`fireInsurance`/`savingsBank`/`crypto`/`fintech`/`pension`)에 걸친 국내 금융기관 125개의 마스터 목록입니다. 각 기관은 `tokenKey`(해당 `--bank-{tokenKey}-bg/-fg` 색상을 결정)와 `archetype`(공용 SVG 아이콘 모양 25종 중 하나)을 가집니다. KB 계열과 카카오 계열은 노란색 브랜드 컬러의 대비 확보를 위해 아이콘 stroke가 더 두껍습니다(기본 1.8 대비 2.0) — `BANK_YELLOW_STROKE_EXCEPTIONS` 참고.
-- **포맷팅**: `fmt(n)`은 `n.toLocaleString('ko-KR')`이며 통화 기호를 포함하지 않습니다 — `원`은 소스가 그렇게 하는 위치마다 JSX에 리터럴 문자열로 붙입니다(`fmt` 내부가 아님). "약 12억 8,450만 원" 같은 억/만 축약 표기는 목업 데이터마다 하드코딩된 리터럴 문자열이며 공용 계산 함수가 없습니다 — 일반화된 축약 헬퍼를 임의로 추가하지 마세요.
+- **포맷팅**: `fmt(n)`은 `n.toLocaleString('ko-KR')`이며 통화 기호를 포함하지 않습니다 — `원`은 소스가 그렇게 하는 위치마다 JSX에 리터럴 문자열로 붙입니다(`fmt` 내부가 아님). "약 12억 8,450만 원" 같은 조/억/만 축약 표기는 원래 목업마다 하드코딩된 리터럴이었으나, 대시보드가 서버 데이터로 전환되면서 `src/utils/format.ts`의 **`formatKoreanAbbrev(n)`** 로 계산합니다(2026-08-13 신설). 단위 사이 공백 1칸, 각 단위에 천 단위 콤마, 값이 0인 단위는 생략, 통화 기호 없음 — `원`은 `fmt`와 마찬가지로 호출부 JSX에서 붙입니다. **축약 헬퍼는 이것 하나로 유지하세요** — 화면마다 비슷한 함수를 새로 만들면 표기가 갈라집니다.
 - **데이터 흐름**: 화면은 `@/services/{domain}`의 훅으로 서버 데이터를 읽고(React Query 캐시에 그대로 두며 AppState로 복사하지 않습니다), `src/data/{screen}View.ts`가 그 응답을 화면이 그릴 형태로 바꿉니다. 인터랙션 상태(탭·모달·폼 입력)만 `useAppState()`로 읽고 씁니다.
 - **"월"의 기준**: 이 앱의 이번 달은 달력 1일이 아니라 사용자 설정 `monthStartDay`(1~28) 기준의 **정산월**입니다. 가계부·목표·대시보드 전역에 적용되며, 대부분의 API가 `year`/`month`를 파라미터로 받고 실제 기간 경계는 서버가 계산합니다. 정산월에 의존하는 쿼리는 queryKey에 `{ year, month }`를 반드시 포함하세요.
 - **서버 응답에 없는 값은 화면에 그리지 않습니다.** 주식 현재가, USD/KRW 환율, 계좌 이자율처럼 API가 주지 않는 값은 하드코딩이나 추정값으로 채우지 말고 비워 두고, `docs/backend-requests.md`에 기록하세요.
-- **인증**: 백엔드가 JWT 인증을 요구합니다. 모든 화면/모달은 `useAuthStore().status`가 `'authenticated'`일 때만 `AppShell`에 마운트되고, `'anonymous'`면 `src/screens/Auth/Auth.tsx`(로그인/회원가입/비밀번호 찾기)만 렌더됩니다. 로그인하지 않은 상태에서 화면을 시작하지 않습니다 — 자세한 경계는 `docs/state-management.md`, 인터셉터 동작은 `docs/api-conventions.md` 참고.
+- **인증**: 백엔드가 JWT 인증을 요구합니다. 모든 화면/모달은 `useAuthStore().status`가 `'authenticated'`일 때만 `AppShell`에 마운트되고, `'anonymous'`면 `src/screens/Auth/Auth.tsx`(로그인/회원가입/비밀번호 찾기)만 렌더됩니다. 로그인하지 않은 상태에서 화면을 시작하지 않습니다.
+  **회원가입은 4단계입니다**(원본 `dc.html` L546-694): 약관 동의 → 정보 입력 → 이메일 인증 → 온보딩(프로필 확인). `POST /auth/signup`은 성공 즉시 토큰을 주지만, `usePostSignup`은 일부러 `signIn`을 호출하지 않고 토큰만 보유합니다 — 마지막 온보딩 화면의 "모닛 시작하기"에서 `useCompleteSignupOnboarding()`이 호출될 때 비로소 `authenticated`로 전환됩니다. 이 단계에서 새로고침하면 refresh 쿠키로 자동 로그인되어 온보딩 화면은 건너뜁니다(의도된 동작). — 자세한 경계는 `docs/state-management.md`, 인터셉터 동작은 `docs/api-conventions.md` 참고.
 - **프로필**: 여전히 단일 사용자를 가정한 UI(가족 연동 등은 "준비 중")지만, 실제 이름·이메일은 로그인한 계정 기준으로 `GET /users/me`(`src/services/user`)에서 옵니다. `profileName: '정다은'`은 이제 하드코딩 기본값이 아니라 해당 사용자가 서버에 아직 없을 때(`USER_NOT_FOUND`)의 폴백 문자열일 뿐입니다(`src/services/user/user.hook.ts`의 `FALLBACK_PROFILE_NAME` 참고).
 
 ## 디자인 시스템
