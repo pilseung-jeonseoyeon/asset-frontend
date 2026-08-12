@@ -8,12 +8,15 @@ interface DeepCardProps {
   children: ReactNode
   style?: CSSProperties
   className?: string
+  /** React Query의 isPending을 그대로 연결 — docs/code-convention.md 접근성 절 참고. */
+  'aria-busy'?: boolean
 }
 
-export function DeepCard({ children, style, className }: DeepCardProps) {
+export function DeepCard({ children, style, className, ...rest }: DeepCardProps) {
   return (
     <section
       className={className ? `deep-card ${className}` : 'deep-card'}
+      {...rest}
       style={{
         background: 'var(--deep-bg)',
         borderRadius: 10,

@@ -1,15 +1,11 @@
 // View-model layer for the 대시보드(Dashboard) screen: adapts GET /dashboard/{summary,trend,
 // allocation,reports}, GET /goals, GET /assets/distribution?groupBy=INSTITUTION into the shapes the
-// screen renders (API-SPEC §4 · §5 · §3.1).
-//
-// 화면(src/screens/Dashboard/Dashboard.tsx)은 아직 src/data/mockDashboard.ts를 쓰고 있다 —
-// 모바일 대응 작업과 파일이 겹쳐 이번에는 데이터 레이어만 준비했다. 화면을 붙일 때 훅만
-// 갈아끼울 수 있도록 반환 타입의 필드명을 mockDashboard.ts와 맞춰 두었다.
+// screen renders (API-SPEC §4 · §5 · §3.1). Dashboard.tsx consumes these directly.
 //
 // 여기 없는 것과 그 이유:
-//   - "약 12억 8,450만 원" 같은 억/만 축약 캡션: 목업마다 하드코딩된 리터럴이고 공용 계산 함수가
-//     없다(CLAUDE.md). 임의로 축약 헬퍼를 만들지 않았다.
-//   - 추이 차트의 y축 눈금 라벨(13억/11억/9억): 같은 이유로 생략했다.
+//   - 억/만 축약 캡션(예: "약 12억 8,450만 원")은 src/utils/format.ts의 formatKoreanAbbrev가 맡는다 —
+//     fmt()와 마찬가지로 통화 기호 없는 범용 포맷터라 화면 레이어가 아니라 utils에 둔다.
+//   - 추이 차트의 y축 눈금 라벨(13억/11억/9억): 소스에도 공용 계산 함수가 없어 생략.
 //   - "7월 이후는 예정 구간" 같은 미래 구간 표기: 서버가 예측값을 주지 않는다.
 
 import { fmt } from '../utils/format'

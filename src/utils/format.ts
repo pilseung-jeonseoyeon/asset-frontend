@@ -1,10 +1,41 @@
 // Source: secret/Asset Manager v14.dc.html L3695 `const fmt = (n) => n.toLocaleString('ko-KR')`.
-// Note: the §4-2 "억/만" Korean abbreviation captions (e.g. "약 12억 8,450만 원") are NOT computed by
-// any shared function in the source — every instance found (L867, L912, L2429) is a hardcoded literal
-// string in the mock data. No general-purpose abbreviation helper is invented here to match that.
 
 export function fmt(n: number): string {
   return n.toLocaleString('ko-KR')
+}
+
+/**
+ * 조/억/만 단위 한국식 축약. 반올림은 만 원 단위(ds_rules §4-2)이고 0인 단위는 생략한다.
+ * 부호와 "약 "/" 원" 접두·접미사는 호출부가 붙인다(fmt와 동일하게 통화 문자열을 포함하지 않음).
+ * 억 단위가 4자리 이상(1조 이상)이면 조 단위로 올려 쓰고, 각 자릿수는 천 단위 콤마를 붙인다.
+ * 리터럴 예시로 검증된 규칙(secret/Asset Manager v14.dc.html L867, L912, L2429):
+ *   1,284,500,000 → "12억 8,450만"  (원문 "약 12억 8,450만 원")
+ *     142,300,000 → "1억 4,230만"   (원문 "약 1억 4,230만 원")
+ *     300,000,000 → "3억"
+ *      50,000,000 → "5,000만"
+ *     102,000,000 → "1억 200만"
+ * 1,500,000,000,000 → "1조 5,000억"
+ */
+export function formatKoreanAbbrev(n: number): string {
+  const abs = Math.abs(Math.round(n))
+  let jo = Math.floor(abs / 1_000_000_000_000)
+  let eok = Math.floor((abs % 1_000_000_000_000) / 100_000_000)
+  let man = Math.round((abs % 100_000_000) / 10_000)
+  // 만 단위 반올림이 억 단위로 넘어가는 경계(예: 99,996만 → 1억 0만)를 보정한다.
+  if (man >= 10_000) {
+    eok += 1
+    man -= 10_000
+  }
+  // 억 단위가 조 단위로 넘어가는 경계(예: 9,999억 9,996만 → 1조 0억)를 보정한다.
+  if (eok >= 10_000) {
+    jo += 1
+    eok -= 10_000
+  }
+  const parts: string[] = []
+  if (jo > 0) parts.push(`${jo.toLocaleString('ko-KR')}조`)
+  if (eok > 0) parts.push(`${eok.toLocaleString('ko-KR')}억`)
+  if (man > 0) parts.push(`${man.toLocaleString('ko-KR')}만`)
+  return parts.length ? parts.join(' ') : '0'
 }
 
 /**
