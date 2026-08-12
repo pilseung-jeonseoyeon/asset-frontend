@@ -1,17 +1,24 @@
-// Source: secret/Asset Manager v14.dc.html L546-645 (authTerms/authSignup/authVerify sc-if blocks).
-// Ported as the original 3 steps — 1/3 약관 동의(authTerms, L546-580) → 2/3 정보 입력(authSignup,
-// L582-620) → 3/3 이메일 인증(authVerify, L622-645) — mapped onto the real POST /auth/signup/code +
+// Source: secret/Asset Manager v14.dc.html L546-645 (authTerms/authSignup/authVerify sc-if blocks) +
+// L673-694 (authOnboard sc-if block, 온보딩 · 프로필 확인). Ported as the original 4 steps — 1/3 약관
+// 동의(authTerms, L546-580) → 2/3 정보 입력(authSignup, L582-620) → 3/3 이메일 인증(authVerify,
+// L622-645) → 온보딩(authOnboard, L673-694) — mapped onto the real POST /auth/signup/code +
 // POST /auth/signup contract: step 1 has no server call (client-only agreement state), step 2's
 // "인증 메일 받기" calls usePostSignupCode, step 3's "인증 완료" calls usePostSignup with the values
-// collected across steps 1-2. The source's agreeItems (L564, sc-for hint-placeholder-count="4") is a
-// placeholder with no real copy behind it — the 4 items below (연령·이용약관·개인정보·마케팅) are this
-// port's own copy, not transcribed. The source's "보기 ›" link (L570) is dropped — there's no terms
-// page to open, and a dead link isn't worth reproducing.
+// collected across steps 1-2, step 4 (onboard) just confirms the auto-generated avatar and calls
+// useCompleteSignupOnboarding to actually sign in (see auth.hook.ts header comment on usePostSignup for
+// why signIn is deferred to this step instead of happening inside usePostSignup's onSuccess). The
+// source's agreeItems (L564, sc-for hint-placeholder-count="4") is a placeholder with no real copy
+// behind it — the 4 items below (연령·이용약관·개인정보·마케팅) are this port's own copy, not
+// transcribed. The source's "보기 ›" link (L570) is dropped — there's no terms page to open, and a dead
+// link isn't worth reproducing. The onboard step has no progress bar (3-step indicator) — the source
+// doesn't show one there either (L673-694 has no dot bar), it's a trailing confirmation, not one of the
+// 3 numbered steps.
 //
 // Password/passwordConfirm are local useState — see LoginForm.tsx header comment for why.
 
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { Avatar } from '../../components/primitives/Avatar/Avatar'
 import { Icon } from '../../components/primitives/Icon/Icon'
 import { useAppState } from '../../state/AppStateContext'
 import { useGoAuthScreen, useMarkAuthCodeSent } from '../../state/selectors/auth'
@@ -32,7 +39,13 @@ import {
   filterPwInput,
   EMAIL_PATTERN,
 } from './authFormStyles'
-import { usePostSignup, usePostSignupCode, PASSWORD_PATTERN, PASSWORD_RULE_TEXT } from '@/services/auth'
+import {
+  useCompleteSignupOnboarding,
+  usePostSignup,
+  usePostSignupCode,
+  PASSWORD_PATTERN,
+  PASSWORD_RULE_TEXT,
+} from '@/services/auth'
 
 const NAME_MAX = 50
 
@@ -57,6 +70,7 @@ export function SignupForm() {
   const markCodeSent = useMarkAuthCodeSent()
   const codeMutation = usePostSignupCode()
   const signupMutation = usePostSignup()
+  const completeOnboarding = useCompleteSignupOnboarding()
   const resendCooldown = useResendCooldown(state.authCodeSentAt)
 
   const [password, setPassword] = useState('')
@@ -66,7 +80,6 @@ export function SignupForm() {
   const [validationError, setValidationError] = useState<string | null>(null)
 
   const step = state.authStep === 'done' ? 'terms' : state.authStep
-  const filledCount = STEP_LABEL[step]
   const allRequiredAgreed = state.authAgreements.service && state.authAgreements.privacy
   const allAgreed = AGREEMENT_ITEMS.every((item) => state.authAgreements[item.key])
   const emailValid = EMAIL_PATTERN.test(state.authEmail)
@@ -140,13 +153,28 @@ export function SignupForm() {
       return
     }
     setValidationError(null)
-    signupMutation.mutate({
-      email: state.authEmail,
-      code: state.authCode,
-      name: state.authName.trim(),
-      password,
-      hasMarketingOptIn: state.authAgreements.marketing,
-    })
+    signupMutation.mutate(
+      {
+        email: state.authEmail,
+        code: state.authCode,
+        name: state.authName.trim(),
+        password,
+        hasMarketingOptIn: state.authAgreements.marketing,
+      },
+      { onSuccess: () => setState({ authStep: 'onboard' }) },
+    )
+  }
+
+  /** 온보딩 화면의 "모닛 시작하기" — usePostSignup이 이미 받아둔 토큰(컴포넌트 로컬 상태)으로
+   * 실제 로그인 상태를 확정하고 앱으로 진입한다. authStep은 더 오래 사는 AppState에 있어서, 어떤
+   * 이유로든 이 컴포넌트가 리마운트되면 signupMutation.data가 소실된 채로 이 화면만 남을 수 있다
+   * — 그 경우 조용히 무반응이 되지 않도록 안내 메시지를 띄운다. */
+  function handleEnterApp() {
+    if (!signupMutation.data) {
+      setValidationError('세션이 만료되었어요. 다시 로그인해 주세요.')
+      return
+    }
+    completeOnboarding(signupMutation.data.accessToken)
   }
 
   const errorMessage =
@@ -156,11 +184,13 @@ export function SignupForm() {
 
   return (
     <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow-card)', padding: '34px 32px' }}>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 22 }}>
-        {[1, 2, 3].map((n) => (
-          <span key={n} style={{ flex: 1, height: 3, borderRadius: 999, background: n <= filledCount ? 'var(--accent)' : 'var(--border)' }} />
-        ))}
-      </div>
+      {step !== 'onboard' && (
+        <div style={{ display: 'flex', gap: 4, marginBottom: 22 }}>
+          {[1, 2, 3].map((n) => (
+            <span key={n} style={{ flex: 1, height: 3, borderRadius: 999, background: n <= STEP_LABEL[step] ? 'var(--accent)' : 'var(--border)' }} />
+          ))}
+        </div>
+      )}
 
       {step === 'terms' && (
         <div>
@@ -395,6 +425,54 @@ export function SignupForm() {
             이메일 주소 수정
           </button>
         </form>
+      )}
+
+      {step === 'onboard' && (
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', marginBottom: 6 }}>프로필을 확인해 주세요</div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-weak)', marginBottom: 26 }}>
+            이름의 첫 글자로 기본 프로필이 만들어졌습니다.
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+            <Avatar name={state.authName} size="l" />
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+              background: 'var(--fill-subtle)',
+              border: '0.5px solid var(--border)',
+              borderRadius: 10,
+              padding: 14,
+              marginBottom: 22,
+            }}
+          >
+            <Icon name="info" size={17} color="var(--text-weak)" style={{ flex: 'none' }} />
+            <div style={{ fontSize: 11.5, color: 'var(--text-mid)', lineHeight: 1.6 }}>
+              커스텀 프로필 사진 등록은 다음 업데이트에서 제공됩니다. 지금은 이름 첫 글자 기반 기본 프로필로 시작합니다.
+            </div>
+          </div>
+
+          {errorMessage && (
+            <div role="alert" aria-live="polite" style={{ fontSize: 11.5, color: 'var(--down)', marginBottom: 14 }}>
+              {errorMessage}
+              <button
+                type="button"
+                onClick={() => goAuthScreen('login')}
+                style={{ border: 'none', background: 'transparent', padding: 0, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', marginLeft: 4, fontFamily: 'inherit' }}
+              >
+                로그인하러 가기
+              </button>
+            </div>
+          )}
+
+          <button type="button" className="pill-btn" onClick={handleEnterApp} style={authPrimary}>
+            모닛 시작하기
+          </button>
+        </div>
       )}
     </div>
   )

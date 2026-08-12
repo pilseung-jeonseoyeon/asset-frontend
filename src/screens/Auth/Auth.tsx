@@ -6,8 +6,10 @@
 // see base.css .monit-logo-light/-dark) at the source's 44px auth size instead of the sidebar's 40px;
 // gradient ids are namespaced (monit-auth-*) to stay unique from the sidebar's (monit-bg-*).
 
+import { useLayoutEffect } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
 import { useAppState } from '../../state/AppStateContext'
+import { useGoAuthScreen } from '../../state/selectors/auth'
 import { LoginForm } from './LoginForm'
 import { SignupForm } from './SignupForm'
 import { ResetPasswordForm } from './ResetPasswordForm'
@@ -54,6 +56,23 @@ function AuthLogo() {
 
 export function Auth() {
   const { state } = useAppState()
+  const goAuthScreen = useGoAuthScreen()
+
+  // AppShell only mounts this component when authStatus flips to 'anonymous' — both on manual
+  // logout (AccountModal's doLogout) and on the axios interceptor's forced signOut() after a
+  // failed token refresh (services/api.ts). AppStateProvider lives above AppShell, so authScreen/
+  // authStep from a previous session (e.g. mid-signup 'onboard') would otherwise still be sitting
+  // there and this component would render whatever step the user was last on instead of the login
+  // form. Reset once on mount so every anonymous session always starts at login. Auth stays mounted
+  // for the whole login/signup/resetPassword flow (AppShell doesn't unmount it between those), so
+  // this never fires mid-flow — only when a fresh 'anonymous' status first mounts Auth.
+  // useEffect가 아니라 useLayoutEffect인 이유: useEffect는 페인트 "후"에 돌아서, 로그아웃 직후
+  // 한 프레임 동안 이전 세션의 화면(예: 온보딩 "프로필을 확인해 주세요")이 그대로 보였다가
+  // 로그인 폼으로 바뀐다. 페인트 전에 리셋해서 그 깜빡임을 없앤다.
+  useLayoutEffect(() => {
+    goAuthScreen('login')
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per mount only
+  }, [])
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', width: '100%', background: 'var(--canvas)' }}>

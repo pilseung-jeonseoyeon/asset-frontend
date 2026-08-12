@@ -23,8 +23,11 @@ export type DashTab = 'A' | 'B' | 'C' | null
 export type AuthScreen = 'login' | 'signup' | 'resetPassword'
 /** 'terms'는 signup 전용(1/3 약관 동의). 'form' → 이메일 등 정보 입력 단계(signup 2/3, resetPassword
  * 1/2). 'sent' → 인증 코드 발송 완료, 코드 입력 단계 노출(signup 3/3, resetPassword 2/2).
- * 'done'은 resetPassword 전용(비밀번호 변경 완료 안내). */
-export type AuthStep = 'terms' | 'form' | 'sent' | 'done'
+ * 'onboard'는 signup 전용 — 인증 완료 뒤 프로필(아바타) 확인 단계. 이 단계에서는 아직
+ * useAuthStore().status가 'anonymous'다(POST /auth/signup 응답 토큰을 들고만 있고 아직 signIn하지
+ * 않은 상태) — "모닛 시작하기"를 눌러야 실제로 로그인 상태가 된다. 'done'은 resetPassword
+ * 전용(비밀번호 변경 완료 안내). */
+export type AuthStep = 'terms' | 'form' | 'sent' | 'onboard' | 'done'
 /** 회원가입 1/3 약관 동의 항목. `age`/`service`/`privacy`는 필수, `marketing`은 선택. */
 export type AuthAgreementKey = 'service' | 'privacy' | 'marketing'
 

@@ -61,17 +61,29 @@ export function usePostSignupCode() {
   })
 }
 
+/**
+ * 회원가입 자체는 성공 시(가입 즉시 로그인 — API-SPEC §16.2) 서버가 이미 액세스 토큰과 refresh
+ * 쿠키를 내려주지만, 여기서 곧바로 signIn하지 않는다. 온보딩(프로필 확인) 화면을 authenticated
+ * 상태가 된 "뒤"가 아니라 "직전"에 anonymous 상태로 보여주기 위해서다 — mutation이 돌려주는
+ * accessToken은 SignupForm이 들고 있다가, 사용자가 "모닛 시작하기"를 눌렀을 때
+ * useCompleteSignupOnboarding으로 넘겨 그제서야 signIn한다.
+ */
 export function usePostSignup() {
+  return useMutation({
+    mutationFn: (body: SignupRequest) => postSignup(body),
+  })
+}
+
+/** 온보딩(프로필 확인) 화면의 "모닛 시작하기" — usePostSignup이 이미 받아둔 액세스 토큰으로
+ * 실제 로그인 상태를 확정한다. */
+export function useCompleteSignupOnboarding() {
   const signIn = useAuthStore((s) => s.signIn)
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: (body: SignupRequest) => postSignup(body),
-    onSuccess: (token) => {
-      signIn(token.accessToken)
-      queryClient.clear()
-    },
-  })
+  return (accessToken: string) => {
+    signIn(accessToken)
+    queryClient.clear()
+  }
 }
 
 export function usePostLogout() {
