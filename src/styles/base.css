@@ -144,6 +144,24 @@ html.theme-dark .monit-logo-dark { display: block }
     from { transform: translateY(100%) }
     to { transform: translateY(0) }
   }
+
+  /* Minimum touch target (docs/mobile.md §5) — grows the invisible hit area of small controls without
+     changing how they look. Needs !important to beat the element's own inline style, same as the other
+     mobile overrides above (.rgrid-outer / .auth-brand). */
+  .tap-44 {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+
+  /* TermsDetailOverlay's own header/body padding stacks on top of Modal's forced mobile sheet padding
+     (20px 18px, see Modal.tsx mobileForcedStyle) — reset it here so the two don't add up. */
+  .terms-header {
+    padding: 4px 0 14px !important;
+  }
+
+  .terms-body {
+    padding: 14px 0 16px !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

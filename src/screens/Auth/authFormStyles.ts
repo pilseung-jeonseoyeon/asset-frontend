@@ -109,20 +109,26 @@ export const agreeAllBtn: CSSProperties = {
   textAlign: 'left',
 }
 
-/** 약관 항목 한 줄 — source L565. */
+/** 약관 항목 한 줄 — source L565. `gap`을 둔 이유: "보기 ›"의 모바일 터치 영역(44px, docs/mobile.md
+ * §5)이 라벨 텍스트와 `justify-content:space-between`만으로 붙으면, 라벨이 길어 줄바꿈되는 폭에서
+ * 둘 사이 간격이 0px까지 좁아질 수 있다(개인정보 항목 라벨이 실제로 이 경우에 해당). gap이 항상
+ * 최소 여백을 보장해 인접한 두 터치 영역이 맞닿지 않게 한다. */
 export const agreementRow: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
+  gap: 8,
   padding: '12px 4px',
   borderTop: '0.5px solid var(--track)',
 }
 
-/** 약관 항목 체크 토글(아이콘 + 라벨) — source L566. */
+/** 약관 항목 체크 토글(아이콘 + 라벨) — source L566. `minWidth:0`은 위 agreementRow의 gap과 짝으로,
+ * 라벨이 좁은 화면에서 "보기 ›"를 밀어내지 않고 자기 폭 안에서 줄바꿈하도록 한다. */
 export const agreementToggleBtn: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 10,
+  minWidth: 0,
   border: 'none',
   background: 'transparent',
   padding: 0,

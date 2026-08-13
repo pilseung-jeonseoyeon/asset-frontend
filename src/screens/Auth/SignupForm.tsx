@@ -9,14 +9,15 @@
 // why signIn is deferred to this step instead of happening inside usePostSignup's onSuccess). The
 // source's agreeItems (L564, sc-for hint-placeholder-count="4") is a placeholder with no real copy
 // behind it — the 4 items below (연령·이용약관·개인정보·마케팅) are this port's own copy, not
-// transcribed. The source's "보기 ›" link (L570) is dropped — there's no terms page to open, and a dead
-// link isn't worth reproducing. The onboard step has no progress bar (3-step indicator) — the source
-// doesn't show one there either (L673-694 has no dot bar), it's a trailing confirmation, not one of the
-// 3 numbered steps.
+// transcribed. The source's "보기 ›" link (L570) opens the terms document now that termsContent.ts has
+// real copy behind it (TermsDetailOverlay.tsx renders it) — which document is open is this component's
+// own local state, not AppState, since it's screen-local UI state. The onboard step has no progress bar
+// (3-step indicator) — the source doesn't show one there either (L673-694 has no dot bar), it's a
+// trailing confirmation, not one of the 3 numbered steps.
 //
 // Password/passwordConfirm are local useState — see LoginForm.tsx header comment for why.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Avatar } from '../../components/primitives/Avatar/Avatar'
 import { Icon } from '../../components/primitives/Icon/Icon'
@@ -24,6 +25,9 @@ import { useAppState } from '../../state/AppStateContext'
 import { useGoAuthScreen, useMarkAuthCodeSent } from '../../state/selectors/auth'
 import type { AuthAgreementKey } from '../../state/types'
 import { CodeInput } from './CodeInput'
+import { TermsDetailOverlay } from './TermsDetailOverlay'
+import { TERMS_DOCUMENTS } from './termsContent'
+import type { TermsDocumentKey } from './termsContent'
 import { useResendCooldown } from './useResendCooldown'
 import {
   agreeAllBtn,
@@ -78,6 +82,11 @@ export function SignupForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
+  // 어떤 약관 전문이 열려 있는지는 회원가입 화면을 벗어나면 함께 사라져야 하는 UI 상태라 AppState가
+  // 아니라 로컬로 둔다. viewTriggerRef는 오버레이가 닫힐 때 포커스를 되돌려줄 "보기 ›" 버튼 —
+  // 한 번에 하나만 열리므로 항목별 ref 배열 없이 클릭 시점에 그 버튼으로 갈아 끼운다.
+  const [viewDoc, setViewDoc] = useState<TermsDocumentKey | null>(null)
+  const viewTriggerRef = useRef<HTMLButtonElement | null>(null)
 
   const step = state.authStep === 'done' ? 'terms' : state.authStep
   const allRequiredAgreed = state.authAgreements.service && state.authAgreements.privacy
@@ -218,10 +227,36 @@ export function SignupForm() {
                       <span style={{ fontWeight: 700, color: item.required ? 'var(--accent)' : 'var(--text-weak)' }}>{item.tag}</span> {item.label}
                     </span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      viewTriggerRef.current = e.currentTarget
+                      setViewDoc(item.key)
+                    }}
+                    aria-label={`${TERMS_DOCUMENTS[item.key].title} 전문 보기`}
+                    className="tap-44"
+                    style={{
+                      flex: 'none',
+                      border: 'none',
+                      background: 'transparent',
+                      padding: '4px 2px',
+                      fontSize: 12,
+                      color: 'var(--text-weak)',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    보기 ›
+                  </button>
                 </div>
               )
             })}
           </div>
+
+          {viewDoc && <TermsDetailOverlay documentKey={viewDoc} onClose={() => setViewDoc(null)} returnFocusRef={viewTriggerRef} />}
 
           {errorMessage && (
             <div role="alert" aria-live="polite" style={{ fontSize: 11.5, color: 'var(--down)', marginBottom: 14 }}>

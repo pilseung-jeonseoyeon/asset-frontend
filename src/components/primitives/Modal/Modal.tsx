@@ -81,9 +81,16 @@ export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalPro
         }}
       >
         {isMobile && (
+          // flexShrink:0 matters for callers whose panelStyle makes the panel itself a flex container
+          // (currently only TermsDetailOverlay, via `display:'flex', flexDirection:'column'`) — without it,
+          // this 4px bar is a shrinkable flex item like any other, and once panel content forces the
+          // maxHeight clamp to kick in, shrinkage gets distributed by flex-basis share and this shrinks
+          // right along with everything else (down to ~2px, not 0, but visibly squashed). The other 15
+          // Modal callers leave panelStyle's `display` at the block default, so the grabber isn't a flex
+          // item there and this has no effect on them.
           <div
             aria-hidden="true"
-            style={{ width: 36, height: 4, borderRadius: 999, background: 'var(--border)', margin: '0 auto 14px' }}
+            style={{ width: 36, height: 4, borderRadius: 999, background: 'var(--border)', margin: '0 auto 14px', flexShrink: 0 }}
           />
         )}
         {children}
