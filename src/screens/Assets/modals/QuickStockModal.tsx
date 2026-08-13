@@ -30,7 +30,7 @@ import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { fmt, sanitizeDecimalInput } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate } from '../../../utils/date'
-import { buyMarketToMarket, marketToCurrency } from '../../../data/stocksView'
+import { buyMarketToMarket, marketToCurrency, sortHoldingsByReturn } from '../../../data/stocksView'
 import { ApiError } from '@/services/api'
 import { useGetAccounts } from '@/services/account'
 import { useGetHoldings, useGetStocks, usePostStock } from '@/services/stock'
@@ -89,6 +89,8 @@ export function QuickStockModal() {
   const searchQuery = useGetStocks(keyword, { enabled: isOpen && stockModeBuy && !stockId })
   const searchResults = searchQuery.stocks.filter((s) => s.market === market)
   const holdingsQuery = useGetHoldings(market, { enabled: isOpen && stockModeSell })
+  // 보유 종목 카드(buildHoldingCards)와 같은 기준(수익률 내림차순)으로 정렬해 화면 간 순서를 맞춘다.
+  const sortedHoldings = sortHoldingsByReturn(holdingsQuery.holdings)
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })
   const accounts = accountsQuery.data ?? []
   const postStock = usePostStock()
@@ -96,7 +98,7 @@ export function QuickStockModal() {
 
   const ddHolding = useEntityDropdown(
     'stockHolding',
-    holdingsQuery.holdings,
+    sortedHoldings,
     (h) => h.stockId,
     (h) => h.stockName,
     stockId,

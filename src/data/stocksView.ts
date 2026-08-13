@@ -28,6 +28,18 @@ const INDEX_SYMBOL_LABELS: Record<string, string> = {
   USDKRW: 'USD/KRW',
 }
 
+/**
+ * 시장 지표 카드 표시 순서(dc.html 마크업 순서: KOSPI → S&P 500 → NASDAQ → USD/KRW). 일부 심볼
+ * 조회가 실패하면 배열에서 통째로 빠질 수 있으므로(marketIndex.type.ts) 이 목록에 없는 심볼은
+ * 버리지 않고 뒤에 붙인다.
+ */
+const MARKET_INDEX_ORDER = ['KOSPI', 'SPX', 'IXIC', 'USDKRW']
+
+function marketIndexOrderIndex(symbol: string): number {
+  const idx = MARKET_INDEX_ORDER.indexOf(symbol)
+  return idx === -1 ? MARKET_INDEX_ORDER.length : idx
+}
+
 /** 화면의 stockTab('전체'/'국내'/'해외')을 GET /stocks/holdings의 market 파라미터로 변환한다. */
 export function stockTabToMarket(stockTab: string): Market | undefined {
   if (stockTab === '국내') return 'KR'
@@ -63,19 +75,21 @@ export interface MarketIndexView {
  * `null`이거나(USDKRW) `previousClose`가 0이면 나눌 수 없으므로 배지를 숨긴다.
  */
 export function buildMarketIndexViews(indices: MarketIndexResponse[]): MarketIndexView[] {
-  return indices.map((idx) => {
-    const change = idx.changeFromPreviousClose
-    const previousClose = change === null ? null : idx.currentValue - change
-    const changePercent = change !== null && previousClose ? (change / previousClose) * 100 : null
-    const positive = changePercent !== null ? changePercent >= 0 : true
-    return {
-      symbol: idx.symbol,
-      label: INDEX_SYMBOL_LABELS[idx.symbol] ?? idx.symbol,
-      valueFmt: fmt(idx.currentValue),
-      changePctFmt: changePercent !== null ? (positive ? '+' : '−') + Math.abs(changePercent).toFixed(2) + '%' : null,
-      positive,
-    }
-  })
+  return [...indices]
+    .sort((a, b) => marketIndexOrderIndex(a.symbol) - marketIndexOrderIndex(b.symbol))
+    .map((idx) => {
+      const change = idx.changeFromPreviousClose
+      const previousClose = change === null ? null : idx.currentValue - change
+      const changePercent = change !== null && previousClose ? (change / previousClose) * 100 : null
+      const positive = changePercent !== null ? changePercent >= 0 : true
+      return {
+        symbol: idx.symbol,
+        label: INDEX_SYMBOL_LABELS[idx.symbol] ?? idx.symbol,
+        valueFmt: fmt(idx.currentValue),
+        changePctFmt: changePercent !== null ? (positive ? '+' : '−') + Math.abs(changePercent).toFixed(2) + '%' : null,
+        positive,
+      }
+    })
 }
 
 // ---------- 그룹별 수익률 ----------
@@ -96,19 +110,26 @@ export interface GroupReturnView {
  * "손익 0"인 것처럼 보인다 — 조용히 틀린 값을 보여주게 되므로 반드시 걸러낸다.
  */
 export function buildGroupReturns(groups: HoldingGroupResponse[], by: 'sector' | 'market'): GroupReturnView[] {
-  return groups.map((g) => {
-    const rate = g.returnRatePercent
-    const positive = rate !== null && rate >= 0
-    return {
-      key: g.groupKey,
-      label: by === 'market' ? (MARKET_LABELS[g.groupKey as Market] ?? g.groupKey) : g.groupKey,
-      pctFmt: rate === null ? null : (positive ? '+' : '−') + Math.abs(rate).toFixed(1) + '%',
-      // 계산 불가(null)를 "상승 아님 = 하락"으로 접으면 안 된다. 호출부가 색을 한 번 더
-      // 덮어쓰고 있더라도, 뷰모델 자체가 틀린 색을 들고 있으면 이 값을 쓰는 다른 UI가
-      // 생기는 순간 계산 불가 항목이 빨간색(손실)으로 보인다.
-      color: rate === null ? 'var(--text-weak)' : positive ? 'var(--up)' : 'var(--down)',
-    }
-  })
+  return [...groups]
+    // 수익률 내림차순, 계산 불가(null)는 맨 뒤로.
+    .sort((a, b) => {
+      if (a.returnRatePercent === null) return b.returnRatePercent === null ? 0 : 1
+      if (b.returnRatePercent === null) return -1
+      return b.returnRatePercent - a.returnRatePercent
+    })
+    .map((g) => {
+      const rate = g.returnRatePercent
+      const positive = rate !== null && rate >= 0
+      return {
+        key: g.groupKey,
+        label: by === 'market' ? (MARKET_LABELS[g.groupKey as Market] ?? g.groupKey) : g.groupKey,
+        pctFmt: rate === null ? null : (positive ? '+' : '−') + Math.abs(rate).toFixed(1) + '%',
+        // 계산 불가(null)를 "상승 아님 = 하락"으로 접으면 안 된다. 호출부가 색을 한 번 더
+        // 덮어쓰고 있더라도, 뷰모델 자체가 틀린 색을 들고 있으면 이 값을 쓰는 다른 UI가
+        // 생기는 순간 계산 불가 항목이 빨간색(손실)으로 보인다.
+        color: rate === null ? 'var(--text-weak)' : positive ? 'var(--up)' : 'var(--down)',
+      }
+    })
 }
 
 // ---------- 섹터 비중 도넛 ----------
@@ -150,31 +171,42 @@ export interface HoldingCardView {
 }
 
 /**
+ * 원가(평가액 − 평가손익)가 0이면 수익률을 계산할 수 없으니 0으로 둔다(신규 매수 직후 등 극단치).
+ * buildHoldingCards와 QuickStockModal의 매도 종목 드롭다운이 같은 기준으로 정렬하도록 공유한다.
+ */
+function holdingReturnPct(h: HoldingResponse): number {
+  const costBasis = h.valuationKrw - h.unrealizedPnlKrw
+  return costBasis !== 0 ? (h.unrealizedPnlKrw / costBasis) * 100 : 0
+}
+
+/** 보유 종목을 수익률 내림차순으로 정렬한다(구 mockStocks.ts 데이터 순서와 동일한 기준). */
+export function sortHoldingsByReturn(holdings: HoldingResponse[]): HoldingResponse[] {
+  return [...holdings].sort((a, b) => holdingReturnPct(b) - holdingReturnPct(a))
+}
+
+/**
  * ticker와 현재가는 HoldingResponse에 없다(stock.type.ts 참고). ticker는 GET /stocks 전체 목록과
  * stockId로 조인하고, 못 찾으면 빈 문자열로 둔다(가짜 값 금지). 현재가·전일대비는 응답 자체가 없어
  * 그리지 않는다. 수익률 높은 순으로 정렬한다(구 mockStocks.ts 데이터 순서와 동일한 기준).
  */
 export function buildHoldingCards(holdings: HoldingResponse[], stocks: StockResponse[]): HoldingCardView[] {
-  return holdings
-    .map((h) => {
-      const costBasis = h.valuationKrw - h.unrealizedPnlKrw
-      const returnPct = costBasis !== 0 ? (h.unrealizedPnlKrw / costBasis) * 100 : 0
-      const positive = h.unrealizedPnlKrw >= 0
-      const sign = positive ? '+' : '−'
-      return {
-        stockId: h.stockId,
-        name: h.stockName,
-        marketLabel: MARKET_LABELS[h.market],
-        sector: h.sector ?? '기타',
-        ticker: stocks.find((s) => s.id === h.stockId)?.ticker ?? '',
-        valueFmt: fmt(h.valuationKrw),
-        qtyFmt: fmt(h.quantity),
-        gainFmt: `${sign}${fmt(Math.abs(h.unrealizedPnlKrw))}원 (${sign}${Math.abs(returnPct).toFixed(1)}%)`,
-        positive,
-        returnPct,
-      }
-    })
-    .sort((a, b) => b.returnPct - a.returnPct)
+  return sortHoldingsByReturn(holdings).map((h) => {
+    const returnPct = holdingReturnPct(h)
+    const positive = h.unrealizedPnlKrw >= 0
+    const sign = positive ? '+' : '−'
+    return {
+      stockId: h.stockId,
+      name: h.stockName,
+      marketLabel: MARKET_LABELS[h.market],
+      sector: h.sector ?? '기타',
+      ticker: stocks.find((s) => s.id === h.stockId)?.ticker ?? '',
+      valueFmt: fmt(h.valuationKrw),
+      qtyFmt: fmt(h.quantity),
+      gainFmt: `${sign}${fmt(Math.abs(h.unrealizedPnlKrw))}원 (${sign}${Math.abs(returnPct).toFixed(1)}%)`,
+      positive,
+      returnPct,
+    }
+  })
 }
 
 // ---------- 포트폴리오 요약 ----------

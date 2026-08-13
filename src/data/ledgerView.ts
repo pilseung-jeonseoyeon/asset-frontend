@@ -278,18 +278,21 @@ function subscriptionIconOf(icon: string | null): string {
 }
 
 export function buildSubscriptionRows(subscriptions: SubscriptionResponse[], accounts: AccountResponse[]): SubscriptionRow[] {
-  return subscriptions.map((s) => ({
-    id: s.id,
-    name: s.name,
-    icon: subscriptionIconOf(s.icon),
-    dayLabel: `매월 ${s.paymentDay}일`,
-    accountLabel: accountLabelOf(s.accountId, accounts),
-    amtFmt: fmt(s.amount),
-    amount: s.amount,
-    paymentDay: s.paymentDay,
-    accountId: s.accountId,
-    subcategoryId: s.subcategoryId,
-  }))
+  // 결제일 오름차순(dc.html subscriptionsAll: 10일 → 15일 → 20일) — 금액순이 아니다.
+  return [...subscriptions]
+    .sort((a, b) => a.paymentDay - b.paymentDay)
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      icon: subscriptionIconOf(s.icon),
+      dayLabel: `매월 ${s.paymentDay}일`,
+      accountLabel: accountLabelOf(s.accountId, accounts),
+      amtFmt: fmt(s.amount),
+      amount: s.amount,
+      paymentDay: s.paymentDay,
+      accountId: s.accountId,
+      subcategoryId: s.subcategoryId,
+    }))
 }
 
 // ---------- 내역(거래 목록) ----------

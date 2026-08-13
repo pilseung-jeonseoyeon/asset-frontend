@@ -68,12 +68,32 @@ interface AssetClassMeta {
 }
 
 export const ASSET_CLASS_META: Record<AssetClass, AssetClassMeta> = {
-  CASH_PENSION: { icon: 'account_balance', color: 'var(--accent)', labelFallback: '현금·연금' },
+  CASH_PENSION: { icon: 'wallet', color: 'var(--accent)', labelFallback: '현금·연금' },
   DEPOSIT: { icon: 'savings', color: 'var(--accent)', labelFallback: '예적금' },
   DOMESTIC_STOCK: { icon: 'trending_up', color: 'var(--accent)', labelFallback: '국내주식' },
   FOREIGN_STOCK: { icon: 'public', color: 'var(--accent)', labelFallback: '해외주식' },
   CRYPTO: { icon: 'currency_bitcoin', color: 'var(--accent)', labelFallback: '가상자산' },
-  ETC: { icon: 'more_horiz', color: 'var(--accent)', labelFallback: '기타' },
+  ETC: { icon: 'account_balance', color: 'var(--accent)', labelFallback: '기타' },
+}
+
+/**
+ * 자산 카드 표시 순서(dc.html assetCatsRaw: 현금 → 예적금 → 국내주식 → 해외주식 → 가상자산 →
+ * 연금·기타). `AssetClass` 유니언 선언 순서(common.type.ts)와는 다르므로 반드시 이 상수로 정렬해야
+ * 한다 — 서버 응답 순서나 유니언 선언 순서를 그대로 쓰면 카드가 뒤섞인다.
+ */
+export const ASSET_CLASS_ORDER: AssetClass[] = [
+  'CASH_PENSION',
+  'DEPOSIT',
+  'DOMESTIC_STOCK',
+  'FOREIGN_STOCK',
+  'CRYPTO',
+  'ETC',
+]
+
+/** 목록에 없는 값(서버가 새 AssetClass를 추가한 경우)은 버리지 않고 맨 뒤로 보낸다. */
+function assetClassOrderIndex(assetClass: AssetClass): number {
+  const idx = ASSET_CLASS_ORDER.indexOf(assetClass)
+  return idx === -1 ? ASSET_CLASS_ORDER.length : idx
 }
 
 const RAMP = ['var(--ramp-1)', 'var(--ramp-2)', 'var(--ramp-3)', 'var(--ramp-4)', 'var(--ramp-5)', 'var(--ramp-6)']
@@ -108,24 +128,29 @@ function institutionNameOf(accountId: number, accounts: AccountResponse[]): stri
 }
 
 export function buildAssetCats(groups: AssetClassGroup[], accounts: AccountResponse[]): AssetCat[] {
-  return groups.map((g) => {
-    const meta = ASSET_CLASS_META[g.assetClass]
-    return {
-      id: g.assetClass,
-      name: assetClassLabel(g),
-      icon: meta.icon,
-      color: meta.color,
-      count: g.accounts.length,
-      totalFmt: fmt(g.totalValueKrw),
-      accounts: g.accounts.map((a) => ({
-        accountId: a.accountId,
-        name: a.accountName,
-        inst: institutionNameOf(a.accountId, accounts),
-        amt: a.valueKrw,
-        amtFmt: fmt(a.valueKrw),
-      })),
-    }
-  })
+  return [...groups]
+    .sort((a, b) => assetClassOrderIndex(a.assetClass) - assetClassOrderIndex(b.assetClass))
+    .map((g) => {
+      const meta = ASSET_CLASS_META[g.assetClass]
+      return {
+        id: g.assetClass,
+        name: assetClassLabel(g),
+        icon: meta.icon,
+        color: meta.color,
+        count: g.accounts.length,
+        totalFmt: fmt(g.totalValueKrw),
+        // 카테고리 내부 계좌는 금액 내림차순 — ①의 카테고리 순서 규칙과는 별개다.
+        accounts: [...g.accounts]
+          .sort((a, b) => b.valueKrw - a.valueKrw)
+          .map((a) => ({
+            accountId: a.accountId,
+            name: a.accountName,
+            inst: institutionNameOf(a.accountId, accounts),
+            amt: a.valueKrw,
+            amtFmt: fmt(a.valueKrw),
+          })),
+      }
+    })
 }
 
 // ---------- 자산 분포 트리맵 ----------

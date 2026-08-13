@@ -89,17 +89,21 @@ export function buildTrendChart(
   height = 92,
   padding = 6,
 ): TrendChartView {
-  const dates = points.map((p) => p.date)
-  if (points.length < 2) return { path: null, lastPoint: null, dates }
+  // API-SPEC §4.2는 예시만 오름차순이고 정렬을 보장하지 않는다. x좌표를 배열 인덱스로 매기므로
+  // 순서가 어긋나면 선이 앞뒤로 튄다 — buildAccountTrendPath(assetsView.ts)와 같은 이유의 방어적
+  // 정렬이며, 원본 dc.html에 직접 대응하는 근거는 없다.
+  const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date))
+  const dates = sorted.map((p) => p.date)
+  if (sorted.length < 2) return { path: null, lastPoint: null, dates }
 
-  const values = points.map((p) => p.totalValueKrw)
+  const values = sorted.map((p) => p.totalValueKrw)
   const min = Math.min(...values)
   const max = Math.max(...values)
   const span = max - min
   const usable = height - padding * 2
 
-  const coords = points.map((p, i) => {
-    const x = (width * i) / (points.length - 1)
+  const coords = sorted.map((p, i) => {
+    const x = (width * i) / (sorted.length - 1)
     // 값이 전부 같으면(span 0) 0으로 나누지 말고 가운데 높이에 평평하게 그린다.
     const ratio = span === 0 ? 0.5 : (p.totalValueKrw - min) / span
     // SVG는 y가 아래로 커지므로 값이 클수록 y가 작아야 한다.
