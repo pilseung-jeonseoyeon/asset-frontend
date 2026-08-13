@@ -1,124 +1,53 @@
-// Source: secret/Asset Manager v14.dc.html L454-456 (root hasOpenSelect scrim, z-index 70),
-// L701-761 (outer flex shell: sidebar + main), L840 onward (per-screen sc-if routing, isDash/isAsset/
-// isStock/isLedger/isSet).
-//
-// Auth gating (source's isAuthed, L701) is real now that the backend requires a JWT — see
-// src/stores/auth.ts. Three states:
-//   'unknown'       — boot, refresh not attempted yet. Render nothing but a minimal `—` placeholder so
-//                     an already-logged-in user doesn't see the login screen flash before the silent
-//                     refresh resolves.
+// Auth gating (source's isAuthed, dc.html L701) is real now that the backend requires a JWT — see
+// src/stores/auth.ts. Four branches:
+//   'unknown', never seen a session on this browser (stores/auth.ts hasSeenSession()) — render the
+//                     login screen immediately instead of waiting on the silent refresh. A visitor
+//                     who has never logged in here has nothing to gain from waiting on a refresh
+//                     that's virtually guaranteed to 401; useRestoreSession keeps that refresh going
+//                     in the background and flips status to 'authenticated' if it somehow succeeds
+//                     (e.g. a session created in another tab).
+//   'unknown', has seen a session before — show BootScreen (not a blank `—`) while the silent
+//                     refresh resolves, so a returning, already-logged-in user doesn't see the login
+//                     screen flash before it comes back.
 //   'anonymous'     — render ONLY screens/Auth/Auth.tsx. Deliberately skip SidebarNav/Header/every
 //                     modalXxx here — several of them fire queries on mount (useGetMe, category lists,
 //                     etc.), and mounting them while anonymous would fire a burst of 401s against
 //                     endpoints that now require a token.
-//   'authenticated' — original behavior, unchanged.
-//
-// Mobile shell (<=767px, docs/mobile.md §2): SidebarNav is swapped for the fixed BottomTabNav and
-// `main` padding drops to leave room for it. Auth gating above is untouched by this branch.
+//   'authenticated' — the original nav/screens/modals tree, split into its own lazy chunk
+//                     (AuthenticatedApp) so a login-only visitor never downloads it. Wrapped in
+//                     ChunkErrorBoundary because a chunk fetch can *reject* (a redeploy removes the
+//                     old hashed URL from under a long-open tab), which Suspense does not handle.
 
-import { useAppState } from '../../state/AppStateContext'
-import { useIsMobile } from '../../utils/useMediaQuery'
-import { SidebarNav } from './SidebarNav'
-import { BottomTabNav } from './BottomTabNav'
-import { Header } from './Header'
-import { AccountModal } from './modals/AccountModal'
-import { Dashboard } from '../../screens/Dashboard/Dashboard'
-import { Stocks } from '../../screens/Stocks/Stocks'
-import { Ledger } from '../../screens/Ledger/Ledger'
-import { LedgerEntryModal } from '../../screens/Ledger/modals/LedgerEntryModal'
-import { FixedExpenseModal } from '../../screens/Ledger/modals/FixedExpenseModal'
-import { Settings } from '../../screens/Settings/Settings'
-import { GeneralModal } from '../../screens/Settings/modals/GeneralModal'
-import { DataModal } from '../../screens/Settings/modals/DataModal'
-import { CustomModal } from '../../screens/Settings/modals/CustomModal'
-import { CategorySettingsModal } from '../../screens/Settings/modals/CategorySettingsModal'
-import { Assets } from '../../screens/Assets/Assets'
-import { QuickStockModal } from '../../screens/Assets/modals/QuickStockModal'
-import { ExchangeAddModal } from '../../screens/Assets/modals/ExchangeAddModal'
-import { AddAccountModal } from '../../screens/Assets/modals/AddAccountModal'
-import { EditAccountModal } from '../../screens/Assets/modals/EditAccountModal'
-import { AssetCategoryModal } from '../../screens/Assets/modals/AssetCategoryModal'
-import { AddGoalModal } from '../../screens/Assets/modals/AddGoalModal'
-import { InstitutionsModal } from '../../screens/Assets/modals/InstitutionsModal'
-import { ReportOverlay } from '../../screens/Assets/modals/ReportOverlay'
-import { AccountDetailModal } from '../../screens/Assets/modals/AccountDetailModal'
-import { CategoryDetailModal } from '../../screens/Ledger/modals/CategoryDetailModal'
+import { lazy, Suspense } from 'react'
+import { BootScreen } from './BootScreen'
+import { ChunkErrorBoundary } from './ChunkErrorBoundary'
 import { Auth } from '../../screens/Auth/Auth'
+import { hasSeenSession } from '@/stores/auth'
 import { useRestoreSession } from '@/services/auth'
 
+const AuthenticatedApp = lazy(() =>
+  import('./AuthenticatedApp').then((m) => ({ default: m.AuthenticatedApp })),
+)
+
 export function AppShell() {
-  const { state, setState } = useAppState()
   const authStatus = useRestoreSession()
-  const isMobile = useIsMobile()
 
   if (authStatus === 'unknown') {
-    return (
-      <div
-        aria-busy="true"
-        style={{
-          display: 'flex',
-          minHeight: '100vh',
-          width: '100%',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--canvas)',
-          color: 'var(--text-weak)',
-          fontSize: 13.5,
-        }}
-      >
-        —
-      </div>
-    )
+    if (!hasSeenSession()) return <Auth />
+    return <BootScreen />
   }
 
   if (authStatus === 'anonymous') {
     return <Auth />
   }
 
+  // ChunkErrorBoundary가 Suspense 바깥이어야 한다 — 잡아야 할 건 "아직 안 온 것"이 아니라
+  // import()가 reject된 경우(재배포로 사라진 옛 청크 URL)라서 Suspense는 그걸 처리하지 못한다.
   return (
-    <>
-      {state.openDropdown && (
-        <div onClick={() => setState({ openDropdown: null })} style={{ position: 'fixed', inset: 0, zIndex: 70 }} />
-      )}
-      <div style={{ display: 'flex', minHeight: '100vh', width: '100%', background: 'var(--canvas)' }}>
-        {!isMobile && <SidebarNav />}
-        <main
-          style={{
-            flex: 1,
-            minWidth: 0,
-            padding: isMobile ? '18px 16px calc(64px + env(safe-area-inset-bottom) + 20px)' : '30px 40px 56px',
-          }}
-        >
-          <Header />
-          {state.screen === 'dashboard' && <Dashboard />}
-          {state.screen === 'asset' && <Assets />}
-          {state.screen === 'stock' && <Stocks />}
-          {state.screen === 'ledger' && <Ledger />}
-          {state.screen === 'settings' && <Settings />}
-        </main>
-      </div>
-      {isMobile && <BottomTabNav />}
-      {/* All 14 modalXxx blocks in dc.html are top-level siblings gated only by s.modalOpen — NOT
-          nested inside their "owning" screen's sc-if block (confirmed: modalLedgerEntry's markup sits
-          inside the Assets line-range, L1605, yet opens from the Header on any screen). So every modal
-          mounts here regardless of state.screen, same as AccountModal. */}
-      <AccountModal />
-      <LedgerEntryModal />
-      <FixedExpenseModal />
-      <GeneralModal />
-      <DataModal />
-      <CustomModal />
-      <CategorySettingsModal />
-      <QuickStockModal />
-      <ExchangeAddModal />
-      <AddAccountModal />
-      <EditAccountModal />
-      <AssetCategoryModal />
-      <AddGoalModal />
-      <InstitutionsModal />
-      <ReportOverlay />
-      <AccountDetailModal />
-      <CategoryDetailModal />
-    </>
+    <ChunkErrorBoundary>
+      <Suspense fallback={<BootScreen />}>
+        <AuthenticatedApp />
+      </Suspense>
+    </ChunkErrorBoundary>
   )
 }

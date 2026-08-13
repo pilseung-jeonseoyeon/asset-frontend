@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import type { Screen } from '../../state/types'
 import { NAV_ITEMS } from './navItems'
+import { MonitLogo } from './MonitLogo'
 import { getAvatarInitial } from '../primitives/Avatar/Avatar'
 import { useAppState } from '../../state/AppStateContext'
 import { navHover, navStyle } from '../../state/selectors/nav'
@@ -29,40 +30,6 @@ function NavButton({ screen, icon, label }: { screen: Screen; icon: string; labe
       </span>
       <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '-0.01em' }}>{label}</span>
     </button>
-  )
-}
-
-function MonitLogo() {
-  return (
-    <div style={{ marginBottom: 30 }}>
-      <svg className="monit-logo-light" width="40" height="40" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="monit-bg-01" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#363C74" />
-            <stop offset="1" stopColor="#1F2247" />
-          </linearGradient>
-        </defs>
-        <path d="M50,0 C14,0 0,14 0,50 C0,86 14,100 50,100 C86,100 100,86 100,50 C100,14 86,0 50,0 Z" fill="url(#monit-bg-01)" />
-        <path d="M28,62 L28,34 L50,55 L72,34 L72,74" fill="none" stroke="#FFFFFF" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="28" cy="68" r="8.5" fill="#ABA5E4" />
-      </svg>
-      <svg className="monit-logo-dark" width="40" height="40" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="monit-bg-02" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#3A3F75" />
-            <stop offset="1" stopColor="#1E2359" />
-          </linearGradient>
-        </defs>
-        <path
-          d="M50,0 C14,0 0,14 0,50 C0,86 14,100 50,100 C86,100 100,86 100,50 C100,14 86,0 50,0 Z"
-          fill="url(#monit-bg-02)"
-          stroke="rgba(255,255,255,0.08)"
-          strokeWidth="1"
-        />
-        <path d="M28,62 L28,34 L50,55 L72,34 L72,74" fill="none" stroke="#FFFFFF" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="28" cy="68" r="8.5" fill="#B9B2F4" />
-      </svg>
-    </div>
   )
 }
 
@@ -99,7 +66,9 @@ export function SidebarNav() {
           boxShadow: 'var(--shadow-card)',
         }}
       >
-        <MonitLogo />
+        <div style={{ marginBottom: 30 }}>
+          <MonitLogo />
+        </div>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%', alignItems: 'center', flex: 1 }}>
           {NAV_ITEMS.map((item) => (
             <NavButton key={item.screen} {...item} />

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth'
-import { refreshAccessToken } from '../api'
+import { ApiError, refreshAccessToken } from '../api'
 import {
   postLogin,
   postLogout,
@@ -18,6 +18,18 @@ import type {
   SignupRequest,
 } from './auth.type'
 
+// 부팅 시 refresh는 대기 화면 지속 시간에 직결되므로, 일반 요청 타임아웃(10초, api.ts)을 다
+// 기다리지 않고 이 시간이 지나면 먼저 손을 뗀다. refresh 요청 자체는 취소하지 않는다 — 늦게라도
+// 성공하면 signInFromRestore가 반영해 준다(그때는 이미 로그인 화면이 떠 있고, 사용자가 그 사이
+// 직접 로그인을 시작했다면 manualAuthPending이 덮어쓰기를 막는다).
+const BOOT_REFRESH_GIVE_UP_MS = 3500
+
+/** 서버가 "이 세션은 무효"라고 명확히 답했는가. 타임아웃·네트워크 오류·5xx는 여기 해당하지 않는다. */
+function isSessionInvalid(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false
+  return error.status === 401 || error.status === 403
+}
+
 /**
  * 앱 부팅 시 한 번, 리프레시 쿠키로 액세스 토큰을 되찾아온다.
  * 액세스 토큰을 메모리에만 두기 때문에(stores/auth.ts 참고) 새로고침하면 반드시 이 과정이 필요하다.
@@ -30,11 +42,22 @@ export function useRestoreSession() {
   useEffect(() => {
     if (status !== 'unknown') return
     let cancelled = false
-    refreshAccessToken().catch(() => {
+
+    // 서버가 답이 없어도 이 시간 안에 로그인 화면으로 떨어진다. sessionInvalid는 주지 않는다 —
+    // 응답을 못 받은 것이지 세션이 무효라고 확인된 게 아니므로 힌트를 남겨둬야 한다.
+    const giveUpTimer = window.setTimeout(() => {
       if (!cancelled) markAnonymous()
-    })
+    }, BOOT_REFRESH_GIVE_UP_MS)
+
+    refreshAccessToken()
+      .catch((error: unknown) => {
+        if (!cancelled) markAnonymous({ sessionInvalid: isSessionInvalid(error) })
+      })
+      .finally(() => window.clearTimeout(giveUpTimer))
+
     return () => {
       cancelled = true
+      window.clearTimeout(giveUpTimer)
     }
   }, [status, markAnonymous])
 
@@ -43,15 +66,23 @@ export function useRestoreSession() {
 
 export function usePostLogin() {
   const signIn = useAuthStore((s) => s.signIn)
+  const beginManualAuth = useAuthStore((s) => s.beginManualAuth)
+  const endManualAuth = useAuthStore((s) => s.endManualAuth)
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (body: LoginRequest) => postLogin(body),
+    // 제출 순간부터 "사용자가 직접 시작한 로그인"으로 표시한다. 이 구간에 백그라운드 refresh가
+    // 예전 쿠키로 성공해도 신원을 덮어쓰지 못한다(stores/auth.ts의 signInFromRestore).
+    mutationFn: (body: LoginRequest) => {
+      beginManualAuth()
+      return postLogin(body)
+    },
     onSuccess: (token) => {
       signIn(token.accessToken)
       // 이전 사용자의 캐시가 남아 있으면 안 된다.
       queryClient.clear()
     },
+    onError: () => endManualAuth(),
   })
 }
 

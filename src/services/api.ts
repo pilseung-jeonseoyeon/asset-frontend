@@ -71,14 +71,21 @@ api.interceptors.request.use((config) => {
 // 첫 401이 재발급을 시작하고, 뒤따르는 401들은 같은 Promise를 기다린다.
 let refreshPromise: Promise<string> | null = null
 
+// 호출부별 timeout 오버라이드는 두지 않는다. single-flight(refreshPromise) 구조에서는 이미
+// 진행 중인 요청에 나중 호출자의 timeout이 적용되지 않아, 어느 값이 먹을지가 호출 순서에 따라
+// 달라진다. 부팅처럼 빨리 포기해야 하는 쪽은 자기 쪽에서 시간을 재고 먼저 손을 떼면 된다
+// (useRestoreSession 참고) — 진행 중인 refresh 자체는 살려두어 늦게라도 성공하면 반영된다.
 export async function refreshAccessToken(): Promise<string> {
   if (!refreshPromise) {
+    // 요청을 시작하는 시점의 세대를 기억해 둔다. 응답이 돌아왔을 때 세대가 바뀌어 있으면(그 사이
+    // 사용자가 직접 로그인하거나 로그아웃했으면) 이 응답은 낡은 것이므로 반영하지 않는다.
+    const startedAtGeneration = useAuthStore.getState().authGeneration
     refreshPromise = refreshClient
       .post<ApiResponse<{ accessToken: string }>>('/auth/refresh')
       .then((res) => {
         const accessToken = res.data.data?.accessToken
         if (!accessToken) throw new ApiError('UNAUTHENTICATED', '세션이 만료되었어요.', 401)
-        useAuthStore.getState().signIn(accessToken)
+        useAuthStore.getState().applyRefreshedToken(accessToken, startedAtGeneration)
         return accessToken
       })
       .catch((error: unknown) => {

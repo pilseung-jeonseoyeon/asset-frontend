@@ -9,10 +9,13 @@
          @font-face 선언과 그 이유는 src/styles/fonts.css 헤더 주석 참고.
          아래 preload는 첫 화면(로그인)에 실제로 쓰이는 글자를 세어 상위 2개 조각만 당겨온다 —
          subset.91은 라틴 문자와 '가' 등, subset.90은 로그인 화면 한글의 대부분을 담는다.
-         나머지 90개는 브라우저가 unicode-range를 보고 필요할 때만 받는다. -->
+         나머지 90개는 브라우저가 unicode-range를 보고 필요할 때만 받는다.
+
+         아이콘 폰트(370KB)는 일부러 preload하지 않는다 — 로그인 화면이 쓰는 아이콘은 4개뿐인데
+         preload로 최우선 순위를 주면 정작 급한 CSS/JS와 대역폭을 다툰다. fonts.css에서
+         font-display: swap이라 늦게 도착해도 텍스트 렌더를 막지 않는다. -->
     <link rel="preload" href="/fonts/pretendard/PretendardVariable.subset.91.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/fonts/pretendard/PretendardVariable.subset.90.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="/fonts/MaterialSymbolsRounded.woff2" as="font" type="font/woff2" crossorigin>
     <title>Monit</title>
   </head>
   <body>
