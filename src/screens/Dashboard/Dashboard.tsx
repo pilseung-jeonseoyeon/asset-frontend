@@ -30,6 +30,7 @@ import {
   buildDashboardInstitutions,
   buildTrendChart,
   pickTopAllocation,
+  sumAllocationKrw,
 } from '../../data/dashboardView'
 import {
   useGetDashboardAllocation,
@@ -106,7 +107,22 @@ export function Dashboard() {
   const openAddGoal = () => setState({ modalOpen: 'addGoal', addGoalReturnTo: null })
 
   const summaryQuery = useGetDashboardSummary()
-  const hero = summaryQuery.data ? buildDashboardHero(summaryQuery.data) : null
+  const allocationQuery = useGetDashboardAllocation()
+  // summary(스냅샷 기반)가 0이면 "계좌 없음"과 "계좌 등록 첫날이라 스냅샷이 아직 없음"을 구분할 수
+  // 없다(docs/backend-requests.md 23번) — allocation(실시간 집계) 합계로 보완해서 판정한다.
+  // allocation이 아직 로딩 중일 때 곧바로 판정해버리면 "빈 상태" → "실제 데이터"로 바뀌는 깜빡임이
+  // 생기므로, summary가 0인 동안은 allocation이 정착(settle)할 때까지 히어로 판정을 보류한다
+  // (아래 리포트 배너가 hero 자체로 자신을 게이트하는 것과 같은 이유).
+  const summaryIsZero = summaryQuery.data?.totalAssetKrw === 0
+  const heroBlockedByAllocation = summaryIsZero && allocationQuery.isPending
+  // summary가 0인데 allocation 조회 자체가 실패하면 "계좌가 없어서 0"인지 "있는데 못 가져와서
+  // 0"인지 알 수 없다 — 빈 상태로 잘못 단정하지 말고 에러로 보여준다(도넛 카드와 같은 에러
+  // 메시지 소스라 화면 안에서 모순된 상태가 뜨지 않는다).
+  const heroAllocationErrored = summaryIsZero && !!allocationQuery.error
+  const hero =
+    summaryQuery.data && !heroBlockedByAllocation
+      ? buildDashboardHero(summaryQuery.data, sumAllocationKrw(allocationQuery.allocation))
+      : null
 
   const currentYear = todayYearMonth().year
   const trendRange = { from: `${currentYear}-01-01`, to: toISODate(new Date()) }
@@ -127,7 +143,6 @@ export function Dashboard() {
     }
   }
 
-  const allocationQuery = useGetDashboardAllocation()
   const allocationSegments = buildAllocationSegments(allocationQuery.allocation)
   const topAllocation = pickTopAllocation(allocationSegments)
   const hasAllocationData = allocationSegments.length > 0
@@ -146,9 +161,12 @@ export function Dashboard() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
-      {/* 월간 리포트 배너 — 계좌가 없어 아직 목업 데이터인 ReportOverlay를 보여줄 수 없는 신규
-          사용자에게는 숨긴다. hero가 아직 없는 로딩/에러 상태에서도 숨겨서 데이터 도착 시
-          배너가 깜빡이며 나타났다 사라지는 것을 막는다. */}
+      {/* 월간 리포트 배너 — 계좌가 없는 신규 사용자에게는 숨긴다("자산이 있어야 볼 리포트가
+          있다"는 최소 조건일 뿐, ReportOverlay 자체는 계좌 유무와 무관하게 전부 목업이다 —
+          CLAUDE.md 참고). hero.isEmpty는 이제 allocation 실시간 합계까지 반영하므로, 계좌 등록
+          첫날(summary 스냅샷 미생성)에도 계좌가 있으면 배너가 정상 노출된다 — 의도된 동작. hero가
+          아직 없는 로딩/에러 상태에서도 숨겨서 데이터 도착 시 배너가 깜빡이며 나타났다 사라지는
+          것을 막는다. */}
       {hero && !hero.isEmpty && (
         <button
           onClick={() => setState({ reportOpen: true, reportSlide: 0 })}
@@ -195,11 +213,13 @@ export function Dashboard() {
 
       {/* ROW 1: 총자산 히어로 + 목표버킷 */}
       <div className="rgrid-outer" style={{ display: 'grid', gridTemplateColumns: '1fr 312px', gap: 26, alignItems: 'stretch' }}>
-        <DeepCard aria-busy={summaryQuery.isPending}>
-          {summaryQuery.isPending ? (
+        <DeepCard aria-busy={summaryQuery.isPending || heroBlockedByAllocation}>
+          {summaryQuery.isPending || heroBlockedByAllocation ? (
             <div aria-busy style={EMPTY_TEXT_STYLE_DEEP}>—</div>
           ) : summaryQuery.error ? (
             <div style={ERROR_TEXT_STYLE_DEEP}>{summaryQuery.error.message}</div>
+          ) : heroAllocationErrored ? (
+            <div style={ERROR_TEXT_STYLE_DEEP}>{allocationQuery.error?.message}</div>
           ) : !hero || hero.isEmpty ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <span
@@ -231,15 +251,24 @@ export function Dashboard() {
                 </div>
               </div>
               <AbbrevCaption amountKrw={hero.totalAssetKrw} deep />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
-                <span style={{ fontSize: 12.5, color: 'var(--deep-label)', fontWeight: 400 }}>이번 달 증감액</span>
-                <StatBadge
-                  direction={hero.monthChangeKrw >= 0 ? 'up' : 'down'}
-                  text={`${fmt(Math.abs(hero.monthChangeKrw))}원`}
-                  bg="var(--deep-chip)"
-                  color={hero.monthChangeKrw >= 0 ? 'var(--deep-up)' : 'var(--deep-down)'}
-                />
-              </div>
+              {/* summary 스냅샷이 아직 없으면(계좌 등록 첫날) 증감액을 계산할 근거가 없다 — 0원으로
+                  단정하지 않되, 줄이 말없이 사라지면 "올해 자산 현황" 카드와 설명 수준이 어긋나므로
+                  같은 톤의 안내 문구로 대체한다(시점을 약속하지 않는다 — 배치 실행 시각 미확정). */}
+              {hero.hasSnapshotHistory ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
+                  <span style={{ fontSize: 12.5, color: 'var(--deep-label)', fontWeight: 400 }}>이번 달 증감액</span>
+                  <StatBadge
+                    direction={hero.monthChangeKrw >= 0 ? 'up' : 'down'}
+                    text={`${fmt(Math.abs(hero.monthChangeKrw))}원`}
+                    bg="var(--deep-chip)"
+                    color={hero.monthChangeKrw >= 0 ? 'var(--deep-up)' : 'var(--deep-down)'}
+                  />
+                </div>
+              ) : (
+                <div style={{ ...EMPTY_TEXT_STYLE_DEEP, marginTop: 14 }}>
+                  자산 이력이 쌓이면 이번 달 증감을 확인할 수 있어요
+                </div>
+              )}
             </div>
           )}
         </DeepCard>
@@ -286,17 +315,23 @@ export function Dashboard() {
 
       {/* ROW 2: 구성비율 + 이번달 */}
       <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 26, alignItems: 'stretch' }}>
-        <Card style={{ padding: 24 }} aria-busy={summaryQuery.isPending}>
+        <Card style={{ padding: 24 }} aria-busy={summaryQuery.isPending || heroBlockedByAllocation}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
             <div style={{ fontSize: 15, fontWeight: 700 }}>올해 자산 현황</div>
             {trendAsOf && <span style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>{isoDateToDisplay(trendAsOf)} 기준</span>}
           </div>
-          {summaryQuery.isPending ? (
+          {summaryQuery.isPending || heroBlockedByAllocation ? (
             <div aria-busy style={{ ...EMPTY_TEXT_STYLE, marginTop: 14 }}>—</div>
           ) : summaryQuery.error ? (
             <div style={{ ...ERROR_TEXT_STYLE, marginTop: 14 }}>{summaryQuery.error.message}</div>
+          ) : heroAllocationErrored ? (
+            <div style={{ ...ERROR_TEXT_STYLE, marginTop: 14 }}>{allocationQuery.error?.message}</div>
           ) : !hero || hero.isEmpty ? (
             <EmptyState style={{ marginTop: 14 }} text="계좌를 추가하면 올해 자산 현황을 볼 수 있어요." />
+          ) : !hero.hasSnapshotHistory ? (
+            // 계좌는 있지만(allocation 실시간 합계로 확인) 스냅샷 이력이 아직 없어 연초 대비 증감을
+            // 계산할 근거가 없다 — "계좌를 추가하면"이 아니라 이력이 쌓이면 보인다는 문구로 구분.
+            <EmptyState style={{ marginTop: 14 }} text="자산 이력이 쌓이면 올해 자산 현황을 볼 수 있어요." />
           ) : (
             <>
               <div

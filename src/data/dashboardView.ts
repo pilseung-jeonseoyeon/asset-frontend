@@ -43,8 +43,15 @@ export interface DashboardHeroView {
   /** 올해 1월 1일 대비. 음수 가능. */
   yearChangeKrw: number
   yearChangeFmt: string
-  /** 스냅샷 이력이 아예 없는 신규 사용자 — 0원을 "자산 0원"으로 단정하지 말고 빈 상태로 안내할 것. */
+  /** 계좌 자체가 없는 진짜 신규 사용자 — 0원을 "자산 0원"으로 단정하지 말고 빈 상태로 안내할 것. */
   isEmpty: boolean
+  /**
+   * summary(스냅샷 기반)에 이력이 있는지 여부. false면 `totalAssetKrw`는 allocation 실시간 합계로
+   * 보완한 값이라 `monthChangeKrw`/`yearChangeKrw`는 계산 근거(전일/연초 스냅샷)가 없다 —
+   * 이 값이 false일 때는 증감 관련 UI(월 증감 배지, 올해 자산 추이)를 그리지 말 것
+   * (docs/backend-requests.md 23번 — 계좌 생성 첫날 스냅샷 부재).
+   */
+  hasSnapshotHistory: boolean
 }
 
 /** 증감액은 부호를 명시적으로 붙인다(히어로/딥카드 배지 규칙). */
@@ -53,16 +60,38 @@ function signedFmt(n: number): string {
   return `${sign}${fmt(Math.abs(n))}`
 }
 
-export function buildDashboardHero(summary: DashboardSummaryResponse): DashboardHeroView {
+/**
+ * `summary.totalAssetKrw === 0`은 "계좌 없음"과 "스냅샷이 아직 없는 계좌 등록 첫날"을 구분하지
+ * 못한다(docs/backend-requests.md 23번). 같은 화면의 `GET /dashboard/allocation`은 잔액을 실시간
+ * 집계하므로, summary가 0이어도 allocation 합계가 양수면 계좌가 있다고 판정하고 총자산 표시값을
+ * allocation 합계로 보완한다. summary가 양수면(정상 스냅샷 보유) 그대로 summary 값을 쓴다.
+ */
+export function buildDashboardHero(
+  summary: DashboardSummaryResponse,
+  allocationTotalKrw: number,
+): DashboardHeroView {
+  const hasSnapshotHistory = summary.totalAssetKrw > 0
+  const totalAssetKrw = hasSnapshotHistory ? summary.totalAssetKrw : allocationTotalKrw
+
   return {
-    totalAssetKrw: summary.totalAssetKrw,
-    totalFmt: fmt(summary.totalAssetKrw),
+    totalAssetKrw,
+    totalFmt: fmt(totalAssetKrw),
     monthChangeKrw: summary.monthChangeKrw,
     monthChangeFmt: signedFmt(summary.monthChangeKrw),
     yearChangeKrw: summary.yearChangeKrw,
     yearChangeFmt: signedFmt(summary.yearChangeKrw),
-    isEmpty: summary.totalAssetKrw === 0,
+    isEmpty: totalAssetKrw <= 0,
+    hasSnapshotHistory,
   }
+}
+
+/**
+ * allocation 응답의 실시간 총자산 합계. summary가 0일 때 히어로 판정을 보완하는 데 쓴다.
+ * `buildAllocationSegments`와 같은 기준(0/음수 항목 제외)으로 합산해야 히어로 총자산과 도넛 합계가
+ * 어긋나지 않는다 — 스펙상 음수가 실제 오는지는 미확정이지만 방어적으로 통일한다.
+ */
+export function sumAllocationKrw(allocation: AllocationResponse[]): number {
+  return allocation.filter((a) => a.totalValueKrw > 0).reduce((sum, a) => sum + a.totalValueKrw, 0)
 }
 
 // ---------- 총자산 추이 스파크라인 ----------
