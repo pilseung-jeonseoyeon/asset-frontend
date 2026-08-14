@@ -9,7 +9,6 @@
 // response, so each formula gets a divide-by-zero / "previous is 0" guard the mock never needed
 // (a brand-new category has expenseTotalPrevious: 0, which would otherwise produce Infinity%).
 
-import { isSettingsMissing } from '@/services/user'
 import { fmt } from '../utils/format'
 import { mkDelta, type DeltaBadge } from '../utils/deltaBadge'
 import { daysInMonth, firstWeekday, todayYearMonth, type YearMonthCursor } from '../utils/date'
@@ -27,8 +26,6 @@ import type {
 import type { CategoryKind, Currency, TransactionType } from '@/services/common.type'
 
 // ---------- 공용: 요청 실패 표시 ----------
-// USER_SETTINGS_NOT_FOUND(404)는 에러가 아니라 "정산월 설정이 아직 없음"이라 회색 안내로 렌더한다
-// (docs/api-conventions.md "에러가 아닌 실패" 절, services/user의 isSettingsMissing 재사용).
 
 export interface QueryErrorView {
   message: string
@@ -38,9 +35,6 @@ export interface QueryErrorView {
 
 export function describeQueryError(error: unknown): QueryErrorView | null {
   if (!error) return null
-  if (isSettingsMissing(error)) {
-    return { message: '가계부를 쓰려면 먼저 사용자 설정이 필요해요.', muted: true }
-  }
   return { message: error instanceof Error ? error.message : '알 수 없는 오류가 발생했어요.', muted: false }
 }
 

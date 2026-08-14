@@ -52,7 +52,13 @@ export function buyMarketToMarket(stockBuyMarket: string): Market {
   return stockBuyMarket === 'overseas' ? 'US' : 'KR'
 }
 
-/** 신규 종목 등록 시 market에 따른 기본 통화. 이 화면은 KR/US만 다루므로 CRYPTO는 대상이 아니다. */
+/**
+ * 신규 종목 등록 시 market에 따른 기본 통화. 이 화면은 KR/US만 다루므로 CRYPTO는 대상이 아니다.
+ *
+ * CRYPTO 종목은 서버 시세 수집이 업비트 KRW 마켓에 고정되어 있어, 등록 시 currency를 반드시
+ * KRW로 넣어야 한다(USD로 등록하면 환율이 이중으로 곱해진다 — 2026-08-15 백엔드 확정). 이후
+ * CRYPTO 등록 UI를 만들 때는 통화를 선택하게 하지 말고 KRW로 고정해서 구현할 것.
+ */
 export function marketToCurrency(market: Market): Currency {
   return market === 'US' ? 'USD' : 'KRW'
 }

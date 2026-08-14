@@ -192,8 +192,10 @@ api.interceptors.response.use(
 - 서버가 내려주는 실패 코드는 `ApiError.code` 값으로 분기 처리합니다(`INSUFFICIENT_HOLDING`,
   `SUBCATEGORY_DUPLICATE_NAME`, `INSTITUTION_HAS_ACTIVE_ACCOUNTS` 등). `err.message`는 이미
   완성된 한국어 문장이므로 기본적으로 그대로 노출하고, 코드 분기는 UX를 바꿔야 할 때만 씁니다.
-- **에러가 아닌 실패**를 구분하세요. `FX_RATE_NOT_FOUND`(422), `USER_SETTINGS_NOT_FOUND`(404)는
-  "데이터가 아직 없음"에 가까우므로 빨간 에러가 아니라 `var(--text-weak)` 안내문으로 렌더합니다.
+- **에러가 아닌 실패**를 구분하세요. `FX_RATE_NOT_FOUND`(422)는 "데이터가 아직 없음"에 가까우므로
+  빨간 에러가 아니라 `var(--text-weak)` 안내문으로 렌더합니다.
+  (`USER_SETTINGS_NOT_FOUND`(404)는 가입 시 user_settings가 항상 함께 생성됨이 백엔드에서
+  보장되어 2026-08-15부로 발생하지 않는 조건이 되었습니다 — 관련 폴백/분기는 제거되었습니다.)
 
 ## 로딩 상태 관리
 
