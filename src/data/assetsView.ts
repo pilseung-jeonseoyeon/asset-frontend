@@ -57,23 +57,33 @@ export const INSTITUTION_TYPE_LABELS: Record<InstitutionType, string> = {
 export const INSTITUTION_TYPE_ORDER: InstitutionType[] = ['BANK', 'BROKERAGE', 'EXCHANGE', 'PENSION', 'OTHER']
 
 // ---------- 자산군(AssetClass) ↔ 아이콘/색 매핑 ----------
-// 라벨은 서버의 assetClassName(한글)을 우선 쓰고, 없을 때만 labelFallback으로 대체한다.
+// 라벨은 서버 assetClassName을 쓰지 않고 항상 이 프론트 고정 표기를 쓴다 — 서버 한글 라벨이
+// 제품 자산 분류 문구와 어긋나므로(docs/backend-requests.md #22) 화면 표기는 프론트가 소유한다.
 // icon 값은 구 mockAssets.ts natureBlocks/assetCatsRaw에서 카테고리별로 옮긴 것이고, color는
 // 모든 카테고리가 공유하던 'var(--accent)'를 그대로 유지한다(포인트 아이콘 배경 위 accent 색상 규칙).
 
 interface AssetClassMeta {
   icon: string
   color: string
-  labelFallback: string
+  label: string
 }
 
 export const ASSET_CLASS_META: Record<AssetClass, AssetClassMeta> = {
-  CASH_PENSION: { icon: 'wallet', color: 'var(--accent)', labelFallback: '현금·연금' },
-  DEPOSIT: { icon: 'savings', color: 'var(--accent)', labelFallback: '예적금' },
-  DOMESTIC_STOCK: { icon: 'trending_up', color: 'var(--accent)', labelFallback: '국내주식' },
-  FOREIGN_STOCK: { icon: 'public', color: 'var(--accent)', labelFallback: '해외주식' },
-  CRYPTO: { icon: 'currency_bitcoin', color: 'var(--accent)', labelFallback: '가상자산' },
-  ETC: { icon: 'account_balance', color: 'var(--accent)', labelFallback: '기타' },
+  CASH_PENSION: { icon: 'wallet', color: 'var(--accent)', label: '현금' },
+  DEPOSIT: { icon: 'savings', color: 'var(--accent)', label: '예적금' },
+  DOMESTIC_STOCK: { icon: 'trending_up', color: 'var(--accent)', label: '국내주식' },
+  FOREIGN_STOCK: { icon: 'public', color: 'var(--accent)', label: '해외주식' },
+  CRYPTO: { icon: 'currency_bitcoin', color: 'var(--accent)', label: '가상자산' },
+  ETC: { icon: 'account_balance', color: 'var(--accent)', label: '연금·기타' },
+}
+
+/**
+ * 서버가 6종 밖의 새 AssetClass를 내려주면(런타임 스키마 검증 없음, 서버 enum 확장과 프론트 배포
+ * 시차 시 실제 가능) `ASSET_CLASS_META[assetClass]`가 undefined가 되어 화면이 통째로 죽는다 —
+ * 매핑에 없는 값은 라벨만 코드값 그대로 두고, icon/color는 ETC 항목으로 폴백한다.
+ */
+export function assetClassMetaOf(assetClass: AssetClass): AssetClassMeta {
+  return ASSET_CLASS_META[assetClass] ?? { ...ASSET_CLASS_META.ETC, label: assetClass }
 }
 
 /**
@@ -99,7 +109,7 @@ function assetClassOrderIndex(assetClass: AssetClass): number {
 const RAMP = ['var(--ramp-1)', 'var(--ramp-2)', 'var(--ramp-3)', 'var(--ramp-4)', 'var(--ramp-5)', 'var(--ramp-6)']
 
 function assetClassLabel(g: AssetClassGroup): string {
-  return g.assetClassName || ASSET_CLASS_META[g.assetClass].labelFallback
+  return assetClassMetaOf(g.assetClass).label
 }
 
 // ---------- 자산 구성 카테고리 카드 ----------
@@ -131,7 +141,7 @@ export function buildAssetCats(groups: AssetClassGroup[], accounts: AccountRespo
   return [...groups]
     .sort((a, b) => assetClassOrderIndex(a.assetClass) - assetClassOrderIndex(b.assetClass))
     .map((g) => {
-      const meta = ASSET_CLASS_META[g.assetClass]
+      const meta = assetClassMetaOf(g.assetClass)
       return {
         id: g.assetClass,
         name: assetClassLabel(g),
@@ -174,7 +184,7 @@ export function buildMapTiers(
   const withPct = groups.map((g) => ({
     assetClass: g.assetClass,
     label: assetClassLabel(g),
-    icon: ASSET_CLASS_META[g.assetClass].icon,
+    icon: assetClassMetaOf(g.assetClass).icon,
     amt: g.totalValueKrw,
     // 서버가 pct를 내려주지 않아 여기서 계산한다. 전체 합이 0이면 0으로 나누기 방어.
     pct: total > 0 ? (g.totalValueKrw / total) * 100 : 0,

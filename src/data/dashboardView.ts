@@ -9,7 +9,7 @@
 //   - "7월 이후는 예정 구간" 같은 미래 구간 표기: 서버가 예측값을 주지 않는다.
 
 import { fmt } from '../utils/format'
-import { ASSET_CLASS_META } from './assetsView'
+import { assetClassMetaOf } from './assetsView'
 import type {
   AllocationResponse,
   DashboardSummaryResponse,
@@ -153,8 +153,8 @@ function toPercentages(values: number[]): number[] {
 }
 
 /**
- * 도넛 세그먼트. `/dashboard/allocation`에는 `assetClassName`(한글 라벨)이 없으므로
- * (§3.1의 자산 구성 응답과 다르다) `ASSET_CLASS_META`의 labelFallback을 쓴다.
+ * 도넛 세그먼트. 라벨은 서버 값을 쓰지 않고 항상 `ASSET_CLASS_META`의 프론트 고정 표기를 쓴다
+ * (assetsView.ts 참고 — 화면 표기는 프론트가 소유).
  *
  * `showLegend`: 원본 마크업이 6개 조각 중 최하위 1개에만 범례 행을 두지 않았다
  * (mockDashboard.ts의 전사 주석 참고 — ds_rules §1-5 "receded value"). 조각이 6개 이상일 때만
@@ -167,9 +167,9 @@ export function buildAllocationSegments(allocation: AllocationResponse[]): Donut
   const pcts = toPercentages(sorted.map((a) => a.totalValueKrw))
 
   return sorted.map((a, i) => ({
-    // 서버가 6분류에 없는 코드를 내려주면(UNMAPPED_ACCOUNT_TYPE급 서버 버그) 매핑이 undefined가
-    // 되어 화면이 통째로 죽는다 — 라벨만 코드값으로 폴백하고 나머지는 그대로 그린다.
-    label: ASSET_CLASS_META[a.assetClass]?.labelFallback ?? a.assetClass,
+    // 매핑에 없는 코드가 오면(assetsView.ts assetClassMetaOf 참고) 라벨만 코드값으로 폴백하고
+    // 나머지는 그대로 그린다.
+    label: assetClassMetaOf(a.assetClass).label,
     pct: pcts[i],
     color: RAMP[Math.min(i, RAMP.length - 1)],
     showLegend: sorted.length < 6 || i < sorted.length - 1,
