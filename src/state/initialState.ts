@@ -24,7 +24,6 @@ export const BLANK_ACCOUNT_FORM: AccountForm = {
 const todayCursor = todayYearMonth()
 
 export const initialState: AppState = {
-  screen: 'dashboard',
   assetTab: 'overview',
   assetCat: null,
   stockTab: '전체',

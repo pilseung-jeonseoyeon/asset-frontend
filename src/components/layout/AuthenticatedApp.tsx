@@ -8,12 +8,21 @@
 //
 // Mobile shell (<=767px, docs/mobile.md §2): SidebarNav is swapped for the fixed BottomTabNav and
 // `main` padding drops to leave room for it.
+//
+// Routing: the 5 menu screens are real URLs (see docs/architecture.md "라우팅"). NAV_ITEMS
+// (navItems.ts) is the single source of paths shared with SidebarNav/BottomTabNav; SCREEN_COMPONENTS
+// below just maps each item's `screen` key to the component it renders. `/` and any unknown path
+// redirect (replace, so no history junk) to the first NAV_ITEMS entry (dashboard).
 
+import type { ComponentType } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAppState } from '../../state/AppStateContext'
 import { useIsMobile } from '../../utils/useMediaQuery'
 import { SidebarNav } from './SidebarNav'
 import { BottomTabNav } from './BottomTabNav'
 import { Header } from './Header'
+import { NAV_ITEMS } from './navItems'
+import type { Screen } from '../../state/types'
 import { AccountModal } from './modals/AccountModal'
 import { Dashboard } from '../../screens/Dashboard/Dashboard'
 import { Stocks } from '../../screens/Stocks/Stocks'
@@ -37,6 +46,14 @@ import { ReportOverlay } from '../../screens/Assets/modals/ReportOverlay'
 import { AccountDetailModal } from '../../screens/Assets/modals/AccountDetailModal'
 import { CategoryDetailModal } from '../../screens/Ledger/modals/CategoryDetailModal'
 
+const SCREEN_COMPONENTS: Record<Screen, ComponentType> = {
+  dashboard: Dashboard,
+  asset: Assets,
+  stock: Stocks,
+  ledger: Ledger,
+  settings: Settings,
+}
+
 export function AuthenticatedApp() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
@@ -56,18 +73,21 @@ export function AuthenticatedApp() {
           }}
         >
           <Header />
-          {state.screen === 'dashboard' && <Dashboard />}
-          {state.screen === 'asset' && <Assets />}
-          {state.screen === 'stock' && <Stocks />}
-          {state.screen === 'ledger' && <Ledger />}
-          {state.screen === 'settings' && <Settings />}
+          <Routes>
+            <Route path="/" element={<Navigate to={NAV_ITEMS[0].path} replace />} />
+            {NAV_ITEMS.map((item) => {
+              const ScreenComponent = SCREEN_COMPONENTS[item.screen]
+              return <Route key={item.screen} path={item.path} element={<ScreenComponent />} />
+            })}
+            <Route path="*" element={<Navigate to={NAV_ITEMS[0].path} replace />} />
+          </Routes>
         </main>
       </div>
       {isMobile && <BottomTabNav />}
       {/* All 14 modalXxx blocks in dc.html are top-level siblings gated only by s.modalOpen — NOT
           nested inside their "owning" screen's sc-if block (confirmed: modalLedgerEntry's markup sits
           inside the Assets line-range, L1605, yet opens from the Header on any screen). So every modal
-          mounts here regardless of state.screen, same as AccountModal. */}
+          mounts here regardless of the current route, same as AccountModal. */}
       <AccountModal />
       <LedgerEntryModal />
       <FixedExpenseModal />

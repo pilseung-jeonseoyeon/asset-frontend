@@ -62,7 +62,6 @@ export interface InstitutionForm {
 
 export interface AppState {
   // navigation
-  screen: Screen
   assetTab: AssetTab
   assetCat: AssetClass | null
   stockTab: string // '전체' | '국내' | '해외' — Korean-literal enum, kept as string (see extraction discipline)

@@ -2,19 +2,22 @@
 // useIsMobile() is true. Reuses NAV_ITEMS from navItems.ts (shared with SidebarNav) so the item list
 // isn't duplicated. z-index 50 keeps it below the header dropdown scrim (55), dropdown menus (60), the
 // global openDropdown scrim (70) and modals (80+) per §3.
+//
+// Tabs render as real <a> (react-router-dom's Link) — active state comes from useLocation() against
+// NAV_ITEMS' path, same reasoning as SidebarNav.
 
-import type { Screen } from '../../state/types'
+import { Link, useLocation } from 'react-router-dom'
+import type { NavItem } from './navItems'
 import { NAV_ITEMS } from './navItems'
 import { Icon } from '../primitives/Icon/Icon'
-import { useAppState } from '../../state/AppStateContext'
 
-function TabButton({ screen, icon, label }: { screen: Screen; icon: string; label: string }) {
-  const { state, setState } = useAppState()
-  const active = state.screen === screen
+function TabButton({ path, icon, label }: NavItem) {
+  const location = useLocation()
+  const active = location.pathname === path
 
   return (
-    <button
-      onClick={() => setState({ screen })}
+    <Link
+      to={path}
       aria-current={active ? 'page' : undefined}
       style={{
         flex: 1,
@@ -31,11 +34,12 @@ function TabButton({ screen, icon, label }: { screen: Screen; icon: string; labe
         cursor: 'pointer',
         color: active ? 'var(--accent)' : 'var(--text-weak)',
         fontFamily: 'inherit',
+        textDecoration: 'none',
       }}
     >
       <Icon name={icon} size={22} />
       <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '-0.01em' }}>{label}</span>
-    </button>
+    </Link>
   )
 }
 

@@ -1,9 +1,14 @@
 # 아키텍처 & 폴더 구조
 
-`asset-frontend`(Monit)는 라우터가 없는 Vite + React 19 SPA입니다. URL 기반 페이지 전환이
-아니라 `state.screen` 값에 따라 `AppShell`이 화면 컴포넌트를 스위칭합니다. 역할별
-레이아웃(강사/학습자 같은)이나 `[id]` 동적 라우트, 인증 라우트 그룹 같은 구조는 없습니다 —
-이 앱은 단일 하드코딩 사용자이고 인증 개념 자체가 없습니다.
+`asset-frontend`(Monit)는 Vite + React 19 SPA입니다. 로그인한 뒤의 5개 메뉴 화면(대시보드/자산/
+주식/가계부/설정)은 `react-router-dom`(`BrowserRouter`, `src/main.tsx`)으로 URL과 연결되어
+있습니다 — `/dashboard` `/assets` `/stocks` `/ledger` `/settings` 5개 경로만 존재하고, 그 외
+(`/`, 알 수 없는 경로)는 전부 `/dashboard`로 `replace` 리다이렉트됩니다. 라우트 정의는
+`src/components/layout/AuthenticatedApp.tsx`에 있고, 경로 목록 자체는 `navItems.ts`의
+`NAV_ITEMS`(사이드바/하단탭과 공유)에서 가져옵니다. 화면 탭(가계부 개요/내역, 주식 전체/국내/
+해외)이나 모달은 라우팅 범위 밖이라 여전히 `AppState`의 인터랙션 상태로만 관리됩니다. 역할별
+레이아웃(강사/학습자 같은)이나 `[id]` 동적 라우트, 인증 라우트 그룹 같은 구조는 없습니다 — 로그인
+전(`anonymous`)에는 주소와 무관하게 `screens/Auth`만 렌더됩니다(아래 "레이어 간 규칙" 참고).
 
 세부 컨벤션은 각 문서를 참고하세요:
 - [`code-convention.md`](./code-convention.md) — 명명 규칙, import 순서, 컴포넌트 작성 스타일
@@ -14,12 +19,19 @@
 
 ```
 main.tsx
-  └─ QueryClientProvider (services/queryClient.ts)
-       └─ AppStateProvider (state/AppStateContext.tsx)
-            └─ App.tsx  — 테마 적용(useApplyTheme) 후 AppShell 렌더
-                 └─ AppShell — state.screen 값으로 5개 화면 중 하나를 스위칭
-                      dashboard / asset / stock / ledger / settings
+  └─ BrowserRouter (react-router-dom)
+       └─ QueryClientProvider (services/queryClient.ts)
+            └─ AppStateProvider (state/AppStateContext.tsx)
+                 └─ App.tsx  — 테마 적용(useApplyTheme) 후 AppShell 렌더
+                      └─ AppShell — 인증 상태에 따라 Auth 또는 AuthenticatedApp
+                           └─ AuthenticatedApp — <Routes>가 경로에 따라 5개 화면 중 하나를 렌더
+                                /dashboard, /assets, /stocks, /ledger, /settings
 ```
+
+`BrowserRouter`가 `AppStateProvider`보다 바깥에 있는 이유: 라우팅은 인터랙션 상태(`AppState`)와
+무관하게 항상 최상위에서 유효해야 하는 컨텍스트라서다. `AppShell`/`AuthenticatedApp`은 lazy 청크로
+분리되어 있지만(아래 "레이어 간 규칙" 참고) `BrowserRouter`가 트리 최상단에 있으므로 라우터
+컨텍스트는 청크 분리와 무관하게 항상 사용 가능하다.
 
 ## 폴더 구조
 

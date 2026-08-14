@@ -1,8 +1,9 @@
 # API 통신 컨벤션
 
 이 문서는 axios + React Query 기반 API 통신 규칙입니다. 다른 프로젝트(Next.js/Cursor)에서 쓰던
-규칙을 이 저장소(Vite + React 19, 라우터 없음, `state.screen` 기반 화면 전환) 구조에 맞게 옮긴
-것입니다. 원본과 다르게 조정한 부분은 각 절에 표시해두었습니다.
+규칙을 이 저장소(Vite + React 19, `react-router-dom`으로 5개 메뉴 화면만 URL에 연결, 자세한 건
+`docs/architecture.md` 참고) 구조에 맞게 옮긴 것입니다. 원본과 다르게 조정한 부분은 각 절에
+표시해두었습니다.
 
 > 실제 백엔드 스펙은 `secret/API-SPEC.md`입니다(git 미커밋). 도메인 서비스를 새로 만들 때는
 > 이 문서의 "서비스 폴더 구조" 절을 그대로 따르세요.

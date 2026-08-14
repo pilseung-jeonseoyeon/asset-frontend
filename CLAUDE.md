@@ -40,11 +40,11 @@
 
 ## 아키텍처
 
-- 기술 스택: Vite + React 19 + TypeScript. 라우터는 없고, `state.screen` 값에 따라 `AppShell`이 화면을 전환합니다. CSS 프레임워크 없음. 테스트 러너 아직 미구성.
+- 기술 스택: Vite + React 19 + TypeScript. `react-router-dom`(`BrowserRouter`)으로 로그인 후 5개 메뉴 화면(`/dashboard` `/assets` `/stocks` `/ledger` `/settings`)을 URL에 연결합니다 — 그 외 경로(`/`, 알 수 없는 경로)는 `/dashboard`로 리다이렉트됩니다. 라우팅 범위는 이 5개 화면뿐이고, 화면 내 탭(가계부 개요/내역, 주식 전체/국내/해외)이나 모달은 여전히 주소와 무관하게 `AppState`로만 관리됩니다. CSS 프레임워크 없음. 테스트 러너 아직 미구성.
 - 상태는 세 레이어로 나뉩니다: 앱 자체 reducer/context(`AppState`) + React Query(서버 상태) + Zustand(`src/stores/` — 전역 로딩, 인증 토큰). 경계는 `docs/state-management.md` 참고.
 - **데이터는 서버에서 옵니다.** axios + React Query 기반 API 레이어가 `src/services/{domain}/`에 도메인별로 있고(`auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification`), 자산·가계부·주식 화면과 헤더 알림·자산 목표는 조회와 생성/수정/삭제가 모두 실제 API에 연결되어 있습니다.
   **아직 목업인 곳은 월간 리포트 오버레이(`ReportOverlay.tsx`) 한 곳뿐입니다.** 대시보드 화면은 서버 통신(`src/services/dashboard`)과 뷰모델 변환(`src/data/dashboardView.ts`)을 거쳐 실제 API에 연결되어 있습니다(`mockDashboard.ts`는 삭제됨).
-- 진입점: `src/main.tsx`가 `AppStateProvider`로 감싼 `App`을 `index.html`의 `#root`에 마운트합니다. `src/index.css`는 `tokens.css` → `bank-tokens.css` → `base.css` 순으로 import합니다. `App.tsx`는 현재 테마를 적용(`useApplyTheme`)한 뒤 `AppShell`을 렌더링합니다.
+- 진입점: `src/main.tsx`가 `BrowserRouter` → `QueryClientProvider` → `AppStateProvider`로 감싼 `App`을 `index.html`의 `#root`에 마운트합니다. `src/index.css`는 `tokens.css` → `bank-tokens.css` → `base.css` 순으로 import합니다. `App.tsx`는 현재 테마를 적용(`useApplyTheme`)한 뒤 `AppShell`을 렌더링합니다. 화면 전환은 더 이상 `state.screen`이 아니라 `AuthenticatedApp.tsx`의 `<Routes>`가 담당합니다(경로 목록은 `navItems.ts`의 `NAV_ITEMS`를 사이드바/하단탭과 공유).
 - `tsconfig.json`은 project references 구조입니다: `src/`는 `tsconfig.app.json`, Vite 설정은 `tsconfig.node.json`을 사용합니다. 전체 빌드는 항상 `tsc -b`로 실행하세요(단순 `tsc` 아님).
 
 ### 폴더 구조
@@ -99,7 +99,7 @@ pnpm preview       # 프로덕션 빌드 미리보기
 
 ## 도메인 컨텍스트
 
-- 앱: Monit(모닛), 개인 자산관리 앱. `state.screen`으로 전환되는 5개 화면: 대시보드(`dashboard`) / 자산(`asset`) / 주식(`stock`) / 가계부(`ledger`) / 설정(`settings`).
+- 앱: Monit(모닛), 개인 자산관리 앱. URL로 전환되는 5개 화면: 대시보드(`/dashboard`) / 자산(`/assets`) / 주식(`/stocks`) / 가계부(`/ledger`) / 설정(`/settings`).
 - **가계부 거래유형**(`EntryType`): `income`(수입, 초록 — `--inc-*`), `expense`(지출, 빨강/살몬 — `--exp-*`), `saving`(저축, 보라 — `--sav-*`), `transfer`(이체, 전용 색상 없음, `--text-strong`으로 렌더링). 거래 내역 목록에서는 수입에 `+`, 지출에 `−`, 저축/이체는 부호 없음(`src/data/ledgerView.ts`의 `buildLedgerTx` 참고). 단, 히어로/딥카드의 증감 배지는 항상 명시적으로 부호를 표시합니다.
   서버 `TransactionType`(`INCOME`/`EXPENSE`/`SAVING`/`TRANSFER`)이 이 화면 타입과 1:1로 대응합니다.
 - **가계부 카테고리는 서버 리소스**입니다(`GET /categories`). 수입/저축/지출 3개 구분(`CategoryKind`) 아래 대분류가 있고, 그 아래 소분류가 붙습니다. **대분류는 서버 시드 고정이라 API로 만들 수 없고, 소분류만 추가·삭제할 수 있습니다.** 입력 폼은 배열 인덱스가 아니라 **`subcategoryId`(서버 id)** 로 선택을 추적합니다.
