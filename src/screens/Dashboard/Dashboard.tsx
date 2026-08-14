@@ -55,7 +55,6 @@ const DASHED_CTA_STYLE_DEEP: CSSProperties = {
   border: '0.5px dashed var(--deep-label)',
   color: 'var(--deep-label)',
 }
-
 // 1억 원 미만 금액에는 축약 캡션을 병기하지 않는다(ds_rules §4-2).
 const ABBREV_THRESHOLD = 100_000_000
 
@@ -147,48 +146,52 @@ export function Dashboard() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
-      {/* 월간 리포트 배너 */}
-      <button
-        onClick={() => setState({ reportOpen: true, reportSlide: 0 })}
-        className="qbtn"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '11px 18px',
-          borderRadius: 10,
-          border: '0.5px solid var(--border)',
-          cursor: 'pointer',
-          textAlign: 'left',
-          fontFamily: 'inherit',
-          background: 'var(--surface)',
-          boxShadow: 'var(--shadow-card)',
-        }}
-      >
-        <span
+      {/* 월간 리포트 배너 — 계좌가 없어 아직 목업 데이터인 ReportOverlay를 보여줄 수 없는 신규
+          사용자에게는 숨긴다. hero가 아직 없는 로딩/에러 상태에서도 숨겨서 데이터 도착 시
+          배너가 깜빡이며 나타났다 사라지는 것을 막는다. */}
+      {hero && !hero.isEmpty && (
+        <button
+          onClick={() => setState({ reportOpen: true, reportSlide: 0 })}
+          className="qbtn"
           style={{
-            width: 30,
-            height: 30,
-            borderRadius: 10,
-            background: 'var(--fill-subtle)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            flex: 'none',
+            gap: 12,
+            padding: '11px 18px',
+            borderRadius: 10,
+            border: '0.5px solid var(--border)',
+            cursor: 'pointer',
+            textAlign: 'left',
+            fontFamily: 'inherit',
+            background: 'var(--surface)',
+            boxShadow: 'var(--shadow-card)',
           }}
         >
-          <Icon name="auto_awesome" size={17} color="var(--text-strong)" />
-        </span>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)', whiteSpace: 'nowrap' }}>
-            이번 달 리포트 보기
+          <span
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 10,
+              background: 'var(--fill-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 'none',
+            }}
+          >
+            <Icon name="auto_awesome" size={17} color="var(--text-strong)" />
           </span>
-          <span style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 400 }}>
-            이번 달 내 자산이 어떻게 움직였는지 확인해보세요
-          </span>
-        </div>
-        <Icon name="chevron_right" size={20} color="var(--text-mid)" />
-      </button>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)', whiteSpace: 'nowrap' }}>
+              이번 달 리포트 보기
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 400 }}>
+              이번 달 내 자산이 어떻게 움직였는지 확인해보세요
+            </span>
+          </div>
+          <Icon name="chevron_right" size={20} color="var(--text-mid)" />
+        </button>
+      )}
 
       {/* ROW 1: 총자산 히어로 + 목표버킷 */}
       <div className="rgrid-outer" style={{ display: 'grid', gridTemplateColumns: '1fr 312px', gap: 26, alignItems: 'stretch' }}>
@@ -198,12 +201,26 @@ export function Dashboard() {
           ) : summaryQuery.error ? (
             <div style={ERROR_TEXT_STYLE_DEEP}>{summaryQuery.error.message}</div>
           ) : !hero || hero.isEmpty ? (
-            <EmptyState
-              deep
-              text="등록된 자산이 없어요. 계좌를 추가하면 총자산을 확인할 수 있어요."
-              ctaLabel="계좌 추가"
-              onCta={openAddAccount}
-            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <span
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 999,
+                  background: 'var(--deep-chip)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Icon name="add_card" size={20} color="var(--deep-value)" />
+              </span>
+              <div style={EMPTY_TEXT_STYLE_DEEP}>계좌를 추가하고 총자산을 한눈에 확인해보세요</div>
+              <button onClick={openAddAccount} className="qbtn" style={DASHED_CTA_STYLE_DEEP}>
+                <Icon name="add" size={16} />
+                계좌 추가
+              </button>
+            </div>
           ) : (
             <div style={{ position: 'relative' }}>
               <div style={{ fontSize: 13, color: 'var(--deep-label)', fontWeight: 500, letterSpacing: '.02em' }}>총 자산</div>
@@ -279,12 +296,7 @@ export function Dashboard() {
           ) : summaryQuery.error ? (
             <div style={{ ...ERROR_TEXT_STYLE, marginTop: 14 }}>{summaryQuery.error.message}</div>
           ) : !hero || hero.isEmpty ? (
-            <EmptyState
-              style={{ marginTop: 14 }}
-              text="계좌를 추가하면 올해 자산 현황을 볼 수 있어요."
-              ctaLabel="계좌 추가"
-              onCta={openAddAccount}
-            />
+            <EmptyState style={{ marginTop: 14 }} text="계좌를 추가하면 올해 자산 현황을 볼 수 있어요." />
           ) : (
             <>
               <div
@@ -365,7 +377,7 @@ export function Dashboard() {
           ) : allocationQuery.error ? (
             <div style={ERROR_TEXT_STYLE}>{allocationQuery.error.message}</div>
           ) : !hasAllocationData ? (
-            <EmptyState text="계좌를 추가하면 자산 구성 비율을 볼 수 있어요." ctaLabel="계좌 추가" onCta={openAddAccount} />
+            <EmptyState text="계좌를 추가하면 자산 구성 비율을 볼 수 있어요." />
           ) : (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 26, flex: 1 }}>
@@ -412,7 +424,7 @@ export function Dashboard() {
         ) : institutionsError ? (
           <div style={ERROR_TEXT_STYLE}>{institutionsError.message}</div>
         ) : dashboardInstitutions.length === 0 ? (
-          <EmptyState text="계좌를 추가하면 보관처별 자산을 볼 수 있어요." ctaLabel="계좌 추가" onCta={openAddAccount} />
+          <EmptyState text="계좌를 추가하면 보관처별 자산을 볼 수 있어요." />
         ) : (
           <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 14 }}>
             {dashboardInstitutions.map((inst) => (
