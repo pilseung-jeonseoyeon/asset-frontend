@@ -22,6 +22,7 @@ import { SidebarNav } from './SidebarNav'
 import { BottomTabNav } from './BottomTabNav'
 import { Header } from './Header'
 import { NAV_ITEMS } from './navItems'
+import { useSyncUserTheme } from './useSyncUserTheme'
 import type { Screen } from '../../state/types'
 import { AccountModal } from './modals/AccountModal'
 import { Dashboard } from '../../screens/Dashboard/Dashboard'
@@ -57,6 +58,10 @@ const SCREEN_COMPONENTS: Record<Screen, ComponentType> = {
 export function AuthenticatedApp() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
+  // 이 컴포넌트는 AppShell 게이팅상 인증된 상태에서만 마운트되므로(기존 401 회피 규칙 유지),
+  // 서버 사용자 설정의 theme을 AppState로 미러링해도 안전하다. 부수 효과로 CustomModal 등에서
+  // 서버 설정이 필요한 다른 행(월 시작일 등)도 이 시점에 미리 페치되어 잠깐의 기본값 깜빡임이 준다.
+  useSyncUserTheme()
 
   return (
     <>

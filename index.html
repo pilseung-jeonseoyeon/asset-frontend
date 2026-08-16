@@ -17,6 +17,18 @@
     <link rel="preload" href="/fonts/pretendard/PretendardVariable.subset.91.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/fonts/pretendard/PretendardVariable.subset.90.woff2" as="font" type="font/woff2" crossorigin>
     <title>Monit</title>
+    <!-- 첫 페인트 전 테마 적용. main.tsx는 type="module"이라 지연 실행되고, 프로덕션 빌드에서는
+         CSS <link>가 렌더를 막는 동안 흰 화면이 먼저 그려질 수 있다 — 동기 인라인 스크립트만
+         이 섬광(FOUC)을 확실히 막는다. src/utils/theme.ts의 readStoredTheme/isDarkTheme 로직을
+         이 시점엔 모듈을 import할 수 없어 5줄가량 그대로 옮겨 적었다(두 곳을 같이 고칠 것).
+         localStorage 접근 실패(사파리 프라이빗 등)는 try/catch로 삼켜 앱이 죽지 않게 한다. -->
+    <script>
+      try {
+        var t = window.localStorage.getItem('monit.theme');
+        var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('theme-dark');
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

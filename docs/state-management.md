@@ -21,6 +21,9 @@
 업데이터 함수)로 씁니다. 새 화면이나 모달을 추가할 때 상태가 필요하면 먼저 이 방식을
 검토하세요 — Zustand store를 새로 만드는 게 기본 선택지가 아닙니다.
 
+테마는 서버 설정(`theme`)이 소유하고, `AppState.theme`은 렌더용 미러, `localStorage('monit.theme')`는
+부팅 FOUC 방지 캐시입니다.
+
 ### Zustand는 좁은 예외입니다
 
 Zustand는 `AppState`로 표현하기 어려운, **화면 트리와 무관하게 여러 곳에서 동시에 읽고 써야

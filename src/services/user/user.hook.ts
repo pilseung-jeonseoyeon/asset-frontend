@@ -73,19 +73,99 @@ export function usePatchPassword() {
   })
 }
 
+/**
+ * `target`에서 `keys`에 해당하는 필드만 `source`의 값으로 덮은 새 객체를 만든다.
+ * `target[key] = source[key]`를 인라인 for 루프로 쓰면 `key`가 제네릭 `keyof T`라 TS가
+ * "동일한 인덱스 타입이지만 유니언이라 서로 대입 불가"로 거부한다(에러: `Type 'number |
+ * boolean | ... ' is not assignable to type 'never'`) — 이 헬퍼 하나로 캡슐화해서 `as`
+ * 단언을 한 곳에만 두고, 호출부는 완전히 타입 안전하게 쓴다.
+ */
+function withRestoredFields<T extends object>(target: T, source: T, keys: (keyof T)[]): T {
+  // 순수 `keyof T` 제네릭 인덱스 쓰기는 TS가 대입 가능한 타입을 `never`로 좁혀버려 거부한다
+  // (동일 필드를 같은 타입끼리 옮기는 것뿐인데도 그렇다) — 이 함수 안에서만 `Record<string,
+  // unknown>`으로 다뤄 그 제약을 우회하고, 함수 시그니처(T → T)는 그대로 타입 안전하게 유지한다.
+  const result = { ...target } as Record<string, unknown>
+  for (const key of keys) {
+    result[key as string] = source[key]
+  }
+  return result as T
+}
+
+// 2차 리뷰 #4: mutationKey 없이 queryClient.isMutating()을 부르면 앱 전역 mutation(예: 가계부
+// 거래 저장)까지 세어, 이 화면과 무관한 요청 때문에 onSuccess의 setQueryData가 부당하게
+// 건너뛰어진다. GeneralModal의 두 usePatchUserSettings() 인스턴스가 이 키를 공유해야 서로를
+// "겹치는 설정 저장"으로 인식할 수 있으므로, 훅 밖 모듈 스코프 상수로 고정한다.
+const SETTINGS_MUTATION_KEY = qk.user.settings()
+
+/**
+ * 낙관적 업데이트: 누르는 즉시 캐시(따라서 그걸 구독하는 화면)를 바꾸고, 실패하면 여기서
+ * 되돌린다(onError). 화면(GeneralModal 등)은 실패 롤백을 직접 하지 않는다 — 캐시가 되돌아가면
+ * useSyncUserTheme 같은 구독 훅이 AppState·localStorage까지 자동으로 따라 복원하므로, 롤백
+ * 코드가 훅 하나와 화면 여러 곳으로 갈라지지 않는다.
+ *
+ * 같은 필드 집합을 여러 mutation 인스턴스가 동시에 건드릴 수 있어(예: GeneralModal의 테마·환율
+ * 자동 갱신이 각각 독립된 usePatchUserSettings() 인스턴스를 씀), onError/onSuccess 모두 "이
+ * mutation이 실제로 보낸 필드"만 건드리고 서로 겹치는 나머지 필드는 건드리지 않는다(리뷰 #2).
+ */
 export function usePatchUserSettings() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    mutationKey: SETTINGS_MUTATION_KEY,
     mutationFn: (body: UpdateUserSettingsRequest) => patchUserSettings(body),
-    onSuccess: (_data, variables) => {
+    onMutate: async (patch) => {
+      await queryClient.cancelQueries({ queryKey: qk.user.settings() })
+      const previous = queryClient.getQueryData<UserSettingsResponse>(qk.user.settings())
+      // 아직 한 번도 못 받아왔으면(캐시가 비어 있으면) 부분 병합이 불완전한 객체를 만들어버리므로
+      // 건드리지 않는다 — 이 경우 요청이 끝날 때까지 화면은 DEFAULT_USER_SETTINGS 폴백을 본다.
+      if (previous) queryClient.setQueryData(qk.user.settings(), { ...previous, ...patch })
+      return { previous }
+    },
+    onError: (_error, variables, context) => {
+      // 스냅샷 전체가 아니라 "이 mutation이 실제로 보낸 필드"만 되돌린다. 서로 다른 필드를
+      // 건드리는 두 mutation이 겹치면(예: 테마 저장 중 환율 토글), 전체를 되돌릴 경우 그 사이
+      // 다른 mutation이 이미 성공시켜 캐시에 반영된 필드까지 같이 사라진다(리뷰 #2).
+      if (!context?.previous) return
+      const previous = context.previous
+      const touchedKeys = Object.keys(variables) as (keyof UserSettingsResponse)[]
+      queryClient.setQueryData<UserSettingsResponse>(qk.user.settings(), (current) =>
+        current ? withRestoredFields(current, previous, touchedKeys) : current,
+      )
+    },
+    onSuccess: (data, variables) => {
+      // PATCH 응답이 설정 전체이므로 낙관적 병합 대신 서버 응답을 그대로 채택하는 게 원칙이지만,
+      // 겹치는 mutation이 있으면(자기 자신 포함 2개 이상 pending) 이 응답은 아직 그 다른
+      // mutation이 보낸 필드를 반영하지 않은 스냅샷이다. 그대로 덮으면 다른 행이 방금 낙관적으로
+      // 반영한 값이 사라지므로, 겹치는 동안은 덮어쓰기를 건너뛰고 무효화로만 최종 수렴시킨다
+      // (리뷰 #2). onSuccess는 mutation 상태가 'success'로 바뀌기 전에 실행되므로 자기 자신도
+      // isMutating()에 잡힌다 — 그래서 겹치는 요청이 없을 때 기준값은 1이다.
+      // 2차 리뷰 #4: mutationKey로 범위를 좁혀야 가계부 저장 등 무관한 mutation이 이 카운트에
+      // 섞여 setQueryData가 부당하게 건너뛰어지는 일이 없다.
+      const applied = queryClient.isMutating({ mutationKey: SETTINGS_MUTATION_KEY }) <= 1
+      if (applied) {
+        queryClient.setQueryData(qk.user.settings(), data)
+      }
       // monthStartDay가 바뀌면 정산월에 의존하는 응답(가계부 요약·순위·캘린더, 목표, 대시보드)이
-      // 전부 달라지므로 캐시 전체를 무효화한다.
+      // 전부 달라지므로 캐시 전체를 무효화한다. setQueryData 뒤에 둬야 이 쿼리 자체도 서버 값으로
+      // 수렴한다(무효화만 하면 재요청이 끝나기 전까지 잠깐 낙관적 값이 남는다).
       if (variables.monthStartDay !== undefined) {
-        void queryClient.invalidateQueries()
+        void queryClient.invalidateQueries({
+          // 방금 setQueryData로 서버 응답을 그대로 채운 설정 쿼리는 제외한다 — 같이 무효화하면
+          // 이미 최신인데도 강제 refetch되어 저장할 때마다 불필요한 GET이 한 번 더 나간다(2차
+          // 리뷰 #3). applied가 false면(겹치는 mutation 있음) 설정 쿼리도 그대로 무효화 대상에
+          // 포함시켜 최종 수렴하게 둔다.
+          predicate: (q) =>
+            !(applied && q.queryKey[0] === 'user' && q.queryKey[1] === 'settings'),
+        })
         return
       }
-      void queryClient.invalidateQueries({ queryKey: qk.user.all() })
+      // PATCH /users/me/settings는 GET /users/me(qk.user.me())에 영향을 주지 않으므로 qk.user.all()
+      // 전체 무효화는 과하다 — 겹치는 mutation이 있어 setQueryData를 건너뛴 경우에만 설정 쿼리를
+      // 무효화해 최종 수렴시킨다(2차 리뷰 #3). applied면 이미 서버 값으로 캐시가 최신이라 무효화가
+      // 필요 없다.
+      if (!applied) {
+        void queryClient.invalidateQueries({ queryKey: qk.user.settings() })
+      }
     },
   })
 }

@@ -39,6 +39,14 @@ export function CustomModal() {
 
   if (!isOpen) return null
 
+  // GeneralModal.tsx와 완전히 같은 이유: 이 모달도 AppShell에 항상 마운트되어 있어 닫아도
+  // 언마운트되지 않는다. patchSettings.reset()이 없으면 월 시작일 저장이 실패한 뒤 모달을
+  // 닫았다 다시 열 때 지난 실패 메시지가 그대로 다시 나타난다(리뷰 #9).
+  const closeAndReset = () => {
+    patchSettings.reset()
+    closeModal()
+  }
+
   const goalRows = !isGoalUnset && goal ? buildAssetGoals(goal) : []
 
   const ddMonthStart = {
@@ -55,8 +63,8 @@ export function CustomModal() {
   }
 
   return (
-    <Modal onClose={closeModal} zIndex={80} width={540} panelStyle={{ maxHeight: '86vh', overflow: 'auto' }}>
-      <ModalHeader icon="dashboard_customize" title="자산 · 가계부 맞춤 설정" onClose={closeModal} />
+    <Modal onClose={closeAndReset} zIndex={80} width={540} panelStyle={{ maxHeight: '86vh', overflow: 'auto' }}>
+      <ModalHeader icon="dashboard_customize" title="자산 · 가계부 맞춤 설정" onClose={closeAndReset} />
       {!!state.openDropdown && (
         <div onClick={() => setState({ openDropdown: null })} style={{ position: 'absolute', inset: 0, zIndex: 94 }} />
       )}
