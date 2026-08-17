@@ -1,11 +1,14 @@
 // Source: secret/Asset Manager v14.dc.html L3309-3399 (modalCustom) — transcribed verbatim.
-// z-index 80, width 540px, maxHeight 86vh. D-Day toggle has no onClick in source (non-functional).
+// z-index 80, width 540px, maxHeight 86vh.
 // ddMonthStart는 이제 AppState가 아니라 서버 사용자 설정(GET/PATCH /users/me/settings)을 읽고 쓴다.
 // 드롭다운 마크업 자체는 L3345-3357 그대로다.
+// D-Day 알림 토글은 GeneralModal.tsx의 환율 자동 갱신 행과 완전히 같은 규칙을 따른다: Switch
+// 프리미티브 + 독립 mutation 인스턴스 + 설정을 못 받아온 구간엔 스위치 대신 '—' 플레이스홀더.
 
 import type { CSSProperties } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
+import { Switch } from '../../../components/primitives/Switch/Switch'
 import { useAppState } from '../../../state/AppStateContext'
 import { useCloseModal } from '../../../state/selectors/modal'
 import { useGetUserSettings, usePatchUserSettings } from '@/services/user'
@@ -17,8 +20,11 @@ import { buildAssetGoals } from '../../../data/dashboardView'
 const ROW_STYLE: CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 0', borderBottom: '0.5px solid var(--track)',
 }
-const TOGGLE_ON_STYLE: CSSProperties = { width: 42, height: 24, background: 'var(--accent)', borderRadius: 8, position: 'relative', cursor: 'pointer' }
-const TOGGLE_KNOB_STYLE: CSSProperties = { position: 'absolute', top: 2, right: 2, width: 20, height: 20, background: 'var(--surface)', borderRadius: 999 }
+const ERROR_STYLE: CSSProperties = { fontSize: 11.5, color: 'var(--down)', marginTop: 4 }
+// GeneralModal.tsx의 기준 통화·환율 자동 갱신 행과 동일한 '값 없음' 플레이스홀더 규격.
+const VALUE_PILL_STYLE: CSSProperties = {
+  fontSize: 13, fontWeight: 700, color: 'var(--text-mid)', background: 'var(--track)', padding: '7px 12px', borderRadius: 8,
+}
 
 // 서버가 monthStartDay를 1~28로 검증한다(@Min(1)@Max(28)) — 29~31은 달마다 존재하지 않는 날이라
 // 선택지에서 제외한다. 원본 프로토타입은 31일까지 보여줬다.
@@ -28,8 +34,11 @@ export function CustomModal() {
   const { state, setState } = useAppState()
   const closeModal = useCloseModal()
   const isOpen = state.modalOpen === 'custom'
-  const { settings, error: settingsError } = useGetUserSettings({ enabled: isOpen })
+  const { settings, data: settingsData, error: settingsError } = useGetUserSettings({ enabled: isOpen })
   const patchSettings = usePatchUserSettings()
+  // GeneralModal.tsx와 같은 이유로 독립 인스턴스를 쓴다 — 월 시작일 저장과 D-Day 토글을 겹쳐서
+  // 조작해도 서로의 에러/로딩을 가리지 않는다(리뷰 #3 패턴 재사용).
+  const patchDday = usePatchUserSettings()
   const {
     goal,
     isUnset: isGoalUnset,
@@ -40,12 +49,17 @@ export function CustomModal() {
   if (!isOpen) return null
 
   // GeneralModal.tsx와 완전히 같은 이유: 이 모달도 AppShell에 항상 마운트되어 있어 닫아도
-  // 언마운트되지 않는다. patchSettings.reset()이 없으면 월 시작일 저장이 실패한 뒤 모달을
-  // 닫았다 다시 열 때 지난 실패 메시지가 그대로 다시 나타난다(리뷰 #9).
+  // 언마운트되지 않는다. reset()이 없으면 저장이 실패한 뒤 모달을 닫았다 다시 열 때 지난 실패
+  // 메시지가 그대로 다시 나타난다(리뷰 #9).
   const closeAndReset = () => {
     patchSettings.reset()
+    patchDday.reset()
     closeModal()
   }
+
+  // 설정을 못 받아온 구간(최초 로딩·조회 실패)에서는 D-Day 스위치도 막는다 — GeneralModal의
+  // controlsDisabled와 동일한 이유(onMutate가 스냅샷을 못 찍어 롤백 대상이 없다).
+  const controlsDisabled = !settingsData
 
   const goalRows = !isGoalUnset && goal ? buildAssetGoals(goal) : []
 
@@ -174,11 +188,21 @@ export function CustomModal() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 0' }}>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 600 }}>D-Day 알림</div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>예적금 만기 30일 전</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>
+              {settingsData ? `예적금 만기 ${settingsData.ddayNotifyDays}일 전` : '예적금 만기 알림'}
+            </div>
+            {patchDday.error && <div style={ERROR_STYLE}>{patchDday.error.message}</div>}
           </div>
-          <div style={TOGGLE_ON_STYLE}>
-            <span style={TOGGLE_KNOB_STYLE} />
-          </div>
+          {settingsData ? (
+            <Switch
+              label="D-Day 알림"
+              checked={settings.ddayNotifyEnabled}
+              disabled={controlsDisabled || patchDday.isPending}
+              onChange={(next) => patchDday.mutate({ ddayNotifyEnabled: next })}
+            />
+          ) : (
+            <span style={VALUE_PILL_STYLE}>—</span>
+          )}
         </div>
       </div>
     </Modal>
