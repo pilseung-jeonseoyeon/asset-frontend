@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Monit OG image source (1200x630)</title>
+    <!-- public/og-image.png 의 "원본"이다. 이 파일은 앱 번들에 포함되지 않는다(빌드 대상은 src/와
+         public/ 뿐이며, 여기 scripts/ 는 손으로 돌리는 도구 모음이다).
+
+         왜 HTML로 그리나: 이미지 편집기 없이 문구·색만 고쳐 다시 뽑을 수 있고, 앱과 똑같은
+         Pretendard·브랜드 색을 그대로 쓸 수 있기 때문이다.
+
+         다시 뽑는 법 (저장소 루트에서):
+           1) pnpm dev                      # Vite가 이 파일과 /fonts/*, /src/styles/*를 함께 서빙한다
+           2) "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+                --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
+                --window-size=1200,630 --virtual-time-budget=4000 \
+                --screenshot=public/og-image.png \
+                "http://localhost:5173/scripts/og-image/index.html"
+           3) 결과 PNG를 눈으로 확인
+
+         주의:
+         - 여기 문구를 고치면 index.html의 og:title/og:description/og:image:alt도 같이 고칠 것.
+           (파비콘 ↔ MonitLogo.tsx 와 같은 이중 관리 지점이다)
+         - 로고 도형은 public/favicon.svg 와 동일하다. 로고가 바뀌면 세 곳(파비콘, MonitLogo.tsx,
+           이 파일)을 함께 고쳐야 한다.
+         - 카카오는 SVG/WebP 미리보기를 무시한다. 반드시 PNG로 뽑을 것.
+         - 카톡 썸네일은 가장자리가 조금 잘릴 수 있어 모든 요소를 100px 안쪽에 둔다. -->
+    <link rel="stylesheet" href="/src/styles/fonts.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        /* favicon.svg 와 같은 남색 그라데이션. 사선으로 눕혀 배너 폭에서 단조롭지 않게 한다. */
+        background:
+          radial-gradient(900px 520px at 78% 12%, rgba(171, 165, 228, 0.22), transparent 60%),
+          linear-gradient(135deg, #3b4180 0%, #363c74 42%, #1f2247 100%);
+        font-family: 'Pretendard Variable', -apple-system, BlinkMacSystemFont, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        color: #ffffff;
+      }
+      .frame {
+        box-sizing: border-box;
+        width: 100%;
+        height: 100%;
+        padding: 100px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 26px;
+      }
+      .brand svg {
+        width: 96px;
+        height: 96px;
+        display: block;
+      }
+      .wordmark {
+        font-size: 60px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1;
+      }
+      .headline {
+        margin-top: 64px;
+        font-size: 76px;
+        font-weight: 700;
+        letter-spacing: -0.035em;
+        line-height: 1.18;
+      }
+      .sub {
+        margin-top: 26px;
+        font-size: 36px;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+        line-height: 1.4;
+        color: rgba(255, 255, 255, 0.66);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="brand">
+        <!-- public/favicon.svg 와 동일한 도형 -->
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="monit-og-bg" x1="0" y1="0" x2="0" y2="1">
+              <!-- 파비콘(#363C74→#1F2247)보다 밝게 잡는다. 배너 배경 자체가 같은 남색이라
+                   원본 값 그대로면 로고 타일이 배경에 묻혀 사각형이 보이지 않는다. -->
+              <stop offset="0" stop-color="#5A61B4" />
+              <stop offset="1" stop-color="#383E7C" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M50,0 C14,0 0,14 0,50 C0,86 14,100 50,100 C86,100 100,86 100,50 C100,14 86,0 50,0 Z"
+            fill="url(#monit-og-bg)"
+          />
+          <path
+            d="M28,62 L28,34 L50,55 L72,34 L72,74"
+            fill="none"
+            stroke="#FFFFFF"
+            stroke-width="10"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <circle cx="28" cy="68" r="8.5" fill="#ABA5E4" />
+        </svg>
+        <div class="wordmark">Monit</div>
+      </div>
+
+      <div class="headline">흩어진 자산을 한곳에서</div>
+      <div class="sub">예금 · 주식 · 가계부까지 한 화면으로</div>
+    </div>
+  </body>
+</html>

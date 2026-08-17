@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -17,6 +17,40 @@
     <link rel="preload" href="/fonts/pretendard/PretendardVariable.subset.91.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/fonts/pretendard/PretendardVariable.subset.90.woff2" as="font" type="font/woff2" crossorigin>
     <title>Monit</title>
+
+    <!-- 링크 미리보기(Open Graph) — 카카오톡·슬랙·페이스북 등이 링크를 붙일 때 읽어가는 정보다.
+         이게 없으면 카카오톡은 제목만 <title>에서 가져가고 설명 자리에 자기 기본 문구
+         ("여기를 눌러 링크를 확인하세요.")를 넣고 이미지는 아예 띄우지 않는다.
+
+         이 앱은 SPA라 크롤러가 자바스크립트를 실행하지 않지만, 공유되는 주소는 루트 하나뿐이므로
+         여기 정적으로 박아두면 충분하다. 화면별로 다른 미리보기가 필요해지면 그때는 서버/함수에서
+         주소별로 태그를 바꿔 내려줘야 한다.
+
+         주의:
+         - og:image는 반드시 절대 URL(https://...)이어야 한다. 상대경로는 카카오가 무시한다.
+         - 이미지는 PNG/JPG만 인정된다(SVG·WebP 안 됨). /og-image.png는 vercel.json의 rewrite
+           예외 목록에도 들어가 있어야 index.html로 덮이지 않는다.
+         - 이미지 원본은 scripts/og-image/index.html 이다. 아래 문구를 고치면 그 파일도 같이
+           고치고 PNG를 다시 뽑을 것(다시 뽑는 명령은 그 파일 상단 주석에 있다).
+         - 카카오는 URL별 미리보기를 며칠간 캐시한다. 배포 후 카카오 개발자사이트의 디버거에서
+           캐시를 초기화해야 기존 대화방에도 새 미리보기가 뜬다. -->
+    <meta name="description" content="흩어진 자산을 한곳에서. 예금·주식·가계부까지 한 화면으로." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Monit" />
+    <meta property="og:title" content="Monit" />
+    <meta property="og:description" content="흩어진 자산을 한곳에서. 예금·주식·가계부까지 한 화면으로." />
+    <meta property="og:url" content="https://monit.io.kr" />
+    <meta property="og:image" content="https://monit.io.kr/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Monit — 흩어진 자산을 한곳에서" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Monit" />
+    <meta name="twitter:description" content="흩어진 자산을 한곳에서. 예금·주식·가계부까지 한 화면으로." />
+    <meta name="twitter:image" content="https://monit.io.kr/og-image.png" />
+
     <!-- 첫 페인트 전 테마 적용. main.tsx는 type="module"이라 지연 실행되고, 프로덕션 빌드에서는
          CSS <link>가 렌더를 막는 동안 흰 화면이 먼저 그려질 수 있다 — 동기 인라인 스크립트만
          이 섬광(FOUC)을 확실히 막는다. src/utils/theme.ts의 readStoredTheme/isDarkTheme 로직을
