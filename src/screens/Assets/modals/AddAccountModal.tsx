@@ -4,16 +4,41 @@
 // openAddAccountFrom{Entry,Stock,Recur}, hence the higher stacking). closeAddAccount returns to
 // `addAccountReturnTo` (whatever modal opened this one) instead of just closing (L4513).
 //
-// 자산 유형 칩은 원본의 한글 6분류가 아니라 실제 서버 AccountType(10종)을 그대로 쓴다 — 한글 6분류는
-// 서버 스펙 어디에도 매핑 규칙이 없어 임의로 짜맞추지 않는다(라벨은 src/data/assetsView.ts 참고).
-// 어느 자산군 칸에서 열었는지에 따른 기본 칩 선택은 AssetCategoryModal이 accountForm.type에 미리
-// 넣어준다(ASSET_CLASS_ACCOUNT_TYPE_PRESET).
+// 자산 유형 칩은 서버 AccountType(10종)이 아니라 자산 화면 카드의 6분류(src/data/assetsView.ts
+// ASSET_CLASS_META/ASSET_CLASS_ORDER)를 쓴다(2026-08-17, 제품 결정) — 예전엔 매핑 근거가 없어 10종을
+// 그대로 노출했지만, 지금은 백엔드 AccountService.splitByClass의 역방향 규칙이 확보돼 있다
+// (assetClassFormPreset/assetClassOfAccountType, 같은 파일). 칩을 고르면 그 자산군의 대표 AccountType이
+// `form.type`에 저장돼 서버로는 지금처럼 AccountType 그대로 나간다 — 일부는 정보가 뭉개진다: 예적금
+// 칩은 정기예금이 아니라 '적금'(INSTALLMENT_SAVINGS)으로, 현금 칩은 CASH로 저장된다(둘 다 제품 결정,
+// ASSET_CLASS_ACCOUNT_TYPE_PRESET 주석 참고). 어느 자산군 칸에서 열었는지에 따른 기본 칩 선택은
+// AssetCategoryModal이 accountForm에 미리 넣어준다(assetClassFormPreset).
+//
+// 국내주식/해외주식은 둘 다 AccountType.BROKERAGE로 저장되고 서버가 계좌 통화(원화/달러)로 구분한다
+// (증권계좌 예수금 통화 기준 — 백엔드 splitByClass 적용 작업 진행 중). 그래서 두 칩은 클릭 시 통화
+// 기본값도 함께 맞춘다(해외주식→USD, 국내주식→KRW, 사용자가 통화 칩으로 다시 바꿀 수 있음), 반대로
+// AssetCategoryModal 프리셋으로 폼이 이미 채워진 채 이 모달이 열릴 때는 form.type + form.currency로
+// 어느 칩이 선택돼 있어야 하는지 역산한다(assetClassOfAccountType) — type만으로는 국내/해외를 가릴 수
+// 없기 때문이다.
 //
 // 달러 계좌 잔액: 서버 initialBalanceKrw는 통화와 무관하게 **항상 원화 정수**이고 currency는 표기용일
 // 뿐이다(POST /accounts 명세: "USD 계좌도 등록 시점 원화 환산액을 보낸다"). 그래서 예전처럼 달러 기호만
 // 바꿔 붙이면 입력한 달러 금액이 그대로 원화로 저장되는 오저장이 난다. 통화가 USD면 '달러 금액'과 '적용
 // 환율'을 따로 받아 여기서 원화로 환산해 보낸다 — USD/KRW 환율은 서버가 내려주지 않아 사용자 입력이
 // 유일한 근거다(하드코딩·추정 금지). 환산 결과는 저장 전에 화면에 그대로 보여준다.
+//
+// 개설일 팝오버가 모달 밖으로 못 나가고 잘리던 결함: DatePicker 팝오버는 Dropdown과 달리 폭이 고정
+// (240px, `left:0;right:0`이 있어도 CSS 우선순위상 width가 이긴다)이라, flex:1 두 칸짜리 좁은 열
+// 안에 놓이면 그 칸 폭(desktop 기준 480 모달에서 ~203px)을 넘어 패널 오른쪽 경계 밖으로 삐져나간다.
+// 이 패널은(다른 대부분의 모달처럼) `overflow:'auto'`라 그 삐져나온 부분이 그대로 잘리고 가로
+// 스크롤바까지 생겼다. 고쳐야 할 지점은 overflow가 아니라 배치였다 — 만기일처럼 개설일도 단독 전체 폭
+// 행으로 두면(이자율 %도 함께 단독 행으로) 팝오버 폭(240px)이 콘텐츠 폭(420px) 안에 항상 들어와
+// 절대 패널 밖으로 넘치지 않는다. overflow:'auto'는 다른 모달들과 동일하게 유지한다 — 세로로 너무 긴
+// 콘텐츠는 스크롤로 접근 가능해야 하므로(내용이 잘려 접근 불가가 되는 쪽이 더 나쁘다), Modal 기본값인
+// overflow:'visible'로 되돌리는 건 위험하다.
+//
+// (세로 잘림은 별도 결함이었다 — 이 배치 수정만으로는 트리거가 패널 하단 가까이 있을 때 팝오버가
+// 여전히 patch overflow:'auto' 경계에서 잘렸다. 그건 DatePicker 자체가 position:fixed 뷰포트 앵커링으로
+// 고친다, 이 모달이 아니라 — DatePicker.tsx 헤더 주석 참고.)
 
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -28,7 +53,7 @@ import { useDatePicker } from '../../../state/selectors/datePicker'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
 import { fmt, parseAmount, sanitizeDecimalInput } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToNav, pickedToISODate } from '../../../utils/date'
-import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER } from '../../../data/assetsView'
+import { ASSET_CLASS_META, ASSET_CLASS_ORDER, assetClassFormPreset, assetClassOfAccountType } from '../../../data/assetsView'
 import { useGetInstitutions } from '@/services/institution'
 import { usePostAccount } from '@/services/account'
 import type { CreateAccountRequest } from '@/services/account'
@@ -100,6 +125,10 @@ export function AddAccountModal() {
   const usdRate = Number(form.usdExchangeRate) || 0
   const krwFromUsd = Math.round(usdAmount * usdRate)
   const isKrwFromUsdSafe = Number.isSafeInteger(krwFromUsd)
+
+  // 자산 유형 칩은 서버 값(type+currency)에서 역산한다 — AssetCategoryModal이 프리셋을 미리 넣어준
+  // 채로 열려도, 사용자가 통화 칩을 눌러 바꿔도 항상 지금 폼 상태와 일치하는 칩이 선택돼 보인다.
+  const selectedAssetClass = assetClassOfAccountType(form.type, form.currency)
 
   if (!isOpen) return null
 
@@ -185,9 +214,14 @@ export function AddAccountModal() {
         <div>
           <div style={LABEL_STYLE}>자산 유형</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {ACCOUNT_TYPE_ORDER.map((t) => (
-              <button key={t} className="mini-hov" onClick={() => patchForm({ type: t })} style={chipStyle(form.type === t)}>
-                {ACCOUNT_TYPE_LABELS[t]}
+            {ASSET_CLASS_ORDER.map((c) => (
+              <button
+                key={c}
+                className="mini-hov"
+                onClick={() => patchForm(assetClassFormPreset(c))}
+                style={chipStyle(selectedAssetClass === c)}
+              >
+                {ASSET_CLASS_META[c].label}
               </button>
             ))}
           </div>
@@ -255,7 +289,7 @@ export function AddAccountModal() {
                 />
               ) : (
                 <input
-                  type="text" placeholder="0"
+                  type="text" inputMode="numeric" placeholder="0"
                   value={form.initialBalanceKrw ? fmt(form.initialBalanceKrw) : ''}
                   onChange={(e) => patchForm({ initialBalanceKrw: parseAmount(e.target.value) })}
                   style={{ border: 'none', outline: 'none', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', width: '100%', color: 'var(--text-strong)' }}
@@ -310,23 +344,23 @@ export function AddAccountModal() {
             ))}
           </div>
         </div>
-        <div style={fieldRowStyle}>
-          <div style={{ flex: 1 }}>
-            <div style={LABEL_STYLE}>이자율 % (선택)</div>
-            <input
-              type="text" inputMode="decimal" placeholder="0.00"
-              value={form.interestRate === null ? '' : String(form.interestRate)}
-              onChange={(e) => {
-                const sanitized = sanitizeDecimalInput(e.target.value, 2)
-                patchForm({ interestRate: sanitized === '' ? null : Number(sanitized) })
-              }}
-              style={{ width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box' }}
-            />
-          </div>
-          <div style={{ flex: 1, position: 'relative' }}>
-            <div style={LABEL_STYLE}>개설일 (선택)</div>
-            <DatePicker dp={dpOpened} />
-          </div>
+        <div>
+          <div style={LABEL_STYLE}>이자율 % (선택)</div>
+          <input
+            type="text" inputMode="decimal" placeholder="0.00"
+            value={form.interestRate === null ? '' : String(form.interestRate)}
+            onChange={(e) => {
+              const sanitized = sanitizeDecimalInput(e.target.value, 2)
+              patchForm({ interestRate: sanitized === '' ? null : Number(sanitized) })
+            }}
+            style={{ width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box' }}
+          />
+        </div>
+        {/* 개설일은 만기일처럼 단독 전체 폭 행이어야 한다 — flex:1 두 칸짜리 좁은 열에 두면 DatePicker의
+            고정 240px 팝오버가 칸 밖으로 삐져나가 패널의 overflow:'auto'에 잘린다(파일 상단 주석 참고). */}
+        <div style={{ position: 'relative' }}>
+          <div style={LABEL_STYLE}>개설일 (선택)</div>
+          <DatePicker dp={dpOpened} />
         </div>
         <div style={{ position: 'relative' }}>
           <div style={LABEL_STYLE}>만기일 (선택)</div>

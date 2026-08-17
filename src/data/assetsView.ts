@@ -13,7 +13,7 @@ import { isoDateToDisplay } from '../utils/date'
 import { toPercentages } from './dashboardView'
 import type { AccountResponse, AccountSnapshotResponse } from '@/services/account'
 import type { AssetClassGroup, LockedAccount } from '@/services/asset'
-import type { AccountType, AssetClass, InstitutionType } from '@/services/common.type'
+import type { AccountType, AssetClass, Currency, InstitutionType } from '@/services/common.type'
 
 // ---------- 계좌/기관 유형 ↔ 한글 라벨 ----------
 // 서버 AccountType/InstitutionType은 영문 코드값만 내려준다(common.type.ts 주석 참고). 한글 라벨은
@@ -74,6 +74,55 @@ export const ASSET_CLASS_ACCOUNT_TYPE_PRESET: Record<AssetClass, AccountType> = 
   FOREIGN_STOCK: 'BROKERAGE',
   CRYPTO: 'CRYPTO_WALLET',
   ETC: 'PENSION_SAVINGS',
+}
+
+/**
+ * 자산군 칩을 고를 때 함께 반영할 계좌 폼 필드. AccountType은 위 프리셋을 그대로 쓰되, 국내주식/해외주식은
+ * 둘 다 BROKERAGE라 AccountType만으로는 구분이 안 된다 — 서버가 증권계좌 예수금 통화로 국내/해외를 가르므로
+ * (AddAccountModal.tsx 상단 주석 참고) 여기서 currency도 같이 정해준다. 나머지 4개 자산군은 currency를
+ * 건드리지 않는다 — 이미 사용자가 골라둔 통화(예: 달러로 적어둔 가상자산)를 자산 유형 칩을 눌렀다고 조용히
+ * 원화로 되돌리면 안 되기 때문이다.
+ */
+export function assetClassFormPreset(assetClass: AssetClass): { type: AccountType; currency?: Currency } {
+  const type = ASSET_CLASS_ACCOUNT_TYPE_PRESET[assetClass]
+  if (assetClass === 'FOREIGN_STOCK') return { type, currency: 'USD' }
+  if (assetClass === 'DOMESTIC_STOCK') return { type, currency: 'KRW' }
+  return { type }
+}
+
+/**
+ * AccountType(+currency) → 자산군(칩) 역방향 판정. 백엔드 `AccountService.splitByClass`가 AccountType
+ * 10종을 6개 자산군으로 접는 규칙을 그대로 옮긴 것 — 위 프리셋과 반대 방향이라 서로 다른 로직이 필요하다
+ * (프리셋은 자산군 하나에 대표 AccountType 하나만 고르지만, 역방향은 10종 전부가 반드시 6개 중 하나로
+ * 떨어져야 한다: 정기예금도 적금과 마찬가지로 예적금이고, 기존에 PARKING으로 저장된 계좌도 반드시 현금으로
+ * 판정돼야 한다). BROKERAGE는 currency로 국내/해외를 가른다(USD가 아니면 국내주식).
+ */
+export function assetClassOfAccountType(type: AccountType, currency: Currency): AssetClass {
+  switch (type) {
+    case 'CHECKING':
+    case 'PARKING':
+    case 'CASH':
+    case 'PENSION':
+      return 'CASH_PENSION'
+    case 'TERM_DEPOSIT':
+    case 'INSTALLMENT_SAVINGS':
+      return 'DEPOSIT'
+    case 'BROKERAGE':
+      return currency === 'USD' ? 'FOREIGN_STOCK' : 'DOMESTIC_STOCK'
+    case 'CRYPTO_WALLET':
+      return 'CRYPTO'
+    case 'PENSION_SAVINGS':
+    case 'REAL_ASSET':
+      return 'ETC'
+    default: {
+      // 서버가 새 AccountType을 추가하고 프론트가 아직 그 값을 모르면 여기로 떨어진다(배포 시차 시 실제
+      // 가능). 아래 never 대입은 유니언에 값이 늘어난 순간 빌드를 깨서 이 함수를 갱신하게 만들고, 런타임
+      // 에는 ETC로 접어 칩이 하나도 선택되지 않는 상태(undefined)를 막는다 — assetClassMetaOf와 같은 톤.
+      const unhandled: never = type
+      void unhandled
+      return 'ETC'
+    }
+  }
 }
 
 // ---------- 자산군(AssetClass) ↔ 아이콘/색 매핑 ----------

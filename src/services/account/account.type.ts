@@ -54,6 +54,18 @@ export interface UpdateAccountRequest {
   sortOrder?: number
 }
 
+/**
+ * PATCH /accounts/{accountId}/balance. 잔액은 파생값이라 직접 덮어쓰지 않고, 서버가 현재 잔액과의
+ * 차액만큼 ADJUSTMENT(잔액 조정) 거래를 원장에 자동 생성해 맞춘다(순저축·저축률 집계 제외, 총자산에는
+ * 반영). 이미 그 금액이면 거래를 만들지 않고 그대로 응답한다(멱등) — OpenAPI(AdjustBalanceReq) 확인.
+ */
+export interface AdjustBalanceRequest {
+  /** 정정 후 현재 잔액(원). 0 이상 정수 — 통화와 무관하게 항상 원화(UpdateAccountRequest와 동일 규칙). */
+  balanceKrw: number
+  /** 조정 거래에 남길 내용. 생략하면 서버가 '잔액 정정'으로 채운다. 최대 200자. */
+  description?: string
+}
+
 export interface AccountSnapshotResponse {
   snapshotDate: string
   valueKrw: number

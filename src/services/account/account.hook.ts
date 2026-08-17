@@ -8,10 +8,12 @@ import {
   getAccounts,
   getAccountSnapshots,
   patchAccount,
+  patchAccountBalance,
   postAccount,
   putAccountSnapshot,
 } from './account.service'
 import type {
+  AdjustBalanceRequest,
   CreateAccountRequest,
   UpdateAccountRequest,
   UpsertSnapshotRequest,
@@ -79,6 +81,30 @@ export function useDeleteAccount() {
   const invalidate = useInvalidateAccount()
   return useMutation({
     mutationFn: (accountId: number) => deleteAccount(accountId),
+    onSuccess: invalidate,
+  })
+}
+
+/**
+ * 잔액 정정은 계좌 PATCH와 달리 차액만큼 ADJUSTMENT 거래를 원장에 새로 만든다 — 가계부(거래 목록·
+ * 요약)까지 무효화해야 새 조정 거래가 바로 보인다. 기관은 활성 계좌 보유 여부가 바뀌지 않으므로
+ * (계좌 자체는 그대로 유지) useInvalidateAccount와 달리 포함하지 않는다.
+ */
+function useInvalidateAccountBalance() {
+  const queryClient = useQueryClient()
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: qk.account.all() })
+    void queryClient.invalidateQueries({ queryKey: qk.asset.all() })
+    void queryClient.invalidateQueries({ queryKey: qk.dashboard.all() })
+    void queryClient.invalidateQueries({ queryKey: qk.transaction.all() })
+  }
+}
+
+export function usePatchAccountBalance() {
+  const invalidate = useInvalidateAccountBalance()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: AdjustBalanceRequest }) =>
+      patchAccountBalance(id, body),
     onSuccess: invalidate,
   })
 }

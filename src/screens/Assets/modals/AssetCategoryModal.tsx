@@ -15,7 +15,7 @@ import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
-import { ASSET_CLASS_ACCOUNT_TYPE_PRESET, buildAssetCats } from '../../../data/assetsView'
+import { assetClassFormPreset, buildAssetCats } from '../../../data/assetsView'
 import { useGetAccounts } from '@/services/account'
 import { useGetAssetDistributionByClass } from '@/services/asset'
 
@@ -101,7 +101,9 @@ export function AssetCategoryModal() {
               addAccountReturnTo: null,
               // 어느 자산군 칸에서 열었는지 폼에 반영해야 한다 — 안 하면 기본값(BLANK_ACCOUNT_FORM.type
               // === 'CASH')이 항상 선택되어 해외주식 칸에서 만든 계좌가 현금으로 저장되는 사고가 난다.
-              accountForm: { ...BLANK_ACCOUNT_FORM, type: ASSET_CLASS_ACCOUNT_TYPE_PRESET[selectedAssetCat.id] },
+              // 해외주식은 currency까지 같이 넣어야 한다 — 국내/해외주식 둘 다 AccountType은 BROKERAGE라
+              // type만으로는 AddAccountModal이 열렸을 때 두 칩을 구분할 수 없다(assetClassFormPreset 참고).
+              accountForm: { ...BLANK_ACCOUNT_FORM, ...assetClassFormPreset(selectedAssetCat.id) },
             })
           }
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 13, borderRadius: 10, border: '0.5px dashed var(--text-weak)', background: 'transparent', color: 'var(--text-weak)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', marginTop: 14, transition: 'transform .12s', fontFamily: 'inherit' }}

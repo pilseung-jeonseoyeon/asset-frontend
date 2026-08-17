@@ -4,6 +4,7 @@ import type { AccountListParams, DateRange } from '../common.type'
 import type {
   AccountResponse,
   AccountSnapshotResponse,
+  AdjustBalanceRequest,
   CreateAccountRequest,
   UpdateAccountRequest,
   UpsertSnapshotRequest,
@@ -28,6 +29,11 @@ export async function patchAccount(accountId: number, body: UpdateAccountRequest
 /** 204 No Content. 소프트 삭제(해지)로 추정 — 이미 해지된 계좌면 409 ACCOUNT_ALREADY_CLOSED. */
 export async function deleteAccount(accountId: number) {
   await api.delete(`/accounts/${accountId}`)
+}
+
+/** 잔액 정정 — 차액만큼 ADJUSTMENT 거래가 원장에 자동 생성된다(account.type.ts 참고). */
+export async function patchAccountBalance(accountId: number, body: AdjustBalanceRequest) {
+  return unwrap(await api.patch<ApiResponse<AccountResponse>>(`/accounts/${accountId}/balance`, body))
 }
 
 /** from/to 모두 필수. */
