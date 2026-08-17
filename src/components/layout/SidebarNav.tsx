@@ -12,7 +12,7 @@ import { Link, useLocation } from 'react-router-dom'
 import type { NavItem } from './navItems'
 import { NAV_ITEMS } from './navItems'
 import { MonitLogo } from './MonitLogo'
-import { getAvatarInitial } from '../primitives/Avatar/Avatar'
+import { Avatar } from '../primitives/Avatar/Avatar'
 import { useAppState } from '../../state/AppStateContext'
 import { navHover, navStyle } from '../../state/selectors/nav'
 import { useProfileName } from '@/services/user'
@@ -42,7 +42,6 @@ function NavButton({ path, icon, label }: NavItem) {
 export function SidebarNav() {
   const { setState } = useAppState()
   const profileName = useProfileName()
-  const initial = getAvatarInitial(profileName)
 
   return (
     <aside
@@ -85,25 +84,9 @@ export function SidebarNav() {
           title={profileName}
           style={{ position: 'relative', width: 36, height: 36, flex: 'none', cursor: 'pointer' }}
         >
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 999,
-              background: 'var(--deep-bg)',
-              color: 'var(--deep-value)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 700,
-              fontSize: 14,
-              letterSpacing: '-0.01em',
-              boxSizing: 'border-box',
-              border: '0.5px solid var(--deep-border)',
-            }}
-          >
-            {initial}
-          </div>
+          {/* Avatar 프리미티브 재사용 — 이름이 아직 안 왔을 때(빈 문자열) person 아이콘으로 폴백해
+              빈 원만 보이는 문제를 없앤다(13-2/13-4). */}
+          <Avatar name={profileName} size="s" />
         </div>
       </div>
     </aside>

@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAuthStore } from '@/stores/auth'
 import { qk } from '../queryKeys'
-import { getMe, getUserSettings, patchPassword, patchUserSettings } from './user.service'
+import { deleteMe, getMe, getUserSettings, patchMe, patchPassword, patchUserSettings } from './user.service'
 import type {
   ChangePasswordRequest,
+  UpdateProfileRequest,
   UpdateUserSettingsRequest,
   UserSettingsResponse,
 } from './user.type'
@@ -24,12 +26,6 @@ export const DEFAULT_USER_SETTINGS: UserSettingsResponse = {
   theme: 'SYSTEM',
 }
 
-/**
- * 서버에 사용자 행이 없을 때(GET /users/me → 404 USER_NOT_FOUND) 화면에 쓸 이름.
- * 원본 프로토타입의 하드코딩 값과 동일하게 두어, 시드 전에도 화면이 비지 않게 한다.
- */
-const FALLBACK_PROFILE_NAME = '정다은'
-
 export function useGetMe() {
   return useQuery({
     queryKey: qk.user.me(),
@@ -39,10 +35,15 @@ export function useGetMe() {
   })
 }
 
-/** 헤더·사이드바에 표시할 사용자 이름. 서버에 사용자가 없으면 폴백 이름을 쓴다. */
+/**
+ * 헤더·사이드바에 표시할 사용자 이름. 최초 로딩 중이거나 조회가 실패하면 빈 문자열을 돌려준다
+ * (다른 사람의 이름을 잠깐이라도 잘못 보여주지 않기 위해 — 예전엔 '정다은' 하드코딩 폴백이 있었지만
+ * 인증 도입 후 남의 이름이 뜨는 경로만 남아 제거했다). `Avatar`는 이름이 비면 이니셜 대신
+ * person 아이콘을 그리도록 이미 지원한다(Avatar.tsx의 `getAvatarInitial` 참고).
+ */
 export function useProfileName(): string {
   const { data } = useGetMe()
-  return data?.name ?? FALLBACK_PROFILE_NAME
+  return data?.name ?? ''
 }
 
 /**
@@ -64,6 +65,35 @@ export function useGetUserSettings(options?: { enabled?: boolean }) {
     ...query,
     settings: query.data ?? DEFAULT_USER_SETTINGS,
   }
+}
+
+/** 이름 · 마케팅 수신 동의 수정. 성공하면 프로필 쿼리를 무효화해 헤더·사이드바 이름도 함께 갱신한다. */
+export function usePatchMe() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (body: UpdateProfileRequest) => patchMe(body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.user.me() })
+    },
+  })
+}
+
+/**
+ * 회원 탈퇴. 로그아웃(usePostLogout)과 달리 **실패하면 세션을 그대로 둔다** — 탈퇴가 안 됐는데
+ * 로그아웃까지 시키면 사용자는 "탈퇴됐다"고 오인하고 계정은 서버에 그대로 남는다. 성공했을 때만
+ * signOut + 캐시 초기화로 로그인 화면으로 돌려보낸다.
+ */
+export function useDeleteMe() {
+  const signOut = useAuthStore((s) => s.signOut)
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: deleteMe,
+    onSuccess: () => {
+      signOut()
+      queryClient.clear()
+    },
+  })
 }
 
 /** 로그인한 사용자의 비밀번호 변경. 서버가 현재 비밀번호를 검증한다(틀리면 실패 메시지를 그대로 노출). */

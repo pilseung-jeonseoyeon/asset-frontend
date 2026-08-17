@@ -17,11 +17,12 @@ import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Icon } from '../../primitives/Icon/Icon'
 import { Avatar } from '../../primitives/Avatar/Avatar'
+import { Switch } from '../../primitives/Switch/Switch'
 import { useAppState } from '../../../state/AppStateContext'
 import { stopPropagation, useCloseModal } from '../../../state/selectors/modal'
 import { authInput, authPrimary, authSecondary, filterPwInput } from '../../../screens/Auth/authFormStyles'
 import { useIsMobile } from '../../../utils/useMediaQuery'
-import { useGetMe, usePatchPassword, useProfileName } from '@/services/user'
+import { useDeleteMe, useGetMe, usePatchMe, usePatchPassword, useProfileName } from '@/services/user'
 import { usePostLogout, PASSWORD_PATTERN, PASSWORD_RULE_TEXT } from '@/services/auth'
 
 const ROW_STYLE: CSSProperties = {
@@ -32,6 +33,17 @@ const ROW_STYLE: CSSProperties = {
   borderBottom: '0.5px solid var(--track)',
 }
 
+const LABEL_STYLE: CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 7 }
+
+/** UserProfileRes.passwordChangedAt(Instant, 'Z' suffix)을 "YYYY.MM.DD"로 — 원본 문구 복원용. */
+function formatChangedAtDate(iso: string): string {
+  const d = new Date(iso)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}.${m}.${day}`
+}
+
 export function AccountModal() {
   const { state, setState } = useAppState()
   const { data: me } = useGetMe()
@@ -39,6 +51,8 @@ export function AccountModal() {
   const closeModal = useCloseModal()
   const logoutMutation = usePostLogout()
   const patchPassword = usePatchPassword()
+  const patchProfile = usePatchMe()
+  const withdraw = useDeleteMe()
   const isMobile = useIsMobile()
 
   // 비밀번호는 전역 상태(AppState)에 두지 않는다 — 평문이 앱 전역 상태에 남게 된다.
@@ -48,10 +62,17 @@ export function AccountModal() {
   const [confirmPw, setConfirmPw] = useState('')
   const [localPwError, setLocalPwError] = useState<string | null>(null)
 
+  // 이름 자체는 민감정보가 아니지만, 비밀번호 서브뷰와 같은 이유(이 모달은 닫아도 언마운트되지
+  // 않는다)로 편집 중인 초안을 로컬 state로 두고 닫을 때 직접 지운다.
+  const [profileNameInput, setProfileNameInput] = useState('')
+  const [profileMarketingOptIn, setProfileMarketingOptIn] = useState(false)
+  const [localProfileError, setLocalProfileError] = useState<string | null>(null)
+
   if (state.modalOpen !== 'account') return null
 
-  const isAccountMain = state.accountModalView !== 'password'
   const isAccountPassword = state.accountModalView === 'password'
+  const isAccountProfile = state.accountModalView === 'profile'
+  const isAccountMain = !isAccountPassword && !isAccountProfile
 
   const resetPasswordForm = () => {
     setCurrentPw('')
@@ -68,6 +89,40 @@ export function AccountModal() {
   // 서버 메시지는 이미 완성된 한국어 문장이라 그대로 노출한다. 프론트 검증은 서버에 보내기 전에
   // 확실히 걸러지는 것만 본다(서버 규칙과 동일한 PASSWORD_PATTERN 재사용).
   const pwError = localPwError ?? (patchPassword.error ? patchPassword.error.message : null)
+
+  const resetProfileForm = () => {
+    setProfileNameInput('')
+    setProfileMarketingOptIn(false)
+    setLocalProfileError(null)
+    patchProfile.reset()
+  }
+  const openProfileEdit = () => {
+    setProfileNameInput(me?.name ?? '')
+    setProfileMarketingOptIn(me?.hasMarketingOptIn ?? false)
+    setLocalProfileError(null)
+    patchProfile.reset()
+    setState({ accountModalView: 'profile' })
+  }
+  const closeProfileView = () => {
+    resetProfileForm()
+    setState({ accountModalView: 'main' })
+  }
+  const profileError = localProfileError ?? (patchProfile.error ? patchProfile.error.message : null)
+
+  const handleSaveProfile = () => {
+    const trimmed = profileNameInput.trim()
+    if (!trimmed) {
+      setLocalProfileError('이름을 입력해주세요.')
+      return
+    }
+    if (trimmed.length > 50) {
+      setLocalProfileError('이름은 50자 이하여야 해요.')
+      return
+    }
+    setLocalProfileError(null)
+    patchProfile.reset()
+    patchProfile.mutate({ name: trimmed, hasMarketingOptIn: profileMarketingOptIn })
+  }
 
   const handleChangePassword = () => {
     if (!currentPw) {
@@ -106,9 +161,22 @@ export function AccountModal() {
   // 메모리에 남지 않도록 닫을 때 직접 지운다.
   const closeAndReset = () => {
     resetPasswordForm()
+    resetProfileForm()
+    withdraw.reset()
     closeModal()
   }
-  const confirmWithdraw = () => setState({ modalOpen: null, withdrawConfirmOpen: false, accountModalView: 'main' })
+  const openWithdrawConfirm = () => {
+    withdraw.reset()
+    setState({ withdrawConfirmOpen: true })
+  }
+  const cancelWithdraw = () => {
+    withdraw.reset()
+    setState({ withdrawConfirmOpen: false })
+  }
+  // 로그아웃(doLogout)과 달리 실패하면 세션을 유지한다 — useDeleteMe가 성공했을 때만 signOut +
+  // 캐시 초기화를 하므로, 여기서는 그냥 mutate만 호출한다(성공하면 AppShell이 로그인 화면으로
+  // 전환하며 이 모달째로 언마운트된다).
+  const confirmWithdraw = () => withdraw.mutate()
 
   return (
     <div
@@ -212,13 +280,38 @@ export function AccountModal() {
               <Avatar name={profileName} size="m" />
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.01em' }}>{profileName}</div>
-                <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 3 }}>
-                  {me?.email ?? 'name@example.com'}
-                </div>
+                {/* 서버 응답에 없는 값은 그리지 않는다 — 이메일을 아직 못 받아왔으면(로딩/실패) 줄
+                    자체를 렌더하지 않고, 가짜 자리표시자(name@example.com)를 보여주지 않는다. */}
+                {me?.email && (
+                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 3 }}>{me.email}</div>
+                )}
               </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={ROW_STYLE}>
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>이름</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>가계부 · 알림에 표시되는 이름</div>
+                </div>
+                <button
+                  onClick={openProfileEdit}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: 'var(--text-strong)',
+                    background: 'var(--surface)',
+                    border: '0.5px solid var(--border)',
+                    borderRadius: 8,
+                    padding: '7px 13px',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  변경
+                </button>
+              </div>
               <div style={ROW_STYLE}>
                 <div>
                   <div style={{ fontSize: 13.5, fontWeight: 600 }}>프로필 이미지</div>
@@ -242,9 +335,11 @@ export function AccountModal() {
               <div style={ROW_STYLE}>
                 <div>
                   <div style={{ fontSize: 13.5, fontWeight: 600 }}>비밀번호 변경</div>
-                  {/* 원본에는 "마지막 변경 2026.05.12"가 있었지만 서버가 그 값을 주지 않는다 —
-                      하드코딩된 날짜를 사실처럼 보여주지 않기 위해 규칙 안내로 바꿨다. */}
-                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>{PASSWORD_RULE_TEXT}</div>
+                  {/* passwordChangedAt이 null이면(가입 후 한 번도 안 바꿈) 원본의 날짜 문구 대신
+                      규칙 안내를 보여준다 — 값이 있으면 원본 문구("마지막 변경 YYYY.MM.DD")를 그대로 복원한다. */}
+                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>
+                    {me?.passwordChangedAt ? `마지막 변경 ${formatChangedAtDate(me.passwordChangedAt)}` : PASSWORD_RULE_TEXT}
+                  </div>
                 </div>
                 <button
                   onClick={() => {
@@ -319,7 +414,7 @@ export function AccountModal() {
                   <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>계정과 모든 기록을 삭제합니다</div>
                 </div>
                 <button
-                  onClick={() => setState({ withdrawConfirmOpen: true })}
+                  onClick={openWithdrawConfirm}
                   style={{
                     fontSize: 12,
                     fontWeight: 700,
@@ -344,7 +439,7 @@ export function AccountModal() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 22 }}>
               <button
-                onClick={() => setState({ accountModalView: 'main' })}
+                onClick={closePasswordView}
                 style={{
                   width: 34,
                   height: 34,
@@ -436,6 +531,87 @@ export function AccountModal() {
           </div>
         )}
 
+        {isAccountProfile && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 22 }}>
+              <button
+                onClick={closeProfileView}
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 10,
+                  border: 'none',
+                  background: 'var(--track)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <Icon name="arrow_back" size={19} color="var(--text-mid)" />
+              </button>
+              <div style={{ fontSize: 16.5, fontWeight: 700 }}>이름 변경</div>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                handleSaveProfile()
+              }}
+            >
+              <div style={{ marginBottom: 14 }}>
+                <label htmlFor="profile-name" style={LABEL_STYLE}>
+                  이름
+                </label>
+                <input
+                  id="profile-name"
+                  type="text"
+                  autoComplete="name"
+                  maxLength={50}
+                  placeholder="이름 입력"
+                  value={profileNameInput}
+                  onChange={(e) => setProfileNameInput(e.target.value)}
+                  style={authInput}
+                />
+              </div>
+
+              {me && (
+                <div style={{ ...ROW_STYLE, borderBottom: 'none', padding: '4px 0 18px' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>마케팅 정보 수신 동의</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>이벤트 · 혜택 알림 수신</div>
+                  </div>
+                  <Switch
+                    label="마케팅 정보 수신 동의"
+                    checked={profileMarketingOptIn}
+                    disabled={patchProfile.isPending}
+                    onChange={setProfileMarketingOptIn}
+                  />
+                </div>
+              )}
+
+              <div aria-live="polite" style={{ marginBottom: 14, minHeight: 16 }}>
+                {profileError && <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{profileError}</div>}
+                {patchProfile.isSuccess && !profileError && (
+                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>이름을 저장했어요.</div>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                className="pill-btn"
+                disabled={patchProfile.isPending}
+                aria-busy={patchProfile.isPending}
+                style={{ ...authPrimary, opacity: patchProfile.isPending ? 0.7 : 1 }}
+              >
+                {patchProfile.isPending ? '저장 중…' : '저장'}
+              </button>
+              <button type="button" className="pill-btn" onClick={closeProfileView} style={authSecondary}>
+                취소
+              </button>
+            </form>
+          </div>
+        )}
+
         {state.withdrawConfirmOpen && (
           <div
             onClick={stopPropagation}
@@ -466,12 +642,19 @@ export function AccountModal() {
               <Icon name="warning" size={22} />
             </span>
             <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', marginBottom: 8 }}>정말 탈퇴하시겠어요?</div>
-            <div style={{ fontSize: 12.5, color: 'var(--text-weak)', lineHeight: 1.7, marginBottom: 24 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--text-weak)', lineHeight: 1.7, marginBottom: withdraw.error ? 10 : 24 }}>
               탈퇴 시 기록된 자산 · 가계부 데이터는 복구되지 않습니다.
             </div>
+            {withdraw.error && (
+              <div aria-live="polite" style={{ fontSize: 11.5, color: 'var(--down)', marginBottom: 14 }}>
+                {withdraw.error.message}
+              </div>
+            )}
             <button
               className="pill-btn"
               onClick={confirmWithdraw}
+              disabled={withdraw.isPending}
+              aria-busy={withdraw.isPending}
               style={{
                 width: '100%',
                 height: 48,
@@ -482,13 +665,14 @@ export function AccountModal() {
                 fontSize: 14,
                 fontWeight: 700,
                 fontFamily: 'inherit',
-                cursor: 'pointer',
+                cursor: withdraw.isPending ? 'default' : 'pointer',
                 letterSpacing: '-0.01em',
+                opacity: withdraw.isPending ? 0.7 : 1,
               }}
             >
-              탈퇴하기
+              {withdraw.isPending ? '탈퇴 처리 중…' : '탈퇴하기'}
             </button>
-            <button className="pill-btn" onClick={() => setState({ withdrawConfirmOpen: false })} style={authSecondary}>
+            <button className="pill-btn" onClick={cancelWithdraw} disabled={withdraw.isPending} style={authSecondary}>
               취소
             </button>
           </div>

@@ -1,11 +1,21 @@
 import type { Currency, ThemeType } from '../common.type'
 
-// API-SPEC §15. 이 앱은 단일 사용자(서버가 user_id=1을 내부 주입)라 인증 헤더가 없다.
+// GET/PATCH /users/me (UserProfileRes). JWT 인증이 붙은 뒤로는 user_id를 서버가 토큰에서 읽는다.
 
 export interface UserResponse {
   id: number
   name: string
   email: string
+  hasMarketingOptIn: boolean
+  /** 가입 후 한 번도 비밀번호를 바꾸지 않았으면 null. */
+  passwordChangedAt: string | null
+}
+
+/** PATCH /users/me. 두 필드 모두 선택이고 null은 보내지 않는다(서버가 "생략 = 변경 안 함"으로 처리). */
+export interface UpdateProfileRequest {
+  /** 1~50자. */
+  name?: string
+  hasMarketingOptIn?: boolean
 }
 
 export interface UserSettingsResponse {
