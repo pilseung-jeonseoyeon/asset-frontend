@@ -1,7 +1,8 @@
 // Source: secret/Asset Manager v14.dc.html L763-837 (header, quick-add dropdown, notification dropdown)
-// — transcribed verbatim, incl. the exact (slightly asymmetric) close-dropdown behavior per handler:
-// openStockSell (L4465) does NOT close quickAddOpen unlike its siblings — that is the source's own
-// behavior, not a bug to "fix" here.
+// — transcribed verbatim, incl. the close-dropdown behavior per handler, WITH ONE DELIBERATE DEVIATION:
+// the source's openStockSell (L4465) does NOT close quickAddOpen unlike its siblings, leaving the
+// quick-add dropdown open after picking "주식 매도" — real-use testing confirmed this reads as broken
+// (docs/backend-request.md item 9), so this handler closes it like every other quick-add action.
 //
 // Mobile (<=767px, docs/mobile.md §3): the profile avatar that lives at the bottom of SidebarNav on
 // desktop is rendered here instead, since SidebarNav isn't mounted at all below the breakpoint. Style/
@@ -9,13 +10,14 @@
 // notification dropdown width also clamps to the viewport so it doesn't overflow narrow screens.
 
 import type { MouseEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Avatar } from '../primitives/Avatar/Avatar'
 import { Icon } from '../primitives/Icon/Icon'
 import { useAppState } from '../../state/AppStateContext'
 import { useIsMobile } from '../../utils/useMediaQuery'
 import { formatNotificationTime } from '../../utils/notificationTime'
 import type { NotificationResponse, NotificationType } from '@/services/notification'
-import { useGetNotifications, usePatchNotificationRead } from '@/services/notification'
+import { useGetNotifications, usePatchAllNotificationsRead, usePatchNotificationRead } from '@/services/notification'
 import { useProfileName } from '@/services/user'
 
 // 서버는 알림 종류만 내려주고 아이콘은 내려주지 않는다 — 배경/글자색은 두 타입 모두 동일했던
@@ -58,18 +60,57 @@ const NOTIF_ITEM_STYLE = {
   fontFamily: 'inherit',
 }
 
+const MARK_ALL_READ_BTN_STYLE = {
+  border: 'none',
+  background: 'transparent',
+  padding: 0,
+  fontSize: 11.5,
+  fontWeight: 700,
+  color: 'var(--accent)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+}
+
 export function Header() {
   const { state, setState } = useAppState()
+  const navigate = useNavigate()
   const isMobile = useIsMobile()
   const profileName = useProfileName()
   const notifQuery = useGetNotifications()
   const patchNotificationRead = usePatchNotificationRead()
+  const patchAllNotificationsRead = usePatchAllNotificationsRead()
   const anyDropdownOpen = state.quickAddOpen || state.notifOpen
   const hasNotifs = notifQuery.notifications.length > 0
 
+  // 알림 linkType → 이동 동작 매핑. linkType은 자유 문자열이고 값 집합이 아직 서버에 의해 확정되지
+  // 않았다(docs/backend-request.md D-5-2) — 지금 실제로 관측되는 값만 다루고, 매핑에 없는 값(또는
+  // linkId가 없는 경우)은 읽음 처리만 하고 이동하지 않는다. **확장 지점**: 새 linkType이 추가되면
+  // 여기에 케이스를 더한다. 'ACCOUNT'는 계좌 상세(EditAccountModal, AppShell에 항상 마운트되어
+  // 있어 라우트 없이 열 수 있다)로 연결한다 — 자산 화면 컨텍스트가 자연스러우므로 함께 이동한다.
+  const notificationLinkHandlers: Record<string, (linkId: number) => void> = {
+    ACCOUNT: (linkId) => {
+      navigate('/assets')
+      setState({ modalOpen: 'editAccount', editAccount: linkId })
+    },
+  }
+
   const handleNotificationClick = (nf: NotificationResponse) => {
-    if (nf.read || patchNotificationRead.isPending) return
-    patchNotificationRead.mutate(nf.id)
+    if (!nf.read && !patchNotificationRead.isPending) {
+      patchNotificationRead.mutate(nf.id)
+    }
+    const handler = nf.linkType ? notificationLinkHandlers[nf.linkType] : undefined
+    if (handler && nf.linkId !== null) {
+      handler(nf.linkId)
+      setState({ notifOpen: false, quickAddOpen: false })
+    }
+  }
+
+  const handleMarkAllRead = () => {
+    if (patchAllNotificationsRead.isPending) return
+    patchAllNotificationsRead.mutate()
   }
 
   const closeDropdowns = () => setState({ quickAddOpen: false, notifOpen: false })
@@ -141,7 +182,7 @@ export function Header() {
               </button>
               <button
                 className="mini-hov"
-                onClick={() => setState({ modalOpen: 'quickStock', stockTradeMode: 'sell' })}
+                onClick={() => setState({ quickAddOpen: false, modalOpen: 'quickStock', stockTradeMode: 'sell' })}
                 style={MINI_HOV_ITEM_STYLE}
               >
                 <Icon name="trending_down" size={19} color="var(--accent)" />
@@ -161,6 +202,7 @@ export function Header() {
                     entryWithdrawAccountId: null,
                     entryAmount: 0,
                     entryDescription: '',
+                    entryMemo: '',
                     entryPreserved: null,
                     entryDateOverride: null,
                   })
@@ -225,7 +267,25 @@ export function Header() {
                 zIndex: 60,
               }}
             >
-              <div style={{ fontSize: 13, fontWeight: 700, padding: '8px 8px 12px' }}>알림</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 8px 12px' }}>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>알림</span>
+                {notifQuery.unreadCount > 0 && (
+                  <button
+                    className="tap-44"
+                    onClick={handleMarkAllRead}
+                    disabled={patchAllNotificationsRead.isPending}
+                    aria-busy={patchAllNotificationsRead.isPending}
+                    style={{ ...MARK_ALL_READ_BTN_STYLE, opacity: patchAllNotificationsRead.isPending ? 0.6 : 1 }}
+                  >
+                    {patchAllNotificationsRead.isPending ? '처리 중…' : '모두 읽음'}
+                  </button>
+                )}
+              </div>
+              {patchAllNotificationsRead.error && (
+                <div style={{ fontSize: 11.5, color: 'var(--down)', padding: '0 8px 10px' }}>
+                  {patchAllNotificationsRead.error.message}
+                </div>
+              )}
               {notifQuery.isPending ? (
                 <div style={{ fontSize: 12.5, color: 'var(--text-weak)', padding: '34px 10px', textAlign: 'center' }}>
                   불러오는 중…
