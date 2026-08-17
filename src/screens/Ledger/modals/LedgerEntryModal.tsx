@@ -175,6 +175,7 @@ export function LedgerEntryModal() {
       entryWithdrawAccountId: null,
       entryAmount: 0,
       entryDescription: '',
+      entryMemo: '',
       entryDateOverride: null,
       dpPicked: { ...st.dpPicked, entry: undefined },
       // dpNav도 함께 지운다 — 안 지우면 지난 세션에 넘겨둔 달이 남아 다음에 열 때 엉뚱한 달이 펼쳐진다.
@@ -213,16 +214,16 @@ export function LedgerEntryModal() {
     const transactionDate = picked ? pickedToISODate(picked) : entryDateDisplay.replaceAll('.', '-')
     const type = ENTRY_TYPE_TO_TX_TYPE[entryType]
 
-    // PUT은 전체 교체다. 이 모달이 편집하지 않는 필드(메모·외화)를 다시 실어 보내지 않으면
-    // 금액만 고쳐 저장해도 원래 값이 지워진다. 값이 없던 거래는 키 자체를 넣지 않는다.
+    // PUT은 전체 교체다. 이 모달이 편집하지 않는 필드(외화)를 다시 실어 보내지 않으면 금액만
+    // 고쳐 저장해도 원래 값이 지워진다. 값이 없던 거래는 키 자체를 넣지 않는다. memo는 이제 이
+    // 모달이 직접 편집하므로(entryMemo) 여기서 보존할 필요가 없다 — 아래 memo와 별도로 합친다.
     const preserved = state.entryPreserved
-    const keep = isEditing && preserved
-      ? {
-          ...(preserved.memo !== null ? { memo: preserved.memo } : {}),
-          ...(preserved.nativeAmount !== null ? { nativeAmount: preserved.nativeAmount } : {}),
-          ...(preserved.nativeCurrency !== null ? { nativeCurrency: preserved.nativeCurrency } : {}),
-        }
-      : {}
+    const memo = state.entryMemo.trim()
+    const keep = {
+      ...(memo ? { memo } : {}),
+      ...(isEditing && preserved?.nativeAmount !== null && preserved?.nativeAmount !== undefined ? { nativeAmount: preserved.nativeAmount } : {}),
+      ...(isEditing && preserved?.nativeCurrency !== null && preserved?.nativeCurrency !== undefined ? { nativeCurrency: preserved.nativeCurrency } : {}),
+    }
 
     if (isTransfer) {
       const accountId = effectiveWithdrawAccountId
@@ -241,7 +242,7 @@ export function LedgerEntryModal() {
         const body: UpdateTransactionRequest = { type, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
         putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
       } else {
-        const body: CreateTransactionRequest = { type, accountId, transferAccountId, amount: state.entryAmount, transactionDate, description }
+        const body: CreateTransactionRequest = { type, accountId, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
         postTx.mutate(body, { onSuccess: resetAndClose, onError: handleMutationError })
       }
       return
@@ -264,7 +265,7 @@ export function LedgerEntryModal() {
         const body: UpdateTransactionRequest = { type, subcategoryId: submitSubcategoryId, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
         putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
       } else {
-        const body: CreateTransactionRequest = { type, accountId, subcategoryId: submitSubcategoryId, transferAccountId, amount: state.entryAmount, transactionDate, description }
+        const body: CreateTransactionRequest = { type, accountId, subcategoryId: submitSubcategoryId, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
         postTx.mutate(body, { onSuccess: resetAndClose, onError: handleMutationError })
       }
       return
@@ -276,7 +277,7 @@ export function LedgerEntryModal() {
       const body: UpdateTransactionRequest = { type, subcategoryId: submitSubcategoryId, amount: state.entryAmount, transactionDate, description, ...keep }
       putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
     } else {
-      const body: CreateTransactionRequest = { type, accountId, subcategoryId: submitSubcategoryId, amount: state.entryAmount, transactionDate, description }
+      const body: CreateTransactionRequest = { type, accountId, subcategoryId: submitSubcategoryId, amount: state.entryAmount, transactionDate, description, ...keep }
       postTx.mutate(body, { onSuccess: resetAndClose, onError: handleMutationError })
     }
   }
@@ -371,6 +372,16 @@ export function LedgerEntryModal() {
             style={{ width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box' }}
           />
           {descInvalid && <div style={ERROR_STYLE}>내용을 입력해주세요</div>}
+        </div>
+
+        <div>
+          <div style={LABEL_STYLE}>메모 (선택)</div>
+          <input
+            type="text" placeholder="추가로 남겨둘 메모가 있다면 적어주세요"
+            value={state.entryMemo}
+            onChange={(e) => setState({ entryMemo: e.target.value })}
+            style={{ width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13, fontWeight: 500, fontFamily: 'inherit', outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box' }}
+          />
         </div>
 
         {entryCatVisible && (

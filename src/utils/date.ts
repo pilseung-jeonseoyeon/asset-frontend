@@ -71,6 +71,87 @@ export function isoDateToNav(iso: string | null): { y: number; m: number } | und
   return { y, m }
 }
 
+// --- 가계부 주간 뷰 ----------------------------------------------------------
+// 서버가 정산월의 시작·종료일(periodStart/periodEnd)을 안 내려주므로(2장, docs/backend-request.md)
+// "정산월 안에서 몇째 주"를 정확히 계산할 근거가 없다. 대신 순수 달력 기준 주(월요일 시작)로 계산한다
+// — monthStartDay가 1이 아닌 사용자에게는 "몇째 주"·"어느 달"이 실제 정산월과 어긋날 수 있는 한계를
+// 그대로 안고 간다(백엔드가 기간 경계를 제공하면 이 절 전체를 정산월 기준으로 교체해야 한다).
+
+/** 주어진 날짜가 속한 주의 월요일('YYYY-MM-DD'). */
+export function mondayOf(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`)
+  const dow = (d.getDay() + 6) % 7 // 0=월..6=일
+  d.setDate(d.getDate() - dow)
+  return toISODate(d)
+}
+
+/** iso 날짜에서 delta일 이동(음수면 과거). */
+export function addDays(iso: string, delta: number): string {
+  const d = new Date(`${iso}T00:00:00`)
+  d.setDate(d.getDate() + delta)
+  return toISODate(d)
+}
+
+/** 월요일부터 시작하는 7일치 날짜 배열. */
+export function weekDates(mondayIso: string): string[] {
+  return Array.from({ length: 7 }, (_, i) => addDays(mondayIso, i))
+}
+
+/** 'YYYY-MM-DD' → { year, month }. */
+export function yearMonthOf(iso: string): YearMonthCursor {
+  const [year, month] = iso.split('-').map(Number)
+  return { year, month }
+}
+
+/**
+ * 이 주(월~일)가 "몇 월"에 속하는지 결정한다. ISO 8601이 주-연도를 그 주의 목요일 기준으로 정하는
+ * 것과 같은 방식으로, 이 주의 목요일이 속한 달을 그 주의 "소속 달"로 본다(정산월이 아니라 달력월
+ * 기준 — 위 절 설명 참고).
+ */
+export function weekOwnerYearMonth(mondayIso: string): YearMonthCursor {
+  return yearMonthOf(addDays(mondayIso, 3))
+}
+
+/** 소속 달의 월요일 시작 달력 격자에서 이 주가 몇 번째 행(1-base)인지. */
+export function weekIndexInMonth(mondayIso: string): number {
+  const { year, month } = weekOwnerYearMonth(mondayIso)
+  const startDow = firstWeekday(year, month)
+  const firstRowMonday = addDays(`${year}-${String(month).padStart(2, '0')}-01`, -startDow)
+  const diffDays = Math.round(
+    (new Date(`${mondayIso}T00:00:00`).getTime() - new Date(`${firstRowMonday}T00:00:00`).getTime()) / 86400000,
+  )
+  return Math.floor(diffDays / 7) + 1
+}
+
+/** 소속 달의 달력 격자 1행이 시작하는 월요일('YYYY-MM-DD'). weekIndexInMonth의 "몇 번째 행"
+ * 계산 기준이며, 아래 firstOwnedWeekMonday의 내부 후보 계산에도 쓰인다. */
+export function firstMondayOfMonthGrid(year: number, month: number): string {
+  const startDow = firstWeekday(year, month)
+  return addDays(`${year}-${String(month).padStart(2, '0')}-01`, -startDow)
+}
+
+/**
+ * (year, month)를 "소속 달"(weekOwnerYearMonth, 목요일 기준)로 갖는 가장 이른 주의 월요일.
+ *
+ * 달력 격자 1행(firstMondayOfMonthGrid)은 그 달이 금·토·일에 시작하면 목요일이 전달에 걸려
+ * "소속 달"이 실제로는 전달이 되어버린다(예: 2026-02는 일요일 시작 → 격자 1행 월요일은
+ * 2026-01-26이고, 그 주 목요일 2026-01-29는 1월 소속). switchToWeek(월간→주간 전환 시 기본 주
+ * 선택)이 이 격자-1행 기준을 쓰면, 라벨/목록 제목/switchToMonth가 공통으로 쓰는 소속 달 기준
+ * (weekOwnerYearMonth)과 서로 다른 답을 내 "2월 보다가 주간 전환 → 1월로 표시 → 다시 월간 전환
+ * → 1월로 이동"하는 왕복 불일치가 생긴다.
+ *
+ * 이를 막기 위해 "월간 → 주간 기본 주"도 반드시 weekOwnerYearMonth 기준으로 통일한다: 달의 1일이
+ * 속한 주가 이미 이 달 소속이면 그 주를, 아니면(1일이 금/토/일이라 그 주가 전달 소속이면) 다음
+ * 주를 반환한다 — 이렇게 고르면 반환값의 weekOwnerYearMonth가 항상 (year, month)와 정확히
+ * 일치하므로 월간→주간→월간 왕복이 항상 제자리로 돌아온다.
+ */
+export function firstOwnedWeekMonday(year: number, month: number): string {
+  const day1 = `${year}-${String(month).padStart(2, '0')}-01`
+  const candidate = mondayOf(day1)
+  const owner = weekOwnerYearMonth(candidate)
+  return owner.year === year && owner.month === month ? candidate : addDays(candidate, 7)
+}
+
 /**
  * 오늘로부터 최근 monthsBack개월의 DateRange('YYYY-MM-DD', 양끝 포함). 계좌 잔액 추이처럼
  * "최근 N개월" 스냅샷을 조회하는 곳에서 쓴다. from/to 둘 다 필수인 GET .../snapshots 파라미터에 맞춘다.

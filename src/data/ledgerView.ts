@@ -11,7 +11,17 @@
 
 import { fmt } from '../utils/format'
 import { mkDelta, type DeltaBadge } from '../utils/deltaBadge'
-import { daysInMonth, firstWeekday, todayYearMonth, type YearMonthCursor } from '../utils/date'
+import {
+  addDays,
+  daysInMonth,
+  firstWeekday,
+  toISODate,
+  todayYearMonth,
+  weekDates,
+  weekIndexInMonth,
+  weekOwnerYearMonth,
+  type YearMonthCursor,
+} from '../utils/date'
 import type { LedgerPeriod } from '../state/types'
 import type { AccountResponse } from '@/services/account'
 import type { CategoryResponse, SubcategoryResponse } from '@/services/category'
@@ -128,6 +138,18 @@ export function buildPeriodDeltas(summary: PeriodSummaryResponse, period: Ledger
 
 export function getLedgerHeroTitle(period: LedgerPeriod, year: number): string {
   return period === 'month' ? '이번 달, 이렇게 돈이 흘렀어요' : `${year}년, 이렇게 돈이 흘렀어요`
+}
+
+/**
+ * 저축률 링 카드의 제목/부제. 링은 히어로와 같은 useGetPeriodSummary(period) 쿼리를 그대로
+ * 공유한다 — 별도 요청을 추가하지 않고, "이번 달"/"올해" 탭을 누르면 히어로·랭킹 등 이 화면의
+ * 다른 모든 숫자와 함께 라벨도 같이 바뀌게 만드는 쪽이 자연스럽다고 판단했다(링만 "이번 달"에
+ * 고정하면 히어로가 연간 수치를 보여주는데 옆 카드만 다른 기간의 라벨을 달고 있어 더 헷갈린다).
+ */
+export function getSavingsRingCopy(period: LedgerPeriod): { title: string; subtitle: string } {
+  return period === 'month'
+    ? { title: '이번 달 저축률', subtitle: '이번 달 수입 대비' }
+    : { title: '올해 저축률', subtitle: '올해 수입 대비' }
 }
 
 // ---------- 저축률 링 게이지 ----------
@@ -309,9 +331,11 @@ export interface LedgerTxRow {
   subcategoryId: number | null
   transferAccountId: number | null
   amountRaw: number
-  /** 아래 3개는 이 화면이 편집하지 않는 필드다. PUT이 전체 교체라 그대로 다시 보내지 않으면
-   * 사용자가 금액만 고쳐 저장해도 메모와 외화 정보가 조용히 지워진다 — 보존용으로 들고 다닌다. */
+  /** 목록에 "메모 있음" 표시를 하고, 수정 모달을 열 때 entryMemo 프리필에 쓴다(입력 UI가 있어
+   * 더 이상 보존 전용이 아니다). */
   memo: string | null
+  /** 이 화면이 편집하지 않는 필드다(외화 입력 UI 없음). PUT이 전체 교체라 그대로 다시 보내지 않으면
+   * 사용자가 금액만 고쳐 저장해도 외화 정보가 조용히 지워진다 — 보존용으로 들고 다닌다. */
   nativeAmount: number | null
   nativeCurrency: Currency | null
 }
@@ -368,6 +392,8 @@ export interface DayLine {
 
 export interface CalendarCell {
   day: number
+  /** 셀 클릭 시 입력 모달에 프리필할 날짜('YYYY-MM-DD'). */
+  isoDate: string
   label: string
   lines: DayLine[]
   highlighted: boolean
@@ -389,16 +415,39 @@ function linesForDay(d: DailySummaryResponse | undefined): DayLine[] {
   return out
 }
 
+export interface MonthCalendarResult {
+  rows: (CalendarCell | null)[][]
+  /**
+   * true면 daily 응답에 이 달력 격자(cursor.year-cursor.month, 1~말일)에 속하지 않는 날짜가
+   * 섞여 있었다는 뜻 — monthStartDay가 1이 아닌 정산월에서 서버가 이전/다음 달력월 날짜의 요약을
+   * 함께 내려줄 때 발생한다(2장). 근본 해결은 서버의 정산월 경계 필드가 필요해 보류하고, 여기서는
+   * "격자에 못 들어간 항목이 있다"는 사실만 화면에 캡션으로 안내한다(buildMonthCalendarRows 주석 참고).
+   */
+  hasOutOfGridData: boolean
+}
+
 /**
  * 거래가 없는 날은 응답 배열에서 빠질 수 있으므로(transaction.type.ts 주석) 프론트에서 날짜 축을
  * daysInMonth/firstWeekday로 채운다. 7의 배수가 되도록 뒤쪽도 빈 칸(null)으로 채워 그리드가 항상
  * 완전한 행 단위로 떨어지게 한다.
+ *
+ * 방어: 일(day) 두 자리만으로 칸에 매핑하면 monthStartDay가 1이 아닐 때 서버가 함께 내려주는 다른
+ * 달력월 날짜(예: 정산 6월 응답에 섞인 7/1~7/14)가 엉뚱한 칸(6/1~6/14)에 그려진다. 연·월까지 대조해
+ * 이 격자(cursor.year-cursor.month)에 속하지 않는 날짜는 조용히 버리고, hasOutOfGridData로 알린다.
  */
-export function buildMonthCalendarRows(cursor: YearMonthCursor, daily: DailySummaryResponse[]): (CalendarCell | null)[][] {
+export function buildMonthCalendarRows(cursor: YearMonthCursor, daily: DailySummaryResponse[]): MonthCalendarResult {
   const dim = daysInMonth(cursor.year, cursor.month)
   const startDow = firstWeekday(cursor.year, cursor.month)
+  const monthPrefix = `${cursor.year}-${String(cursor.month).padStart(2, '0')}-`
   const byDay = new Map<number, DailySummaryResponse>()
-  daily.forEach((d) => byDay.set(Number(d.date.slice(8, 10)), d))
+  let hasOutOfGridData = false
+  daily.forEach((d) => {
+    if (!d.date.startsWith(monthPrefix)) {
+      hasOutOfGridData = true
+      return
+    }
+    byDay.set(Number(d.date.slice(8, 10)), d)
+  })
 
   const today = todayYearMonth()
   const isCurrentMonth = today.year === cursor.year && today.month === cursor.month
@@ -409,6 +458,7 @@ export function buildMonthCalendarRows(cursor: YearMonthCursor, daily: DailySumm
   for (let day = 1; day <= dim; day++) {
     cells.push({
       day,
+      isoDate: `${monthPrefix}${String(day).padStart(2, '0')}`,
       label: String(day),
       lines: linesForDay(byDay.get(day)),
       highlighted: isCurrentMonth && day === todayDate,
@@ -418,22 +468,46 @@ export function buildMonthCalendarRows(cursor: YearMonthCursor, daily: DailySumm
 
   const rows: (CalendarCell | null)[][] = []
   for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7))
-  return rows
+  return { rows, hasOutOfGridData }
 }
 
 /**
- * 주간 뷰에서 보여줄 한 주(행)를 고른다. 서버에는 월별 정산 커서만 있고 "몇째 주"라는 별도 커서가
- * 없다 — 선택된 월이 실제 이번 달이면 오늘이 포함된 주를, 아니면 그 달의 첫째 주를 보여준다(판단
- * 근거: 다른 달로 이동했을 때 "이번 주"라는 개념 자체가 없으므로, 그 달을 훑어보기 시작하는
- * 자연스러운 지점인 첫째 주가 낫다).
+ * 주간 뷰의 한 주(월~일, 7칸 고정 — 빈 칸 없음). 소속 달(weekOwnerYearMonth)과 실제 날짜의 달이
+ * 다르면(월 경계에 걸친 주) 그 칸만 "M/D"로 표시해 어느 달인지 구분한다.
  */
-export function pickCalendarWeek(cursor: YearMonthCursor, daily: DailySummaryResponse[]): (CalendarCell | null)[] {
-  const rows = buildMonthCalendarRows(cursor, daily)
-  const today = todayYearMonth()
-  if (today.year === cursor.year && today.month === cursor.month) {
-    const todayDate = new Date().getDate()
-    const row = rows.find((r) => r.some((c) => c?.day === todayDate))
-    if (row) return row
-  }
-  return rows[0] ?? []
+export function buildWeekCalendarRow(mondayIso: string, daily: DailySummaryResponse[]): CalendarCell[] {
+  const dates = weekDates(mondayIso)
+  const owner = weekOwnerYearMonth(mondayIso)
+  const byDate = new Map(daily.map((d) => [d.date, d]))
+  const todayIso = toISODate(new Date())
+
+  return dates.map((iso) => {
+    const year = Number(iso.slice(0, 4))
+    const month = Number(iso.slice(5, 7))
+    const day = Number(iso.slice(8, 10))
+    return {
+      day,
+      isoDate: iso,
+      label: year === owner.year && month === owner.month ? String(day) : `${month}/${day}`,
+      lines: linesForDay(byDate.get(iso)),
+      highlighted: iso === todayIso,
+    }
+  })
+}
+
+function formatMonthDay(iso: string): string {
+  return `${Number(iso.slice(5, 7))}.${Number(iso.slice(8, 10))}`
+}
+
+/** 기간 라벨(상단 화살표 옆). 예: '2026년 6월 4주차'. */
+export function weekPeriodLabel(mondayIso: string): string {
+  const { year, month } = weekOwnerYearMonth(mondayIso)
+  return `${year}년 ${month}월 ${weekIndexInMonth(mondayIso)}주차`
+}
+
+/** 목록 제목. 예: '6월 4주차 (6.22 – 6.28) 내역'. */
+export function weekListTitle(mondayIso: string): string {
+  const { month } = weekOwnerYearMonth(mondayIso)
+  const sunday = addDays(mondayIso, 6)
+  return `${month}월 ${weekIndexInMonth(mondayIso)}주차 (${formatMonthDay(mondayIso)} – ${formatMonthDay(sunday)}) 내역`
 }

@@ -9,7 +9,18 @@ import { Card } from '../../components/primitives/Card/Card'
 import { DeepCard } from '../../components/primitives/DeepCard/DeepCard'
 import { SegmentedTab } from '../../components/primitives/SegmentedTab/SegmentedTab'
 import { useAppState } from '../../state/AppStateContext'
-import { isoDateToDisplay, shiftYearMonth, todayYearMonth, yearMonthLabel } from '../../utils/date'
+import {
+  addDays,
+  firstOwnedWeekMonday,
+  isoDateToDisplay,
+  mondayOf,
+  shiftYearMonth,
+  toISODate,
+  todayYearMonth,
+  weekOwnerYearMonth,
+  yearMonthLabel,
+  yearMonthOf,
+} from '../../utils/date'
 import { fmt } from '../../utils/format'
 import { useIsMobile } from '../../utils/useMediaQuery'
 import {
@@ -20,12 +31,15 @@ import {
   buildSavingsBars,
   buildSavingsRing,
   buildSubscriptionRows,
+  buildWeekCalendarRow,
   computeRecentAvgSavingsRate,
   describeQueryError,
   getLedgerHeroTitle,
-  pickCalendarWeek,
+  getSavingsRingCopy,
   pickTopIncreaseLabel,
   TX_TYPE_TO_ENTRY_TYPE,
+  weekListTitle,
+  weekPeriodLabel,
   type CalendarCell,
   type DayLine,
   type SubscriptionRow,
@@ -176,6 +190,7 @@ function LedgerOverview() {
 
   const deltas = summary.data ? buildPeriodDeltas(summary.data, period) : null
   const ring = summary.data ? buildSavingsRing(summary.data) : null
+  const ringCopy = getSavingsRingCopy(period)
   const catRows = buildLedgerCategories(rankings.rankings)
   const topIncreaseLabel = pickTopIncreaseLabel(catRows)
   // 서버가 isActive:false도 목록에 그대로 내려주므로(소프트 삭제) activeSubscriptions로 한 번 걸러낸다
@@ -406,8 +421,8 @@ function LedgerOverview() {
         </div>
         <div className="rgrid-outer" style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 24, alignItems: 'stretch' }}>
           <Card style={{ padding: 24 }} aria-busy={summary.isPending}>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>이번 달 저축률</div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginTop: 2 }}>이번 달 수입 대비</div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>{ringCopy.title}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginTop: 2 }}>{ringCopy.subtitle}</div>
             {summary.isPending ? (
               <div style={{ marginTop: 14 }}>
                 <LoadingLine />
@@ -558,12 +573,28 @@ function LedgerHistory() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
   const range = state.ledgerRange
+  const isWeek = range === 'week'
   const cursor = { year: state.ledgerYear, month: state.ledgerMonth }
+  const weekAnchor = state.ledgerWeekAnchor
+  const weekEnd = addDays(weekAnchor, 6)
+  // 주간 뷰가 월 경계를 넘으면(예: 8월 마지막 주에 9/1이 섞임) 일별 요약이 두 달에 걸쳐 있을 수
+  // 있다 — daily summary가 year/month 단위로만 조회되므로(from/to 미지원) 겹치는 두 달을 각각 조회해
+  // 합친다. 월간 뷰거나 주가 한 달 안에 온전히 들어가면 두 번째 쿼리는 enabled:false로 쉰다.
+  const weekStartMonth = isWeek ? yearMonthOf(weekAnchor) : cursor
+  const weekEndMonth = isWeek ? yearMonthOf(weekEnd) : cursor
+  const needsSecondMonth =
+    isWeek && (weekStartMonth.year !== weekEndMonth.year || weekStartMonth.month !== weekEndMonth.month)
 
-  const txQuery = useGetTransactions({
-    year: cursor.year, month: cursor.month, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'],
-  })
-  const dailyQuery = useGetDailySummaries(cursor)
+  // 목록 조회: 서버 TransactionSearchReq가 from/to를 지원하므로(OpenAPI 실측) 주간 뷰는 정산월
+  // year/month 대신 from/to로 직접 필터한다 — year/month를 함께 보내면 이 화면이 쓰는 달력 주(월요일
+  // 시작)와 서버의 정산월 경계가 어긋날 때 필터 조건이 서로 충돌해 없어도 될 결과 누락이 생길 수 있다.
+  const txQuery = useGetTransactions(
+    isWeek
+      ? { from: weekAnchor, to: weekEnd, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] }
+      : { year: cursor.year, month: cursor.month, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] },
+  )
+  const dailyQueryA = useGetDailySummaries(weekStartMonth)
+  const dailyQueryB = useGetDailySummaries(weekEndMonth, { enabled: needsSecondMonth })
   const accountsQuery = useGetAccounts()
 
   const rows = buildLedgerTx(txQuery.data?.content ?? [], accountsQuery.data ?? [])
@@ -571,7 +602,9 @@ function LedgerHistory() {
   const totalPages = page?.totalPages ?? 0
   const currentPage = (page?.number ?? 0) + 1
   const txErr = describeQueryError(txQuery.error)
-  const dailyErr = describeQueryError(dailyQuery.error)
+  const dailyErr = describeQueryError(dailyQueryA.error ?? dailyQueryB.error)
+  const dailyPending = dailyQueryA.isPending || (needsSecondMonth && dailyQueryB.isPending)
+  const dailySummaries = needsSecondMonth ? [...dailyQueryA.summaries, ...dailyQueryB.summaries] : dailyQueryA.summaries
 
   // 마지막 페이지의 마지막 거래를 지우면 그 페이지가 사라진다. 커서를 그대로 두면 서버가 빈
   // content를 돌려주고, 페이지 버튼도 totalPages가 줄면서 사라져 되돌아갈 방법이 없어진다
@@ -582,16 +615,41 @@ function LedgerHistory() {
     }
   }, [totalPages, state.ledgerPage, setState])
 
-  const monthRows = buildMonthCalendarRows(cursor, dailyQuery.summaries)
-  const weekRow = pickCalendarWeek(cursor, dailyQuery.summaries)
+  const { rows: monthRows, hasOutOfGridData } = buildMonthCalendarRows(cursor, dailySummaries)
+  const weekRow = buildWeekCalendarRow(weekAnchor, dailySummaries)
 
   const goToMonth = (delta: number) => {
     const next = shiftYearMonth(cursor, delta)
     setState({ ledgerYear: next.year, ledgerMonth: next.month, ledgerPage: 1 })
   }
+  const goToWeek = (delta: number) => {
+    const nextAnchor = addDays(weekAnchor, delta * 7)
+    const owner = weekOwnerYearMonth(nextAnchor)
+    setState({ ledgerWeekAnchor: nextAnchor, ledgerYear: owner.year, ledgerMonth: owner.month, ledgerPage: 1 })
+  }
   const goToToday = () => {
     const t = todayYearMonth()
-    setState({ ledgerYear: t.year, ledgerMonth: t.month, ledgerPage: 1 })
+    if (isWeek) {
+      setState({ ledgerWeekAnchor: mondayOf(toISODate(new Date())), ledgerYear: t.year, ledgerMonth: t.month, ledgerPage: 1 })
+    } else {
+      setState({ ledgerYear: t.year, ledgerMonth: t.month, ledgerPage: 1 })
+    }
+  }
+  // 주간/월간 토글: 상대 뷰가 보던 위치를 최대한 이어받는다. 월간 → 주간은 지금 커서 달이 실제
+  // 이번 달이면 오늘이 포함된 주, 아니면 그 달의 첫 주를 기본으로 보여준다(dc.html L4642-4643과
+  // 같은 취지 — 탭을 바꿔도 페이지는 1로 리셋). "그 달의 첫 주"는 반드시 라벨/목록 제목/
+  // switchToMonth와 같은 기준(weekOwnerYearMonth, 목요일 소속 달)으로 골라야 한다 — 달력 격자
+  // 1행 월요일(firstMondayOfMonthGrid)을 쓰면 그 달이 금·토·일에 시작할 때 소속 달이 전달로
+  // 어긋나 월간→주간→월간 왕복이 제자리로 돌아오지 않는다(firstOwnedWeekMonday 주석 참고).
+  const switchToWeek = () => {
+    const t = todayYearMonth()
+    const inCurrentMonth = t.year === cursor.year && t.month === cursor.month
+    const nextAnchor = inCurrentMonth ? mondayOf(toISODate(new Date())) : firstOwnedWeekMonday(cursor.year, cursor.month)
+    setState({ ledgerRange: 'week', ledgerWeekAnchor: nextAnchor, ledgerPage: 1 })
+  }
+  const switchToMonth = () => {
+    const owner = weekOwnerYearMonth(weekAnchor)
+    setState({ ledgerRange: 'month', ledgerYear: owner.year, ledgerMonth: owner.month, ledgerPage: 1 })
   }
 
   // 새 거래 입력 진입점(캘린더 날짜 클릭 · 상단 유형별 버튼) 공용 초기화. 이전에 열려 있던 수정 세션의
@@ -607,32 +665,34 @@ function LedgerHistory() {
       entryWithdrawAccountId: null,
       entryAmount: 0,
       entryDescription: '',
+      entryMemo: '',
       entryPreserved: null,
       entryDateOverride: dateOverride,
       openDropdown: null,
     })
 
-  const openDayEntry = (day: number) =>
-    openNewEntry('expense', true, `${cursor.year}.${String(cursor.month).padStart(2, '0')}.${String(day).padStart(2, '0')}`)
+  // cell.isoDate로 바로 만든다 — 주간 뷰의 셀은 월 경계를 넘어 cursor.year/month와 다른 달에 속할 수
+  // 있어(예: 8월 마지막 주에 9월 1일 칸이 섞임) cursor로 재조합하면 엉뚱한 날짜가 만들어진다.
+  const openDayEntry = (isoDate: string) => openNewEntry('expense', true, isoDateToDisplay(isoDate))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ display: 'flex', background: 'var(--track)', borderRadius: 10, padding: 4, gap: 2 }}>
-            <SegmentedTab active={range === 'week'} onClick={() => setState({ ledgerRange: 'week' })}>
+            <SegmentedTab active={isWeek} onClick={switchToWeek}>
               주간
             </SegmentedTab>
-            <SegmentedTab active={range === 'month'} onClick={() => setState({ ledgerRange: 'month' })}>
+            <SegmentedTab active={!isWeek} onClick={switchToMonth}>
               월간
             </SegmentedTab>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-mid)' }}>
-            <span onClick={() => goToMonth(-1)} style={{ display: 'flex', cursor: 'pointer' }}>
+            <span onClick={() => (isWeek ? goToWeek(-1) : goToMonth(-1))} style={{ display: 'flex', cursor: 'pointer' }}>
               <Icon name="chevron_left" size={18} />
             </span>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>{yearMonthLabel(cursor)}</span>
-            <span onClick={() => goToMonth(1)} style={{ display: 'flex', cursor: 'pointer' }}>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>{isWeek ? weekPeriodLabel(weekAnchor) : yearMonthLabel(cursor)}</span>
+            <span onClick={() => (isWeek ? goToWeek(1) : goToMonth(1))} style={{ display: 'flex', cursor: 'pointer' }}>
               <Icon name="chevron_right" size={18} />
             </span>
           </div>
@@ -680,31 +740,16 @@ function LedgerHistory() {
       </div>
 
       {/* 캘린더뷰 */}
-      <Card style={{ padding: 26 }} aria-busy={dailyQuery.isPending}>
-        {dailyQuery.isPending ? (
+      <Card style={{ padding: 26 }} aria-busy={dailyPending}>
+        {dailyPending ? (
           <LoadingLine />
         ) : dailyErr ? (
           <ErrorLine message={dailyErr.message} muted={dailyErr.muted} />
         ) : (
           <>
-            {range === 'week' && (
+            {isWeek && (
               // 모바일에서는 7칸을 1fr로 욱여넣으면 배지 안 끊어지는 숫자 때문에 셀이 너무
               // 좁아진다(칸당 40px 미만) — 칸 너비를 고정하고 가로 스크롤로 넘긴다.
-              <div style={{ overflowX: isMobile ? 'auto' : 'visible' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(7,64px)' : 'repeat(7,1fr)', gap: 8 }}>
-                  {/* 빈 칸의 key(인덱스)와 날짜 셀의 key(일자)가 같은 네임스페이스를 쓰면 겹친다
-                      (예: 인덱스 1의 빈 칸 vs 1일 셀) — 접두사로 분리한다. */}
-                  {weekRow.map((cell, i) =>
-                    cell ? (
-                      <CalendarCellView key={`d-${cell.day}`} cell={cell} onOpen={openDayEntry(cell.day)} />
-                    ) : (
-                      <div key={`e-${i}`} />
-                    ),
-                  )}
-                </div>
-              </div>
-            )}
-            {range === 'month' && (
               <div style={{ overflowX: isMobile ? 'auto' : 'visible' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(7,64px)' : 'repeat(7,1fr)', gap: 8 }}>
                   {WEEKDAY_HEADERS.map((h) => (
@@ -712,9 +757,27 @@ function LedgerHistory() {
                       {h.label}
                     </div>
                   ))}
+                  {/* 주간 뷰는 항상 7칸이 실제 날짜라 빈 칸이 없다(월 경계를 넘는 칸도 label이 "M/D"로
+                      스스로 구분되므로 별도 처리가 필요 없다). */}
+                  {weekRow.map((cell) => (
+                    <CalendarCellView key={cell.isoDate} cell={cell} onOpen={openDayEntry(cell.isoDate)} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {!isWeek && (
+              <div style={{ overflowX: isMobile ? 'auto' : 'visible' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(7,64px)' : 'repeat(7,1fr)', gap: 8 }}>
+                  {WEEKDAY_HEADERS.map((h) => (
+                    <div key={h.label} style={{ fontSize: 11.5, fontWeight: 700, color: h.color, textAlign: 'center', paddingBottom: 4 }}>
+                      {h.label}
+                    </div>
+                  ))}
+                  {/* 빈 칸의 key(인덱스)와 날짜 셀의 key(일자)가 같은 네임스페이스를 쓰면 겹친다
+                      (예: 인덱스 1의 빈 칸 vs 1일 셀) — 접두사로 분리한다. */}
                   {monthRows.flat().map((cell, i) =>
                     cell ? (
-                      <CalendarCellView key={`d-${cell.day}`} cell={cell} onOpen={openDayEntry(cell.day)} />
+                      <CalendarCellView key={`d-${cell.day}`} cell={cell} onOpen={openDayEntry(cell.isoDate)} />
                     ) : (
                       <div key={`e-${i}`} />
                     ),
@@ -722,14 +785,22 @@ function LedgerHistory() {
                 </div>
               </div>
             )}
+            {/* 정산월(monthStartDay≠1)이면 서버가 이 달력월과 다른 달의 날짜도 함께 내려줄 수 있는데,
+                근본 원인(periodStart/periodEnd 부재, docs/backend-request.md 2장)은 백엔드 몫이라
+                프론트는 "빠진 항목이 있을 수 있다"는 사실만 안내한다 — 아래 목록에는 정상적으로 나온다. */}
+            {!isWeek && hasOutOfGridData && (
+              <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-weak)' }}>
+                일부 거래는 정산월 경계 때문에 캘린더에 표시되지 못했어요. 아래 목록에서 확인해주세요.
+              </div>
+            )}
           </>
         )}
 
         <div style={{ marginTop: 22, paddingTop: 18, borderTop: '0.5px solid var(--track)' }}>
-          {/* keepPreviousData 때문에 달을 옮기면 새 데이터가 오기 전까지 이전 달 거래가 그대로
-              보인다. 제목은 이미 새 달로 바뀌어 있으므로, 갱신 중임을 옆에 표시해 오해를 막는다. */}
+          {/* keepPreviousData 때문에 기간을 옮기면 새 데이터가 오기 전까지 이전 기간 거래가 그대로
+              보인다. 제목은 이미 새 기간으로 바뀌어 있으므로, 갱신 중임을 옆에 표시해 오해를 막는다. */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>{yearMonthLabel(cursor)} 전체 내역</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{isWeek ? weekListTitle(weekAnchor) : `${yearMonthLabel(cursor)} 전체 내역`}</div>
             {txQuery.isFetching && !txQuery.isPending && (
               <span aria-busy style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>불러오는 중…</span>
             )}
@@ -739,7 +810,7 @@ function LedgerHistory() {
           ) : txErr ? (
             <ErrorLine message={txErr.message} muted={txErr.muted} />
           ) : rows.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>이 달의 거래 내역이 없어요.</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>{isWeek ? '이 주에는' : '이 달에는'} 거래 내역이 없어요.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {rows.map((t) => (
@@ -760,11 +831,11 @@ function LedgerHistory() {
                       entryWithdrawAccountId: t.type === 'TRANSFER' || t.type === 'SAVING' ? t.accountId : null,
                       entryAmount: t.amountRaw,
                       entryDescription: t.desc,
+                      entryMemo: t.memo ?? '',
                       entryDateOverride: isoDateToDisplay(t.isoDate),
                       editingTxId: t.id,
-                      // 이 모달이 편집하지 않는 필드 — PUT이 전체 교체라 그대로 되돌려 보내야 한다.
+                      // 이 모달이 편집하지 않는 필드(외화) — PUT이 전체 교체라 그대로 되돌려 보내야 한다.
                       entryPreserved: {
-                        memo: t.memo,
                         nativeAmount: t.nativeAmount,
                         nativeCurrency: t.nativeCurrency,
                       },
@@ -774,8 +845,13 @@ function LedgerHistory() {
                   style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8, cursor: 'pointer' }}
                 >
                   <div style={{ fontSize: 11.5, color: 'var(--text-weak)', width: 44, flex: 'none' }}>{t.dateLabel}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.desc}</div>
+                    {t.memo && (
+                      <span title={t.memo} style={{ display: 'flex', flex: 'none', color: 'var(--text-weak)' }}>
+                        <Icon name="sticky_note_2" size={13} />
+                      </span>
+                    )}
                   </div>
                   {t.tag && (
                     <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 8, whiteSpace: 'nowrap', background: 'var(--fill-subtle)', color: 'var(--text-mid)' }}>
