@@ -129,7 +129,7 @@ export function Assets() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
             <div style={{ fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap' }}>자산 분포</div>
           </div>
-          <div style={{ fontSize: 12.5, color: 'var(--text-mid)', marginBottom: 18 }}>블록 크기는 금액 비중에 비례합니다 · 5% 미만 항목은 '기타'로 묶여요</div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-mid)', marginBottom: 18 }}>블록 크기는 금액 비중에 비례합니다 · 5% 미만이 여럿이면 '기타'로 묶여요</div>
           {distribution.isPending ? (
             <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
           ) : distribution.error ? (

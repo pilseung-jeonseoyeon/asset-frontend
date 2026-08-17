@@ -259,8 +259,16 @@ export function buildMapTiers(
     pct: total > 0 ? (g.totalValueKrw / total) * 100 : 0,
   }))
 
-  const main = withPct.filter((b) => b.pct >= 5)
-  const etcRaw = withPct.filter((b) => b.pct < 5)
+  // 서버는 6분류를 값이 0인 것까지 항상 내려준다(카드는 "0원 · 계좌 0개"를 보여줘야 하므로 그게 맞다).
+  // 하지만 맵에서는 0원 블록이 그릴 넓이가 없어, '기타'로 묶이면 툴팁 목록만 의미 없이 길어진다
+  // (실기에서 "국내주식·해외주식·예적금·연금·기타"가 전부 0원인 채로 나열됐다). 맵에서만 걷어낸다.
+  const drawable = withPct.filter((b) => b.amt > 0)
+  const small = drawable.filter((b) => b.pct < 5)
+  // 5% 미만이 하나뿐이면 '기타'로 묶지 않는다 — 묶어봐야 한 항목짜리 익명 블록이 될 뿐이고,
+  // 이름을 그대로 보여주는 편이 정확하다(묶음의 목적은 자잘한 여러 개를 합치는 것이다).
+  const mergeSmall = small.length > 1
+  const main = mergeSmall ? drawable.filter((b) => b.pct >= 5) : drawable
+  const etcRaw = mergeSmall ? small : []
 
   const seeds: MapBlockSeed[] = main.map((b) => ({
     id: b.assetClass,
