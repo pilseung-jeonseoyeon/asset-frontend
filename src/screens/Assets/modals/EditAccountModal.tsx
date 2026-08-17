@@ -102,7 +102,11 @@ export function EditAccountModal() {
         name: account.name,
         type: account.type,
         currency: account.currency,
+        // 이 모달은 잔액을 읽기 전용으로만 보여준다(PATCH가 거부하는 필드) — 아래 두 필드는
+        // AccountForm 타입을 채우기 위한 자리 채움일 뿐 실제로 쓰이거나 전송되지 않는다.
         initialBalanceKrw: 0,
+        initialBalanceUsd: '',
+        usdExchangeRate: '',
         interestRate: null,
         openedAt: null,
         maturityDate: account.maturityDate,

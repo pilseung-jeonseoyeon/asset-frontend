@@ -41,8 +41,17 @@ export interface AccountForm {
   name: string
   type: AccountType
   currency: Currency
-  /** 신규 생성 시에만 전송 — 수정 시 서버가 거부(UpdateAccountRequest에 필드 자체가 없음). */
+  /** 신규 생성 시에만 전송 — 수정 시 서버가 거부(UpdateAccountRequest에 필드 자체가 없음). currency가
+   * USD면 이 값을 직접 입력받지 않고 initialBalanceUsd × usdExchangeRate로 저장 시점에 계산해 채운다
+   * (서버 initialBalanceKrw는 통화와 무관하게 항상 원화 정수 — POST /accounts 명세, AddAccountModal.tsx
+   * 결함 1 배경 참고). */
   initialBalanceKrw: number
+  /** currency === 'USD'일 때만 쓰는 잔액 입력 보조 필드(원시 입력 문자열, 소수점 2자리까지). 서버가
+   * 외화 원금을 보관하지 않으므로 이 값 자체는 전송하지 않고 initialBalanceKrw 계산에만 쓰인다. */
+  initialBalanceUsd: string
+  /** "1달러 = ? 원" 적용 환율 입력 문자열(소수점 2자리까지). USD/KRW 환율을 서버가 내려주지 않아
+   * 사용자가 직접 입력해야 한다(하드코딩·추정 금지, CLAUDE.md). */
+  usdExchangeRate: string
   interestRate: number | null
   openedAt: string | null
   maturityDate: string | null

@@ -16,6 +16,8 @@ export const BLANK_ACCOUNT_FORM: AccountForm = {
   type: 'CASH',
   currency: 'KRW',
   initialBalanceKrw: 0,
+  initialBalanceUsd: '',
+  usdExchangeRate: '',
   interestRate: null,
   openedAt: null,
   maturityDate: null,
