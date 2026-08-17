@@ -32,6 +32,13 @@ export interface MobilePopoverAnchor {
   style: CSSProperties | undefined
   /** Available px in the chosen direction, for callers that need to cap their own `maxHeight`/`overflow`. */
   maxHeight: number | undefined
+  /**
+   * Same flip decision `style` bakes into `top`/`bottom` for the mobile fixed-position case — exposed
+   * separately so a desktop `position:absolute` caller (DatePicker.tsx) can flip its own `top`↔`bottom`
+   * without switching to fixed positioning. `false` when inactive or not yet measured (matches the
+   * original "always opens below" default).
+   */
+  openAbove: boolean
 }
 
 export function useMobilePopoverAnchor(active: boolean): MobilePopoverAnchor {
@@ -61,7 +68,7 @@ export function useMobilePopoverAnchor(active: boolean): MobilePopoverAnchor {
   }, [active])
 
   if (!rect) {
-    return { anchorRef, style: undefined, maxHeight: undefined }
+    return { anchorRef, style: undefined, maxHeight: undefined, openAbove: false }
   }
 
   const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_MARGIN - GAP
@@ -70,6 +77,7 @@ export function useMobilePopoverAnchor(active: boolean): MobilePopoverAnchor {
 
   return {
     anchorRef,
+    openAbove,
     style: {
       position: 'fixed',
       left: VIEWPORT_MARGIN,
