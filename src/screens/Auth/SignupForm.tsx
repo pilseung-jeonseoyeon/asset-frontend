@@ -26,7 +26,7 @@ import { useGoAuthScreen, useMarkAuthCodeSent } from '../../state/selectors/auth
 import type { AuthAgreementKey } from '../../state/types'
 import { CodeInput } from './CodeInput'
 import { TermsDetailOverlay } from './TermsDetailOverlay'
-import { TERMS_DOCUMENTS } from './termsContent'
+import { AGREEMENT_CODE_BY_KEY, TERMS_DOCUMENTS, TERMS_VERSION } from './termsContent'
 import type { TermsDocumentKey } from './termsContent'
 import { useResendCooldown } from './useResendCooldown'
 import {
@@ -168,7 +168,12 @@ export function SignupForm() {
         code: state.authCode,
         name: state.authName.trim(),
         password,
-        hasMarketingOptIn: state.authAgreements.marketing,
+        // 서버는 boolean 하나가 아니라 "동의한 문서 + 그 버전" 목록을 받는다. 체크된 항목만 담고,
+        // 각 항목에는 방금 화면이 보여준 문서의 버전(TERMS_VERSION)을 그대로 붙인다.
+        agreements: AGREEMENT_ITEMS.filter((item) => state.authAgreements[item.key]).map((item) => ({
+          code: AGREEMENT_CODE_BY_KEY[item.key],
+          version: TERMS_VERSION,
+        })),
       },
       { onSuccess: () => setState({ authStep: 'onboard' }) },
     )

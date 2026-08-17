@@ -12,10 +12,24 @@
 // 내역 섹션 뷰모델, 투자 거래를 §10-4의 "이체"로 렌더). buildMarketIndexViews의 valueFmt도 자릿수를
 // 항상 2자리로 고정하도록 고쳤다(서버가 지수마다 소수점 자릿수를 다르게 내려보내 KOSPI/S&P는 2자리인데
 // NASDAQ만 3자리로 온 적이 있음, 실행 화면 확인).
+//
+// 2026-08-17 재수정(docs/frontend-todo.md A-7 · B-5): HoldingRes.valuationKrw·unrealizedPnlKrw·
+// returnRatePercent·currentPrice·previousClosePrice·dayChangePercent·priceAsOf가 nullable로
+// 확인됐다(시세 미확보 시 전부 null, 0이 아님). buildHoldingCards/buildPortfolioSummary가 null을
+// 명시적으로 걸러내도록 다시 썼고, 원가 역산(valuationKrw − unrealizedPnlKrw)은 서버가 주는
+// totalCostKrw로 교체했다. ticker·currentPrice·dayChangePercent가 이제 HoldingRes/ClosedHoldingRes에
+// 직접 포함돼 있어(과거엔 없었다) GET /stocks 전체 목록 조인이 더 이상 필요 없다.
+//
+// 2026-08-17 리뷰 반영: buildPortfolioSummary의 총 매수금액·총 평가금액·평가손익·평가수익률
+// 네 지표를 같은 모수(시세 확보 종목)로 통일했고(사유는 함수 docstring), totalValueFmt도
+// pnlFmt/returnRateFmt와 같은 null 폴백 패턴을 따르게 했다. buildHoldingCards의 gainFmt는 손익
+// 금액과 수익률 표시를 분리해, 원가가 0이라 수익률만 계산 불가(returnRatePercent === null)여도
+// 실제 손익 금액(unrealizedPnlKrw)은 계속 보여준다. currentPriceFmt/buildTradeRows.amountFmt는
+// 통화별 소수 자릿수를 고정하는 utils/format.ts의 formatCurrencyAmount로 교체했다.
 
-import { fmt } from '../utils/format'
+import { fmt, formatCurrencyAmount } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
-import type { ClosedHoldingResponse, HoldingGroupResponse, HoldingResponse, StockResponse } from '@/services/stock'
+import type { ClosedHoldingResponse, HoldingGroupResponse, HoldingResponse } from '@/services/stock'
 import type { MarketIndexResponse } from '@/services/marketIndex'
 import type { TradeResponse } from '@/services/trade'
 import type { AccountResponse } from '@/services/account'
@@ -179,48 +193,87 @@ export interface HoldingCardView {
   marketLabel: string
   sector: string
   ticker: string
-  valueFmt: string
+  /** true면 시세를 아직 확보하지 못한 상태(priceAsOf === null) — 평가금액·손익·현재가 대신 안내
+   * 문구를 보여줄 것. */
+  priceMissing: boolean
+  /** priceMissing이면 null. */
+  valueFmt: string | null
+  /** 총 매수금액(원화) — 시세와 무관하게 항상 채워진다. priceMissing 카드의 대체 표시용. */
+  costFmt: string
   qtyFmt: string
-  gainFmt: string
+  /** priceMissing이면 null. */
+  gainFmt: string | null
+  /** priceMissing이면 의미 없음(항상 false) — 반드시 priceMissing을 먼저 분기할 것. */
   positive: boolean
-  returnPct: number
+  /** priceMissing이거나 원가가 0이면 null. */
+  returnPct: number | null
+  /** 종목 통화 기준 현재가 포맷("77,000원" / "$77.00"). priceMissing이면 null. */
+  currentPriceFmt: string | null
+  /** 전 영업일 대비 등락률. priceMissing이거나 직전 종가가 없으면 null. */
+  dayChangePctFmt: string | null
+  dayChangePositive: boolean
 }
 
 /**
- * 원가(평가액 − 평가손익)가 0이면 수익률을 계산할 수 없으니 0으로 둔다(신규 매수 직후 등 극단치).
- * buildHoldingCards와 QuickStockModal의 매도 종목 드롭다운이 같은 기준으로 정렬하도록 공유한다.
+ * 보유 종목 정렬·매도 드롭다운이 공유하는 수익률 기준. 서버가 이미 계산한 returnRatePercent를
+ * 그대로 쓴다(원가 역산 금지 — docs/frontend-todo.md B-5). 시세 미확보(null)는 맨 뒤로 보낸다
+ * (buildGroupReturns와 동일 기준 — "계산 불가"를 "0%"로 접지 않는다).
  */
-function holdingReturnPct(h: HoldingResponse): number {
-  const costBasis = h.valuationKrw - h.unrealizedPnlKrw
-  return costBasis !== 0 ? (h.unrealizedPnlKrw / costBasis) * 100 : 0
-}
-
-/** 보유 종목을 수익률 내림차순으로 정렬한다(구 mockStocks.ts 데이터 순서와 동일한 기준). */
 export function sortHoldingsByReturn(holdings: HoldingResponse[]): HoldingResponse[] {
-  return [...holdings].sort((a, b) => holdingReturnPct(b) - holdingReturnPct(a))
+  return [...holdings].sort((a, b) => {
+    if (a.returnRatePercent === null) return b.returnRatePercent === null ? 0 : 1
+    if (b.returnRatePercent === null) return -1
+    return b.returnRatePercent - a.returnRatePercent
+  })
 }
 
-/**
- * ticker와 현재가는 HoldingResponse에 없다(stock.type.ts 참고). ticker는 GET /stocks 전체 목록과
- * stockId로 조인하고, 못 찾으면 빈 문자열로 둔다(가짜 값 금지). 현재가·전일대비는 응답 자체가 없어
- * 그리지 않는다. 수익률 높은 순으로 정렬한다(구 mockStocks.ts 데이터 순서와 동일한 기준).
- */
-export function buildHoldingCards(holdings: HoldingResponse[], stocks: StockResponse[]): HoldingCardView[] {
+function currencySymbolOf(currency: HoldingResponse['currency']): string {
+  return currency === 'USD' ? '$' : ''
+}
+
+/** 수익률 높은 순으로 정렬한다(구 mockStocks.ts 데이터 순서와 동일한 기준). ticker·현재가·전
+ * 영업일 대비는 이제 HoldingResponse에 직접 포함돼 있다(2026-08-17, stock.type.ts 참고 —
+ * 과거엔 없어 별도 조인이 필요했다). */
+export function buildHoldingCards(holdings: HoldingResponse[]): HoldingCardView[] {
   return sortHoldingsByReturn(holdings).map((h) => {
-    const returnPct = holdingReturnPct(h)
-    const positive = h.unrealizedPnlKrw >= 0
-    const sign = positive ? '+' : '−'
-    return {
+    const symbol = currencySymbolOf(h.currency)
+    const dayChangePositive = h.dayChangePercent !== null && h.dayChangePercent >= 0
+    const currentPriceFmt =
+      h.currentPrice === null ? null : `${symbol}${formatCurrencyAmount(h.currentPrice, h.currency)}${symbol ? '' : '원'}`
+    const dayChangePctFmt =
+      h.dayChangePercent === null ? null : `${dayChangePositive ? '+' : '−'}${Math.abs(h.dayChangePercent).toFixed(1)}%`
+    const base = {
       stockId: h.stockId,
       name: h.stockName,
       marketLabel: MARKET_LABELS[h.market],
       sector: h.sector ?? '기타',
-      ticker: stocks.find((s) => s.id === h.stockId)?.ticker ?? '',
-      valueFmt: fmt(h.valuationKrw),
+      ticker: h.ticker,
+      costFmt: fmt(h.totalCostKrw),
       qtyFmt: fmt(h.quantity),
-      gainFmt: `${sign}${fmt(Math.abs(h.unrealizedPnlKrw))}원 (${sign}${Math.abs(returnPct).toFixed(1)}%)`,
+      currentPriceFmt,
+      dayChangePctFmt,
+      dayChangePositive,
+    }
+
+    // priceAsOf가 null이면 valuationKrw·unrealizedPnlKrw·returnRatePercent가 함께 null이다(HoldingRes
+    // 계약) — 이 분기 자체로 아래 필드들의 null 가능성을 없애 타입 단언 없이 안전하게 좁힌다.
+    if (h.priceAsOf === null || h.valuationKrw === null || h.unrealizedPnlKrw === null) {
+      return { ...base, priceMissing: true, valueFmt: null, gainFmt: null, positive: false, returnPct: null }
+    }
+
+    const positive = h.unrealizedPnlKrw >= 0
+    const sign = positive ? '+' : '−'
+    // 손익 금액(unrealizedPnlKrw)과 수익률(returnRatePercent)은 서로 다른 이유로 null이 될 수
+    // 있다 — 원가가 0인 종목(증정주 등)은 수익률만 계산 불가(returnRatePercent === null)일 뿐
+    // 손익 금액 자체는 항상 있으므로, 수익률이 없다고 손익 금액까지 통째로 숨기지 않는다.
+    const pctPart = h.returnRatePercent === null ? '' : ` (${sign}${Math.abs(h.returnRatePercent).toFixed(1)}%)`
+    return {
+      ...base,
+      priceMissing: false,
+      valueFmt: fmt(h.valuationKrw),
+      gainFmt: `${sign}${fmt(Math.abs(h.unrealizedPnlKrw))}원${pctPart}`,
       positive,
-      returnPct,
+      returnPct: h.returnRatePercent,
     }
   })
 }
@@ -228,55 +281,68 @@ export function buildHoldingCards(holdings: HoldingResponse[], stocks: StockResp
 // ---------- 포트폴리오 요약 ----------
 
 export interface PortfolioSummaryView {
-  /** 억/만 축약 캡션(§4-2) 계산용 원본 금액. 화면에는 항상 totalValueFmt(콤마 포맷)를 그린다. */
+  /** 억/만 축약 캡션(§4-2) 계산용 원본 금액. 화면에는 항상 totalValueFmt(콤마 포맷)를 그린다. 시세
+   * 미확보 종목은 제외한 합계다(hasMissingPrice가 true면 실제보다 적을 수 있음). */
   totalValueKrw: number
-  totalValueFmt: string
-  totalCostFmt: string
-  pnlFmt: string
+  /** 평가손익을 계산할 수 있는 종목이 하나도 없으면(전 종목 시세 미확보) null — '—'로 폴백할 것. */
+  totalValueFmt: string | null
+  /** 총 매수금액 — 시세 확보 종목(priced)만의 totalCostKrw 합계(수수료 포함). 시세 미확보 종목이
+   * 하나도 없으면 null — 위와 동일 사유. */
+  totalCostFmt: string | null
+  /** 시세 미확보 종목이 하나라도 있으면 true — "총 매수금액·평가금액·손익 계산에서 일부 종목을
+   * 제외했다" 캡션용. */
+  hasMissingPrice: boolean
+  /** 평가손익을 계산할 수 있는 종목이 하나도 없으면 null. */
+  pnlFmt: string | null
   pnlPositive: boolean
-  returnRateFmt: string
+  /** 위와 동일 사유로 null 가능. */
+  returnRateFmt: string | null
   holdingCount: number
   /** 총자산 대비 비중. totalAssetKrw를 안 넘겼거나 0이면(스냅샷 이력 없는 신규 사용자) null — 캡션을 숨길 것. */
   sharePctFmt: string | null
 }
 
 /**
- * 전용 요약 API가 없어 보유 종목 배열을 합산해 파생한다. 총 매수금액 = 총평가 − 평가손익인데, 이는
- * 매매 수수료가 포함된 실제 매수 원가와 다를 수 있다(수수료 반영 원가를 내려주는 API가 없음 — 백엔드
- * 확인 필요 항목). "총자산의 N%"는 GET /dashboard/summary의 totalAssetKrw를 함께 넘겨야 계산된다.
+ * 전용 요약 API가 없어 보유 종목 배열을 합산해 파생한다.
+ *
+ * 총 매수금액·총 평가금액·평가손익·평가수익률 네 지표는 모두 시세 확보 종목(priced)만으로
+ * 합산해 같은 모수를 쓴다. 예전에는 총 매수금액만 전체 보유종목(totalCostKrw 전량)의 합이라
+ * 시세 확보분만 더한 평가금액·손익과 모수가 달랐다 — 예를 들어 A(원가 100만, 시세 미확보) +
+ * B(원가 200만, 평가 250만)면 "평가금액 250만 / 매수금액 300만인데 손익은 +50만"으로 보여
+ * 사용자가 250만−300만=−50만로 암산한 값과 어긋났다(리뷰 지적). 네 숫자를 모두 시세 확보분
+ * 기준으로 통일해 "평가금액 − 매수금액 = 손익"이 화면에서도 항상 맞게 했다. 그 대가로 시세
+ * 미확보 종목이 있으면 총 매수금액이 실제 투입액보다 작게 보일 수 있는데, 이는
+ * hasMissingPrice 캡션(Stocks.tsx)이 "총 매수금액·평가금액·손익"을 함께 언급해 안내한다.
+ *
+ * 시세 미확보(valuationKrw/unrealizedPnlKrw === null) 종목은 그대로 전부 제외한다 — 섞어서
+ * 더하면 NaN이 화면에 나간다(docs/frontend-todo.md A-7). "총자산의 N%"는 GET /dashboard/summary의
+ * totalAssetKrw를 함께 넘겨야 계산된다.
  */
 export function buildPortfolioSummary(holdings: HoldingResponse[], totalAssetKrw?: number): PortfolioSummaryView {
-  const totalValue = holdings.reduce((sum, h) => sum + h.valuationKrw, 0)
-  const pnl = holdings.reduce((sum, h) => sum + h.unrealizedPnlKrw, 0)
-  const totalCost = totalValue - pnl
-  const returnRate = totalCost !== 0 ? (pnl / totalCost) * 100 : 0
+  const priced = holdings.filter(
+    (h): h is HoldingResponse & { valuationKrw: number; unrealizedPnlKrw: number } =>
+      h.valuationKrw !== null && h.unrealizedPnlKrw !== null,
+  )
+  const hasMissingPrice = priced.length < holdings.length
+  const totalValue = priced.reduce((sum, h) => sum + h.valuationKrw, 0)
+  const pnl = priced.reduce((sum, h) => sum + h.unrealizedPnlKrw, 0)
+  const pricedCost = priced.reduce((sum, h) => sum + h.totalCostKrw, 0)
+  const returnRateAvailable = priced.length > 0 && pricedCost !== 0
+  const returnRate = returnRateAvailable ? (pnl / pricedCost) * 100 : 0
   const pnlPositive = pnl >= 0
   const returnRatePositive = returnRate >= 0
   const sharePct = totalAssetKrw ? (totalValue / totalAssetKrw) * 100 : null
   return {
     totalValueKrw: totalValue,
-    totalValueFmt: fmt(totalValue),
-    totalCostFmt: fmt(totalCost),
-    pnlFmt: `${pnlPositive ? '+' : '−'}${fmt(Math.abs(pnl))}`,
+    totalValueFmt: priced.length === 0 ? null : fmt(totalValue),
+    totalCostFmt: priced.length === 0 ? null : fmt(pricedCost),
+    hasMissingPrice,
+    pnlFmt: priced.length === 0 ? null : `${pnlPositive ? '+' : '−'}${fmt(Math.abs(pnl))}`,
     pnlPositive,
-    returnRateFmt: `${returnRatePositive ? '+' : '−'}${Math.abs(returnRate).toFixed(1)}%`,
+    returnRateFmt: returnRateAvailable ? `${returnRatePositive ? '+' : '−'}${Math.abs(returnRate).toFixed(1)}%` : null,
     holdingCount: holdings.length,
     sharePctFmt: sharePct !== null ? `${sharePct.toFixed(1)}%` : null,
   }
-}
-
-// ---------- 외화 보유액의 원화 환산 ----------
-
-/**
- * GET /exchanges/summary는 heldForeignAmount만 주고 원화 환산액이 없다. 여기서 GET /indices의
- * USDKRW.currentValue를 곱해 계산한다. 이 환율은 서버가 unrealizedGainKrw를 계산할 때 쓴 내부
- * 환율과 소스가 달라 소수점 단위로 어긋날 수 있으므로, 호출부는 반드시 "현재 환율 기준"이라는 취지를
- * 캡션으로 병기해 서버 확정값처럼 보이지 않게 해야 한다. usdKrwRate가 없으면(응답에 없거나 조회 실패)
- * null — 이 줄 자체를 그리지 말 것(가짜 값 금지).
- */
-export function buildForeignHoldingKrwFmt(heldForeignAmount: number, usdKrwRate: number | undefined): string | null {
-  if (usdKrwRate === undefined) return null
-  return fmt(Math.round(heldForeignAmount * usdKrwRate))
 }
 
 // ---------- 청산 종목(전량 매도) ----------
@@ -286,6 +352,7 @@ export interface ClosedHoldingCardView {
   name: string
   marketLabel: string
   sector: string
+  ticker: string
   principalFmt: string
   proceedsFmt: string
   gainFmt: string
@@ -307,6 +374,7 @@ export function buildClosedHoldingCards(closedHoldings: ClosedHoldingResponse[])
       name: h.stockName,
       marketLabel: MARKET_LABELS[h.market],
       sector: h.sector ?? '기타',
+      ticker: h.ticker,
       principalFmt: fmt(h.principalKrw),
       proceedsFmt: fmt(h.proceedsKrw),
       gainFmt: `${sign}${fmt(Math.abs(h.realizedPnlKrw))}원 (${pctPart})`,
@@ -351,7 +419,8 @@ export interface TradeRowView {
   amountFmt: string
 }
 
-/** GET /trades에 페이지네이션이 없어(docs/backend-request.md B-3-3) 화면에는 최근 N건만 보여준다. */
+/** getTrades가 size를 생략해 호출하므로 GET /trades는 조건에 맞는 전 건을 한 번에 내려준다
+ * (trade.type.ts 참고) — 화면에는 그중 최근 N건만 보여준다. */
 export const TRADE_HISTORY_LIMIT = 10
 
 function shortTradeDateLabel(isoDate: string): string {
@@ -376,6 +445,9 @@ export function buildTradeRows(trades: TradeResponse[], market?: Market, limit: 
       dateLabel: shortTradeDateLabel(t.tradeDate),
       stockName: t.stockName,
       tag: t.side === 'BUY' ? '매수' : '매도',
-      amountFmt: marketToCurrency(t.market) === 'USD' ? `$${fmt(t.quantity * t.price)}` : `${fmt(t.quantity * t.price)}원`,
+      amountFmt:
+        marketToCurrency(t.market) === 'USD'
+          ? `$${formatCurrencyAmount(t.quantity * t.price, 'USD')}`
+          : `${fmt(t.quantity * t.price)}원`,
     }))
 }

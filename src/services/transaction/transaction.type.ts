@@ -42,8 +42,12 @@ export interface CreateTransactionRequest {
   memo?: string
 }
 
-/** PUT은 전체 교체. accountId는 수정 불가라 여기에 없다 — 일부만 바꿔도 필수 필드를 전부 보내야 한다. */
-export type UpdateTransactionRequest = Omit<CreateTransactionRequest, 'accountId'>
+/**
+ * PUT은 전체 교체 — 등록 요청과 필수/선택 필드 구성이 동일하다(accountId 포함, 수정 가능).
+ * 일부만 고쳐도 나머지 필수 필드를 전부 다시 보내야 하고, 선택 필드(nativeAmount 등)를 생략하면
+ * null로 덮어써진다.
+ */
+export type UpdateTransactionRequest = CreateTransactionRequest
 
 export interface DailySummaryResponse {
   /** 'YYYY-MM-DD'. 거래가 없는 날은 배열에서 빠질 수 있으므로 프론트에서 날짜 축을 채울 것. */

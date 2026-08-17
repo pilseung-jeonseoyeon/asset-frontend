@@ -17,9 +17,13 @@ export function firstWeekday(y: number, m: number): number {
 // 대부분의 서버 API가 year/month를 파라미터로 받고, 실제 기간 경계는 서버가 사용자 설정
 // monthStartDay로 계산한다. 프론트는 "어느 정산월을 보고 있는지"만 들고 있으면 된다.
 //
-// 주의: monthStartDay가 1이 아닐 때 오늘이 어느 정산월에 속하는지(예: 6/28이 6월인지 7월인지)는
-// API 스펙에 정의되어 있지 않다. 서버와 어긋난 라벨을 만들지 않도록, 기본 커서는 달력 연·월을
-// 그대로 쓰고 실제 기간 경계 표기는 서버가 periodStart/periodEnd를 내려줄 때까지 보류한다.
+// 정산월 라벨링 규칙(답변서 2장 확정): 정산월은 "시작일이 속한 달"로 이름 붙는다.
+// monthStartDay=15면 6/28도 7/1도 7/14도 전부 정산 6월이다(정산 6월 = 6/15~7/14). 이건 새로 정한
+// 게 아니라 기존 서버 동작(가계부·대시보드·목표)과 일치하는 확정 규칙이다.
+//
+// 다만 이 규칙을 실제로 계산에 반영하려면 monthStartDay별 정산월 경계(periodStart/periodEnd)가
+// 필요한데, 아직 GET /users/me/settlements 연동 전이라 아래 계산 로직은 손대지 않았다 — 기본
+// 커서는 여전히 달력 연·월을 그대로 쓴다. 서버 확인 후 이 엔드포인트로 교체할 것.
 
 export interface YearMonthCursor {
   year: number

@@ -24,6 +24,7 @@ import { authInput, authPrimary, authSecondary, filterPwInput } from '../../../s
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useDeleteMe, useGetMe, usePatchMe, usePatchPassword, useProfileName } from '@/services/user'
 import { usePostLogout, PASSWORD_PATTERN, PASSWORD_RULE_TEXT } from '@/services/auth'
+import { ApiError } from '@/services/api'
 
 const ROW_STYLE: CSSProperties = {
   display: 'flex',
@@ -67,6 +68,10 @@ export function AccountModal() {
   const [profileNameInput, setProfileNameInput] = useState('')
   const [profileMarketingOptIn, setProfileMarketingOptIn] = useState(false)
   const [localProfileError, setLocalProfileError] = useState<string | null>(null)
+
+  // 탈퇴도 비밀번호와 같은 이유로 로컬 state에 두고 닫을 때 직접 지운다(위 비밀번호 서브뷰 주석 참고).
+  const [withdrawPw, setWithdrawPw] = useState('')
+  const [localWithdrawError, setLocalWithdrawError] = useState<string | null>(null)
 
   if (state.modalOpen !== 'account') return null
 
@@ -159,24 +164,47 @@ export function AccountModal() {
   const doLogout = () => logoutMutation.mutate()
   // 이 모달은 AppShell에 항상 마운트되어 닫아도 언마운트되지 않는다 — 평문 비밀번호가 다음 세션까지
   // 메모리에 남지 않도록 닫을 때 직접 지운다.
+  const resetWithdrawForm = () => {
+    setWithdrawPw('')
+    setLocalWithdrawError(null)
+    withdraw.reset()
+  }
   const closeAndReset = () => {
     resetPasswordForm()
     resetProfileForm()
-    withdraw.reset()
+    resetWithdrawForm()
     closeModal()
   }
   const openWithdrawConfirm = () => {
-    withdraw.reset()
+    resetWithdrawForm()
     setState({ withdrawConfirmOpen: true })
   }
   const cancelWithdraw = () => {
-    withdraw.reset()
+    resetWithdrawForm()
     setState({ withdrawConfirmOpen: false })
   }
   // 로그아웃(doLogout)과 달리 실패하면 세션을 유지한다 — useDeleteMe가 성공했을 때만 signOut +
   // 캐시 초기화를 하므로, 여기서는 그냥 mutate만 호출한다(성공하면 AppShell이 로그인 화면으로
   // 전환하며 이 모달째로 언마운트된다).
-  const confirmWithdraw = () => withdraw.mutate()
+  const confirmWithdraw = () => {
+    if (!withdrawPw) {
+      setLocalWithdrawError('비밀번호를 입력해주세요.')
+      return
+    }
+    setLocalWithdrawError(null)
+    withdraw.reset()
+    withdraw.mutate({ password: withdrawPw })
+  }
+
+  const withdrawInvalidPassword = withdraw.error instanceof ApiError && withdraw.error.code === 'INVALID_CURRENT_PASSWORD'
+  const withdrawAlreadyDone = withdraw.error instanceof ApiError && withdraw.error.code === 'ALREADY_WITHDRAWN'
+  const withdrawErrorMessage =
+    localWithdrawError ??
+    (withdrawInvalidPassword
+      ? '비밀번호가 올바르지 않아요.'
+      : withdrawAlreadyDone
+        ? '이미 탈퇴 처리된 계정이에요.'
+        : (withdraw.error?.message ?? null))
 
   return (
     <div
@@ -613,8 +641,12 @@ export function AccountModal() {
         )}
 
         {state.withdrawConfirmOpen && (
-          <div
+          <form
             onClick={stopPropagation}
+            onSubmit={(e) => {
+              e.preventDefault()
+              confirmWithdraw()
+            }}
             style={{
               position: 'absolute',
               inset: 0,
@@ -642,17 +674,36 @@ export function AccountModal() {
               <Icon name="warning" size={22} />
             </span>
             <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', marginBottom: 8 }}>정말 탈퇴하시겠어요?</div>
-            <div style={{ fontSize: 12.5, color: 'var(--text-weak)', lineHeight: 1.7, marginBottom: withdraw.error ? 10 : 24 }}>
-              탈퇴 시 기록된 자산 · 가계부 데이터는 복구되지 않습니다.
+            <div style={{ fontSize: 12.5, color: 'var(--text-weak)', lineHeight: 1.7, marginBottom: 18 }}>
+              {/* 답변서 D-1: soft delete 30일 유예로 확정 — 즉시 삭제가 아니라 유예 기간 후 영구 삭제됨을 안내한다. */}
+              탈퇴 후 30일 뒤 영구 삭제됩니다. 유예 기간에는 로그인과 같은 이메일 재가입이 불가합니다.
             </div>
-            {withdraw.error && (
+            <div style={{ marginBottom: withdrawErrorMessage ? 10 : 20 }}>
+              <label htmlFor="withdraw-pw" style={LABEL_STYLE}>
+                현재 비밀번호
+              </label>
+              <input
+                id="withdraw-pw"
+                type="password"
+                autoComplete="current-password"
+                placeholder="현재 비밀번호 입력"
+                value={withdrawPw}
+                onChange={(e) => {
+                  setWithdrawPw(e.target.value)
+                  setLocalWithdrawError(null)
+                }}
+                onInput={filterPwInput}
+                style={authInput}
+              />
+            </div>
+            {withdrawErrorMessage && (
               <div aria-live="polite" style={{ fontSize: 11.5, color: 'var(--down)', marginBottom: 14 }}>
-                {withdraw.error.message}
+                {withdrawErrorMessage}
               </div>
             )}
             <button
+              type="submit"
               className="pill-btn"
-              onClick={confirmWithdraw}
               disabled={withdraw.isPending}
               aria-busy={withdraw.isPending}
               style={{
@@ -672,10 +723,10 @@ export function AccountModal() {
             >
               {withdraw.isPending ? '탈퇴 처리 중…' : '탈퇴하기'}
             </button>
-            <button className="pill-btn" onClick={cancelWithdraw} disabled={withdraw.isPending} style={authSecondary}>
+            <button type="button" className="pill-btn" onClick={cancelWithdraw} disabled={withdraw.isPending} style={authSecondary}>
               취소
             </button>
-          </div>
+          </form>
         )}
       </div>
     </div>

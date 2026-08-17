@@ -38,12 +38,12 @@ const RAMP = [
 export interface DashboardHeroView {
   totalAssetKrw: number
   totalFmt: string
-  /** 이번 정산월 시작일 대비. 음수 가능. */
-  monthChangeKrw: number
-  monthChangeFmt: string
-  /** 올해 1월 1일 대비. 음수 가능. */
-  yearChangeKrw: number
-  yearChangeFmt: string
+  /** 이번 정산월 시작일 대비. 음수 가능. 기준 스냅샷이 없으면 null — 배지를 그리지 말 것. */
+  monthChangeKrw: number | null
+  monthChangeFmt: string | null
+  /** 올해 1월 1일 대비. 음수 가능. 기준 스냅샷이 없으면 null — 배지를 그리지 말 것. */
+  yearChangeKrw: number | null
+  yearChangeFmt: string | null
   /** 계좌 자체가 없는 진짜 신규 사용자 — 0원을 "자산 0원"으로 단정하지 말고 빈 상태로 안내할 것. */
   isEmpty: boolean
   /**
@@ -78,9 +78,9 @@ export function buildDashboardHero(
     totalAssetKrw,
     totalFmt: fmt(totalAssetKrw),
     monthChangeKrw: summary.monthChangeKrw,
-    monthChangeFmt: signedFmt(summary.monthChangeKrw),
+    monthChangeFmt: summary.monthChangeKrw === null ? null : signedFmt(summary.monthChangeKrw),
     yearChangeKrw: summary.yearChangeKrw,
-    yearChangeFmt: signedFmt(summary.yearChangeKrw),
+    yearChangeFmt: summary.yearChangeKrw === null ? null : signedFmt(summary.yearChangeKrw),
     isEmpty: totalAssetKrw <= 0,
     hasSnapshotHistory,
   }
@@ -278,28 +278,28 @@ export function buildDashboardInstitutions(
 export interface AssetGoalView {
   id: 'annual' | 'monthly'
   name: string
-  current: number
-  target: number
   color: string
-  pct: number
-  /** 진행률 바 길이. progressPercent는 100을 넘을 수 있어(clamp 안 함) 여기서만 잘라 쓴다. */
-  barPct: number
-  currentFmt: string
-  targetFmt: string
-  subCaption: string
   /**
-   * false면 pct/currentFmt가 "정말 0"인지 "스냅샷이 아직 없어 0"인지 서버 응답만으로 구분할 수
-   * 없다는 뜻이다 — `goal.annual.currentValue`(최신 스냅샷 총자산)가 0일 때 그렇다
-   * (docs/backend-request.md A-5-0, 계좌 등록 첫날처럼 스냅샷 이력이 없는 경우와 동일한 원인).
-   * 대시보드 히어로의 `hasSnapshotHistory`(dashboardView.ts buildDashboardHero)와 같은 판정
-   * 기준이며, 이 값이 false일 때 subCaption은 이미 중립 문구로 대체돼 있다 — 호출부가 pct/진행률
-   * 바까지 감추려면 이 플래그로 직접 분기할 것(Dashboard.tsx 참고).
+   * `null`이면 이 축은 진행률 계산 근거가 없다는 뜻이다(`0`과 구분 — GoalDetail 주석 참고).
+   * 이때는 pct/진행률 바/currentFmt/targetFmt를 그리지 말고 subCaption만 보여줄 것.
    */
+  pct: number | null
+  /** 진행률 바 길이. progressPercent는 100을 넘을 수 있어(clamp 안 함) 여기서만 잘라 쓴다. pct가
+   * null이면 의미 없는 값(0)이니 hasProgressData로 먼저 분기할 것. */
+  barPct: number
+  currentFmt: string | null
+  targetFmt: string | null
+  subCaption: string
+  /** `pct !== null`과 동치 — 호출부 가독성을 위한 별도 플래그. */
   hasProgressData: boolean
 }
 
 /** 진행률 근거가 없을 때(hasProgressData === false) 두 줄이 공유하는 중립 안내 문구. */
 const GOAL_PROGRESS_UNKNOWN_CAPTION = '자산 이력이 쌓이면 진행률을 확인할 수 있어요'
+/** status === 'ACHIEVED'일 때 두 줄이 공유하는 안내 문구. */
+const GOAL_ACHIEVED_CAPTION = '목표를 달성했어요 · 새 목표를 세워볼까요?'
+/** status === 'EXPIRED'일 때(월간 축이 계산 근거 없이 null로 오는 경우) 쓰는 안내 문구. */
+const GOAL_EXPIRED_CAPTION = '목표 기간이 끝났어요 · 새 목표를 세워볼까요?'
 
 /** 목표 시점까지 남은 일수. targetDate가 null(목표 미설정)이면 null. */
 export function goalDDay(targetDate: string | null, today: Date = new Date()): number | null {
@@ -313,66 +313,74 @@ export function goalDDay(targetDate: string | null, today: Date = new Date()): n
 
 /**
  * 대시보드 "자산 목표" 위젯 두 줄. 서버 GoalsRes의 annual/monthly가 각 줄에 그대로 대응한다.
- * 서브 캡션의 계산식은 API-SPEC §5.1 각주에 명시된 것만 쓴다(D-Day, 월 필요 저축, 초과 저축).
+ * 각 축(GoalDetail)은 계산 근거가 없으면 세 값(targetAmount/currentValue/progressPercent)이
+ * 모두 null로 온다 — `EXPIRED` 상태면 monthly 쪽이 이 경우다. annual/monthly는 서로 독립적으로
+ * null일 수 있으므로 각자 따로 분기한다(과거처럼 한쪽 값으로 둘 다 판정하지 않는다).
  * 목표 미설정(targetDate === null)이면 빈 배열 — 화면에서 등록 유도 UI를 띄울 것.
  */
 export function buildAssetGoals(goal: GoalResponse, today: Date = new Date()): AssetGoalView[] {
   if (goal.targetDate === null) return []
 
   const dDay = goalDDay(goal.targetDate, today)
-  const surplus = goal.monthly.currentValue - goal.monthly.targetAmount
-  // annual.currentValue(최신 스냅샷 총자산)가 0이면 "총자산이 정말 0원"과 "스냅샷이 아직 없어 0"을
-  // 구분할 수 없다 — 후자를 244,680,000원인데 진행률 0%로 단정하지 않기 위해 이 경우 두 줄 모두
-  // 안내 문구로 대체한다(AssetGoalView.hasProgressData 주석 참고).
-  const hasProgressData = goal.annual.currentValue > 0
+  const isAchieved = goal.status === 'ACHIEVED'
+  const isExpired = goal.status === 'EXPIRED'
+
+  const annualHasData = goal.annual.progressPercent !== null
+  const monthlyHasData = goal.monthly.progressPercent !== null
+  const monthlyTargetFmt = goal.monthly.targetAmount === null ? null : fmt(goal.monthly.targetAmount)
+  const surplus =
+    goal.monthly.currentValue === null || goal.monthly.targetAmount === null
+      ? null
+      : goal.monthly.currentValue - goal.monthly.targetAmount
 
   return [
     {
       id: 'annual',
       name: '연간 · 총자산',
-      current: goal.annual.currentValue,
-      target: goal.annual.targetAmount,
       color: 'var(--accent)',
       pct: goal.annual.progressPercent,
-      barPct: Math.min(100, goal.annual.progressPercent),
-      currentFmt: fmt(goal.annual.currentValue),
-      targetFmt: fmt(goal.annual.targetAmount),
-      hasProgressData,
-      subCaption: !hasProgressData
-        ? GOAL_PROGRESS_UNKNOWN_CAPTION
-        : dDay === null
-          ? `월 ${fmt(goal.monthly.targetAmount)}원 필요`
-          : dDay < 0
-            ? `목표일이 지났어요 · 월 ${fmt(goal.monthly.targetAmount)}원 필요`
-            : `D−${dDay} · 월 ${fmt(goal.monthly.targetAmount)}원 필요`,
+      barPct: annualHasData ? Math.max(0, Math.min(100, goal.annual.progressPercent as number)) : 0,
+      currentFmt: goal.annual.currentValue === null ? null : fmt(goal.annual.currentValue),
+      targetFmt: goal.annual.targetAmount === null ? null : fmt(goal.annual.targetAmount),
+      hasProgressData: annualHasData,
+      subCaption: isAchieved
+        ? GOAL_ACHIEVED_CAPTION
+        : !annualHasData
+          ? GOAL_PROGRESS_UNKNOWN_CAPTION
+          : monthlyTargetFmt === null
+            ? dDay === null
+              ? '월 필요 저축액을 계산할 수 없어요'
+              : dDay < 0
+                ? '목표일이 지났어요'
+                : `D−${dDay}`
+            : dDay === null
+              ? `월 ${monthlyTargetFmt}원 필요`
+              : dDay < 0
+                ? `목표일이 지났어요 · 월 ${monthlyTargetFmt}원 필요`
+                : `D−${dDay} · 월 ${monthlyTargetFmt}원 필요`,
     },
     {
       id: 'monthly',
       name: '월간 · 필요 저축',
-      current: goal.monthly.currentValue,
-      target: goal.monthly.targetAmount,
       color: 'var(--accent)',
       pct: goal.monthly.progressPercent,
-      barPct: Math.min(100, goal.monthly.progressPercent),
-      currentFmt: fmt(goal.monthly.currentValue),
-      targetFmt: fmt(goal.monthly.targetAmount),
-      hasProgressData,
-      subCaption: !hasProgressData
-        ? GOAL_PROGRESS_UNKNOWN_CAPTION
-        : surplus >= 0
-          ? `+${fmt(surplus)}원 초과`
-          : `${fmt(Math.abs(surplus))}원 부족`,
+      barPct: monthlyHasData ? Math.max(0, Math.min(100, goal.monthly.progressPercent as number)) : 0,
+      currentFmt: goal.monthly.currentValue === null ? null : fmt(goal.monthly.currentValue),
+      targetFmt: monthlyTargetFmt,
+      hasProgressData: monthlyHasData,
+      subCaption: isAchieved
+        ? GOAL_ACHIEVED_CAPTION
+        : isExpired
+          ? GOAL_EXPIRED_CAPTION
+          : !monthlyHasData
+            ? GOAL_PROGRESS_UNKNOWN_CAPTION
+            : surplus === null
+              ? GOAL_PROGRESS_UNKNOWN_CAPTION
+              : surplus >= 0
+                ? `+${fmt(surplus)}원 초과`
+                : `${fmt(Math.abs(surplus))}원 부족`,
     },
   ]
-}
-
-/**
- * 월 지출 가능액 = 월평균 수입 − 월 필요 저축액 (API-SPEC §5.1 각주). 음수 가능 — 음수면 "이 목표를
- * 현재 수입으로 지출 없이도 못 채운다"는 뜻이라, 호출부는 금액을 그대로 그리지 말고 안내 문구로
- * 대체할 것(AddGoalModal.tsx 참고).
- */
-export function monthlySpendable(goal: GoalResponse): number {
-  return goal.monthlyIncome - goal.monthly.targetAmount
 }
 
 // ---------- 월간 리포트 ----------

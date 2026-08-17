@@ -36,8 +36,10 @@
 - [`docs/state-management.md`](./docs/state-management.md) — AppState / Zustand / React Query 상태 경계
 - [`docs/code-convention.md`](./docs/code-convention.md) — 명명 규칙, import 순서, 컴포넌트 작성 스타일
 - [`docs/api-conventions.md`](./docs/api-conventions.md) — axios/React Query 기반 API 통신 규칙, 서비스 폴더 구조
-- [`docs/backend-request.md`](./docs/backend-request.md) — 연동 중 확인된 백엔드 스펙 누락·불일치와
-  요청 목록, 미동작 기능 전수 목록
+- [`docs/backend-request.md`](./docs/backend-request.md) — 백엔드에 아직 요청·확인이 남은 항목만
+  (해결된 건은 `docs/backend-respnse.md`에 있음)
+- [`docs/frontend-todo.md`](./docs/frontend-todo.md) — 백엔드 계약 변경에 맞춰 프론트가 고쳐야 할
+  작업 목록(파일·줄 번호 포함)
 
 **백엔드 API 스펙의 정본은 실행 중인 서버의 OpenAPI 문서입니다.**
 - Swagger UI: `http://localhost:8080/swagger-ui/index.html`

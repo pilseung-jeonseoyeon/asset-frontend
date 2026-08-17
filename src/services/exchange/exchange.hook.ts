@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { qk } from '../queryKeys'
-import type { Currency } from '../common.type'
+import type { Currency, ExchangeSearchParams } from '../common.type'
 import { isFxRateMissing } from '../stock/stock.hook'
 import {
   deleteExchange,
@@ -15,13 +15,14 @@ interface QueryOptions {
   enabled?: boolean
 }
 
-export function useGetExchanges(currency: Currency, options?: QueryOptions) {
+/** params.currency를 생략하면 전 통화 내역을 함께 조회한다. */
+export function useGetExchanges(params: ExchangeSearchParams = {}, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: qk.exchange.list(currency),
-    queryFn: () => getExchanges(currency),
+    queryKey: qk.exchange.list(params),
+    queryFn: () => getExchanges(params),
     enabled: options?.enabled,
   })
-  return { ...query, exchanges: query.data ?? [] }
+  return { ...query, exchanges: query.data?.content ?? [] }
 }
 
 export function useGetExchangeSummary(currency: Currency, options?: QueryOptions) {

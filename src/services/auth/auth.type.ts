@@ -20,6 +20,15 @@ export interface SendSignupCodeRequest {
   email: string
 }
 
+/** 서버 AgreementReq.code. TERMS_OF_SERVICE·PRIVACY_POLICY는 필수, MARKETING은 선택. */
+export type AgreementCode = 'TERMS_OF_SERVICE' | 'PRIVACY_POLICY' | 'MARKETING'
+
+export interface AgreementRequest {
+  code: AgreementCode
+  /** 화면이 실제로 보여준 약관 문서의 버전(최대 20자). */
+  version: string
+}
+
 export interface SignupRequest {
   email: string
   /** 영문 + 숫자 + 특수문자를 각각 하나 이상 포함한 8자 이상 */
@@ -27,7 +36,11 @@ export interface SignupRequest {
   name: string
   /** 이메일로 받은 6자리 숫자 */
   code: string
-  hasMarketingOptIn?: boolean
+  /**
+   * 동의한 약관 목록. 필수(최소 1건)이며 TERMS_OF_SERVICE·PRIVACY_POLICY가 빠지면
+   * 400 REQUIRED_AGREEMENT_MISSING. MARKETING이 들어 있으면 마케팅 수신 동의로 기록된다.
+   */
+  agreements: AgreementRequest[]
 }
 
 export interface SendPasswordResetCodeRequest {

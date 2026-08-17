@@ -7,6 +7,7 @@ import type {
   UpdateProfileRequest,
   UpdateUserSettingsRequest,
   UserSettingsResponse,
+  WithdrawUserRequest,
 } from './user.type'
 
 /**
@@ -88,7 +89,7 @@ export function useDeleteMe() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: deleteMe,
+    mutationFn: (body: WithdrawUserRequest) => deleteMe(body),
     onSuccess: () => {
       signOut()
       queryClient.clear()

@@ -33,7 +33,7 @@ export type AuthAgreementKey = 'service' | 'privacy' | 'marketing'
 
 // AddAccountModal/EditAccountModal이 공유하는 계좌 폼 초안. id가 null이면 신규(POST), 아니면 수정(PATCH
 // 대상 accountId). 서버가 부분 수정을 허용하는 필드(institutionId/name/type/interestRate/maturityDate/
-// isLiquid)만 편집 가능하고, currency/initialBalance/openedAt은 PATCH가 거부하므로 수정 화면에서는
+// isLiquid)만 편집 가능하고, currency/initialBalanceKrw/openedAt은 PATCH가 거부하므로 수정 화면에서는
 // 읽기 전용으로만 다룬다(src/services/account/account.type.ts UpdateAccountRequest 참고).
 export interface AccountForm {
   id: number | null
@@ -42,7 +42,7 @@ export interface AccountForm {
   type: AccountType
   currency: Currency
   /** 신규 생성 시에만 전송 — 수정 시 서버가 거부(UpdateAccountRequest에 필드 자체가 없음). */
-  initialBalance: number
+  initialBalanceKrw: number
   interestRate: number | null
   openedAt: string | null
   maturityDate: string | null
@@ -128,15 +128,10 @@ export interface AppState {
   recurSubcategoryId: number | null
   /** 결제수단(계좌) — GET /accounts 목록의 accountId. */
   recurAccountId: number | null
-  /** '매월'만 지원(서버 paymentDay는 1~31 하나뿐). weekly/yearly UI가 걷혀 이 값은 항상 'monthly'로
-   * 고정되지만, 다른 작업과의 충돌을 피하려고 필드 자체는 남겨둔다(사용처 없음 — Ledger 보고 참고). */
-  recurFreq: string // initial 'monthly'
-  /** "N일" 형식(예: '25일'). 제출 시 parseInt로 paymentDay(1~31)를 뽑는다. */
+  /** "N일" 형식(예: '25일'). 제출 시 parseInt로 paymentDay(1~31)를 뽑는다.
+   * 답변서 C-8: 반복 주기는 매월 전용으로 드롭 확정(frequency 필드 추가 안 함) — recurFreq/
+   * recurYearMonth/recurYearDay 죽은 필드는 제거했다. */
   recurPayDay: string
-  /** 더 이상 화면에서 쓰지 않음(사용처 없음 — Ledger 보고 참고). */
-  recurYearMonth: string
-  /** 더 이상 화면에서 쓰지 않음(사용처 없음 — Ledger 보고 참고). */
-  recurYearDay: string
   recurName: string
   /** 정수 원화 금액. */
   recurAmount: number
@@ -205,7 +200,7 @@ export interface AppState {
   authCode: string
   /** 로그인 화면의 "로그인 상태 유지" 체크박스 → LoginRequest.rememberMe */
   authKeepLogin: boolean
-  /** 회원가입 1/3 약관 동의 체크 상태. `marketing` 값이 SignupRequest.hasMarketingOptIn으로 전송된다. */
+  /** 회원가입 1/3 약관 동의 체크 상태. 체크된 항목이 SignupRequest.agreements 배열로 전송된다. */
   authAgreements: Record<AuthAgreementKey, boolean>
   /** 인증 코드를 마지막으로 요청한 시각(ms). 재발송 버튼 쿨다운 계산에 사용, 발송 전엔 null. */
   authCodeSentAt: number | null

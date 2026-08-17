@@ -87,6 +87,23 @@ export interface TradeSearchParams {
   stockId?: number
   from?: string
   to?: string
+  /** 서버는 0-base. 생략하면 페이지를 나누지 않고 전 건을 한 페이지로 반환한다(최대 200). */
+  page?: number
+  size?: number
+  /** `'필드명,asc|desc'`. tradeDate·quantity·price·fee·tax·id·createdAt만 허용, 생략하면 체결일 최신순. */
+  sort?: string[]
+}
+
+export interface ExchangeSearchParams {
+  /** 생략하면 전 통화를 함께 조회한다. */
+  currency?: Currency
+  from?: string
+  to?: string
+  /** 서버는 0-base. 생략하면 페이지를 나누지 않고 전 건을 한 페이지로 반환한다(최대 200). */
+  page?: number
+  size?: number
+  /** `'필드명,asc|desc'`. exchangedAt·foreignAmount·krwAmount·rate·id·createdAt만 허용, 생략하면 환전일 최신순. */
+  sort?: string[]
 }
 
 /**

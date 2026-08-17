@@ -1,7 +1,21 @@
 // Source: secret/Asset Manager v14.dc.html L3695 `const fmt = (n) => n.toLocaleString('ko-KR')`.
 
+import type { Currency } from '@/services/common.type'
+
 export function fmt(n: number): string {
   return n.toLocaleString('ko-KR')
+}
+
+/**
+ * 통화별 고정 소수 자릿수로 금액을 포맷한다. fmt()와 마찬가지로 통화 기호(₩/$)는 포함하지
+ * 않는다 — 붙이는 건 호출부 몫이다. 원화는 소수점 없는 정수, 그 외(현재는 USD만 취급)는
+ * 소수점 2자리로 고정한다. fmt()가 자릿수를 고정하지 않아 USD 금액이 `$77` / `$77.5` /
+ * `$77.523`처럼 값마다 들쭉날쭉해지는 문제가 있었다(주식 화면 리뷰 지적) — 화면마다 각자
+ * 포맷 함수를 새로 만들지 않도록 이 헬퍼 하나로 통일한다.
+ */
+export function formatCurrencyAmount(n: number, currency: Currency): string {
+  if (currency === 'KRW') return fmt(n)
+  return n.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 /**

@@ -19,7 +19,6 @@ import { useAppState } from '../../../state/AppStateContext'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { fmt, parseAmount } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate } from '../../../utils/date'
-import { monthlySpendable as calcMonthlySpendable } from '../../../data/dashboardView'
 import { useGetGoal, usePutGoal } from '@/services/goal'
 import { useGetMonthlySummaries } from '@/services/transaction'
 import type { UpsertGoalRequest } from '@/services/goal'
@@ -127,10 +126,12 @@ export function AddGoalModal() {
   }
 
   const isBusy = putGoal.isPending
+  // 저장된 목표 기준 미리보기라 폼에서 수정 중인 targetAmount/monthlyIncome이 아니라 goal(서버값)을
+  // 그대로 쓴다 — 계산 자체가 서버 책임이라 프론트에서 다시 산출하지 않는다(A-9).
   const monthlyNeeded = !isUnset && goal ? goal.monthly.targetAmount : null
-  // 저장된 목표 기준 미리보기라 폼에서 수정 중인 targetAmount/monthlyIncome이 아니라 goal(서버값)로
-  // 계산한다 — dashboardView.ts의 공용 계산식을 그대로 쓴다(값이 두 군데서 갈리지 않도록).
-  const monthlySpendableAmt = !isUnset && goal ? calcMonthlySpendable(goal) : null
+  const monthlySpendableAmt = !isUnset && goal ? goal.monthlySpendableAmount : null
+  const monthlyShortfallAmt = !isUnset && goal ? goal.monthlyShortfallAmount : null
+  const feasibility = !isUnset && goal ? goal.feasibility : null
 
   return (
     <Modal onClose={closeGoalModal} zIndex={80} width={440}>
@@ -188,7 +189,7 @@ export function AddGoalModal() {
             <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>가계부 최근 3개월 평균이 자동 입력돼요 · 직접 수정할 수 있어요</div>
           </div>
           <div style={{ background: 'var(--fill-subtle)', borderRadius: 10, padding: '14px 16px' }}>
-            {monthlyNeeded === null || monthlySpendableAmt === null ? (
+            {monthlyNeeded === null ? (
               <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>목표를 저장하면 월 필요 저축액과 지출 가능액을 계산해드려요</div>
             ) : (
               <>
@@ -196,18 +197,29 @@ export function AddGoalModal() {
                   <span>월 필요 저축액</span>
                   <span>{fmt(monthlyNeeded)}원</span>
                 </div>
-                {monthlySpendableAmt >= 0 ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13, fontWeight: 700 }}>
-                    <span>월 지출 가능액</span>
-                    <span>{fmt(monthlySpendableAmt)}원</span>
-                  </div>
-                ) : (
-                  // 월평균 수입보다 월 필요 저축액이 커서 "지출 가능액"이 음수인 경우 — 음수 금액을
-                  // 그대로 보여주면 성립하지 않는 말이 되므로(−2,300만원을 쓸 수 있다는 말은 없다)
-                  // 부족액을 명시하는 안내 문장으로 대체한다.
+                {feasibility === 'INFEASIBLE' ? (
+                  // 서버가 지출 가능액에 하한 0을 적용해도 "쓸 수 있는 돈이 0원"이라는 말은
+                  // 목표를 못 채운다는 사실을 가린다 — 부족액을 명시하는 안내 문장으로 대체한다.
                   <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-mid)' }}>
-                    현재 수입으로는 이 목표를 달성하기 어려워요 · 월 {fmt(Math.abs(monthlySpendableAmt))}원 부족
+                    지금 수입으로는 이 목표를 맞추기 어려워요
+                    {monthlyShortfallAmt !== null && monthlyShortfallAmt > 0
+                      ? ` · 월 ${fmt(monthlyShortfallAmt)}원 부족`
+                      : ''}
                   </div>
+                ) : monthlySpendableAmt !== null ? (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13, fontWeight: 700 }}>
+                      <span>월 지출 가능액</span>
+                      <span>{fmt(monthlySpendableAmt)}원</span>
+                    </div>
+                    {feasibility === 'TIGHT' && (
+                      <div style={{ fontSize: 11.5, color: 'var(--text-mid)', marginTop: 6 }}>
+                        여유가 많지 않아요 · 지출을 아끼면 도달할 수 있어요
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>월 지출 가능액을 계산할 수 없어요</div>
                 )}
                 <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 8 }}>투자 수익은 반영하지 않은 계산이에요</div>
               </>

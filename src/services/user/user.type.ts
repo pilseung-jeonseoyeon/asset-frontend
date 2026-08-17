@@ -36,3 +36,8 @@ export interface ChangePasswordRequest {
   currentPassword: string
   newPassword: string
 }
+
+/** DELETE /users/me. 재인증용 현재 비밀번호 — 틀리면 400 INVALID_CURRENT_PASSWORD. */
+export interface WithdrawUserRequest {
+  password: string
+}

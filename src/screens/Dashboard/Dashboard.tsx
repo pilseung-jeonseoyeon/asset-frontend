@@ -257,7 +257,7 @@ export function Dashboard() {
               {/* summary 스냅샷이 아직 없으면(계좌 등록 첫날) 증감액을 계산할 근거가 없다 — 0원으로
                   단정하지 않되, 줄이 말없이 사라지면 "올해 자산 현황" 카드와 설명 수준이 어긋나므로
                   같은 톤의 안내 문구로 대체한다(시점을 약속하지 않는다 — 배치 실행 시각 미확정). */}
-              {hero.hasSnapshotHistory ? (
+              {hero.hasSnapshotHistory && hero.monthChangeKrw !== null ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
                   <span style={{ fontSize: 12.5, color: 'var(--deep-label)', fontWeight: 400 }}>이번 달 증감액</span>
                   <StatBadge
@@ -315,8 +315,8 @@ export function Dashboard() {
                       <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>{ag.subCaption}</div>
                     </>
                   ) : (
-                    // annual.currentValue가 스냅샷 부재로 0인 경우 — 진행률을 단정하지 않고 히어로의
-                    // hasSnapshotHistory 분기(위 DeepCard)와 같은 톤의 중립 안내만 보여준다.
+                    // 이 축(annual/monthly)의 progressPercent가 null인 경우(계산 근거 없음, EXPIRED
+                    // 목표의 monthly 등) — 진행률을 단정하지 않고 subCaption의 중립 안내만 보여준다.
                     <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>{ag.subCaption}</div>
                   )}
                 </div>
@@ -341,7 +341,7 @@ export function Dashboard() {
             <div style={{ ...ERROR_TEXT_STYLE, marginTop: 14 }}>{allocationQuery.error?.message}</div>
           ) : !hero || hero.isEmpty ? (
             <EmptyState style={{ marginTop: 14 }} text="계좌를 추가하면 올해 자산 현황을 볼 수 있어요." />
-          ) : !hero.hasSnapshotHistory ? (
+          ) : !hero.hasSnapshotHistory || hero.yearChangeKrw === null || hero.yearChangeFmt === null ? (
             // 계좌는 있지만(allocation 실시간 합계로 확인) 스냅샷 이력이 아직 없어 연초 대비 증감을
             // 계산할 근거가 없다 — "계좌를 추가하면"이 아니라 이력이 쌓이면 보인다는 문구로 구분.
             <EmptyState style={{ marginTop: 14 }} text="자산 이력이 쌓이면 올해 자산 현황을 볼 수 있어요." />

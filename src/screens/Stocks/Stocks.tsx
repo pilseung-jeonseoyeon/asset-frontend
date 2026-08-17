@@ -6,15 +6,19 @@
 // ds_rules_v2_5.md §3-4 caps donuts at exactly 2 locations (Dashboard asset composition + this
 // 섹터 비중 chart).
 //
-// Still dropped vs. the old mock (server genuinely doesn't send these — HoldingRes has no ticker/
-// currentPrice/previousClose join, API-SPEC 부록 C): 보유 종목 카드의 현재가·전일대비 컬럼. 총
-// 매수금액은 여전히 총평가 − 평가손익으로 역산한다(수수료 반영 원가 API 없음).
-//
 // 2026-08-17 추가: "총 평가금액" 아래 억/만 축약 캡션을 복원했다 — CLAUDE.md의 "범용 축약 헬퍼 발명
 // 금지"는 이미 Dashboard가 formatKoreanAbbrev()를 쓰면서 낡은 근거가 됐다(그 헬퍼를 그대로 재사용).
 // "매매 내역"(청산 종목 근처) 섹션과 "외화 자산" 카드의 "내역" 진입점도 이때 추가됐다 —
 // GET/PUT/DELETE /trades·/exchanges 훅은 이미 있었는데 호출부가 없어(docs/backend-request.md 4-1,
 // 4-4) 오입력·등록한 환전을 되돌릴 방법이 아예 없던 문제를 고쳤다.
+//
+// 2026-08-17 재수정(docs/frontend-todo.md A-7 · B-5): HoldingRes의 평가 계열(valuationKrw·
+// unrealizedPnlKrw·returnRatePercent·currentPrice·previousClosePrice·dayChangePercent·priceAsOf)이
+// nullable로 확인돼 fmt(null) 크래시가 났다 — 시세 미확보 종목은 카드에 "시세를 아직 확보하지
+// 못했어요"로 대체하고, 포트폴리오 요약 reduce 합산에서는 해당 종목을 제외한 뒤 캡션으로 안내한다.
+// 원가 역산(valuationKrw − unrealizedPnlKrw) 대신 totalCostKrw를 쓰도록 바뀌면서, ticker·현재가·전
+// 영업일 대비도 함께 복원됐다(더 이상 GET /stocks 전체 조회로 ticker를 조인하지 않는다). 외화 카드도
+// GET /indices의 USDKRW로 근사하던 원화 환산액을 서버의 heldKrwValuation으로 교체했다.
 
 import type { CSSProperties } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
@@ -25,9 +29,9 @@ import { SegmentedTab } from '../../components/primitives/SegmentedTab/Segmented
 import { useAppState } from '../../state/AppStateContext'
 import { darkTab, liteTab } from '../../state/selectors/stocks'
 import { fmt, formatKoreanAbbrev } from '../../utils/format'
+import { isoDateToDisplay } from '../../utils/date'
 import {
   buildClosedHoldingCards,
-  buildForeignHoldingKrwFmt,
   buildGroupReturns,
   buildHoldingCards,
   buildMarketIndexViews,
@@ -38,7 +42,7 @@ import {
   TRADE_HISTORY_LIMIT,
 } from '../../data/stocksView'
 import { useGetMarketIndices } from '@/services/marketIndex'
-import { isFxRateMissing, useGetClosedHoldings, useGetHoldingGroups, useGetHoldings, useGetStocks } from '@/services/stock'
+import { isFxRateMissing, useGetClosedHoldings, useGetHoldingGroups, useGetHoldings } from '@/services/stock'
 import { useGetExchangeSummary } from '@/services/exchange'
 import { useGetDashboardSummary } from '@/services/dashboard'
 import { useGetTrades } from '@/services/trade'
@@ -73,13 +77,11 @@ export function Stocks() {
 
   const indicesQuery = useGetMarketIndices()
   const indexViews = buildMarketIndexViews(indicesQuery.indices)
-  const usdKrwRate = indicesQuery.indices.find((idx) => idx.symbol === 'USDKRW')?.currentValue
 
   // 이 화면의 전체/국내/해외 탭은 딥 카드(포트폴리오 요약)와 보유 종목 그리드가 공유한다 — 소스에서도
   // 두 블록이 같은 stockTab을 읽는다.
   const holdingsQuery = useGetHoldings(market)
-  const stocksQuery = useGetStocks('') // ticker 조인용 전체 종목 목록
-  const holdingCards = buildHoldingCards(holdingsQuery.holdings, stocksQuery.stocks)
+  const holdingCards = buildHoldingCards(holdingsQuery.holdings)
 
   const dashboardSummaryQuery = useGetDashboardSummary()
   const portfolioSummary = buildPortfolioSummary(holdingsQuery.holdings, dashboardSummaryQuery.data?.totalAssetKrw)
@@ -95,9 +97,6 @@ export function Stocks() {
   const topSector = sectorComposition[0]
 
   const exchangeSummary = useGetExchangeSummary('USD')
-  const foreignHoldingKrwFmt = exchangeSummary.data
-    ? buildForeignHoldingKrwFmt(exchangeSummary.data.heldForeignAmount, usdKrwRate)
-    : null
 
   // 전량 매도해 청산된 종목 — 보유 종목(GET /stocks/holdings)에는 잡히지 않으므로 별도 섹션으로 보여준다.
   const closedHoldingsQuery = useGetClosedHoldings(market)
@@ -107,8 +106,9 @@ export function Stocks() {
 
   const holdingsHasError = !!holdingsQuery.error && !holdingsQuery.isFxRateMissing
 
-  // 매매 내역 — 청산 종목 섹션 근처에 별도 카드로 보여준다(docs/backend-request.md 4-1). 페이지네이션이
-  // 없는 API라(같은 문서 B-3-3) 최근 TRADE_HISTORY_LIMIT건만 남기고 그 사실을 캡션으로 밝힌다.
+  // 매매 내역 — 청산 종목 섹션 근처에 별도 카드로 보여준다(docs/backend-request.md 4-1). size를
+  // 생략해 전 건을 한 페이지로 받아온 뒤, 화면에는 최근 TRADE_HISTORY_LIMIT건만 남기고 그 사실을
+  // 캡션으로 밝힌다.
   const tradesQuery = useGetTrades({})
   const tradeRows = buildTradeRows(tradesQuery.trades, market, TRADE_HISTORY_LIMIT)
 
@@ -190,32 +190,37 @@ export function Stocks() {
                 <div>
                   <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>총 평가금액</div>
                   <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em' }}>
-                    {portfolioSummary.totalValueFmt}
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--deep-label)' }}>원</span>
+                    {portfolioSummary.totalValueFmt ?? '—'}
+                    {portfolioSummary.totalValueFmt && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--deep-label)' }}>원</span>}
                   </div>
                   <TotalValueAbbrevCaption amountKrw={portfolioSummary.totalValueKrw} />
                 </div>
                 <div>
                   <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>총 매수금액</div>
                   <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em' }}>
-                    {portfolioSummary.totalCostFmt}
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--deep-label)' }}>원</span>
+                    {portfolioSummary.totalCostFmt ?? '—'}
+                    {portfolioSummary.totalCostFmt && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--deep-label)' }}>원</span>}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>평가손익</div>
                   <div className="dk-accent" style={{ fontSize: 22, fontWeight: 700, marginTop: 6, color: portfolioSummary.pnlPositive ? 'var(--deep-up)' : 'var(--deep-down)', letterSpacing: '-.02em' }}>
-                    {portfolioSummary.pnlFmt}
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>원</span>
+                    {portfolioSummary.pnlFmt ?? '—'}
+                    {portfolioSummary.pnlFmt && <span style={{ fontSize: 13, fontWeight: 600 }}>원</span>}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>평가 수익률</div>
                   <div className="dk-accent" style={{ fontSize: 22, fontWeight: 700, marginTop: 6, color: portfolioSummary.pnlPositive ? 'var(--deep-up)' : 'var(--deep-down)', letterSpacing: '-.02em' }}>
-                    {portfolioSummary.returnRateFmt}
+                    {portfolioSummary.returnRateFmt ?? '—'}
                   </div>
                 </div>
               </div>
+              {portfolioSummary.hasMissingPrice && (
+                <div style={{ ...EMPTY_TEXT_STYLE_DEEP, marginTop: 10 }}>
+                  일부 종목은 시세를 아직 확보하지 못해 총 매수금액·평가금액·손익 계산에서 제외했어요
+                </div>
+              )}
               <div
                 style={{
                   display: 'flex',
@@ -302,16 +307,16 @@ export function Stocks() {
                   <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em', color: 'var(--text-strong)' }}>
                     $ {fmt(exchangeSummary.data.heldForeignAmount)}
                   </div>
-                  {foreignHoldingKrwFmt && (
-                    <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>
-                      ≈ {foreignHoldingKrwFmt}원 (현재 환율 기준)
-                    </div>
-                  )}
+                  {/* 서버가 직접 계산한 원화 평가액(heldKrwValuation) — 더 이상 GET /indices의
+                      USDKRW로 근사하지 않는다(docs/frontend-todo.md A-7). */}
+                  <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>
+                    ≈ {fmt(exchangeSummary.data.heldKrwValuation)}원 ({isoDateToDisplay(exchangeSummary.data.rateAsOf)} 매매기준율 기준)
+                  </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>평단가 (가중평균)</div>
                   <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4, color: 'var(--text-strong)' }}>
-                    {fmt(exchangeSummary.data.weightedAvgRate)}원
+                    {exchangeSummary.data.weightedAvgRate === null ? '—' : `${fmt(exchangeSummary.data.weightedAvgRate)}원`}
                   </div>
                 </div>
               </div>
@@ -420,13 +425,35 @@ export function Stocks() {
                     <span style={{ fontSize: 11, color: 'var(--text-weak)' }}>{h.sector}</span>
                   </div>
                   {h.ticker && <div style={{ fontSize: 10.5, color: 'var(--text-weak)', marginBottom: 4 }}>{h.ticker}</div>}
-                  <div style={{ fontSize: 18, fontWeight: 700 }}>
-                    {h.valueFmt}
-                    <span style={{ fontSize: 12, color: 'var(--text-weak)', fontWeight: 600 }}>원 · {h.qtyFmt}주</span>
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: h.positive ? 'var(--up)' : 'var(--down)', marginTop: 5 }}>
-                    {h.gainFmt}
-                  </div>
+                  {h.priceMissing ? (
+                    <>
+                      <div style={{ fontSize: 18, fontWeight: 700 }}>
+                        {h.costFmt}
+                        <span style={{ fontSize: 12, color: 'var(--text-weak)', fontWeight: 600 }}>원 · {h.qtyFmt}주</span>
+                      </div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 5 }}>시세를 아직 확보하지 못했어요</div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 18, fontWeight: 700 }}>
+                        {h.valueFmt}
+                        <span style={{ fontSize: 12, color: 'var(--text-weak)', fontWeight: 600 }}>원 · {h.qtyFmt}주</span>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: h.positive ? 'var(--up)' : 'var(--down)', marginTop: 5 }}>
+                        {h.gainFmt ?? '—'}
+                      </div>
+                      {h.currentPriceFmt && (
+                        <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>현재가 {h.currentPriceFmt}</span>
+                          {h.dayChangePctFmt && (
+                            <span style={{ fontWeight: 700, color: h.dayChangePositive ? 'var(--up)' : 'var(--down)' }}>
+                              전 영업일 대비 {h.dayChangePctFmt}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -467,6 +494,7 @@ export function Stocks() {
                   </div>
                   <span style={{ fontSize: 11, color: 'var(--text-weak)' }}>{h.sector}</span>
                 </div>
+                {h.ticker && <div style={{ fontSize: 10.5, color: 'var(--text-weak)', marginBottom: 4 }}>{h.ticker}</div>}
                 <div style={{ fontSize: 10.5, color: 'var(--text-weak)', marginBottom: 4 }}>청산일 {h.closedAtFmt}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-mid)', display: 'flex', justifyContent: 'space-between' }}>
                   <span>원금 {h.principalFmt}원</span>

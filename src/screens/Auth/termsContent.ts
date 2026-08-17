@@ -19,6 +19,8 @@
 // 상호·대표자·사업자등록번호·문의처가 비어 있으면 전자상거래법 제10조(사업자 신원 표시)
 // 위반이 된다. 유료 결제를 붙이는 시점에는 환불·청약철회 조항도 추가해야 한다.
 
+import type { AgreementCode } from '@/services/auth'
+
 /** 공개 전 실제 값으로 교체해야 하는 자리표시자. */
 export const TERMS_PLACEHOLDER = {
   companyName: '모닛(Monit)',
@@ -247,3 +249,17 @@ export const TERMS_DOCUMENTS = {
 } as const
 
 export type TermsDocumentKey = keyof typeof TERMS_DOCUMENTS
+
+/**
+ * 이 파일에 담긴 약관 문서의 버전. 가입 시 `POST /auth/signup`의 `agreements[].version`으로
+ * 그대로 보내며, 서버는 사용자가 "어느 버전 문서에 동의했는지"를 이 값으로 기록한다.
+ * 표기 규칙은 `v` + 개정일(YYMMDD). **위 문안을 고칠 때마다 이 값도 함께 올려야 한다.**
+ */
+export const TERMS_VERSION = 'v260815'
+
+/** 화면 약관 키 → 서버 AgreementReq.code. */
+export const AGREEMENT_CODE_BY_KEY: Record<TermsDocumentKey, AgreementCode> = {
+  service: 'TERMS_OF_SERVICE',
+  privacy: 'PRIVACY_POLICY',
+  marketing: 'MARKETING',
+}

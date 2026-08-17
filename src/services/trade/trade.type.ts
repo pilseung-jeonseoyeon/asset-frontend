@@ -1,6 +1,8 @@
 import type { Market, TradeSide } from '../common.type'
 
-// API-SPEC §11. 페이지네이션이 없어 필터로만 범위를 좁힌다.
+// GET /trades는 Page<TradeResponse>를 반환한다(페이지네이션 자체는 지원됨) — 다만
+// trade.service.ts의 getTrades는 size를 생략해 호출해 서버가 조건에 맞는 전 건을 한 페이지로
+// 내려준다.
 
 export interface TradeResponse {
   id: number
@@ -13,6 +15,8 @@ export interface TradeResponse {
   quantity: number
   price: number
   fee: number
+  /** 증권거래세 — 매도는 실현손익에서 이미 차감된 금액이며, 도입 전 등록·미입력 건은 0. */
+  tax: number
   exchangeRate: number | null
   tradeDate: string
   memo: string | null

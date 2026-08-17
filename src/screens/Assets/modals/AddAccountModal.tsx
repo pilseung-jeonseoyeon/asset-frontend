@@ -113,7 +113,7 @@ export function AddAccountModal() {
       name: form.name.trim(),
       type: form.type,
       currency: form.currency,
-      initialBalance: form.initialBalance,
+      initialBalanceKrw: form.initialBalanceKrw,
       isLiquid: form.isLiquid,
       ...(form.institutionId !== null ? { institutionId: form.institutionId } : {}),
       ...(form.interestRate !== null ? { interestRate: form.interestRate } : {}),
@@ -197,8 +197,8 @@ export function AddAccountModal() {
               <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>{form.currency === 'KRW' ? '₩' : '$'}</span>
               <input
                 type="text" placeholder="0"
-                value={form.initialBalance ? fmt(form.initialBalance) : ''}
-                onChange={(e) => patchForm({ initialBalance: parseAmount(e.target.value) })}
+                value={form.initialBalanceKrw ? fmt(form.initialBalanceKrw) : ''}
+                onChange={(e) => patchForm({ initialBalanceKrw: parseAmount(e.target.value) })}
                 style={{ border: 'none', outline: 'none', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', width: '100%', color: 'var(--text-strong)' }}
               />
             </div>

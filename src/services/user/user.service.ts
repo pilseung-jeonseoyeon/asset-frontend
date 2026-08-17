@@ -6,6 +6,7 @@ import type {
   UpdateUserSettingsRequest,
   UserResponse,
   UserSettingsResponse,
+  WithdrawUserRequest,
 } from './user.type'
 
 export async function getMe() {
@@ -17,9 +18,14 @@ export async function patchMe(body: UpdateProfileRequest) {
   return unwrap(await api.patch<ApiResponse<UserResponse>>('/users/me', body))
 }
 
-/** 회원 탈퇴. 계정과 소유 데이터를 모두 삭제한다(복구 불가). 204 No Content. */
-export async function deleteMe() {
-  await api.delete('/users/me')
+/**
+ * 회원 탈퇴. 비밀번호 재인증 필요(틀리면 400 INVALID_CURRENT_PASSWORD). 계정은 즉시 삭제되지
+ * 않고 탈퇴일로부터 30일 뒤 영구 삭제되며, 유예 기간에는 로그인·토큰 갱신·동일 이메일 재가입이
+ * 모두 막힌다(이미 탈퇴 처리된 계정이면 409 ALREADY_WITHDRAWN). 전 기기 세션은 즉시 폐기된다.
+ * 204 No Content.
+ */
+export async function deleteMe(body: WithdrawUserRequest) {
+  await api.delete('/users/me', { data: body })
 }
 
 export async function getUserSettings() {

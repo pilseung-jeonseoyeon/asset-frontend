@@ -10,11 +10,12 @@
 // SAVING도 TRANSFER와 동일하게 출금 계좌(−amount)·상대 계좌(+amount) 두 계좌를 받는다 — 상대 계좌가
 // 없으면 출금만 반영되어 총자산이 줄어들기 때문에 서버가 필수로 요구한다.
 //
-// PUT은 accountId를 받지 않는다(UpdateTransactionRequest에 필드 자체가 없음 — 수정 불가). 그래서 편집
-// 중에는 "이 거래가 발생한 계좌" 필드(출금계좌가 없는 유형이면 계좌, 있으면 출금계좌)를 읽기 전용으로
-// 바꾼다. 상대 계좌(transferAccountId, SAVING의 저축계좌·TRANSFER의 입금계좌)는 PUT에도 있어 편집
-// 중에도 그대로 바꿀 수 있다. 같은 이유로 거래 유형(수입/지출/저축/이체) 탭도 편집 중에는 숨긴다 —
-// 유형이 바뀌면 "발생한 계좌"의 의미 자체가 바뀌는데 그 계좌는 애초에 수정 대상이 아니기 때문이다.
+// PUT의 accountId는 이제 수정 가능하다(UpdateTransactionRequest가 등록 요청과 동일한 필드 구성으로
+// 바뀜) — 편집 중에도 "이 거래가 발생한 계좌" 필드(출금계좌가 없는 유형이면 계좌, 있으면 출금계좌)를
+// 일반 드롭다운으로 그대로 보여준다. 다만 거래 유형(수입/지출/저축/이체) 탭은 여전히 편집 중 숨긴다 —
+// 유형이 바뀌면 소분류·상대 계좌의 필수/금지 규칙이 통째로 바뀌는데, 이 모달은 유형 전환에 맞춰
+// 소분류·상대 계좌 선택을 초기화하는 흐름을 갖고 있지 않기 때문이다(등록 시 setEntryType의 리셋 로직
+// 참고 — 편집 중 그대로 재사용하면 이전 유형의 선택값이 남는다).
 //
 // 하드코딩 "투자 수익/원금 회수" 블록(구 showInvestBreakdown)은 대응 API가 없어 제거했다(주석 없이
 // 지우면 히스토리 추적이 어려워 여기 남긴다 — ds_rules 10-4의 "투자 실현 수익" 분리 기록은 매도
@@ -36,7 +37,6 @@ import { ENTRY_TYPE_TO_CATEGORY_KIND, ENTRY_TYPE_TO_TX_TYPE, findSubcategoryById
 import type { EntryType } from '../../../state/types'
 import { ApiError } from '@/services/api'
 import { useGetAccounts } from '@/services/account'
-import type { AccountResponse } from '@/services/account'
 import { useGetCategories } from '@/services/category'
 import { useDeleteTransaction, usePostTransaction, usePutTransaction } from '@/services/transaction'
 import type { CreateTransactionRequest, UpdateTransactionRequest } from '@/services/transaction'
@@ -50,17 +50,6 @@ const CONTENT_PLACEHOLDER: Record<EntryType, string> = {
   expense: '어디에 썼는지 적어주세요',
   saving: '적금 자동이체, 목돈 이체 등',
   transfer: '증권계좌 출금, 계좌 간 이동 등',
-}
-
-/** PUT이 받지 않는 계좌(accountId) 필드를 편집 중 읽기 전용으로 보여준다. */
-function LockedAccountField({ accountId, accounts }: { accountId: number | null; accounts: AccountResponse[] }) {
-  const name = accounts.find((a) => a.id === accountId)?.name ?? '—'
-  return (
-    <div>
-      <div style={{ ...FIELD_BORDER_STYLE, fontSize: 13.5, fontWeight: 700, color: 'var(--text-weak)' }}>{name}</div>
-      <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>계좌는 수정할 수 없어요. 바꾸려면 삭제 후 다시 등록해주세요.</div>
-    </div>
-  )
 }
 
 export function LedgerEntryModal() {
@@ -92,7 +81,13 @@ export function LedgerEntryModal() {
     effectiveWithdrawAccountId,
     (id) => { setState({ entryWithdrawAccountId: id }); setSameAccountInvalid(false) },
   )
-  const effectiveEntryAccountId = state.entryAccountId ?? accounts[0]?.id ?? null
+  // 저축·이체는 출금 계좌와 상대 계좌가 반드시 달라야 한다. 둘 다 기본값을 accounts[0]으로 잡으면
+  // 폼을 열자마자 같은 계좌로 충돌해 첫 저장이 항상 "같은 계좌예요" 에러로 막힌다 — 상대 계좌 기본값은
+  // 출금 계좌와 다른 첫 계좌로 잡는다(계좌가 하나뿐이면 notEnoughAccounts가 이미 저장 자체를 막는다).
+  const entryAccountFallbackId = needsTransferAccount
+    ? (accounts.find((a) => a.id !== effectiveWithdrawAccountId)?.id ?? accounts[0]?.id ?? null)
+    : (accounts[0]?.id ?? null)
+  const effectiveEntryAccountId = state.entryAccountId ?? entryAccountFallbackId
   const ddLedgerEntryAcct = useEntityDropdown(
     'ledgerEntryAcct', accounts, (a) => a.id, (a) => a.name,
     effectiveEntryAccountId,
@@ -214,9 +209,10 @@ export function LedgerEntryModal() {
     const transactionDate = picked ? pickedToISODate(picked) : entryDateDisplay.replaceAll('.', '-')
     const type = ENTRY_TYPE_TO_TX_TYPE[entryType]
 
-    // PUT은 전체 교체다. 이 모달이 편집하지 않는 필드(외화)를 다시 실어 보내지 않으면 금액만
-    // 고쳐 저장해도 원래 값이 지워진다. 값이 없던 거래는 키 자체를 넣지 않는다. memo는 이제 이
-    // 모달이 직접 편집하므로(entryMemo) 여기서 보존할 필요가 없다 — 아래 memo와 별도로 합친다.
+    // PUT은 전체 교체다. 이 모달이 편집하지 않는 필드(외화 nativeAmount/nativeCurrency)를 다시
+    // 실어 보내지 않으면 금액만 고쳐 저장해도 원래 값이 null로 지워진다. 값이 없던 거래는 키 자체를
+    // 넣지 않는다. memo는 이제 이 모달이 직접 편집하므로(entryMemo) 여기서 보존할 필요가 없다 —
+    // 아래 memo와 별도로 합친다.
     const preserved = state.entryPreserved
     const memo = state.entryMemo.trim()
     const keep = {
@@ -238,11 +234,10 @@ export function LedgerEntryModal() {
         return
       }
       setSameAccountInvalid(false)
+      const body: CreateTransactionRequest | UpdateTransactionRequest = { type, accountId, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
       if (isEditing) {
-        const body: UpdateTransactionRequest = { type, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
         putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
       } else {
-        const body: CreateTransactionRequest = { type, accountId, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
         postTx.mutate(body, { onSuccess: resetAndClose, onError: handleMutationError })
       }
       return
@@ -261,11 +256,10 @@ export function LedgerEntryModal() {
         return
       }
       setSameAccountInvalid(false)
+      const body: CreateTransactionRequest | UpdateTransactionRequest = { type, accountId, subcategoryId: submitSubcategoryId, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
       if (isEditing) {
-        const body: UpdateTransactionRequest = { type, subcategoryId: submitSubcategoryId, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
         putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
       } else {
-        const body: CreateTransactionRequest = { type, accountId, subcategoryId: submitSubcategoryId, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
         postTx.mutate(body, { onSuccess: resetAndClose, onError: handleMutationError })
       }
       return
@@ -273,11 +267,10 @@ export function LedgerEntryModal() {
 
     const accountId = effectiveEntryAccountId
     if (!accountId || !submitSubcategoryId) return
+    const body: CreateTransactionRequest | UpdateTransactionRequest = { type, accountId, subcategoryId: submitSubcategoryId, amount: state.entryAmount, transactionDate, description, ...keep }
     if (isEditing) {
-      const body: UpdateTransactionRequest = { type, subcategoryId: submitSubcategoryId, amount: state.entryAmount, transactionDate, description, ...keep }
       putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
     } else {
-      const body: CreateTransactionRequest = { type, accountId, subcategoryId: submitSubcategoryId, amount: state.entryAmount, transactionDate, description, ...keep }
       postTx.mutate(body, { onSuccess: resetAndClose, onError: handleMutationError })
     }
   }
@@ -410,7 +403,7 @@ export function LedgerEntryModal() {
         {entryShowWithdraw && (
           <div style={{ position: 'relative' }}>
             <div style={LABEL_STYLE}>출금계좌</div>
-            {isEditing ? <LockedAccountField accountId={effectiveWithdrawAccountId} accounts={accounts} /> : <Dropdown dd={ddWithdrawAcct} maxHeight={180} />}
+            <Dropdown dd={ddWithdrawAcct} maxHeight={180} />
             {notEnoughAccounts ? (
               <div style={{ fontSize: 12.5, color: 'var(--text-weak)', marginTop: 6 }}>
                 계좌가 하나뿐이라 등록할 수 없어요. 서로 다른 두 계좌가 필요해요.
@@ -424,27 +417,23 @@ export function LedgerEntryModal() {
         <div style={{ display: 'flex', gap: 14 }}>
           <div style={{ flex: 1, position: 'relative' }}>
             <div style={LABEL_STYLE}>{ledgerEntryAcctLabel}</div>
-            {isEditing && !needsTransferAccount ? (
-              <LockedAccountField accountId={effectiveEntryAccountId} accounts={accounts} />
-            ) : (
-              <Dropdown
-                dd={ddLedgerEntryAcct}
-                maxHeight={180}
-                footer={
-                  <>
-                    <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />
-                    <button
-                      className="mini-hov"
-                      onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'ledgerEntry' })}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 8, border: 'none', background: 'transparent', fontSize: 12.5, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
-                    >
-                      <Icon name="add" size={15} />
-                      계좌 추가
-                    </button>
-                  </>
-                }
-              />
-            )}
+            <Dropdown
+              dd={ddLedgerEntryAcct}
+              maxHeight={180}
+              footer={
+                <>
+                  <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />
+                  <button
+                    className="mini-hov"
+                    onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'ledgerEntry' })}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 8, border: 'none', background: 'transparent', fontSize: 12.5, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    <Icon name="add" size={15} />
+                    계좌 추가
+                  </button>
+                </>
+              }
+            />
             {transferAccountErrorMessage && <div style={ERROR_STYLE}>{transferAccountErrorMessage}</div>}
           </div>
           <div style={{ flex: 1, position: 'relative' }}>

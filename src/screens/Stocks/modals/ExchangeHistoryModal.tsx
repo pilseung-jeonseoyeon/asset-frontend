@@ -5,9 +5,8 @@
 // state.editingExchangeId가 null이면 목록, 값이 있으면 그 id의 수정 폼. z-index 80, width 440px
 // (ExchangeAddModal과 같은 톤), maxHeight 86vh.
 //
-// GET /exchanges는 currency가 필수라(exchange.service.ts) USD로 고정 호출한다 — 이 앱이 다루는
-// 유일한 외화가 USD라 지금은 문제되지 않지만, 통화가 늘면 이 고정값부터 손봐야 한다(docs/
-// backend-request.md B-3-4).
+// GET /exchanges는 currency가 선택이라(exchange.service.ts) 전 통화를 함께 조회한다 — 저장 시
+// currency는 여전히 'USD'로 고정하는데, 이 앱이 다루는 유일한 외화가 USD이기 때문이다.
 //
 // "외화 자산 & 가중 평균 환율" 카드는 GET /exchanges/summary가 422(FX_RATE_NOT_FOUND)면 본문 전체가
 // 빈 상태로 막힌다(실측 0-2-1). 이 모달은 summary가 아니라 GET /exchanges(목록)만 쓰므로 summary가
@@ -55,7 +54,7 @@ export function ExchangeHistoryModal() {
   const editingId = state.editingExchangeId
   const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
 
-  const exchangesQuery = useGetExchanges('USD', { enabled: isOpen })
+  const exchangesQuery = useGetExchanges({}, { enabled: isOpen })
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })
   const putExchange = usePutExchange()
   const deleteExchange = useDeleteExchange()

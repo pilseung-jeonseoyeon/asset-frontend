@@ -1,6 +1,6 @@
 import { api, unwrap } from '../api'
 import type { ApiResponse } from '../api.types'
-import type { Currency } from '../common.type'
+import type { Currency, ExchangeSearchParams, Page } from '../common.type'
 import type {
   CreateExchangeRequest,
   ExchangeResponse,
@@ -8,11 +8,12 @@ import type {
   UpdateExchangeRequest,
 } from './exchange.type'
 
-/** currency가 필수다. */
-export async function getExchanges(currency: Currency) {
-  return unwrap(
-    await api.get<ApiResponse<ExchangeResponse[]>>('/exchanges', { params: { currency } }),
-  )
+/**
+ * currency는 선택 — 생략하면 전 통화를 함께 내려준다. 서버는 size 생략 시 조건에 맞는 전 건을
+ * 한 페이지로 내려준다.
+ */
+export async function getExchanges(params: ExchangeSearchParams = {}) {
+  return unwrap(await api.get<ApiResponse<Page<ExchangeResponse>>>('/exchanges', { params }))
 }
 
 /** 보유 외화보다 많이 팔면 409 FX_INSUFFICIENT_BALANCE. */

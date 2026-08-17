@@ -400,8 +400,9 @@ export interface CalendarCell {
 }
 
 function dayLine(kind: 'income' | 'saving' | 'expense', amt: number): DayLine {
+  const sign = kind === 'income' ? '+' : kind === 'expense' ? '−' : ''
   return {
-    text: (kind === 'expense' ? '−' : '+') + fmt(amt),
+    text: sign + fmt(amt),
     color: kind === 'income' ? 'var(--inc-text)' : kind === 'saving' ? 'var(--sav-text)' : 'var(--exp-text)',
   }
 }

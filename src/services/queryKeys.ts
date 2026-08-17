@@ -3,6 +3,7 @@ import type {
   CategoryKind,
   Currency,
   DateRange,
+  ExchangeSearchParams,
   Market,
   PeriodUnit,
   RecurringExpenseKind,
@@ -79,7 +80,7 @@ export const qk = {
   },
   exchange: {
     all: () => ['exchange'] as const,
-    list: (currency: Currency) => ['exchange', 'list', { currency }] as const,
+    list: (params: ExchangeSearchParams = {}) => ['exchange', 'list', params] as const,
     summary: (currency: Currency) => ['exchange', 'summary', { currency }] as const,
   },
   marketIndex: {

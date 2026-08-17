@@ -10,7 +10,7 @@ export function useGetTrades(params: TradeSearchParams = {}, options?: { enabled
     queryFn: () => getTrades(params),
     enabled: options?.enabled,
   })
-  return { ...query, trades: query.data ?? [] }
+  return { ...query, trades: query.data?.content ?? [] }
 }
 
 /** 매매는 보유 종목·계좌 잔액·자산 분포를 모두 다시 계산하게 만든다. */

@@ -5,10 +5,10 @@ import type { AssetClass } from '../common.type'
 
 export interface DashboardSummaryResponse {
   totalAssetKrw: number
-  /** 이번 정산월 시작일 대비 증감 (음수 가능) */
-  monthChangeKrw: number
-  /** 올해 1월 1일 대비 증감 (음수 가능) */
-  yearChangeKrw: number
+  /** 이번 정산월 시작일 대비 증감 (음수 가능). 기준 스냅샷이 없으면 null(0이 아니다). */
+  monthChangeKrw: number | null
+  /** 올해 1월 1일 대비 증감 (음수 가능). 기준 스냅샷이 없으면 null(0이 아니다). */
+  yearChangeKrw: number | null
 }
 
 export interface TrendPointResponse {

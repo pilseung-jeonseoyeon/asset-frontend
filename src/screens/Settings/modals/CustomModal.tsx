@@ -171,14 +171,20 @@ export function CustomModal() {
                 <div key={ag.id}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                     <div style={{ fontSize: 12.5, fontWeight: 700 }}>{ag.name}</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: ag.color }}>{ag.pct}%</div>
+                    {ag.hasProgressData && (
+                      <div style={{ fontSize: 12, fontWeight: 700, color: ag.color }}>{ag.pct}%</div>
+                    )}
                   </div>
-                  <div style={{ height: 7, background: 'var(--track)', borderRadius: 4 }}>
-                    <div style={{ height: '100%', width: `${ag.barPct}%`, background: ag.color, borderRadius: 4 }} />
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>
-                    {ag.currentFmt} / {ag.targetFmt}원
-                  </div>
+                  {ag.hasProgressData ? (
+                    <>
+                      <div style={{ height: 7, background: 'var(--track)', borderRadius: 4 }}>
+                        <div style={{ height: '100%', width: `${ag.barPct}%`, background: ag.color, borderRadius: 4 }} />
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>
+                        {ag.currentFmt} / {ag.targetFmt}원
+                      </div>
+                    </>
+                  ) : null}
                   <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>{ag.subCaption}</div>
                 </div>
               ))}

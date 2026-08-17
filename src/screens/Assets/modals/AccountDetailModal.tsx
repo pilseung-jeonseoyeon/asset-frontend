@@ -42,7 +42,7 @@ export function AccountDetailModal() {
   const account = accountQuery.data
   const err = describeQueryError(accountQuery.error)
   const header = account ? buildAccountDetailHeader(account) : null
-  const bigAmountCaption = account ? formatBigAmountCaption(account.balance) : null
+  const bigAmountCaption = account ? formatBigAmountCaption(account.balanceKrw) : null
   const trendPath = snapshotsQuery.data ? buildAccountTrendPath(snapshotsQuery.data) : null
   const txRows = buildLedgerTx(txQuery.data?.content ?? [], accountsQuery.data ?? [])
 
@@ -89,7 +89,7 @@ export function AccountDetailModal() {
 
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 12, color: 'var(--text-weak)', marginBottom: 4 }}>현재 잔액</div>
-            <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.02em' }}>{fmt(account.balance)}원</div>
+            <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.02em' }}>{fmt(account.balanceKrw)}원</div>
             {bigAmountCaption && (
               <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 4 }}>{bigAmountCaption}</div>
             )}

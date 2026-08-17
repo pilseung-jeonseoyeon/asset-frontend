@@ -4,10 +4,9 @@
 //
 // 반복 주기: 원본 프로토타입은 매주/매월/매년(recurFreq) + 결제요일/결제월·결제일을 입력받았지만, 서버
 // CreateSubscriptionReq(secret/API-SPEC.md §8.2)는 paymentDay(1~31, "매월 며칠") 하나만 받는다 — 주간·
-// 연간 주기 자체가 서버 모델에 없다. 그래서 이 화면은 매월 결제만 지원하도록 정리했다. state의
-// recurFreq/recurYearMonth/recurYearDay는 다른 작업과의 충돌을 피하려고 필드는 남겨두되(Ledger 작업
-// 보고 참고) 이 모달에서는 더 이상 읽지 않는다 — recurPayDay("N일" 문자열)만 그대로 재사용해 paymentDay를
-// 만든다.
+// 연간 주기 자체가 서버 모델에 없다. 답변서 C-8에서 매월 전용으로 드롭 확정(frequency 필드 추가 안 함)
+// 했으므로, 죽은 state였던 recurFreq/recurYearMonth/recurYearDay는 제거했다. recurPayDay("N일" 문자열)
+// 만 그대로 재사용해 paymentDay를 만든다.
 //
 // 시작일(startedAt): GET /subscriptions 응답에 startedAt이 없어(subscription.type.ts SubscriptionResponse
 // 참고) 수정 모달을 열 때 원래 값을 알 수 없다. 모르는 값을 "오늘"로 덮어써 버리면 데이터 손실이라
@@ -293,6 +292,12 @@ export function FixedExpenseModal() {
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>
             매월 반복돼요(주·년 단위는 아직 지원하지 않아요).
+            {/* 답변서 C-7: 서버가 이미 Math.min(paymentDay, 그 달 길이)로 말일 클램프를 구현해뒀고
+               이제 @Schema에도 명문화됐다 — 아래 문구는 근거 없는 단언이 아니라 확정된 서버 동작이다.
+               monthStartDay(1~28)와 달리 paymentDay가 31까지 허용되는 비대칭도 의도된 설계다:
+               paymentDay는 "이벤트(그 달의 결제 시점)"라 말일로 당겨도 의미가 유지되지만,
+               monthStartDay는 "정산월 구간의 경계"라 31을 허용하면 인접 정산월 사이에 겹침·구멍이
+               생겨 원장이 이중 집계되거나 누락된다. */}
             {paymentDay >= 29 && ' 29~31일은 그 날짜가 없는 달엔 말일에 결제돼요.'}
           </div>
         </div>
