@@ -17,6 +17,18 @@
 //    dd 상태를 공유해 한쪽에서 고른 계좌가 다른 쪽으로 새는 버그가 된다(과거 useDropdown 기반 구현의
 //    실제 버그였음. 지금은 계좌 선택을 로컬 상태로 들고 있어 값 자체는 새지 않지만, 두 모달이 동시에
 //    같은 openDropdown 키를 다투지 않도록 키는 여전히 분리한다).
+//  - 계좌 드롭다운은 GET /accounts 전체가 아니라 filterTradeAccounts(선택된 시장에 맞는 타입만, 지금은
+//    KR/US 둘 다 BROKERAGE)로 좁혔다 — 서버가 계좌 타입을 검증하지 않아(docs/backend-request.md B-1-3)
+//    현금 계좌는 물론, 증권 계좌 없이 가상자산 지갑만 있는 사용자가 KR/US 종목을 지갑 계좌로 등록하는
+//    것까지 막는다. 적합한 계좌가 0개면 빈 드롭다운 대신 "증권계좌를 먼저 추가해주세요" + 계좌 추가
+//    버튼으로 보낸다.
+//  - state.stockSector는 더 이상 기본값을 갖지 않는다(빈 문자열 = 미선택). 과거 '반도체' 하드코딩
+//    초기값이 모달을 닫아도 리셋되지 않아 사용자가 섹터를 한 번도 고르지 않아도 모든 신규 종목이
+//    반도체로 등록되던 데이터 오염 버그였다(같은 문서 5-1) — 이제 모달을 닫거나 종목 등록에 성공하면
+//    매번 비운다.
+//  - 매도 모드에서 선택한 종목의 보유 수량을 "보유 N주"로 보여주고, 수량 입력이 그 값을 넘지 못하게
+//    타이핑 중에 잘라낸다(사전 검증). 서버 409(INSUFFICIENT_HOLDING)는 경합 등에 대비한 최종 방어선으로
+//    그대로 유지한다.
 
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -30,7 +42,7 @@ import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { fmt, sanitizeDecimalInput } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate } from '../../../utils/date'
-import { buyMarketToMarket, marketToCurrency, sortHoldingsByReturn } from '../../../data/stocksView'
+import { buyMarketToMarket, filterTradeAccounts, marketToCurrency, sortHoldingsByReturn } from '../../../data/stocksView'
 import { ApiError } from '@/services/api'
 import { useGetAccounts } from '@/services/account'
 import { useGetHoldings, useGetStocks, usePostStock } from '@/services/stock'
@@ -92,7 +104,9 @@ export function QuickStockModal() {
   // 보유 종목 카드(buildHoldingCards)와 같은 기준(수익률 내림차순)으로 정렬해 화면 간 순서를 맞춘다.
   const sortedHoldings = sortHoldingsByReturn(holdingsQuery.holdings)
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })
-  const accounts = accountsQuery.data ?? []
+  // 서버가 계좌 타입을 검증하지 않아(docs/backend-request.md B-1-3) 현금 계좌로도 매매가 등록되던
+  // 문제(0-4-7)를 여기서 좁혀 막는다 — 선택된 시장(KR/US)에 맞는 증권 계좌만 드롭다운에 노출한다.
+  const accounts = filterTradeAccounts(accountsQuery.data ?? [], market)
   const postStock = usePostStock()
   const postTrade = usePostTrade()
 
@@ -120,7 +134,8 @@ export function QuickStockModal() {
   const ddAccountDisplay = { ...ddAccount, value: ddAccount.value || '계좌를 선택하세요' }
 
   const todayISO = toISODate(new Date())
-  const dpTradeDate = useDatePicker('stockTrade', isoDateToDisplay(todayISO), isoDateToNav(todayISO))
+  // 미래 매매는 성립하지 않는다(docs/backend-request.md 0-4-5) — 서버 검증이 없어 프론트에서 막는다.
+  const dpTradeDate = useDatePicker('stockTrade', isoDateToDisplay(todayISO), isoDateToNav(todayISO), todayISO)
 
   if (!isOpen) return null
 
@@ -133,6 +148,7 @@ export function QuickStockModal() {
   const resetAndClose = () => {
     setState((st) => ({
       modalOpen: null,
+      stockSector: '',
       dpPicked: { ...st.dpPicked, stockTrade: undefined },
       dpNav: { ...st.dpNav, stockTrade: undefined },
       openDropdown: null,
@@ -156,7 +172,7 @@ export function QuickStockModal() {
   }
 
   const switchMarket = (next: string) => {
-    setState({ stockBuyMarket: next })
+    setState({ stockBuyMarket: next, stockSector: '' })
     setKeyword('')
     setNewStockMode(false)
     setNewTicker('')
@@ -195,6 +211,9 @@ export function QuickStockModal() {
         setNewName('')
         setKeyword('')
         setStockMissing(false)
+        // 등록이 끝나면 섹터 선택도 비운다 — 남겨두면 "변경"으로 검색을 다시 열어 또 다른 신규
+        // 종목을 등록할 때 이전 선택이 조용히 이어붙는다.
+        setState({ stockSector: '' })
         postStock.reset()
       },
     })
@@ -231,6 +250,10 @@ export function QuickStockModal() {
   const insufficientHolding = postTrade.error instanceof ApiError && postTrade.error.code === 'INSUFFICIENT_HOLDING'
   const fxMissing = postTrade.error instanceof ApiError && postTrade.error.code === 'FX_RATE_NOT_FOUND'
   const genericTradeError = postTrade.error && !insufficientHolding && !fxMissing ? postTrade.error.message : null
+
+  // 매도 폼의 사전 검증: 서버 409(INSUFFICIENT_HOLDING)까지 왕복하지 않고도 보유 수량을 넘겨 입력할
+  // 수 없게 막는다(경합 등으로 서버가 그래도 거부하면 위 insufficientHolding 메시지가 최종 방어선).
+  const quantityMax = stockModeSell ? (sortedHoldings.find((h) => h.stockId === stockId)?.quantity ?? null) : null
 
   const quantityNum = Number(quantityStr) || 0
   const priceNum = Number(priceStr) || 0
@@ -389,6 +412,9 @@ export function QuickStockModal() {
             ) : (
               <Dropdown dd={ddHoldingDisplay} maxHeight={180} />
             )}
+            {quantityMax !== null && (
+              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>보유 {fmt(quantityMax)}주</div>
+            )}
             {stockMissing && !stockId && <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>종목을 선택해주세요</div>}
           </div>
         )}
@@ -400,7 +426,11 @@ export function QuickStockModal() {
               type="text" inputMode="decimal" placeholder="0"
               value={quantityStr}
               onChange={(e) => {
-                setQuantityStr(sanitizeDecimalInput(e.target.value, 6))
+                const sanitized = sanitizeDecimalInput(e.target.value, 6)
+                // 보유 수량을 넘겨 입력할 수 없게 타이핑 중에 바로 잘라낸다(quantityMax는 매도 모드에서만
+                // 값을 가진다).
+                const clamped = quantityMax !== null && Number(sanitized) > quantityMax ? String(quantityMax) : sanitized
+                setQuantityStr(clamped)
                 setAmountMissing(false)
               }}
               style={{ width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box' }}
@@ -449,8 +479,20 @@ export function QuickStockModal() {
             {accountsQuery.isPending ? (
               <div aria-busy style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
             ) : accounts.length === 0 ? (
-              <div style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>
-                등록된 계좌가 없어요
+              // 증권/가상자산 계좌가 하나도 없으면 빈 드롭다운으로 막다른 길을 만들지 않고 바로 계좌
+              // 추가로 보낸다(docs/backend-request.md 5-8, 6).
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>
+                  증권계좌를 먼저 추가해주세요
+                </div>
+                <button
+                  onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'quickStock' })}
+                  className="mini-hov"
+                  style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, padding: '9px 10px', borderRadius: 8, border: 'none', background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  <Icon name="add" size={15} />
+                  계좌 추가
+                </button>
               </div>
             ) : (
               <Dropdown

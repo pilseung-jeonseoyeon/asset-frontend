@@ -1,17 +1,25 @@
 // View-model layer for the 주식(Stocks) screen: adapts server responses (GET /indices, GET /stocks,
-// GET /stocks/holdings, GET /stocks/holdings/groups, GET /stocks/holdings/closed, GET /exchanges/summary)
-// into the shapes the screen and its modals (QuickStockModal/ExchangeAddModal) render. Ported from the
-// old src/data/mockStocks.ts — the pct/sign/color formula (`(pct>=0?'+':'−')+Math.abs(pct).toFixed(1)+'%'`,
-// U+2212, var(--up)/var(--down), ds_rules_v2_5.md §10-1) and the ramp color order (§1-6) are transcribed
-// verbatim. What changed is the input: values now come from real aggregates instead of hardcoded
-// literals, so every division here has an explicit 0-guard (unlike the mock, a real portfolio can
-// legitimately have 0 holdings, 0 total value, or 0 cost basis).
+// GET /stocks/holdings, GET /stocks/holdings/groups, GET /stocks/holdings/closed, GET /exchanges/summary,
+// GET /trades) into the shapes the screen and its modals (QuickStockModal/ExchangeAddModal/
+// TradeEditModal) render. Ported from the old src/data/mockStocks.ts — the pct/sign/color formula
+// (`(pct>=0?'+':'−')+Math.abs(pct).toFixed(1)+'%'`, U+2212, var(--up)/var(--down), ds_rules_v2_5.md
+// §10-1) and the ramp color order (§1-6) are transcribed verbatim. What changed is the input: values
+// now come from real aggregates instead of hardcoded literals, so every division here has an explicit
+// 0-guard (unlike the mock, a real portfolio can legitimately have 0 holdings, 0 total value, or 0 cost
+// basis).
+//
+// 2026-08-17 추가: filterTradeAccounts(매매 계좌를 증권/가상자산 타입으로 좁힘), buildTradeRows(매매
+// 내역 섹션 뷰모델, 투자 거래를 §10-4의 "이체"로 렌더). buildMarketIndexViews의 valueFmt도 자릿수를
+// 항상 2자리로 고정하도록 고쳤다(서버가 지수마다 소수점 자릿수를 다르게 내려보내 KOSPI/S&P는 2자리인데
+// NASDAQ만 3자리로 온 적이 있음, 실행 화면 확인).
 
 import { fmt } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
 import type { ClosedHoldingResponse, HoldingGroupResponse, HoldingResponse, StockResponse } from '@/services/stock'
 import type { MarketIndexResponse } from '@/services/marketIndex'
-import type { Currency, Market } from '@/services/common.type'
+import type { TradeResponse } from '@/services/trade'
+import type { AccountResponse } from '@/services/account'
+import type { AccountType, Currency, Market } from '@/services/common.type'
 
 // ---------- 시장/심볼 ↔ 한글 라벨 ----------
 
@@ -91,7 +99,9 @@ export function buildMarketIndexViews(indices: MarketIndexResponse[]): MarketInd
       return {
         symbol: idx.symbol,
         label: INDEX_SYMBOL_LABELS[idx.symbol] ?? idx.symbol,
-        valueFmt: fmt(idx.currentValue),
+        // 소수점 자릿수를 지수마다 서버가 다르게 내려준다(NASDAQ만 3자리로 온 적 있음, 실행 화면
+        // 확인) — fmt()는 자릿수를 고정하지 않으므로, 원본대로 항상 2자리로 고정한다.
+        valueFmt: idx.currentValue.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         changePctFmt: changePercent !== null ? (positive ? '+' : '−') + Math.abs(changePercent).toFixed(2) + '%' : null,
         positive,
       }
@@ -218,6 +228,8 @@ export function buildHoldingCards(holdings: HoldingResponse[], stocks: StockResp
 // ---------- 포트폴리오 요약 ----------
 
 export interface PortfolioSummaryView {
+  /** 억/만 축약 캡션(§4-2) 계산용 원본 금액. 화면에는 항상 totalValueFmt(콤마 포맷)를 그린다. */
+  totalValueKrw: number
   totalValueFmt: string
   totalCostFmt: string
   pnlFmt: string
@@ -242,6 +254,7 @@ export function buildPortfolioSummary(holdings: HoldingResponse[], totalAssetKrw
   const returnRatePositive = returnRate >= 0
   const sharePct = totalAssetKrw ? (totalValue / totalAssetKrw) * 100 : null
   return {
+    totalValueKrw: totalValue,
     totalValueFmt: fmt(totalValue),
     totalCostFmt: fmt(totalCost),
     pnlFmt: `${pnlPositive ? '+' : '−'}${fmt(Math.abs(pnl))}`,
@@ -301,4 +314,68 @@ export function buildClosedHoldingCards(closedHoldings: ClosedHoldingResponse[])
       closedAtFmt: isoDateToDisplay(h.closedAt),
     }
   })
+}
+
+// ---------- 매매 계좌 필터 ----------
+
+/**
+ * 시장별로 매매에 쓸 수 있는 계좌 타입. QuickStockModal은 아직 KR/US 두 시장만 다루므로 둘 다
+ * 증권 계좌(BROKERAGE)만 허용한다 — 가상자산 지갑(CRYPTO_WALLET)까지 열어두면 증권 계좌 없이
+ * 지갑만 있는 사용자가 KR/US 종목을 지갑 계좌로 등록할 수 있었다(서버가 계좌 타입을 검증하지
+ * 않음, docs/backend-request.md B-1-3). CRYPTO 항목은 아직 매매 UI가 없지만, 나중에 CRYPTO 시장이
+ * 추가될 때 이 표에 한 줄만 채우면 되도록 구조를 미리 남겨둔다.
+ */
+const TRADE_ACCOUNT_TYPES_BY_MARKET: Record<Market, AccountType[]> = {
+  KR: ['BROKERAGE'],
+  US: ['BROKERAGE'],
+  CRYPTO: ['CRYPTO_WALLET'],
+}
+
+/**
+ * 매매(QuickStockModal) 계좌 드롭다운에 노출할 계좌 타입. 서버가 계좌 타입을 검증하지 않아
+ * (docs/backend-request.md B-1-3) 현금 계좌로도 매매가 그대로 등록되던 문제(0-4-7)를 프론트에서
+ * 좁혀 막는다. 선택된 시장에 맞는 계좌 타입만 남긴다(위 TRADE_ACCOUNT_TYPES_BY_MARKET 참고).
+ */
+export function filterTradeAccounts(accounts: AccountResponse[], market: Market): AccountResponse[] {
+  const allowed = TRADE_ACCOUNT_TYPES_BY_MARKET[market]
+  return accounts.filter((a) => allowed.includes(a.type))
+}
+
+// ---------- 매매 내역 ----------
+
+export interface TradeRowView {
+  id: number
+  dateLabel: string
+  stockName: string
+  tag: string
+  amountFmt: string
+}
+
+/** GET /trades에 페이지네이션이 없어(docs/backend-request.md B-3-3) 화면에는 최근 N건만 보여준다. */
+export const TRADE_HISTORY_LIMIT = 10
+
+function shortTradeDateLabel(isoDate: string): string {
+  return isoDate.slice(5).replace('-', '.')
+}
+
+/**
+ * 매매 내역 섹션(Stocks.tsx)이 쓰는 뷰모델. 최신 체결일 순(동일 일자는 id 내림차순, 안정적인
+ * tie-break)으로 정렬하고 상위 limit건만 남긴다 — 조용히 자르지 않도록 호출부가 그 사실을 캡션으로
+ * 밝힐 것.
+ *
+ * 투자 거래(매수·매도)는 ds_rules_v2_5.md §10-4에 따라 "이체"로 취급한다 — 수입/지출 파스텔이나
+ * 등락색이 아니라 무채색(text-strong)으로, 부호 없이 총액만 보여준다.
+ */
+export function buildTradeRows(trades: TradeResponse[], market?: Market, limit: number = TRADE_HISTORY_LIMIT): TradeRowView[] {
+  return [...trades]
+    .filter((t) => !market || t.market === market)
+    .sort((a, b) => (a.tradeDate === b.tradeDate ? b.id - a.id : b.tradeDate.localeCompare(a.tradeDate)))
+    .slice(0, limit)
+    .map((t) => ({
+      id: t.id,
+      dateLabel: shortTradeDateLabel(t.tradeDate),
+      stockName: t.stockName,
+      tag: t.side === 'BUY' ? '매수' : '매도',
+      amountFmt: marketToCurrency(t.market) === 'USD' ? `$${fmt(t.quantity * t.price)}` : `${fmt(t.quantity * t.price)}원`,
+    }))
 }

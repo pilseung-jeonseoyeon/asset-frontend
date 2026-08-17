@@ -10,9 +10,12 @@
 //    두 값을 각각 입력하게 하면 외화금액·환율·원화금액 세 숫자가 서로 어긋날 수 있다.
 //  - 드롭다운 키를 'exchangeAcct'로 분리했다 — 과거 QuickStockModal과 'stockAcct' 키를 공유해 계좌
 //    선택이 서로 새던 버그(CLAUDE.md/과제 지시)를 피하기 위함이다.
+//  - 계좌가 0개일 때 "등록된 계좌가 없어요"만 뜨고 계좌 추가 진입점이 없던 막다른 길을 고쳤다
+//    (docs/backend-request.md 5-8) — QuickStockModal과 같은 패턴으로 계좌 추가 버튼을 추가했다.
 
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
+import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
 import { Dropdown } from '../../../components/primitives/Dropdown/Dropdown'
 import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker'
@@ -70,7 +73,8 @@ export function ExchangeAddModal() {
   const ddAccountDisplay = { ...ddAccount, value: ddAccount.value || '계좌를 선택하세요' }
 
   const todayISO = toISODate(new Date())
-  const dpExchangeDate = useDatePicker('exchangeDate', isoDateToDisplay(todayISO), isoDateToNav(todayISO))
+  // 미래 환전은 성립하지 않는다(docs/backend-request.md 0-4-5) — 서버 검증이 없어 프론트에서 막는다.
+  const dpExchangeDate = useDatePicker('exchangeDate', isoDateToDisplay(todayISO), isoDateToNav(todayISO), todayISO)
 
   if (!isOpen) return null
 
@@ -178,7 +182,19 @@ export function ExchangeAddModal() {
             {accountsQuery.isPending ? (
               <div aria-busy style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
             ) : accounts.length === 0 ? (
-              <div style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>등록된 계좌가 없어요</div>
+              // 계좌가 하나도 없으면 빈 드롭다운으로 막다른 길을 만들지 않고 바로 계좌 추가로
+              // 보낸다(매수/매도 모달 QuickStockModal과 동일한 패턴, docs/backend-request.md 5-8).
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>등록된 계좌가 없어요</div>
+                <button
+                  onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'exchangeAdd' })}
+                  className="mini-hov"
+                  style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, padding: '9px 10px', borderRadius: 8, border: 'none', background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  <Icon name="add" size={15} />
+                  계좌 추가
+                </button>
+              </div>
             ) : (
               <Dropdown dd={ddAccountDisplay} maxHeight={180} />
             )}

@@ -1,15 +1,20 @@
 // Source: secret/Asset Manager v14.dc.html L2371-2632 (Stock screen literal markup) — layout
 // transcribed verbatim, then wired to GET /indices, GET /stocks, GET /stocks/holdings,
-// GET /stocks/holdings/groups, GET /stocks/holdings/closed, GET /exchanges/summary,
-// GET /dashboard/summary (previously hardcoded mock data — see git history for
+// GET /stocks/holdings/groups, GET /stocks/holdings/closed, GET /exchanges/summary, GET /exchanges,
+// GET /trades, GET /dashboard/summary (previously hardcoded mock data — see git history for
 // src/data/mockStocks.ts). This screen owns the 2nd (and last allowed) DonutChart usage app-wide —
 // ds_rules_v2_5.md §3-4 caps donuts at exactly 2 locations (Dashboard asset composition + this
 // 섹터 비중 chart).
 //
 // Still dropped vs. the old mock (server genuinely doesn't send these — HoldingRes has no ticker/
-// currentPrice/previousClose join, API-SPEC 부록 C): 보유 종목 카드의 현재가·전일대비 컬럼, 그리고
-// 억/만 축약 캡션 on 총 평가금액(CLAUDE.md가 범용 축약 헬퍼 발명을 금지 — assetsView.ts/Assets.tsx도
-// 같은 이유로 뺐다). 총 매수금액은 여전히 총평가 − 평가손익으로 역산한다(수수료 반영 원가 API 없음).
+// currentPrice/previousClose join, API-SPEC 부록 C): 보유 종목 카드의 현재가·전일대비 컬럼. 총
+// 매수금액은 여전히 총평가 − 평가손익으로 역산한다(수수료 반영 원가 API 없음).
+//
+// 2026-08-17 추가: "총 평가금액" 아래 억/만 축약 캡션을 복원했다 — CLAUDE.md의 "범용 축약 헬퍼 발명
+// 금지"는 이미 Dashboard가 formatKoreanAbbrev()를 쓰면서 낡은 근거가 됐다(그 헬퍼를 그대로 재사용).
+// "매매 내역"(청산 종목 근처) 섹션과 "외화 자산" 카드의 "내역" 진입점도 이때 추가됐다 —
+// GET/PUT/DELETE /trades·/exchanges 훅은 이미 있었는데 호출부가 없어(docs/backend-request.md 4-1,
+// 4-4) 오입력·등록한 환전을 되돌릴 방법이 아예 없던 문제를 고쳤다.
 
 import type { CSSProperties } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
@@ -19,7 +24,7 @@ import { DonutChart } from '../../components/primitives/DonutChart/DonutChart'
 import { SegmentedTab } from '../../components/primitives/SegmentedTab/SegmentedTab'
 import { useAppState } from '../../state/AppStateContext'
 import { darkTab, liteTab } from '../../state/selectors/stocks'
-import { fmt } from '../../utils/format'
+import { fmt, formatKoreanAbbrev } from '../../utils/format'
 import {
   buildClosedHoldingCards,
   buildForeignHoldingKrwFmt,
@@ -28,16 +33,31 @@ import {
   buildMarketIndexViews,
   buildPortfolioSummary,
   buildSectorComposition,
+  buildTradeRows,
   stockTabToMarket,
+  TRADE_HISTORY_LIMIT,
 } from '../../data/stocksView'
 import { useGetMarketIndices } from '@/services/marketIndex'
 import { isFxRateMissing, useGetClosedHoldings, useGetHoldingGroups, useGetHoldings, useGetStocks } from '@/services/stock'
 import { useGetExchangeSummary } from '@/services/exchange'
 import { useGetDashboardSummary } from '@/services/dashboard'
+import { useGetTrades } from '@/services/trade'
 
 const EMPTY_TEXT_STYLE: CSSProperties = { fontSize: 12.5, color: 'var(--text-weak)' }
 const EMPTY_TEXT_STYLE_DEEP: CSSProperties = { fontSize: 12.5, color: 'var(--deep-label)' }
 const ERROR_TEXT_STYLE: CSSProperties = { fontSize: 11.5, color: 'var(--down)' }
+// 1억 원 미만 금액에는 축약 캡션을 병기하지 않는다(ds_rules_v2_5.md §4-2) — Dashboard.tsx의
+// AbbrevCaption과 동일 기준.
+const ABBREV_THRESHOLD = 100_000_000
+
+function TotalValueAbbrevCaption({ amountKrw }: { amountKrw: number }) {
+  if (amountKrw < ABBREV_THRESHOLD) return null
+  return (
+    <div style={{ fontSize: 12, color: 'var(--deep-label)', fontWeight: 500, marginTop: 4 }}>
+      약 {formatKoreanAbbrev(amountKrw)} 원
+    </div>
+  )
+}
 
 export function Stocks() {
   const { state, setState } = useAppState()
@@ -86,6 +106,11 @@ export function Stocks() {
   const closedHoldingsHasError = !!closedHoldingsQuery.error && !closedHoldingsFxMissing
 
   const holdingsHasError = !!holdingsQuery.error && !holdingsQuery.isFxRateMissing
+
+  // 매매 내역 — 청산 종목 섹션 근처에 별도 카드로 보여준다(docs/backend-request.md 4-1). 페이지네이션이
+  // 없는 API라(같은 문서 B-3-3) 최근 TRADE_HISTORY_LIMIT건만 남기고 그 사실을 캡션으로 밝힌다.
+  const tradesQuery = useGetTrades({})
+  const tradeRows = buildTradeRows(tradesQuery.trades, market, TRADE_HISTORY_LIMIT)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -168,6 +193,7 @@ export function Stocks() {
                     {portfolioSummary.totalValueFmt}
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--deep-label)' }}>원</span>
                   </div>
+                  <TotalValueAbbrevCaption amountKrw={portfolioSummary.totalValueKrw} />
                 </div>
                 <div>
                   <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>총 매수금액</div>
@@ -218,25 +244,47 @@ export function Stocks() {
         </DeepCard>
 
         <Card style={{ padding: 26, justifyContent: 'space-between', height: '100%', width: '100%' }} aria-busy={exchangeSummary.isPending}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <div style={{ fontSize: 15, fontWeight: 700 }}>외화 자산 &amp; 가중 평균 환율</div>
-            <button
-              onClick={() => setState({ modalOpen: 'exchangeAdd' })}
-              className="qbtn"
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: 'var(--accent)',
-                background: 'var(--accent-soft)',
-                padding: '5px 10px',
-                borderRadius: 8,
-                cursor: 'pointer',
-                border: 'none',
-                fontFamily: 'inherit',
-              }}
-            >
-              + 환전 추가
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
+              {/* 요약(GET /exchanges/summary)이 422로 실패해도(docs/backend-request.md 0-2-1) 이
+                  버튼은 항상 눌려야 한다 — 등록한 환전을 최소한 확인·삭제는 할 수 있어야 하기
+                  때문이다(같은 문서 0-4-6). */}
+              <button
+                onClick={() => setState({ modalOpen: 'exchangeHistory', editingExchangeId: null })}
+                className="qbtn"
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'var(--text-mid)',
+                  background: 'var(--fill-subtle)',
+                  padding: '5px 10px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  border: 'none',
+                  fontFamily: 'inherit',
+                }}
+              >
+                내역
+              </button>
+              <button
+                onClick={() => setState({ modalOpen: 'exchangeAdd' })}
+                className="qbtn"
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'var(--accent)',
+                  background: 'var(--accent-soft)',
+                  padding: '5px 10px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  border: 'none',
+                  fontFamily: 'inherit',
+                }}
+              >
+                + 환전 추가
+              </button>
+            </div>
           </div>
           {exchangeSummary.isPending ? (
             <div aria-busy style={{ ...EMPTY_TEXT_STYLE, marginTop: 16 }}>—</div>
@@ -427,6 +475,46 @@ export function Stocks() {
                 <div style={{ fontSize: 15, fontWeight: 700, color: h.positive ? 'var(--up)' : 'var(--down)', marginTop: 8 }}>
                   {h.gainFmt}
                 </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* 매매 내역 — GET/PUT/DELETE /trades 훅은 있었지만 호출부가 없어(docs/backend-request.md 4-1)
+          오입력한 매수·매도를 되돌릴 방법이 없었다. 행을 누르면 TradeEditModal이 열린다. */}
+      <Card style={{ padding: 26 }} aria-busy={tradesQuery.isPending}>
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>매매 내역</div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginBottom: 18 }}>
+          최근 {TRADE_HISTORY_LIMIT}건만 표시돼요 · 행을 눌러 수정·삭제할 수 있어요
+        </div>
+        {tradesQuery.isPending ? (
+          <div aria-busy style={EMPTY_TEXT_STYLE}>—</div>
+        ) : tradesQuery.error ? (
+          <div style={ERROR_TEXT_STYLE}>{tradesQuery.error.message}</div>
+        ) : tradeRows.length === 0 ? (
+          <div style={EMPTY_TEXT_STYLE}>
+            {stockTab === '전체' ? '매매 기록이 없어요' : `${stockTab} 주식 매매 기록이 없어요`}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {tradeRows.map((t) => (
+              <div
+                key={t.id}
+                className="mini-hov"
+                onClick={() => setState({ modalOpen: 'tradeEdit', editingTradeId: t.id })}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8, cursor: 'pointer' }}
+              >
+                <div style={{ fontSize: 11.5, color: 'var(--text-weak)', width: 44, flex: 'none' }}>{t.dateLabel}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.stockName}</div>
+                </div>
+                <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 8, whiteSpace: 'nowrap', background: 'var(--fill-subtle)', color: 'var(--text-mid)' }}>
+                  {t.tag}
+                </span>
+                {/* 투자 거래는 ds_rules_v2_5.md §10-4에 따라 "이체"로 취급한다 — 등락색·부호 없이
+                    무채색(text-strong)으로만 총액을 보여준다. */}
+                <div style={{ fontSize: 13.5, fontWeight: 700, width: 120, textAlign: 'right', color: 'var(--text-strong)' }}>{t.amountFmt}</div>
               </div>
             ))}
           </div>

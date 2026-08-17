@@ -3,8 +3,13 @@
 // isStock/isLedger/isSet).
 //
 // Split out of AppShell.tsx as its own lazy-loaded chunk (see AppShell.tsx) — everything that only
-// an authenticated visitor ever needs (nav, header, all 5 screens, all 17 always-mounted modals).
+// an authenticated visitor ever needs (nav, header, all 5 screens, all 19 always-mounted modals).
 // A first-time or logged-out visitor never downloads this file.
+//
+// TradeEditModal/ExchangeHistoryModal (added 2026-08-17) have no dc.html source — the original
+// prototype never had a trades/exchanges history screen. They exist because GET/PUT/DELETE
+// /trades and /exchanges were already implemented server-side and had unused React Query hooks
+// (docs/backend-request.md 4-1, 4-4) with no UI entry point at all.
 //
 // Mobile shell (<=767px, docs/mobile.md §2): SidebarNav is swapped for the fixed BottomTabNav and
 // `main` padding drops to leave room for it.
@@ -38,6 +43,8 @@ import { CategorySettingsModal } from '../../screens/Settings/modals/CategorySet
 import { Assets } from '../../screens/Assets/Assets'
 import { QuickStockModal } from '../../screens/Assets/modals/QuickStockModal'
 import { ExchangeAddModal } from '../../screens/Assets/modals/ExchangeAddModal'
+import { TradeEditModal } from '../../screens/Stocks/modals/TradeEditModal'
+import { ExchangeHistoryModal } from '../../screens/Stocks/modals/ExchangeHistoryModal'
 import { AddAccountModal } from '../../screens/Assets/modals/AddAccountModal'
 import { EditAccountModal } from '../../screens/Assets/modals/EditAccountModal'
 import { AssetCategoryModal } from '../../screens/Assets/modals/AssetCategoryModal'
@@ -102,6 +109,8 @@ export function AuthenticatedApp() {
       <CategorySettingsModal />
       <QuickStockModal />
       <ExchangeAddModal />
+      <TradeEditModal />
+      <ExchangeHistoryModal />
       <AddAccountModal />
       <EditAccountModal />
       <AssetCategoryModal />
