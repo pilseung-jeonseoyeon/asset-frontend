@@ -156,6 +156,11 @@ export function firstOwnedWeekMonday(year: number, month: number): string {
   return owner.year === year && owner.month === month ? candidate : addDays(candidate, 7)
 }
 
+/** 주어진 날짜가 속한 해의 12월 31일('YYYY-MM-DD'). 자산 목표 시점처럼 "올해 말"이 기본값인 폼에서 쓴다. */
+export function yearEndISODate(d: Date = new Date()): string {
+  return `${d.getFullYear()}-12-31`
+}
+
 /**
  * 오늘로부터 최근 monthsBack개월의 DateRange('YYYY-MM-DD', 양끝 포함). 계좌 잔액 추이처럼
  * "최근 N개월" 스냅샷을 조회하는 곳에서 쓴다. from/to 둘 다 필수인 GET .../snapshots 파라미터에 맞춘다.

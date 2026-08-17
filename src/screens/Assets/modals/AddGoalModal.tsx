@@ -18,7 +18,7 @@ import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker
 import { useAppState } from '../../../state/AppStateContext'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { fmt, parseAmount } from '../../../utils/format'
-import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate } from '../../../utils/date'
+import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate, yearEndISODate } from '../../../utils/date'
 import { useGetGoal, usePutGoal } from '@/services/goal'
 import { useGetMonthlySummaries } from '@/services/transaction'
 import type { UpsertGoalRequest } from '@/services/goal'
@@ -55,11 +55,12 @@ export function AddGoalModal() {
   const [formInitialized, setFormInitialized] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
-  const ddGoalDate = useDatePicker(
-    'goal',
-    goal?.targetDate ? isoDateToDisplay(goal.targetDate) : '목표 시점을 선택하세요',
-    isoDateToNav(goal?.targetDate ?? null),
-  )
+  // 저장된 목표가 있으면 그 targetDate가 우선이고, 없을 때만 "입력일이 속한 해의 12월 31일"을
+  // 기본값으로 채운다(연말·연초 상관없이 오늘 기준 연도). 매 렌더 재계산이라 날짜가 바뀌는
+  // 자정 무렵에도 항상 오늘 기준 값을 쓴다 — 모달을 열어둔 채 자정을 넘기는 경우는 고려하지 않는다.
+  const defaultGoalTargetDate = yearEndISODate()
+  const goalTargetDateForDisplay = goal?.targetDate ?? defaultGoalTargetDate
+  const ddGoalDate = useDatePicker('goal', isoDateToDisplay(goalTargetDateForDisplay), isoDateToNav(goalTargetDateForDisplay))
 
   // 폼 초기값 채우기(예외적으로 허용 — docs/state-management.md "서버 데이터를 AppState로 복사하지
   // 말 것. 단, 폼 초기값을 채우는 것은 예외"). 렌더 도중 setState를 부르면 안 되므로 커밋 이후
@@ -76,12 +77,27 @@ export function AddGoalModal() {
       if (monthlySummaryQuery.isPending) return
       setTargetAmount(0)
       setMonthlyIncome(suggestedMonthlyIncome)
+      // 목표 시점도 표시 중인 기본값(올해 12/31)을 dpPicked에 실제로 채워 넣는다 — 위 ddGoalDate의
+      // defaultDisplay는 화면 표시용일 뿐이라, 사용자가 달력을 건드리지 않고 그대로 저장을 누르면
+      // handleSave가 읽는 dpPicked['goal']이 비어 "목표 시점을 선택해주세요" 오류로 이어진다.
+      const [y, m, d] = defaultGoalTargetDate.split('-').map(Number)
+      setState((st) => ({ dpPicked: { ...st.dpPicked, goal: { y, m, d } } }))
     } else {
       setTargetAmount(goal.targetAmount)
       setMonthlyIncome(goal.monthlyIncome)
     }
     setFormInitialized(true)
-  }, [isOpen, formInitialized, goalQuery.isSuccess, goal, isUnset, monthlySummaryQuery.isPending, suggestedMonthlyIncome])
+  }, [
+    isOpen,
+    formInitialized,
+    goalQuery.isSuccess,
+    goal,
+    isUnset,
+    monthlySummaryQuery.isPending,
+    suggestedMonthlyIncome,
+    defaultGoalTargetDate,
+    setState,
+  ])
 
   if (!isOpen) return null
 
@@ -112,7 +128,10 @@ export function AddGoalModal() {
       setFormError('목표 시점을 선택해주세요')
       return
     }
-    if (targetDate < todayISO) {
+    // 오늘도 막는다(`<` 아님) — 목표 시점이 오늘이면 남은 기간이 0개월이 되어 "월 필요 저축액"
+    // 계산(targetAmount / 남은 개월 수)이 성립하지 않는다. 문구("오늘 이후로")와 로직이 어긋나 있던
+    // 결함이라 사실에 맞게 로직 쪽을 고쳤다(리뷰 지적).
+    if (targetDate <= todayISO) {
       setFormError('목표 시점은 오늘 이후로 선택해주세요')
       return
     }
@@ -174,6 +193,14 @@ export function AddGoalModal() {
           <div style={{ position: 'relative' }}>
             <div style={LABEL_STYLE}>목표 시점</div>
             <DatePicker dp={ddGoalDate} />
+            {/* 바로 아래 '월평균 수입'과 똑같이 시스템이 채운 값인데 안내가 없으면, 사용자가 직접 고른
+                날짜로 착각한 채 저장한다. 목표 시점은 '월 필요 저축액' 계산에 그대로 들어가는 값이라
+                근거까지 함께 알린다. 이미 저장된 목표를 여는 경우(!isUnset)는 서버 값이므로 숨긴다. */}
+            {isUnset && (
+              <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>
+                올해 말일로 기본 설정돼요 · 날짜를 바꾸면 월 필요 저축액도 다시 계산돼요
+              </div>
+            )}
           </div>
           <div>
             <div style={LABEL_STYLE}>월평균 수입</div>
