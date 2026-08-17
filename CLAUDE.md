@@ -36,12 +36,16 @@
 - [`docs/state-management.md`](./docs/state-management.md) — AppState / Zustand / React Query 상태 경계
 - [`docs/code-convention.md`](./docs/code-convention.md) — 명명 규칙, import 순서, 컴포넌트 작성 스타일
 - [`docs/api-conventions.md`](./docs/api-conventions.md) — axios/React Query 기반 API 통신 규칙, 서비스 폴더 구조
-- [`docs/backend-requests.md`](./docs/backend-requests.md) — 연동 중 확인된 백엔드 스펙 누락·불일치와 요청 목록
-- `secret/API-SPEC.md` — 백엔드 API 스펙 (git에 커밋되지 않는 폴더 — 절대 규칙 1 참고).
-  2026-08-09에 전면 갱신되어 **인증(§16), 대시보드(§4), 목표(§5), 알림 SSE(§9.1)와
-  "부록: 응답 타입 총람"까지 포함**합니다. 필드의 null 여부와 enum 값은 각 절의 JSON 예시가
-  아니라 **부록을 기준**으로 삼으세요(예시에는 null이 되는 필드가 안 드러납니다).
-  스펙에도 없는 세부는 추측하지 말고 `docs/backend-requests.md`에 요청 항목으로 남기세요.
+- [`docs/backend-request.md`](./docs/backend-request.md) — 연동 중 확인된 백엔드 스펙 누락·불일치와
+  요청 목록, 미동작 기능 전수 목록
+
+**백엔드 API 스펙의 정본은 실행 중인 서버의 OpenAPI 문서입니다.**
+- Swagger UI: `http://localhost:8080/swagger-ui/index.html`
+- JSON: `http://localhost:8080/v3/api-docs`
+
+필드 유무·타입·enum·필수 여부는 반드시 여기서 직접 확인하세요. 다만 현재 이 문서에는
+`required`와 `nullable` 표기가 비어 있고 에러 코드 목록도 없습니다 — **문서에 없는 세부는
+추측하지 말고** `docs/backend-request.md`에 요청 항목으로 남기세요.
 
 ## 아키텍처
 
@@ -118,7 +122,7 @@ pnpm preview       # 프로덕션 빌드 미리보기
 - **포맷팅**: `fmt(n)`은 `n.toLocaleString('ko-KR')`이며 통화 기호를 포함하지 않습니다 — `원`은 소스가 그렇게 하는 위치마다 JSX에 리터럴 문자열로 붙입니다(`fmt` 내부가 아님). "약 12억 8,450만 원" 같은 조/억/만 축약 표기는 원래 목업마다 하드코딩된 리터럴이었으나, 대시보드가 서버 데이터로 전환되면서 `src/utils/format.ts`의 **`formatKoreanAbbrev(n)`** 로 계산합니다(2026-08-13 신설). 단위 사이 공백 1칸, 각 단위에 천 단위 콤마, 값이 0인 단위는 생략, 통화 기호 없음 — `원`은 `fmt`와 마찬가지로 호출부 JSX에서 붙입니다. **축약 헬퍼는 이것 하나로 유지하세요** — 화면마다 비슷한 함수를 새로 만들면 표기가 갈라집니다.
 - **데이터 흐름**: 화면은 `@/services/{domain}`의 훅으로 서버 데이터를 읽고(React Query 캐시에 그대로 두며 AppState로 복사하지 않습니다), `src/data/{screen}View.ts`가 그 응답을 화면이 그릴 형태로 바꿉니다. 인터랙션 상태(탭·모달·폼 입력)만 `useAppState()`로 읽고 씁니다.
 - **"월"의 기준**: 이 앱의 이번 달은 달력 1일이 아니라 사용자 설정 `monthStartDay`(1~28) 기준의 **정산월**입니다. 가계부·목표·대시보드 전역에 적용되며, 대부분의 API가 `year`/`month`를 파라미터로 받고 실제 기간 경계는 서버가 계산합니다. 정산월에 의존하는 쿼리는 queryKey에 `{ year, month }`를 반드시 포함하세요.
-- **서버 응답에 없는 값은 화면에 그리지 않습니다.** 주식 현재가, USD/KRW 환율, 계좌 이자율처럼 API가 주지 않는 값은 하드코딩이나 추정값으로 채우지 말고 비워 두고, `docs/backend-requests.md`에 기록하세요.
+- **서버 응답에 없는 값은 화면에 그리지 않습니다.** 주식 현재가, USD/KRW 환율, 계좌 이자율처럼 API가 주지 않는 값은 하드코딩이나 추정값으로 채우지 말고 비워 두고, `docs/backend-request.md`에 기록하세요.
 - **인증**: 백엔드가 JWT 인증을 요구합니다. 모든 화면/모달은 `useAuthStore().status`가 `'authenticated'`일 때만 `AppShell`에 마운트되고, `'anonymous'`면 `src/screens/Auth/Auth.tsx`(로그인/회원가입/비밀번호 찾기)만 렌더됩니다. 로그인하지 않은 상태에서 화면을 시작하지 않습니다.
   **회원가입은 4단계입니다**(원본 `dc.html` L546-694): 약관 동의 → 정보 입력 → 이메일 인증 → 온보딩(프로필 확인). `POST /auth/signup`은 성공 즉시 토큰을 주지만, `usePostSignup`은 일부러 `signIn`을 호출하지 않고 토큰만 보유합니다 — 마지막 온보딩 화면의 "모닛 시작하기"에서 `useCompleteSignupOnboarding()`이 호출될 때 비로소 `authenticated`로 전환됩니다. 이 단계에서 새로고침하면 refresh 쿠키로 자동 로그인되어 온보딩 화면은 건너뜁니다(의도된 동작). — 자세한 경계는 `docs/state-management.md`, 인터셉터 동작은 `docs/api-conventions.md` 참고.
 - **프로필**: 여전히 단일 사용자를 가정한 UI(가족 연동 등은 "준비 중")지만, 실제 이름·이메일은 로그인한 계정 기준으로 `GET /users/me`(`src/services/user`)에서 옵니다. `profileName: '정다은'`은 이제 하드코딩 기본값이 아니라 해당 사용자가 서버에 아직 없을 때(`USER_NOT_FOUND`)의 폴백 문자열일 뿐입니다(`src/services/user/user.hook.ts`의 `FALLBACK_PROFILE_NAME` 참고).
