@@ -4,16 +4,18 @@
 // hardcoded. Parent element must have `position:relative` (matches source's per-instance wrapper divs).
 //
 // Mobile (<=767px, docs/mobile.md §4 warning): the panel switches to a `position:fixed` viewport anchor
-// (see useMobilePopoverAnchor) instead of `position:absolute` under the trigger, so it can't be clipped
+// (see usePopoverAnchor) instead of `position:absolute` under the trigger, so it can't be clipped
 // by the bottom sheet's `overflow-y:auto` or overflow off-screen when the trigger sits in a narrow
-// column (e.g. two fields in a flex row). Desktop layout/positioning is untouched.
+// column (e.g. two fields in a flex row). Desktop layout/positioning is untouched — desktop modal panels
+// that override `panelStyle` with their own `overflow:auto` can still clip this panel the same way (see
+// DatePicker.tsx for the fix applied there); out of scope here, tracked as a known gap.
 
 import type { ReactNode } from 'react'
 import { Icon } from '../Icon/Icon'
 import type { DropdownState } from '../../../state/selectors/dropdown'
 import { stopPropagation } from '../../../state/selectors/modal'
 import { useIsMobile } from '../../../utils/useMediaQuery'
-import { useMobilePopoverAnchor } from '../useMobilePopoverAnchor'
+import { usePopoverAnchor } from '../usePopoverAnchor'
 
 interface DropdownProps {
   dd: DropdownState
@@ -24,7 +26,7 @@ interface DropdownProps {
 
 export function Dropdown({ dd, maxHeight = 200, icon = 'expand_more', footer }: DropdownProps) {
   const isMobile = useIsMobile()
-  const anchor = useMobilePopoverAnchor(isMobile && dd.open)
+  const anchor = usePopoverAnchor(isMobile && dd.open)
   const panelMaxHeight = isMobile && anchor.maxHeight !== undefined ? Math.min(maxHeight, anchor.maxHeight) : maxHeight
 
   return (

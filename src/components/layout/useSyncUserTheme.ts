@@ -1,6 +1,6 @@
 // 서버 사용자 설정(`theme`)을 AppState·localStorage로 미러링하는 훅. `services/`에는 UI 관심사
 // (AppState, localStorage)를 두지 않는 규칙(docs/architecture.md) 때문에 layout 계층의 단독 파일로
-// 둔다 — 선례: `src/components/primitives/useMobilePopoverAnchor.ts`.
+// 둔다 — 선례: `src/components/primitives/usePopoverAnchor.ts`.
 //
 // 서버가 정본이고 이 훅이 유일한 반영 경로다(설계 결정 1·3번, synthetic-sleeping-wigderson.md).
 // GeneralModal의 pickTheme은 낙관적으로 AppState를 먼저 바꾸고, 실패하면 usePatchUserSettings의
