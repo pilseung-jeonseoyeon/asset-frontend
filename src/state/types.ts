@@ -98,9 +98,20 @@ export interface AppState {
   amountsHidden: boolean
 
   // stock entry
+  /** 신규 종목 등록 시 선택한 섹터 칩. 빈 문자열이면 미선택(전송하지 않음) — 절대 기본값을 채우지
+   * 말 것(과거 '반도체' 하드코딩이 모든 신규 종목을 조용히 오염시켰던 버그, docs/backend-request.md
+   * 5-1 참고). */
   stockSector: string
   stockBuyMarket: string
   stockTradeMode: string // initial 'buy'
+
+  // trade edit (Stocks 화면 — 매매 내역 수정, GET /trades에 단건 조회가 없어 목록 캐시에서 id로 찾는다)
+  /** 수정 대상 tradeId(서버 id). null이면 매매 수정 모달이 닫혀 있음. */
+  editingTradeId: number | null
+
+  // exchange history (Stocks 화면 — 환전 내역 목록/수정)
+  /** 환전 내역 모달 안에서 수정 대상 exchangeId. null이면 목록 뷰. */
+  editingExchangeId: number | null
 
   // asset/account editing
   /** 수정 대상 accountId. null이면 editAccount 모달이 닫혀 있음. */
@@ -149,13 +160,15 @@ export interface AppState {
   /** 정수 원화 금액. */
   entryAmount: number
   entryDescription: string
+  /** 메모(선택 입력, CreateTransactionReq.memo). 빈 문자열이면 미입력 — 제출 시 키 자체를 뺀다. */
+  entryMemo: string
   /**
    * 가계부 입력 모달이 편집하지 않는 거래 필드. PUT이 전체 교체라 다시 보내지 않으면 사용자가
-   * 금액만 고쳐 저장해도 메모·외화 정보가 조용히 사라진다 — 수정 모달을 열 때 원본을 담아두고
-   * 저장 시 그대로 되돌려 보낸다. 신규 등록일 때는 null.
+   * 금액만 고쳐 저장해도 외화 정보가 조용히 사라진다 — 수정 모달을 열 때 원본을 담아두고 저장 시
+   * 그대로 되돌려 보낸다. 신규 등록일 때는 null. memo는 이제 entryMemo로 직접 편집하므로 여기 없음
+   * (예전엔 이 객체가 memo도 들고 있었다 — Ledger 백엔드 요청서 4-13 참고).
    */
   entryPreserved: {
-    memo: string | null
     nativeAmount: number | null
     nativeCurrency: Currency | null
   } | null
@@ -164,6 +177,11 @@ export interface AppState {
   /** 내역 탭이 보고 있는 정산월 커서. src/utils/date.ts의 todayYearMonth/shiftYearMonth 참고. */
   ledgerYear: number
   ledgerMonth: number
+  /**
+   * 내역 탭 주간 뷰가 보고 있는 주의 월요일('YYYY-MM-DD', src/utils/date.ts의 mondayOf 참고). 정산월
+   * 경계를 서버가 안 알려줘 순수 달력 주(월요일 시작) 기준이다 — ledgerYear/ledgerMonth와 별도로 둔다.
+   */
+  ledgerWeekAnchor: string
   // monthStartDay(정산월 시작일)는 서버 사용자 설정에 있다 — services/user의 useGetUserSettings 참고
 
   // selection defaults for entry form

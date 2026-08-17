@@ -2,7 +2,7 @@
 // The `// auth` block at the bottom has no source equivalent (see types.ts header comment) — its
 // defaults are this port's own, not transcribed from dc.html.
 
-import { todayYearMonth } from '../utils/date'
+import { mondayOf, todayYearMonth, toISODate } from '../utils/date'
 import { readStoredTheme } from '../utils/theme'
 import type { AccountForm } from './types'
 import type { AppState } from './types'
@@ -55,9 +55,14 @@ export const initialState: AppState = {
   theme: readStoredTheme(),
   amountsHidden: true,
 
-  stockSector: '반도체',
+  // 빈 문자열 = 미선택. 기본값을 채우면 사용자가 칩을 한 번도 안 눌러도 그 값이 조용히 전송된다
+  // (docs/backend-request.md 5-1 — 과거 '반도체' 하드코딩 버그).
+  stockSector: '',
   stockBuyMarket: 'domestic',
   stockTradeMode: 'buy',
+
+  editingTradeId: null,
+  editingExchangeId: null,
 
   editAccount: null,
   accountForm: BLANK_ACCOUNT_FORM,
@@ -87,11 +92,13 @@ export const initialState: AppState = {
   entryWithdrawAccountId: null,
   entryAmount: 0,
   entryDescription: '',
+  entryMemo: '',
   entryPreserved: null,
   ledgerPage: 1,
   entryDateOverride: null,
   ledgerYear: todayCursor.year,
   ledgerMonth: todayCursor.month,
+  ledgerWeekAnchor: mondayOf(toISODate(new Date())),
 
   expenseCatSel: '식비',
   incomeTypeSel: '급여',
