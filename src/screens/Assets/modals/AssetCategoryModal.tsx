@@ -14,7 +14,8 @@
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
-import { buildAssetCats } from '../../../data/assetsView'
+import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
+import { ASSET_CLASS_ACCOUNT_TYPE_PRESET, buildAssetCats } from '../../../data/assetsView'
 import { useGetAccounts } from '@/services/account'
 import { useGetAssetDistributionByClass } from '@/services/asset'
 
@@ -89,7 +90,20 @@ export function AssetCategoryModal() {
         ))}
         <button
           className="qbtn"
-          onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: null })}
+          onClick={() =>
+            setState({
+              modalOpen: 'addAccount',
+              // addAccountReturnTo는 null이 맞다 — 이 모달(AssetCategoryModal)은 다른 13개 modalXxx와
+              // 달리 modalOpen이 아니라 assetCat(위 주석 참고)으로 열림 여부를 판단한다. "계좌 추가"를
+              // 눌러도 assetCat은 건드리지 않으므로 AddAccountModal이 그 위에 겹쳐 열릴 뿐이고,
+              // AddAccountModal이 닫히며 modalOpen을 null로 되돌려도 이 모달은 계속 떠 있다 — 되돌아갈
+              // "modalOpen 값"이 애초에 필요 없다.
+              addAccountReturnTo: null,
+              // 어느 자산군 칸에서 열었는지 폼에 반영해야 한다 — 안 하면 기본값(BLANK_ACCOUNT_FORM.type
+              // === 'CASH')이 항상 선택되어 해외주식 칸에서 만든 계좌가 현금으로 저장되는 사고가 난다.
+              accountForm: { ...BLANK_ACCOUNT_FORM, type: ASSET_CLASS_ACCOUNT_TYPE_PRESET[selectedAssetCat.id] },
+            })
+          }
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 13, borderRadius: 10, border: '0.5px dashed var(--text-weak)', background: 'transparent', color: 'var(--text-weak)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', marginTop: 14, transition: 'transform .12s', fontFamily: 'inherit' }}
         >
           <Icon name="add" size={16} />

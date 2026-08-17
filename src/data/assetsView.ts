@@ -57,6 +57,25 @@ export const INSTITUTION_TYPE_LABELS: Record<InstitutionType, string> = {
 
 export const INSTITUTION_TYPE_ORDER: InstitutionType[] = ['BANK', 'BROKERAGE', 'EXCHANGE', 'PENSION', 'OTHER']
 
+/**
+ * 자산군(AssetClass) → 계좌 추가 시 기본 선택할 AccountType. 임의 추측이 아니라 백엔드
+ * `AccountService.splitByClass`가 AccountType을 AssetClass로 묶는 규칙의 **역방향**이다(그 방향으로
+ * 접힌 6종 중 어느 AccountType이 대표인지는 각 자산군에서 실제로 쓰이는 계좌 종류를 그대로 따랐다).
+ * 어디까지나 칩의 기본 선택일 뿐이며 사용자가 다른 칩으로 바꿀 수 있다 — AssetCategoryModal이 "계좌
+ * 추가"를 열 때 해당 자산군 칸의 기본값으로만 쓴다.
+ *
+ * 예적금(DEPOSIT)에는 정기예금·적금 둘 다 접히는데 대표는 제품 결정으로 '적금'이다(2026-08-17).
+ * 서버 규칙만으로는 어느 쪽이 대표인지 정해지지 않으므로 임의로 바꾸지 말 것.
+ */
+export const ASSET_CLASS_ACCOUNT_TYPE_PRESET: Record<AssetClass, AccountType> = {
+  CASH_PENSION: 'CASH',
+  DEPOSIT: 'INSTALLMENT_SAVINGS',
+  DOMESTIC_STOCK: 'BROKERAGE',
+  FOREIGN_STOCK: 'BROKERAGE',
+  CRYPTO: 'CRYPTO_WALLET',
+  ETC: 'PENSION_SAVINGS',
+}
+
 // ---------- 자산군(AssetClass) ↔ 아이콘/색 매핑 ----------
 // 라벨은 서버 assetClassName을 쓰지 않고 항상 이 프론트 고정 표기를 쓴다 — 서버 한글 라벨이
 // 제품 자산 분류 문구와 어긋나므로(docs/backend-requests.md #22) 화면 표기는 프론트가 소유한다.
