@@ -60,6 +60,16 @@ body {
   }
 }
 
+/* Dashboard "주요 자산 보관처" 카드 그리드 전용 — .rgrid-cards의 <=900px:1fr 규칙을 공유하면 앱의
+   단일 모바일 브레이크포인트(<=767px, docs/mobile.md)에서 의도한 2열이 그 !important에 가려져
+   전혀 적용되지 않는다(두 규칙이 같은 요소에 걸리면 나중에 선언된 쪽이 이기므로, 이 클래스는
+   .rgrid-cards와 절대 함께 쓰지 않는다). */
+@media (max-width:767px) {
+  .rgrid-institutions {
+    grid-template-columns: repeat(2,1fr) !important
+  }
+}
+
 @media (max-width:1000px) {
   .auth-brand { display: none !important }
 }

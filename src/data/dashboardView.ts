@@ -5,10 +5,11 @@
 // 여기 없는 것과 그 이유:
 //   - 억/만 축약 캡션(예: "약 12억 8,450만 원")은 src/utils/format.ts의 formatKoreanAbbrev가 맡는다 —
 //     fmt()와 마찬가지로 통화 기호 없는 범용 포맷터라 화면 레이어가 아니라 utils에 둔다.
-//   - 추이 차트의 y축 눈금 라벨(13억/11억/9억): 소스에도 공용 계산 함수가 없어 생략.
 //   - "7월 이후는 예정 구간" 같은 미래 구간 표기: 서버가 예측값을 주지 않는다.
+// 추이 차트의 y축 눈금 라벨(13억/11억/9억, dc.html L919-922)은 buildTrendYAxisTicks가 formatKoreanAbbrev로
+// 계산한다(2026-08-17 복원 — formatKoreanAbbrev 신설 전에는 계산 수단이 없어 생략돼 있었다).
 
-import { fmt } from '../utils/format'
+import { fmt, formatKoreanAbbrev } from '../utils/format'
 import { assetClassMetaOf } from './assetsView'
 import type {
   AllocationResponse,
@@ -147,6 +148,27 @@ export function buildTrendChart(
   }
 }
 
+/**
+ * 추이 차트 왼쪽의 y축 눈금 라벨 3개(원본 dc.html L919-922, 위→아래 = 최댓값→최솟값). 그리드선
+ * y좌표(6/46/86, buildTrendChart와 동일한 viewBox 92)와 짝을 맞춰 값을 등간격(최대/중간/최소)으로
+ * 배치한다. `formatKoreanAbbrev`가 억 단위 미만은 "0"을 돌려주므로(만 원 단위 반올림), 세 값이 전부
+ * 그렇게 뭉개지는 소액 구간에서는 원 단위 그대로(`fmt`)로 대체해 "0/0/0"이 찍히지 않게 한다.
+ * 포인트가 2개 미만이면(선을 그릴 수 없음) null.
+ */
+export function buildTrendYAxisTicks(points: TrendPointResponse[]): [string, string, string] | null {
+  if (points.length < 2) return null
+  const values = points.map((p) => p.totalValueKrw)
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const mid = (min + max) / 2
+
+  const abbrevs = [max, mid, min].map((v) => formatKoreanAbbrev(v))
+  const allCollapsed = abbrevs.every((a) => a === '0')
+  return allCollapsed
+    ? ([fmt(max), fmt(mid), fmt(min)] as [string, string, string])
+    : (abbrevs as [string, string, string])
+}
+
 // ---------- 자산 구성 도넛 ----------
 
 export interface DonutLegendItem {
@@ -158,9 +180,10 @@ export interface DonutLegendItem {
 
 /**
  * 반올림해도 합이 정확히 100이 되도록 최대잔여법(largest remainder)으로 배분한다.
- * 단순 반올림만 하면 도넛의 dasharray 합이 99나 101이 되어 마지막 조각에 틈이 생긴다.
+ * 단순 반올림만 하면 합이 99나 101이 되어 도넛 마지막 조각이나 유동성 막대(assetsView.ts
+ * buildLiquidityView)에 틈/오버플로가 생긴다 — 두 화면이 이 함수를 공유한다.
  */
-function toPercentages(values: number[]): number[] {
+export function toPercentages(values: number[]): number[] {
   const total = values.reduce((sum, v) => sum + v, 0)
   if (total <= 0) return values.map(() => 0)
 
@@ -264,7 +287,19 @@ export interface AssetGoalView {
   currentFmt: string
   targetFmt: string
   subCaption: string
+  /**
+   * false면 pct/currentFmt가 "정말 0"인지 "스냅샷이 아직 없어 0"인지 서버 응답만으로 구분할 수
+   * 없다는 뜻이다 — `goal.annual.currentValue`(최신 스냅샷 총자산)가 0일 때 그렇다
+   * (docs/backend-request.md A-5-0, 계좌 등록 첫날처럼 스냅샷 이력이 없는 경우와 동일한 원인).
+   * 대시보드 히어로의 `hasSnapshotHistory`(dashboardView.ts buildDashboardHero)와 같은 판정
+   * 기준이며, 이 값이 false일 때 subCaption은 이미 중립 문구로 대체돼 있다 — 호출부가 pct/진행률
+   * 바까지 감추려면 이 플래그로 직접 분기할 것(Dashboard.tsx 참고).
+   */
+  hasProgressData: boolean
 }
+
+/** 진행률 근거가 없을 때(hasProgressData === false) 두 줄이 공유하는 중립 안내 문구. */
+const GOAL_PROGRESS_UNKNOWN_CAPTION = '자산 이력이 쌓이면 진행률을 확인할 수 있어요'
 
 /** 목표 시점까지 남은 일수. targetDate가 null(목표 미설정)이면 null. */
 export function goalDDay(targetDate: string | null, today: Date = new Date()): number | null {
@@ -286,6 +321,10 @@ export function buildAssetGoals(goal: GoalResponse, today: Date = new Date()): A
 
   const dDay = goalDDay(goal.targetDate, today)
   const surplus = goal.monthly.currentValue - goal.monthly.targetAmount
+  // annual.currentValue(최신 스냅샷 총자산)가 0이면 "총자산이 정말 0원"과 "스냅샷이 아직 없어 0"을
+  // 구분할 수 없다 — 후자를 244,680,000원인데 진행률 0%로 단정하지 않기 위해 이 경우 두 줄 모두
+  // 안내 문구로 대체한다(AssetGoalView.hasProgressData 주석 참고).
+  const hasProgressData = goal.annual.currentValue > 0
 
   return [
     {
@@ -298,8 +337,10 @@ export function buildAssetGoals(goal: GoalResponse, today: Date = new Date()): A
       barPct: Math.min(100, goal.annual.progressPercent),
       currentFmt: fmt(goal.annual.currentValue),
       targetFmt: fmt(goal.annual.targetAmount),
-      subCaption:
-        dDay === null
+      hasProgressData,
+      subCaption: !hasProgressData
+        ? GOAL_PROGRESS_UNKNOWN_CAPTION
+        : dDay === null
           ? `월 ${fmt(goal.monthly.targetAmount)}원 필요`
           : dDay < 0
             ? `목표일이 지났어요 · 월 ${fmt(goal.monthly.targetAmount)}원 필요`
@@ -315,12 +356,21 @@ export function buildAssetGoals(goal: GoalResponse, today: Date = new Date()): A
       barPct: Math.min(100, goal.monthly.progressPercent),
       currentFmt: fmt(goal.monthly.currentValue),
       targetFmt: fmt(goal.monthly.targetAmount),
-      subCaption: surplus >= 0 ? `+${fmt(surplus)}원 초과` : `${fmt(Math.abs(surplus))}원 부족`,
+      hasProgressData,
+      subCaption: !hasProgressData
+        ? GOAL_PROGRESS_UNKNOWN_CAPTION
+        : surplus >= 0
+          ? `+${fmt(surplus)}원 초과`
+          : `${fmt(Math.abs(surplus))}원 부족`,
     },
   ]
 }
 
-/** 월 지출 가능액 = 월평균 수입 − 월 필요 저축액 (API-SPEC §5.1 각주). 음수 가능. */
+/**
+ * 월 지출 가능액 = 월평균 수입 − 월 필요 저축액 (API-SPEC §5.1 각주). 음수 가능 — 음수면 "이 목표를
+ * 현재 수입으로 지출 없이도 못 채운다"는 뜻이라, 호출부는 금액을 그대로 그리지 말고 안내 문구로
+ * 대체할 것(AddGoalModal.tsx 참고).
+ */
 export function monthlySpendable(goal: GoalResponse): number {
   return goal.monthlyIncome - goal.monthly.targetAmount
 }

@@ -6,8 +6,9 @@
 // Dropped vs. the old mock (server genuinely doesn't send these, or the source never computed them
 // generically — CLAUDE.md forbids inventing a general abbreviation/axis-label helper the source
 // didn't have):
-//   - 총자산 추이 y축 눈금 라벨(13억/11억/9억): dashboardView.ts가 명시적으로 생략.
 //   - "7월 이후는 예정 구간" 미래 구간 음영·기준선: 서버가 예측값을 주지 않는다.
+// 총자산 추이 y축 눈금 라벨(13억/11억/9억, dc.html L919-922)은 buildTrendYAxisTicks(dashboardView.ts)로
+// 복원했다(2026-08-17) — formatKoreanAbbrev 신설 전에는 계산 수단이 없어 생략돼 있었다.
 // 신규 사용자를 위한 빈 상태는 카드 단위로 처리한다(자산은 있는데 목표만 없는 중간 상태 포함) —
 // Assets.tsx의 EmptyAccountsState / Stocks.tsx의 딥카드 빈 상태와 같은 패턴(로딩 "—", 에러
 // var(--down), 빈 상태 안내문+버튼).
@@ -29,6 +30,7 @@ import {
   buildDashboardHero,
   buildDashboardInstitutions,
   buildTrendChart,
+  buildTrendYAxisTicks,
   pickTopAllocation,
   sumAllocationKrw,
 } from '../../data/dashboardView'
@@ -130,6 +132,7 @@ export function Dashboard() {
   const trendChart = buildTrendChart(trendQuery.points)
   const trendAsOf = trendChart.dates.length > 0 ? trendChart.dates[trendChart.dates.length - 1] : null
   const monthLabels = trendChart.dates.map((d) => `${Number(d.slice(5, 7))}월`)
+  const yAxisTicks = buildTrendYAxisTicks(trendQuery.points)
 
   let trendPctFmt: string | null = null
   let trendPositive = true
@@ -297,15 +300,25 @@ export function Dashboard() {
                 <div key={ag.id}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                     <div style={{ fontSize: 12.5, fontWeight: 700 }}>{ag.name}</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-strong)' }}>{ag.pct}%</div>
+                    {ag.hasProgressData && (
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-strong)' }}>{ag.pct}%</div>
+                    )}
                   </div>
-                  <div style={{ height: 6, background: 'var(--track)', borderRadius: 4 }}>
-                    <div style={{ height: '100%', width: `${ag.barPct}%`, background: ag.color, borderRadius: 4 }} />
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>
-                    {ag.currentFmt} / {ag.targetFmt}원
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>{ag.subCaption}</div>
+                  {ag.hasProgressData ? (
+                    <>
+                      <div style={{ height: 6, background: 'var(--track)', borderRadius: 4 }}>
+                        <div style={{ height: '100%', width: `${ag.barPct}%`, background: ag.color, borderRadius: 4 }} />
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>
+                        {ag.currentFmt} / {ag.targetFmt}원
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>{ag.subCaption}</div>
+                    </>
+                  ) : (
+                    // annual.currentValue가 스냅샷 부재로 0인 경우 — 진행률을 단정하지 않고 히어로의
+                    // hasSnapshotHistory 분기(위 DeepCard)와 같은 톤의 중립 안내만 보여준다.
+                    <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>{ag.subCaption}</div>
+                  )}
                 </div>
               ))}
             </div>
@@ -365,38 +378,54 @@ export function Dashboard() {
                         </span>
                       )}
                     </div>
-                    <svg viewBox="0 0 600 92" preserveAspectRatio="none" style={{ width: '100%', height: 92, display: 'block' }}>
-                      <g style={{ stroke: 'var(--track)' }}>
-                        <line x1="0" y1="6" x2="600" y2="6" />
-                        <line x1="0" y1="46" x2="600" y2="46" />
-                        <line x1="0" y1="86" x2="600" y2="86" />
-                      </g>
-                      <path
-                        d={trendChart.path}
-                        fill="none"
-                        style={{ stroke: 'var(--accent)' }}
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        vectorEffect="non-scaling-stroke"
-                      />
-                      <circle
-                        cx={trendChart.lastPoint.x}
-                        cy={trendChart.lastPoint.y}
-                        r="3.5"
-                        style={{ fill: 'var(--accent)', stroke: 'var(--surface)' }}
-                        strokeWidth="2"
-                      />
-                    </svg>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-weak)', marginTop: 5 }}>
-                      {monthLabels.map((m, i) => (
-                        <span
-                          key={`${m}-${i}`}
-                          style={i === monthLabels.length - 1 ? { fontWeight: 700, color: 'var(--accent)' } : undefined}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {yAxisTicks && (
+                        <div
+                          style={{
+                            display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                            height: 92, fontSize: 9.5, color: 'var(--text-mid)', flex: 'none', width: 22,
+                          }}
                         >
-                          {m}
-                        </span>
-                      ))}
+                          <span>{yAxisTicks[0]}</span>
+                          <span>{yAxisTicks[1]}</span>
+                          <span>{yAxisTicks[2]}</span>
+                        </div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <svg viewBox="0 0 600 92" preserveAspectRatio="none" style={{ width: '100%', height: 92, display: 'block' }}>
+                          <g style={{ stroke: 'var(--track)' }}>
+                            <line x1="0" y1="6" x2="600" y2="6" />
+                            <line x1="0" y1="46" x2="600" y2="46" />
+                            <line x1="0" y1="86" x2="600" y2="86" />
+                          </g>
+                          <path
+                            d={trendChart.path}
+                            fill="none"
+                            style={{ stroke: 'var(--accent)' }}
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                          <circle
+                            cx={trendChart.lastPoint.x}
+                            cy={trendChart.lastPoint.y}
+                            r="3.5"
+                            style={{ fill: 'var(--accent)', stroke: 'var(--surface)' }}
+                            strokeWidth="2"
+                          />
+                        </svg>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-weak)', marginTop: 5 }}>
+                          {monthLabels.map((m, i) => (
+                            <span
+                              key={`${m}-${i}`}
+                              style={i === monthLabels.length - 1 ? { fontWeight: 700, color: 'var(--accent)' } : undefined}
+                            >
+                              {m}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </>
                 )}
@@ -461,7 +490,10 @@ export function Dashboard() {
         ) : dashboardInstitutions.length === 0 ? (
           <EmptyState text="계좌를 추가하면 보관처별 자산을 볼 수 있어요." />
         ) : (
-          <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 14 }}>
+          // rgrid-cards가 아니라 전용 클래스를 쓴다 — 그 클래스의 <=900px 규칙(1fr로 강제)이
+          // 여기서 원하는 모바일(<=767px) 2열 규칙과 달라, 같이 쓰면 !important 우선순위 때문에
+          // 모바일 2열이 항상 이겨야 할 규칙에 절대 도달하지 못한다(base.css 참고).
+          <div className="rgrid-institutions" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
             {dashboardInstitutions.map((inst) => (
               <div key={inst.key} style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 18 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>

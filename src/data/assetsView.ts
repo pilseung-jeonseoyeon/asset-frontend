@@ -10,6 +10,7 @@
 import type { TreemapBlock } from '../components/primitives/Treemap/Treemap'
 import { fmt } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
+import { toPercentages } from './dashboardView'
 import type { AccountResponse, AccountSnapshotResponse } from '@/services/account'
 import type { AssetClassGroup, LockedAccount } from '@/services/asset'
 import type { AccountType, AssetClass, InstitutionType } from '@/services/common.type'
@@ -242,20 +243,36 @@ export function buildMapTiers(
 export interface LiquidityView {
   liquidPct: number
   lockedPct: number
+  /** 원 단위 그대로 — liquidityMonthsOfExpense 등 추가 계산이 필요한 호출부용. */
+  liquidAmt: number
   liquidAmtFmt: string
   lockedAmtFmt: string
 }
 
+/**
+ * 두 비율을 각각 `Math.round`하면 합이 99%/101%가 되어 막대에 틈/오버플로가 생긴다 —
+ * dashboardView.ts의 도넛이 쓰는 최대잔여법(toPercentages)을 그대로 재사용해 합을 100으로 보정한다.
+ */
 export function buildLiquidityView(liquidAccounts: { balance: number }[], lockedAccounts: { balance: number }[]): LiquidityView {
   const liquidSum = liquidAccounts.reduce((sum, a) => sum + a.balance, 0)
   const lockedSum = lockedAccounts.reduce((sum, a) => sum + a.balance, 0)
-  const total = liquidSum + lockedSum
+  const [liquidPct, lockedPct] = toPercentages([liquidSum, lockedSum])
   return {
-    liquidPct: total > 0 ? Math.round((liquidSum / total) * 100) : 0,
-    lockedPct: total > 0 ? Math.round((lockedSum / total) * 100) : 0,
+    liquidPct,
+    lockedPct,
+    liquidAmt: liquidSum,
     liquidAmtFmt: fmt(liquidSum),
     lockedAmtFmt: fmt(lockedSum),
   }
+}
+
+/**
+ * 즉시 현금화 가능 자산이 월 지출 기준 약 몇 개월치인지(원본 dc.html L1163). 월 지출이 0이거나
+ * 아직 모르면(조회 실패·로딩) null — 호출부는 캡션의 이 절반을 렌더하지 말 것.
+ */
+export function liquidityMonthsOfExpense(liquidAmt: number, monthlyExpense: number | null): number | null {
+  if (!monthlyExpense || monthlyExpense <= 0) return null
+  return Math.round(liquidAmt / monthlyExpense)
 }
 
 /**

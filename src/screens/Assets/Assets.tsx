@@ -4,8 +4,8 @@
 // single flat view, not tabbed, and the treemap always sorts by nature. Not invented simplifications.
 //
 // Data: GET /assets/distribution?groupBy=CLASS (자산 구성 카드 + 트리맵), GET /assets/liquidity
-// (유동성 뷰). 파생 로직은 src/data/assetsView.ts. "월 지출 기준 약 N개월치" 캡션은 /transactions/summary가
-// 필요한데 그 도메인이 아직 없어 렌더하지 않는다(하드코딩 문구를 남기지 않음).
+// (유동성 뷰), GET /transactions/summary?period=MONTH (유동성 캡션의 "월 지출 기준 약 N개월치" 절반,
+// dc.html L1163 — 2026-08-17 복원). 파생 로직은 src/data/assetsView.ts.
 
 import type { CSSProperties } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
@@ -13,9 +13,10 @@ import { Card } from '../../components/primitives/Card/Card'
 import { Treemap } from '../../components/primitives/Treemap/Treemap'
 import { useAppState } from '../../state/AppStateContext'
 import { useIsMobile } from '../../utils/useMediaQuery'
-import { buildAssetCats, buildLiquidityView, buildMapTiers, pickNearestMaturity } from '../../data/assetsView'
+import { buildAssetCats, buildLiquidityView, buildMapTiers, liquidityMonthsOfExpense, pickNearestMaturity } from '../../data/assetsView'
 import { useGetAccounts } from '@/services/account'
 import { useGetAssetDistributionByClass, useGetAssetLiquidity } from '@/services/asset'
+import { useGetPeriodSummary } from '@/services/transaction'
 
 function EmptyAccountsState({ onAdd, style }: { onAdd: () => void; style?: CSSProperties }) {
   return (
@@ -57,6 +58,13 @@ export function Assets() {
   const nearestMaturity = liquidityData ? pickNearestMaturity(liquidityData.lockedAccounts) : null
   const hasLiquidityData =
     !!liquidityData && (liquidityData.liquidAccounts.length > 0 || liquidityData.lockedAccounts.length > 0)
+
+  // "월 지출 기준 약 N개월치" 캡션 절반(dc.html L1163). 월 지출이 0이거나 조회 실패면 이 절반을
+  // 렌더하지 않는다 — 옆의 "만기까지 D−N" 절반과 달리 이건 없어도 캡션 전체가 의미를 잃지 않는다.
+  const periodSummaryQuery = useGetPeriodSummary('MONTH')
+  const liquidityMonths = liquidityView
+    ? liquidityMonthsOfExpense(liquidityView.liquidAmt, periodSummaryQuery.data?.expenseTotal ?? null)
+    : null
 
   const openAddAccount = () => setState({ quickAddOpen: false, modalOpen: 'addAccount' })
 
@@ -178,12 +186,18 @@ export function Assets() {
                   </div>
                 </div>
               </div>
-              {nearestMaturity && (
+              {(liquidityMonths !== null || nearestMaturity) && (
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: '0.5px solid var(--track)', fontSize: 12.5, color: 'var(--text-mid)', display: 'flex', alignItems: 'flex-start', gap: 8, lineHeight: 1.5 }}>
                   <Icon name="check_circle" size={17} color="var(--accent)" style={{ flex: 'none' }} />
                   <span>
-                    {nearestMaturity.name} 만기까지{' '}
-                    <b>{nearestMaturity.dDay >= 0 ? `D−${nearestMaturity.dDay}` : '만기 경과'}</b>
+                    {liquidityMonths !== null && `즉시 현금화 가능 자산은 월 지출 기준 약 ${liquidityMonths}개월치예요`}
+                    {liquidityMonths !== null && nearestMaturity && ' · '}
+                    {nearestMaturity && (
+                      <>
+                        {nearestMaturity.name} 만기까지{' '}
+                        <b>{nearestMaturity.dDay >= 0 ? `D−${nearestMaturity.dDay}` : '만기 경과'}</b>
+                      </>
+                    )}
                   </span>
                 </div>
               )}

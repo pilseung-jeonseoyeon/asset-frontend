@@ -238,8 +238,11 @@ export function EditAccountModal() {
             </div>
             <div style={{ flex: 1 }}>
               <div style={LABEL_STYLE}>현재 잔액</div>
+              {/* AccountResponse.balance는 account.type.ts에 "KRW 정수"로 명시돼 있고, 같은 계좌를
+                  보여주는 AccountDetailModal.tsx도 통화와 무관하게 항상 원화로 렌더한다(정합성
+                  확인됨) — 여기서만 USD 계좌에 `$`를 붙이면 원화 금액을 달러로 오인시킨다. */}
               <div style={{ ...FIELD_BORDER_STYLE, fontSize: 13.5, fontWeight: 700, color: 'var(--text-weak)' }}>
-                {account.currency === 'KRW' ? `${fmt(account.balance)}원` : `$${fmt(account.balance)}`}
+                {fmt(account.balance)}원
               </div>
             </div>
           </div>
