@@ -3,12 +3,13 @@
 // 원본 프로토타입(secret/Asset Manager v14.dc.html L570)의 "보기 ›" 링크는 열릴 문서가 없어 React
 // 이식 때 뺐었다(SignupForm.tsx 헤더 주석 참고) — termsContent.ts에 문안이 갖춰지며 되살린다.
 //
-// 컴포넌트 primitives/Modal은 스크림 + 가운데 정렬 카드 + 바깥 클릭 닫기 + 모바일 바텀시트 전환을
-// 그대로 재사용할 수 있어 그 위에 얹는다. 다만 Modal은 createPortal을 쓰지 않고 트리 제자리에
+// 컴포넌트 primitives/Modal은 스크림 + 가운데 정렬 카드 + 모바일 바텀시트 전환 + Esc 닫기를 그대로
+// 재사용할 수 있어 그 위에 얹는다(바깥 클릭으로는 닫히지 않으므로 닫기는 X 버튼과 Esc뿐이다). 다만
+// Modal은 createPortal을 쓰지 않고 트리 제자리에
 // 렌더되므로, DOM 순서상 이 오버레이 뒤에 오는 배경 요소(SignupForm의 "다음" 버튼 등)가 Tab으로
 // 여전히 도달 가능하다 — 포커스 가능 요소가 닫기 버튼 하나뿐이라도 Tab/Shift+Tab이 그 버튼 안에서
-// 순환하도록 이 컴포넌트가 직접 트랩한다(Esc 닫기·포커스 이동/복귀도 Modal이 제공하지 않아 함께
-// 처리한다 — 이 저장소의 다른 모달도 아직 이걸 하는 곳이 없다).
+// 순환하도록 이 컴포넌트가 직접 트랩한다(포커스 이동/복귀는 Modal이 제공하지 않아 함께 처리한다 —
+// 이 저장소의 다른 모달도 아직 이걸 하는 곳이 없다).
 // AppState의 modalOpen에는 묶지 않는다 — 회원가입 화면을 벗어나면 함께 사라져야 하는 화면 전용
 // UI 상태라서 SignupForm의 로컬 useState로 관리한다(작업 지시 참고).
 
@@ -61,15 +62,14 @@ export function TermsDetailOverlay({ documentKey, onClose, returnFocusRef }: Ter
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Esc 닫기 + 포커스 트랩. Modal이 createPortal 없이 트리 제자리에 렌더되므로, 트랩이 없으면
-  // Tab이 오버레이를 넘어 배경(SignupForm의 "다음" 버튼 등)까지 도달해 aria-modal="true" 선언과
-  // 어긋난다. 포커스 가능 요소가 닫기 버튼 하나뿐이어도 그 버튼 안에서 순환시킨다.
+  // 포커스 트랩(Tab만). Esc 닫기는 primitives/Modal이 이제 자체적으로 처리하므로(Modal.tsx의
+  // document keydown 리스너) 여기서 다시 onClose를 걸면 Escape 한 번에 두 리스너가 같은 onClose를
+  // 중복 호출한다 — 결과는 같지만(둘 다 setViewDoc(null)) 불필요하므로 Tab 트랩만 남긴다. Modal이
+  // createPortal 없이 트리 제자리에 렌더되므로, 트랩이 없으면 Tab이 오버레이를 넘어 배경(SignupForm의
+  // "다음" 버튼 등)까지 도달해 aria-modal="true" 선언과 어긋난다. 포커스 가능 요소가 닫기 버튼
+  // 하나뿐이어도 그 버튼 안에서 순환시킨다.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        onClose()
-        return
-      }
       if (e.key !== 'Tab') return
       const container = dialogRef.current
       if (!container) return
@@ -94,7 +94,7 @@ export function TermsDetailOverlay({ documentKey, onClose, returnFocusRef }: Ter
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  }, [])
 
   return (
     <Modal

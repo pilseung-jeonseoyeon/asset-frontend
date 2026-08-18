@@ -13,7 +13,7 @@
 // re-implemented locally here — same shape as Modal.tsx: flex-end scrim, 10px 10px 0 0 radius, 88vh
 // max height, safe-area bottom padding, top grabber, sheet-up slide-in.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Icon } from '../../primitives/Icon/Icon'
 import { Avatar } from '../../primitives/Avatar/Avatar'
@@ -73,12 +73,11 @@ export function AccountModal() {
   const [withdrawPw, setWithdrawPw] = useState('')
   const [localWithdrawError, setLocalWithdrawError] = useState<string | null>(null)
 
-  if (state.modalOpen !== 'account') return null
+  const isOpen = state.modalOpen === 'account'
 
-  const isAccountPassword = state.accountModalView === 'password'
-  const isAccountProfile = state.accountModalView === 'profile'
-  const isAccountMain = !isAccountPassword && !isAccountProfile
-
+  // 아래 7개 함수는 원래 조건부 return 다음(모달이 열려 있을 때만 계산)에 있었지만, Esc 핸들러
+  // (바로 아래 useEffect)가 참조해야 한다 — useEffect는 Rules of Hooks 때문에 매 렌더 동일한 순서로
+  // 호출해야 하므로 조건부 return보다 먼저 와야 하고, 그러려면 이 클로저들도 함께 끌어올려야 한다.
   const resetPasswordForm = () => {
     setCurrentPw('')
     setNewPw('')
@@ -90,27 +89,81 @@ export function AccountModal() {
     resetPasswordForm()
     setState({ accountModalView: 'main' })
   }
-
-  // 서버 메시지는 이미 완성된 한국어 문장이라 그대로 노출한다. 프론트 검증은 서버에 보내기 전에
-  // 확실히 걸러지는 것만 본다(서버 규칙과 동일한 PASSWORD_PATTERN 재사용).
-  const pwError = localPwError ?? (patchPassword.error ? patchPassword.error.message : null)
-
   const resetProfileForm = () => {
     setProfileNameInput('')
     setProfileMarketingOptIn(false)
     setLocalProfileError(null)
     patchProfile.reset()
   }
+  const closeProfileView = () => {
+    resetProfileForm()
+    setState({ accountModalView: 'main' })
+  }
+  // 이 모달은 AppShell에 항상 마운트되어 닫아도 언마운트되지 않는다 — 평문 비밀번호가 다음 세션까지
+  // 메모리에 남지 않도록 닫을 때 직접 지운다.
+  const resetWithdrawForm = () => {
+    setWithdrawPw('')
+    setLocalWithdrawError(null)
+    withdraw.reset()
+  }
+  const closeAndReset = () => {
+    resetPasswordForm()
+    resetProfileForm()
+    resetWithdrawForm()
+    closeModal()
+  }
+  const cancelWithdraw = () => {
+    resetWithdrawForm()
+    setState({ withdrawConfirmOpen: false })
+  }
+
+  // 이 모달은 primitives/Modal을 쓰지 않는 자체 스크림이라 Esc도 직접 붙인다. 서브뷰(비밀번호 변경/
+  // 이름 변경)나 탈퇴 확인 배너에 있을 때 Esc는 모달을 통째로 닫지 않고, 그 서브뷰의 기존 뒤로가기·
+  // "취소" 버튼과 똑같이 로컬 입력만 지우고 메인 뷰로 돌아간다 — 안 그러면 비밀번호를 입력하던 중
+  // Esc 한 번에 모달 전체가 사라진다. 탈퇴 확인 배너는 메인 뷰 위에 얹히는 형태라 가장 먼저 검사한다.
+  useEffect(() => {
+    if (!isOpen) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Escape' || e.isComposing) return
+      if (state.withdrawConfirmOpen) {
+        cancelWithdraw()
+        return
+      }
+      if (state.accountModalView === 'password') {
+        closePasswordView()
+        return
+      }
+      if (state.accountModalView === 'profile') {
+        closeProfileView()
+        return
+      }
+      closeAndReset()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+    // cancelWithdraw/closePasswordView/closeProfileView/closeAndReset은 매 렌더 새로 만들어지지만
+    // 안에서 부르는 것도 결국 React state 세터와 setState(둘 다 리렌더와 무관하게 항상 같은 동작을
+    // 하는 안정 참조)뿐이라, deps에 넣어 매 키 입력마다 리스너를 갈아 끼울 필요가 없다 — 재구독은
+    // 실제로 분기를 바꾸는 isOpen/withdrawConfirmOpen/accountModalView가 바뀔 때만 하면 충분하다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, state.withdrawConfirmOpen, state.accountModalView])
+
+  if (!isOpen) return null
+
+  const isAccountPassword = state.accountModalView === 'password'
+  const isAccountProfile = state.accountModalView === 'profile'
+  const isAccountMain = !isAccountPassword && !isAccountProfile
+
+  // 서버 메시지는 이미 완성된 한국어 문장이라 그대로 노출한다. 프론트 검증은 서버에 보내기 전에
+  // 확실히 걸러지는 것만 본다(서버 규칙과 동일한 PASSWORD_PATTERN 재사용).
+  const pwError = localPwError ?? (patchPassword.error ? patchPassword.error.message : null)
+
   const openProfileEdit = () => {
     setProfileNameInput(me?.name ?? '')
     setProfileMarketingOptIn(me?.hasMarketingOptIn ?? false)
     setLocalProfileError(null)
     patchProfile.reset()
     setState({ accountModalView: 'profile' })
-  }
-  const closeProfileView = () => {
-    resetProfileForm()
-    setState({ accountModalView: 'main' })
   }
   const profileError = localProfileError ?? (patchProfile.error ? patchProfile.error.message : null)
 
@@ -162,26 +215,9 @@ export function AccountModal() {
 
   // 실패해도 usePostLogout이 onSettled에서 클라이언트 세션을 끊는다 — 여기서는 그냥 호출만 한다.
   const doLogout = () => logoutMutation.mutate()
-  // 이 모달은 AppShell에 항상 마운트되어 닫아도 언마운트되지 않는다 — 평문 비밀번호가 다음 세션까지
-  // 메모리에 남지 않도록 닫을 때 직접 지운다.
-  const resetWithdrawForm = () => {
-    setWithdrawPw('')
-    setLocalWithdrawError(null)
-    withdraw.reset()
-  }
-  const closeAndReset = () => {
-    resetPasswordForm()
-    resetProfileForm()
-    resetWithdrawForm()
-    closeModal()
-  }
   const openWithdrawConfirm = () => {
     resetWithdrawForm()
     setState({ withdrawConfirmOpen: true })
-  }
-  const cancelWithdraw = () => {
-    resetWithdrawForm()
-    setState({ withdrawConfirmOpen: false })
   }
   // 로그아웃(doLogout)과 달리 실패하면 세션을 유지한다 — useDeleteMe가 성공했을 때만 signOut +
   // 캐시 초기화를 하므로, 여기서는 그냥 mutate만 호출한다(성공하면 AppShell이 로그인 화면으로
@@ -206,9 +242,11 @@ export function AccountModal() {
         ? '이미 탈퇴 처리된 계정이에요.'
         : (withdraw.error?.message ?? null))
 
+  // 스크림 클릭으로는 닫지 않는다(2026-08-19, primitives/Modal과 동일한 근거 — 프로필/비밀번호/탈퇴
+  // 폼을 작성하다 배경을 실수로 눌러 입력이 날아가는 사고를 막는다). 각 서브뷰의 X·뒤로가기·"취소"
+  // 버튼과, 위에서 붙인 Esc(서브뷰에서는 메인으로만 돌아가는)가 닫기 수단으로 남아 있다.
   return (
     <div
-      onClick={closeAndReset}
       style={{
         position: 'fixed',
         inset: 0,

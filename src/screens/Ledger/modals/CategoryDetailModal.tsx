@@ -23,7 +23,17 @@ export function CategoryDetailModal() {
   return (
     <Modal onClose={closeCatDetail} zIndex={80} width={460} panelStyle={{ maxHeight: '86vh', overflow: 'auto' }}>
       {detail.isPending ? (
-        <div aria-busy style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 6 }}>
+            <button
+              onClick={closeCatDetail}
+              style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: 'var(--track)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+            >
+              <Icon name="close" size={19} color="var(--text-mid)" />
+            </button>
+          </div>
+          <div aria-busy style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
+        </>
       ) : err ? (
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 6 }}>

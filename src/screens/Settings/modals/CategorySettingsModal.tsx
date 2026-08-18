@@ -75,6 +75,10 @@ export function CategorySettingsModal() {
   }
   const submitAdd = (categoryId: number, e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
+      // Modal이 이제 document 레벨에서 Esc를 감지해 모달 전체를 닫는다(Modal.tsx 참고) — 여기서
+      // stopPropagation을 안 하면 인라인 추가 입력만 취소하려던 Esc가 그대로 버블링돼 모달까지
+      // 닫혀버린다.
+      e.stopPropagation()
       cancelAdd()
       return
     }
