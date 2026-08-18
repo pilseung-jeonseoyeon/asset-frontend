@@ -29,6 +29,10 @@
 //  - 매도 모드에서 선택한 종목의 보유 수량을 "보유 N주"로 보여주고, 수량 입력이 그 값을 넘지 못하게
 //    타이핑 중에 잘라낸다(사전 검증). 서버 409(INSUFFICIENT_HOLDING)는 경합 등에 대비한 최종 방어선으로
 //    그대로 유지한다.
+//  - 계좌 드롭다운(ddAccount, 2026-08-18 추가)은 계좌 이름만으로는 어느 은행/증권사인지 알 수 없다는
+//    지적으로 소속 기관을 함께 보여준다 — 옵션 목록은 BankIcon + 계좌명 + 보조줄 기관명(accountInstitutionMeta로
+//    GET /accounts의 institutionId를 GET /institutions와 조인), 트리거는 "계좌명 · 기관명" 한 줄로
+//    표기해 트리거 높이를 다른 필드와 맞췄다. 기관을 못 찾거나 기관에 아이콘이 없으면 계좌명만 보여준다.
 
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -36,15 +40,17 @@ import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
 import { Dropdown } from '../../../components/primitives/Dropdown/Dropdown'
 import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker'
+import { BankIcon } from '../../../components/primitives/BankIcon/BankIcon'
 import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { fmt, sanitizeDecimalInput } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate } from '../../../utils/date'
-import { buyMarketToMarket, filterTradeAccounts, marketToCurrency, sortHoldingsByReturn } from '../../../data/stocksView'
+import { accountInstitutionMeta, buyMarketToMarket, filterTradeAccounts, marketToCurrency, sortHoldingsByReturn } from '../../../data/stocksView'
 import { ApiError } from '@/services/api'
 import { useGetAccounts } from '@/services/account'
+import { useGetInstitutions } from '@/services/institution'
 import { useGetHoldings, useGetStocks, usePostStock } from '@/services/stock'
 import { usePostTrade } from '@/services/trade'
 import type { CreateStockRequest } from '@/services/stock'
@@ -107,6 +113,10 @@ export function QuickStockModal() {
   // 서버가 계좌 타입을 검증하지 않아(docs/backend-request.md B-1-3) 현금 계좌로도 매매가 등록되던
   // 문제(0-4-7)를 여기서 좁혀 막는다 — 선택된 시장(KR/US)에 맞는 증권 계좌만 드롭다운에 노출한다.
   const accounts = filterTradeAccounts(accountsQuery.data ?? [], market)
+  // 계좌 드롭다운에 소속 기관(아이콘 + 기관명)을 함께 보여주기 위한 조인 대상 — accountInstitutionMeta
+  // 참고. 기관 목록은 계좌보다 훨씬 자주 재사용되는 마스터 데이터라 staleTime이 길다(institution.hook.ts).
+  const institutionsQuery = useGetInstitutions({ enabled: isOpen })
+  const institutions = institutionsQuery.data ?? []
   const postStock = usePostStock()
   const postTrade = usePostTrade()
 
@@ -130,8 +140,26 @@ export function QuickStockModal() {
       setAccountId(id)
       setAccountMissing(false)
     },
+    (a) => accountInstitutionMeta(a, institutions)?.institutionName,
+    (a) => {
+      const meta = accountInstitutionMeta(a, institutions)
+      return meta ? <BankIcon tokenKey={meta.tokenKey} size={28} /> : undefined
+    },
   )
-  const ddAccountDisplay = { ...ddAccount, value: ddAccount.value || '계좌를 선택하세요' }
+  // 트리거에도 소속 기관을 알 수 있게 "계좌명 · 기관명"으로 붙인다 — 옵션 목록처럼 아이콘까지 넣으면
+  // Dropdown.tsx의 트리거(텍스트 한 줄 + expand_more 아이콘) 구조를 이 호출부만을 위해 바꿔야 해서,
+  // 트리거 높이를 다른 필드와 맞춘 채로 기관을 알리는 더 단순한 방법을 택했다. 계좌명을 앞에 두는 이유:
+  // ellipsis는 뒤쪽부터 잘리므로 "기관명 · 계좌명" 순서면 폭이 좁을 때 정작 계좌를 구분하는 이름이
+  // 잘린다(리뷰 지적) — 옵션 목록에서 이미 계좌명이 주 정보(굵은 1줄)·기관명이 보조(작은 2줄)인 것과
+  // 같은 우선순위를 트리거에도 맞춘다.
+  const selectedAccount = accountId !== null ? accounts.find((a) => a.id === accountId) : undefined
+  const selectedAccountMeta = selectedAccount ? accountInstitutionMeta(selectedAccount, institutions) : null
+  const ddAccountDisplay = {
+    ...ddAccount,
+    value: selectedAccountMeta
+      ? `${ddAccount.value} · ${selectedAccountMeta.institutionName}`
+      : ddAccount.value || '계좌를 선택하세요',
+  }
 
   const todayISO = toISODate(new Date())
   // 미래 매매는 성립하지 않는다(docs/backend-request.md 0-4-5) — 서버 검증이 없어 프론트에서 막는다.
@@ -474,7 +502,11 @@ export function QuickStockModal() {
         </div>
 
         <div style={fieldRowStyle}>
-          <div style={{ flex: 1, position: 'relative' }}>
+          {/* minWidth:0 — 이 열의 계좌 드롭다운 트리거가 "기관명 · 계좌명"으로 길어질 수 있는데,
+              flex:1인 이 wrapper에 minWidth:0이 없으면 기본 min-width:auto 때문에 내용 크기 밑으로
+              줄어들지 않아 옆 매수일 열을 밀어내며 트리거가 두 줄로 꺾인다(리뷰 지적, Dropdown.tsx의
+              트리거 ellipsis가 실제로 발동하려면 이 체인이 끝까지 열려 있어야 한다). */}
+          <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
             <div style={LABEL_STYLE}>계좌</div>
             {accountsQuery.isPending ? (
               <div aria-busy style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>

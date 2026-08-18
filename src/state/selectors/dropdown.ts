@@ -2,12 +2,25 @@
 // from a per-render closure over `this.state`/`this.setState` to a hook over our AppStateContext.
 // Reuses the existing `dd`/`openDropdown` AppState fields (state/types.ts) that already mirror `s.dd`/
 // `s.openDropdown` 1:1.
+//
+// id/meta/leading(2026-08-18 추가): 계좌처럼 이름이 겹칠 수 있는 목록에서 React key로 o.name을 쓰면
+// 충돌한다 — id를 안정적인 키로 함께 실어보낸다(useDropdown은 표시값=저장값이라 옵션 문자열 자체를,
+// useEntityDropdown은 getId(item)을 쓴다). meta/leading은 옵션 한 줄 아래 보조 정보(예: 계좌의
+// 소속 기관명)·앞에 붙는 아이콘(예: BankIcon)을 옵션별로 실어보내기 위한 선택 필드다 — 기존 호출부는
+// 아무것도 넘기지 않으므로 항상 undefined로 비고, Dropdown.tsx는 그 경우 지금과 동일하게 렌더한다.
 
+import type { ReactNode } from 'react'
 import { useAppState } from '../AppStateContext'
 
 export interface DropdownOption {
   name: string
   pick: () => void
+  /** React key로 쓸 안정적인 식별자. 없으면 Dropdown.tsx가 name으로 폴백한다. */
+  id?: number | string
+  /** name 아래 작게 렌더할 보조 정보 한 줄(예: 계좌 드롭다운의 소속 기관명). */
+  meta?: string
+  /** name/meta 앞에 붙는 아이콘 등. */
+  leading?: ReactNode
 }
 
 export interface DropdownState {
@@ -28,6 +41,7 @@ export function useDropdown(key: string, options: string[], fallback: string): D
     toggle: () => setState((st) => ({ openDropdown: st.openDropdown === key ? null : key })),
     options: options.map((o) => ({
       name: o,
+      id: o,
       pick: () => setState((st) => ({ dd: { ...st.dd, [key]: o }, openDropdown: null })),
     })),
   }
@@ -48,6 +62,11 @@ export function useEntityDropdown<T>(
   getLabel: (item: T) => string,
   selectedId: number | null,
   onPick: (id: number) => void,
+  /** 옵션 한 줄 아래 보조 정보(예: 계좌의 소속 기관명). 항목에 해당 정보가 없으면 undefined를
+   *  돌려주면 그 줄은 생략된다. 생략 가능 — 넘기지 않으면 기존 호출부와 동일하게 이름만 렌더한다. */
+  getMeta?: (item: T) => string | undefined,
+  /** 옵션 앞에 붙는 아이콘 등(예: BankIcon). 생략 가능. */
+  getLeading?: (item: T) => ReactNode,
 ): DropdownState {
   const { state, setState } = useAppState()
   const selected = selectedId !== null ? items.find((item) => getId(item) === selectedId) : undefined
@@ -58,6 +77,9 @@ export function useEntityDropdown<T>(
     toggle: () => setState((st) => ({ openDropdown: st.openDropdown === key ? null : key })),
     options: items.map((item) => ({
       name: getLabel(item),
+      id: getId(item),
+      meta: getMeta?.(item),
+      leading: getLeading?.(item),
       pick: () => {
         onPick(getId(item))
         setState({ openDropdown: null })
