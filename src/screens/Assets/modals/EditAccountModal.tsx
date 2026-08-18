@@ -42,14 +42,11 @@ import type { CSSProperties } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
 import { Dropdown } from '../../../components/primitives/Dropdown/Dropdown'
-import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker'
 import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
-import { useDatePicker } from '../../../state/selectors/datePicker'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
 import { fmt } from '../../../utils/format'
-import { isoDateToDisplay, isoDateToNav, pickedToISODate } from '../../../utils/date'
 import {
   ACCOUNT_TYPE_LABELS,
   ASSET_CLASS_ACCOUNT_TYPE_PRESET,
@@ -112,6 +109,9 @@ export function EditAccountModal() {
   // 이름 필드도 AddAccountModal의 nameInvalid와 같은 패턴으로 검증한다 — 예전에는 이름을 비운 채
   // 저장을 누르면 handleSave가 조용히 return해 아무 반응이 없었다(리뷰 지적).
   const [nameInvalid, setNameInvalid] = useState(false)
+  // 금융기관은 AddAccountModal과 동일하게 필수다(2026-08-19, 사용자 요청) — 계좌 이름과 같은 인라인
+  // 오류 패턴으로 미선택 저장을 막는다.
+  const [institutionMissing, setInstitutionMissing] = useState(false)
   // 잔액은 accountForm이 아니라 별도 로컬 상태로 둔다 — PATCH /accounts/{id}가 아니라 전용 잔액 정정
   // API(PATCH /accounts/{id}/balance)로 나가는 별개의 요청이라 accountForm의 필드가 아니다.
   // number | null인 이유는 파일 상단 주석 참고 — null은 "칸을 비워둔 채", 0은 "실제로 0을 입력함".
@@ -147,13 +147,7 @@ export function EditAccountModal() {
     form.institutionId,
     (id) => setState((st) => ({ accountForm: { ...st.accountForm, institutionId: id } })),
   )
-  const ddInstitutionDisplay = { ...ddInstitution, value: ddInstitution.value || '선택 안 함' }
-
-  const dpMaturity = useDatePicker(
-    'editAccountMaturity',
-    form.maturityDate ? isoDateToDisplay(form.maturityDate) : '선택 안 함',
-    isoDateToNav(form.maturityDate),
-  )
+  const ddInstitutionDisplay = { ...ddInstitution, value: ddInstitution.value || '금융기관을 선택하세요' }
 
   // 폼 초기값 채우기(예외적으로 허용 — docs/state-management.md "서버 데이터를 AppState로 복사하지
   // 말 것. 단, 폼 초기값을 채우는 것은 예외").
@@ -175,7 +169,7 @@ export function EditAccountModal() {
     if (form.id === account.id) return
 
     const matchedInstitution = institutionList?.find((i) => i.name === account.institutionName)
-    setState((st) => ({
+    setState({
       accountForm: {
         id: account.id,
         institutionId: matchedInstitution?.id ?? null,
@@ -194,16 +188,15 @@ export function EditAccountModal() {
         maturityDate: account.maturityDate,
         isLiquid: account.isLiquid,
       },
-      dpPicked: { ...st.dpPicked, editAccountMaturity: undefined },
-      dpNav: { ...st.dpNav, editAccountMaturity: undefined },
       openDropdown: null,
-    }))
+    })
     // 잔액 정정 API(PATCH .../balance)로 나가는 별도 값 — 현재 잔액으로 초기화해두면 사용자가 값을
     // 바꾸지 않는 한 handleSave가 이 API를 호출하지 않는다(아래 handleSave의 hasBalanceChange 참고).
     setBalanceKrwInput(account.balanceKrw)
     // 편집 대상이 바뀌었으니 이전 계좌의 해지 확인 상태와 실패 메시지를 물려주지 않는다.
     setCloseConfirmOpen(false)
     setNameInvalid(false)
+    setInstitutionMissing(false)
     setBalanceEmptyError(false)
     patchReset()
     patchBalanceReset()
@@ -232,22 +225,21 @@ export function EditAccountModal() {
 
   const resetAndClose = () => {
     // 저장/해지 뮤테이션이 진행 중일 때는 닫지 않는다 — 파일 상단 주석의 TanStack Query 옵저버 분리
-    // 근거 참고. X 버튼과 Modal의 배경 클릭(onClose)이 모두 이 함수 하나를 거치므로, 여기서 막으면 두
-    // 경로 다 막힌다. handleSave/handleDelete의 mutate onSuccess가 부르는 resetAndClose는 그 시점엔
+    // 근거 참고. X 버튼(Modal은 배경 클릭으로 닫히지 않는다)이 이 함수 하나를 거치므로, 여기서 막으면
+    // 그 경로가 막힌다. handleSave/handleDelete의 mutate onSuccess가 부르는 resetAndClose는 그 시점엔
     // 이미 isBusy가 false로 떨어진 뒤이므로 정상적으로 닫힌다.
     if (isBusy) return
-    setState((st) => ({
+    setState({
       modalOpen: null,
       editAccount: null,
       accountForm: BLANK_ACCOUNT_FORM,
-      dpPicked: { ...st.dpPicked, editAccountMaturity: undefined },
-      dpNav: { ...st.dpNav, editAccountMaturity: undefined },
       openDropdown: null,
-    }))
+    })
     // 이 모달은 AppShell에 항상 마운트되어 있어 닫아도 언마운트되지 않는다.
     // 로컬 확인 상태와 mutation 에러를 직접 지우지 않으면 다음에 연 계좌로 새어나간다.
     setCloseConfirmOpen(false)
     setNameInvalid(false)
+    setInstitutionMissing(false)
     setBalanceEmptyError(false)
     patchAccount.reset()
     patchAccountBalance.reset()
@@ -260,11 +252,11 @@ export function EditAccountModal() {
   const handleSave = () => {
     if (!account) return
 
-    if (!form.name.trim()) {
-      setNameInvalid(true)
-      return
-    }
-    setNameInvalid(false)
+    const missingName = !form.name.trim()
+    const missingInstitution = form.institutionId === null
+    setNameInvalid(missingName)
+    setInstitutionMissing(missingInstitution)
+    if (missingName || missingInstitution) return
 
     if (balanceKrwInput === null) {
       setBalanceEmptyError(true)
@@ -273,9 +265,6 @@ export function EditAccountModal() {
     setBalanceEmptyError(false)
     if (!Number.isSafeInteger(balanceKrwInput)) return // 필드 아래 isBalanceOverflow 안내로 이미 막혀 있다
 
-    const maturityPicked = state.dpPicked['editAccountMaturity'] as { y: number; m: number; d: number } | undefined
-    const maturityDate = maturityPicked ? pickedToISODate(maturityPicked) : (form.maturityDate ?? undefined)
-
     const body: UpdateAccountRequest = {
       name: form.name.trim(),
       isLiquid: form.isLiquid,
@@ -283,7 +272,8 @@ export function EditAccountModal() {
       // "정보 손실 방지" 규칙. 칩을 안 건드리면 파킹통장/정기예금 같은 세부 타입이 그대로 유지된다.
       ...(form.type !== account.type ? { type: form.type } : {}),
       ...(form.institutionId !== null ? { institutionId: form.institutionId } : {}),
-      ...(maturityDate ? { maturityDate } : {}),
+      // maturityDate는 이 모달에서 더 이상 입력받지 않으므로 보내지 않는다(2026-08-19, 폼 축소) —
+      // PATCH는 생략한 필드를 건드리지 않으니 서버에 이미 저장된 만기일은 그대로 유지된다.
     }
 
     const hasBalanceChange = balanceKrwInput !== account.balanceKrw
@@ -408,13 +398,16 @@ export function EditAccountModal() {
           </div>
           <div style={fieldRowStyle}>
             <div style={{ flex: 1, position: 'relative' }}>
-              <div style={LABEL_STYLE}>금융기관 (선택)</div>
+              <div style={LABEL_STYLE}>금융기관</div>
               {institutions.length === 0 ? (
                 <div style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>
                   등록된 금융기관이 없어요
                 </div>
               ) : (
                 <Dropdown dd={ddInstitutionDisplay} maxHeight={160} />
+              )}
+              {institutionMissing && form.institutionId === null && (
+                <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>금융기관을 선택해주세요</div>
               )}
             </div>
             <div style={{ flex: 1 }}>
@@ -472,11 +465,6 @@ export function EditAccountModal() {
               ))}
             </div>
           </div>
-          <div style={{ position: 'relative' }}>
-            <div style={LABEL_STYLE}>만기일 (선택)</div>
-            <DatePicker dp={dpMaturity} />
-          </div>
-
           {patchAccount.error && (
             <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{patchAccount.error.message}</div>
           )}
