@@ -187,7 +187,7 @@ export function ExchangeAddModal() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>등록된 계좌가 없어요</div>
                 <button
-                  onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'exchangeAdd' })}
+                  onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'exchangeAdd', openDropdown: null })}
                   className="mini-hov"
                   style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, padding: '9px 10px', borderRadius: 8, border: 'none', background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
                 >

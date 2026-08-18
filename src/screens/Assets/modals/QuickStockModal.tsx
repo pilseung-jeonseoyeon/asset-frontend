@@ -518,7 +518,7 @@ export function QuickStockModal() {
                   증권계좌를 먼저 추가해주세요
                 </div>
                 <button
-                  onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'quickStock' })}
+                  onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'quickStock', openDropdown: null })}
                   className="mini-hov"
                   style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, padding: '9px 10px', borderRadius: 8, border: 'none', background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
                 >
@@ -535,7 +535,7 @@ export function QuickStockModal() {
                     <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />
                     <button
                       className="mini-hov"
-                      onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'quickStock' })}
+                      onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'quickStock', openDropdown: null })}
                       style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 8, border: 'none', background: 'transparent', fontSize: 12.5, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
                     >
                       <Icon name="add" size={15} />

@@ -316,7 +316,7 @@ export function FixedExpenseModal() {
               <span style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>등록된 계좌가 없어요</span>
               <button
                 className="mini-hov"
-                onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'fixedExpense' })}
+                onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'fixedExpense', openDropdown: null })}
                 style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 8, border: 'none', background: 'transparent', fontSize: 12, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
               >
                 <Icon name="add" size={14} />
@@ -332,7 +332,7 @@ export function FixedExpenseModal() {
                   <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />
                   <button
                     className="mini-hov"
-                    onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'fixedExpense' })}
+                    onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'fixedExpense', openDropdown: null })}
                     style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 8, border: 'none', background: 'transparent', fontSize: 12.5, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
                   >
                     <Icon name="add" size={15} />
