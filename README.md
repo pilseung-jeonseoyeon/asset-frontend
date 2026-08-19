@@ -18,9 +18,16 @@
 - [Vite](https://vite.dev/) (빌드 도구)
 - [pnpm](https://pnpm.io/) (패키지 매니저)
 - [oxlint](https://oxc.rs/) (린터)
+- [React Router](https://reactrouter.com/) (5개 메뉴 화면을 URL에 연결)
+- [TanStack Query](https://tanstack.com/query) + [axios](https://axios-http.com/) (서버 데이터 통신·캐시)
+- [Zustand](https://zustand.docs.pmnd.rs/) (전역 로딩·인증 토큰만 담당하는 좁은 범위의 스토어)
 - 순수 CSS (CSS 커스텀 프로퍼티 기반 디자인 토큰) — Tailwind나 CSS-in-JS 라이브러리는 사용하지 않음
 
-상태관리는 별도 라이브러리 없이 단일 `AppState` 객체 + reducer 패턴으로 구현되어 있습니다.
+상태는 세 갈래로 나뉩니다. 화면 인터랙션(탭·모달·폼 입력)은 별도 라이브러리 없이 단일
+`AppState` 객체 + reducer 패턴으로, 서버에서 받아온 데이터는 React Query 캐시로, 화면 트리와
+무관한 전역 상태(전역 로딩, 인증 토큰)만 Zustand로 관리합니다.
+
+화면에 그려지는 데이터는 실제 백엔드 API에서 옵니다(월간 리포트 오버레이 한 곳만 아직 목업).
 
 ## 시작하기
 

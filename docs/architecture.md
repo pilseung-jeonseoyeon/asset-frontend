@@ -14,6 +14,7 @@
 - [`code-convention.md`](./code-convention.md) — 명명 규칙, import 순서, 컴포넌트 작성 스타일
 - [`api-conventions.md`](./api-conventions.md) — axios/React Query 기반 API 통신 규칙
 - [`state-management.md`](./state-management.md) — AppState / Zustand / React Query 상태 경계
+- [`mobile.md`](./mobile.md) — 모바일 브레이크포인트, 하단탭·바텀시트 규격, 터치 대응
 
 ## 진입점 & 렌더 흐름
 
@@ -23,9 +24,15 @@ main.tsx
        └─ QueryClientProvider (services/queryClient.ts)
             └─ AppStateProvider (state/AppStateContext.tsx)
                  └─ App.tsx  — 테마 적용(useApplyTheme) 후 AppShell 렌더
-                      └─ AppShell — 인증 상태에 따라 Auth 또는 AuthenticatedApp
-                           └─ AuthenticatedApp — <Routes>가 경로에 따라 5개 화면 중 하나를 렌더
-                                /dashboard, /assets, /stocks, /ledger, /settings
+                      └─ AppShell — 인증 상태에 따라 분기
+                           ├─ status 'unknown'      → BootScreen (재방문자의 조용한 세션
+                           │                          복구 중에만. 첫 방문자는 곧장 로그인 화면)
+                           ├─ status 'anonymous'    → screens/Auth
+                           └─ status 'authenticated'→ AuthenticatedApp (lazy 청크,
+                                ChunkErrorBoundary로 감쌈 — 배포 직후 구버전 청크가
+                                사라져 로드에 실패하면 새로고침 안내를 띄운다)
+                                  └─ <Routes>가 경로에 따라 5개 화면 중 하나를 렌더
+                                     /dashboard, /assets, /stocks, /ledger, /settings
 ```
 
 `BrowserRouter`가 `AppStateProvider`보다 바깥에 있는 이유: 라우팅은 인터랙션 상태(`AppState`)와
@@ -55,7 +62,10 @@ src/
     queryClient.ts            React Query QueryClient
     {domain}/                 {domain}.service.ts / .hook.ts / .type.ts / index.ts
                               auth, user, institution, account, asset, category, transaction,
-                              subscription, stock, trade, exchange, marketIndex
+                              subscription, stock, trade, exchange, marketIndex, goal,
+                              dashboard, notification, export
+                              (export만 blob 응답 때문에 공용 api 인스턴스를 쓰지 않는다 —
+                               api-conventions.md 인터셉터 절 참고)
 
   stores/                화면 트리와 무관한 전역 상태만 두는 Zustand store
     ui.ts                   전역 로딩 카운터(useUiStore)
@@ -63,28 +73,35 @@ src/
 
   data/                  서버 응답 → 화면용 뷰모델 변환 계층(순수 함수). 색상·아이콘·포맷 문자열
                          같은 디자인 시스템 규칙이 여기 산다
-    assetsView.ts, ledgerView.ts, stocksView.ts
-    mock*.ts                 아직 서버에 연결하지 않은 화면만 남아 있음
-                             (mockDashboard: 대시보드·자산 목표, mockNotifications: 헤더 알림)
+    assetsView.ts, dashboardView.ts, ledgerView.ts, stocksView.ts
+                             mock*.ts는 전부 삭제됐다 — 화면이 그리는 데이터는 모두 서버에서 온다
+                             (아직 하드코딩으로 남은 화면은 Assets/modals/ReportOverlay.tsx 하나뿐)
 
   design/                bank-institutions.ts(금융기관 마스터 테이블),
                          bank-archetypes.ts(공용 SVG 아이콘) — BankIcon에 사용
 
   components/
     primitives/            Avatar, BankIcon, Button, Card, DatePicker, DeepCard, DonutChart,
-                           Dropdown, Icon, Modal, SegmentedTab, StatBadge, Treemap
-    layout/                AppShell, Header, SidebarNav, layout/modals/(전역 오버레이 모달)
+                           Dropdown, Icon, Modal, SegmentedTab, Skeleton, StatBadge, Switch,
+                           Treemap + usePopoverAnchor.ts(팝오버를 모달 밖으로 띄우는 공용 훅)
+    layout/                AppShell(인증 게이팅), AuthenticatedApp(<Routes>), Header,
+                           SidebarNav(데스크톱), BottomTabNav(모바일), navItems.ts(NAV_ITEMS),
+                           BootScreen(부팅 로딩), ChunkErrorBoundary(lazy 청크 로드 실패 처리),
+                           MonitLogo, useSyncUserTheme.ts,
+                           layout/modals/(AccountModal — 전역 계정 오버레이)
 
   screens/               화면별 폴더, 각각 자기 전용 모달을 하위 modals/에 둠
     Auth/                   로그인·회원가입·비밀번호 찾기. useAuthStore().status가
                             'anonymous'일 때 AppShell이 이것만 렌더한다
     Dashboard/, Assets/(+modals/), Stocks/, Ledger/(+modals/), Settings/(+modals/)
 
-  styles/                tokens.css(디자인 토큰), bank-tokens.css(기관별 색상),
+  styles/                fonts.css(웹폰트), tokens.css(디자인 토큰), bank-tokens.css(기관별 색상),
                          base.css(리셋 + 지정된 hover/media 클래스만)
+                         — index.css에서 이 순서 그대로 import한다
 
-  utils/                 format.ts(fmt), deltaBadge.ts(mkDelta/hexToRgba), theme.ts(useApplyTheme),
-                         date.ts
+  utils/                 format.ts(fmt, formatKoreanAbbrev), deltaBadge.ts(mkDelta/hexToRgba),
+                         theme.ts(useApplyTheme), date.ts, useMediaQuery.ts(useIsMobile),
+                         notificationTime.ts
 ```
 
 ## 레이어 간 규칙
@@ -94,7 +111,8 @@ src/
   `App`으로부터의 prop drilling이 없습니다.
 - **`services/`에는 UI 관심사를 넣지 않습니다.** 색상·아이콘·포맷 문자열·티어 계산 같은
   디자인 시스템 규칙은 `data/{screen}View.ts`에 둡니다. 반대로 `data/`는 페칭하지 않습니다.
-- **모달은 `AppShell`에 항상 마운트**되어 있고 닫아도 언마운트되지 않습니다. 그래서 모달을 닫을
+- **모달은 `AuthenticatedApp`에 항상 마운트**되어 있고(현재 라우트와 무관하게 전부 마운트된다)
+  닫아도 언마운트되지 않습니다. 그래서 모달을 닫을
   때 로컬 `useState`, mutation의 `.reset()`, `openDropdown`, 해당 `dpPicked`/`dpNav` 키를 직접
   초기화해야 합니다 — 안 하면 이전 세션의 확인창·에러가 다음에 열 때 그대로 남습니다.
   같은 이유로 열려 있지 않은 모달이 요청을 쏘지 않도록 fetch 훅에 `enabled` 가드를 겁니다.

@@ -5,8 +5,13 @@
 `docs/architecture.md` 참고) 구조에 맞게 옮긴 것입니다. 원본과 다르게 조정한 부분은 각 절에
 표시해두었습니다.
 
-> 실제 백엔드 스펙은 `secret/API-SPEC.md`입니다(git 미커밋). 도메인 서비스를 새로 만들 때는
-> 이 문서의 "서비스 폴더 구조" 절을 그대로 따르세요.
+> **백엔드 스펙의 정본은 실행 중인 서버의 OpenAPI 문서입니다** — Swagger UI
+> `http://localhost:8080/docs`(또는 `/swagger-ui/index.html`), JSON `http://localhost:8080/v3/api-docs`.
+> 예전에 있던 `secret/API-SPEC.md`는 삭제됐고 다시 만들지 않습니다. 아래 본문에 남아 있던
+> "API-SPEC §N" 인용은 전부 그 문서가 살아 있던 시점에 검증된 내용으로, 사실 자체는 지금도
+> 유효하지만 **다시 확인할 때는 반드시 위 OpenAPI 문서를 보세요.** 다만 OpenAPI에는 `required`·
+> `nullable` 표기와 에러 코드 목록이 없으므로, 거기 없는 세부는 추측하지 말고 사용자에게 확인하세요.
+> 도메인 서비스를 새로 만들 때는 이 문서의 "서비스 폴더 구조" 절을 그대로 따르세요.
 
 ## 설치된 것 / 설정된 것
 
@@ -43,7 +48,7 @@ export const api = axios.create({
 같은 키를 반복해서 받습니다. axios 기본 직렬화는 `sort[]=a&sort[]=b`라 서버가 정렬 조건을 하나도
 읽지 못하므로 인스턴스에 `paramsSerializer: { indexes: null }`을 걸어 두었습니다.
 
-**정렬은 항상 명시하세요.** `GET /transactions`에는 서버 기본 정렬이 없어(API-SPEC §6.1) `sort`를
+**정렬은 항상 명시하세요.** `GET /transactions`에는 서버 기본 정렬이 없어 `sort`를
 빼면 페이지를 넘길 때 같은 항목이 두 번 나오거나 빠집니다. `transaction.service.ts`의
 `DEFAULT_TRANSACTION_SORT`가 2차 정렬 키(`id`)까지 못 박아 두었고, 없는 필드명을 보내면 400이
 아니라 **500**이 나므로 정렬 키는 화이트리스트 밖으로 나가면 안 됩니다.
@@ -115,7 +120,7 @@ export const api = axios.create({
 ## 인터셉터 사용 (인증, 에러 처리)
 
 **[상태: 구현됨]** 백엔드가 개발 도중 JWT 인증을 켜면서 모든 API가 인증을 요구하게 됐습니다.
-갱신된 `secret/API-SPEC.md` §16이 이제 정식 계약입니다 — 액세스 토큰 30분(`expiresIn: 1800`),
+계약은 다음과 같습니다 — 액세스 토큰 30분(`expiresIn: 1800`),
 리프레시 토큰은 `refresh_token` httpOnly 쿠키(`Path=/api/v1/auth`, 14일, **rotation**)입니다.
 폐기된 리프레시 토큰을 다시 쓰면 서버가 탈취로 보고 **그 유저의 모든 세션을 종료**합니다
 (`REFRESH_TOKEN_REUSED`) — 그래서 refresh 호출은 반드시 single-flight여야 합니다.
@@ -163,8 +168,11 @@ api.interceptors.response.use(
 )
 ```
 
-> `responseType: 'blob'` 요청(엑셀 내보내기, API-SPEC §14)은 실패 시 body가 Blob이라 이 인터셉터가
-> `code`/`message`를 읽을 수 없습니다. 해당 기능은 이 인스턴스를 쓰지 말고 별도로 처리하세요.
+> `responseType: 'blob'` 요청(엑셀 내보내기)은 실패 시 body가 Blob이라 이 인터셉터가
+> `code`/`message`를 읽을 수 없습니다. 그래서 `src/services/export/`는 이 인스턴스를 공유하지 않고
+> 자체 `exportClient`를 따로 만들어 Blob을 텍스트로 읽어 에러 메시지를 복원합니다 — 401 재발급만
+> `api.ts`의 `refreshAccessToken()` 단일 비행 큐를 재사용합니다. blob 응답을 다루는 기능을 새로
+> 추가할 땐 이 도메인을 본보기로 삼으세요.
 
 ### 로그인 화면 (`src/screens/Auth/`)과의 경계
 
@@ -242,7 +250,7 @@ src/services/
     index.ts               위 세 파일의 재export
 ```
 
-도메인 폴더는 백엔드 컨트롤러의 base path와 1:1로 나눕니다(`secret/API-SPEC.md`와 대조하기 쉽게).
+도메인 폴더는 백엔드 컨트롤러의 base path와 1:1로 나눕니다(OpenAPI 문서의 태그·경로와 대조하기 쉽게).
 예외: 보유 종목은 `/stocks/holdings`로 통합되어 있으므로 `holding` 폴더를 만들지 말고 `stock`
 도메인 안에 둡니다.
 
@@ -321,6 +329,6 @@ import { useGetAccounts } from '@/services/account'
 | 전역 로딩 zustand 스토어 | 구현됨 (`src/stores/ui.ts`) |
 | `@/` 경로 별칭 | 구현됨 (`tsconfig.app.json`, `vite.config.ts`) |
 | 인증 헤더 부착 / refresh token 큐 | 구현됨 (`src/services/api.ts`, `src/stores/auth.ts`) |
-| 도메인 서비스 폴더(`{domain}.service/hook/type.ts`) | 도메인별로 순차 추가 중 |
+| 도메인 서비스 폴더(`{domain}.service/hook/type.ts`) | 구현됨 — 16개 도메인(`auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification` `export`) |
 | 토스트/알림 UI 연동 | 보류 — 디자인 시스템 컴포넌트 필요, 확인 후 결정 |
-| 엑셀 내보내기(blob 응답) | 미구현 — 공용 axios 인스턴스를 쓰면 안 됨(위 인터셉터 절 참고) |
+| 엑셀 내보내기(blob 응답) | 구현됨 (`src/services/export/` — 전용 `exportClient`, 공용 인스턴스 미사용) |

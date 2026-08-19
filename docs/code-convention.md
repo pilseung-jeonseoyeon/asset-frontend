@@ -25,11 +25,11 @@
    `components/layout`)
 3. `state/` (`useAppState`, `state/selectors/*`)
 4. `utils/`
-5. `data/` (`mock*.ts`)
+5. `data/` (`{screen}View.ts` — mock*.ts는 전부 삭제됐다)
 6. `@/services/*` (API 레이어 — 상대 경로 계층 다음, 가장 마지막)
 
 CSS는 컴포넌트 파일에서 개별 import하지 않습니다 — `src/index.css` 하나에서만 전역으로
-불러옵니다(`tokens.css` → `bank-tokens.css` → `base.css`).
+불러옵니다(`fonts.css` → `tokens.css` → `bank-tokens.css` → `base.css`).
 
 ## 함수/컴포넌트 선언 스타일
 
@@ -92,6 +92,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   `aria-busy`에 연결.
 - 컬러는 CSS 변수(`tokens.css`)를 씁니다: `--accent`/`--accent-hover`,
   `--text-strong`/`--text-mid`/`--text-weak`, `--up`/`--down`, `--inc-*`/`--exp-*`/`--sav-*` 등.
-- 키보드 포커스 스타일과 모션 감소(`prefers-reduced-motion`) 대응은 현재 `base.css`에 없습니다.
+- 모션 감소(`prefers-reduced-motion: reduce`) 대응은 `base.css`에 이미 있습니다 — 애니메이션이
+  들어가는 요소를 새로 만들면 여기에 예외를 함께 추가하세요(바텀시트 등장, 스켈레톤 등).
+- 키보드 포커스 링은 아직 없습니다(`base.css`에는 입력 요소의 `:focus` 테두리 색만 있음).
   새로 추가하려면 디자인 시스템(`secret/ds_rules_v2_5.md`) 기준 확인이 먼저 필요합니다 —
   필요하시면 알려주세요.

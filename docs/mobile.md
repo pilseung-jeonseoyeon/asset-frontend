@@ -45,7 +45,7 @@
 
 ## 4. 모달 → 바텀시트
 
-`src/components/primitives/Modal/Modal.tsx` 한 곳만 바꾸면 이를 쓰는 16개 모달에 모두 적용된다.
+`src/components/primitives/Modal/Modal.tsx` 한 곳만 바꾸면 이를 쓰는 18개 모달에 모두 적용된다.
 `ReportOverlay`와 `AccountModal`은 공용 `Modal`을 쓰지 않으므로 각각 따로 대응한다.
 
 모바일일 때:
@@ -63,9 +63,14 @@
 
 - 호출부가 넘기는 `zIndex`는 그대로 유지한다(§7-1 중첩 모달 규칙이 이미 값을 정해둠).
 - 호출부의 `width`는 모바일에서 무시된다.
-- **주의:** 데스크톱 모달 다수가 `overflow: visible`이다 — 내부 `Dropdown`/`DatePicker` 메뉴가
-  패널 밖으로 나가야 하기 때문이다. 시트는 세로 스크롤이 필요해 `overflow-y: auto`가 되는데,
-  이때 내부 팝오버가 잘릴 수 있다. 드롭다운이 있는 모달은 반드시 실제 화면에서 확인한다.
+- **모달은 스크림(배경) 클릭으로 닫지 않는다.** 입력 중 실수로 배경을 눌러 폼이 통째로 날아가는
+  걸 막기 위해서다 — 닫는 방법은 Esc 키(`Modal`이 직접 처리, 중첩 시 맨 위 하나만 반응)와
+  호출부가 그리는 X/취소 버튼뿐이다. 그래서 모든 모달은 눈에 보이는 닫기 버튼을 반드시 가져야 한다.
+- **내부 팝오버(드롭다운·달력)는 `usePopoverAnchor`로 띄운다.** 시트는 세로 스크롤 때문에
+  `overflow-y: auto`이고 데스크톱 모달도 대부분 `panelStyle`로 `overflow: auto`를 덮어써서,
+  `position: absolute` 팝오버는 양쪽 모두에서 잘린다. `src/components/primitives/usePopoverAnchor.ts`가
+  트리거의 화면 좌표를 재서 `position: fixed`로 띄우고 화면 가장자리를 벗어나지 않게 보정한다 —
+  `Dropdown`/`DatePicker`가 이미 이 훅을 쓰므로 새 팝오버를 만들 때도 그대로 재사용한다.
 
 ## 5. 터치 환경
 
