@@ -24,6 +24,14 @@ export function AssetCategoryModal() {
   const isOpen = state.assetCat !== null
   const distribution = useGetAssetDistributionByClass({ enabled: isOpen })
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })
+
+  // 다른 18개 모달과 동일하게, 훅 호출(위 두 줄) 다음 파생 계산(아래 buildAssetCats)보다 먼저
+  // isOpen 가드를 둔다. `enabled: isOpen`은 리페치만 막을 뿐 캐시 데이터는 계속 흘러들어오므로(같은
+  // 쿼리키를 Assets 화면도 구독), 이 가드가 없으면 모달이 닫혀 있어도(state.assetCat === null)
+  // buildAssetCats가 매 렌더 실행돼 데이터 형태 문제로 던질 경우 ModalErrorBoundary가
+  // `assetCat: null`로 리셋해도 다음 렌더에서 즉시 재크래시한다.
+  if (!isOpen) return null
+
   const assetCats = buildAssetCats(distribution.groups, accountsQuery.data ?? [])
   const selectedAssetCat = assetCats.find((c) => c.id === state.assetCat) || null
 
