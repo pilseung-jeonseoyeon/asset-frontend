@@ -18,23 +18,26 @@
 // 이자율(선택), 개설일(선택), 만기일(선택) 입력은 뺐다 — 빠르게 계좌를 등록하는 흐름을 우선한 제품
 // 결정이고, 필요하면 계좌 등록 뒤 EditAccountModal(계좌 수정, 이번 축소 대상 아님)에서 채울 수 있다.
 //
-// 통화 선택 UI는 없지만, 저장 시 보내는 currency는 무조건 'KRW'가 아니다 — 자산 유형 칩이
-// FOREIGN_STOCK(해외주식)이면 'USD'를, 그 외 5개 칩은 전부 'KRW'를 보낸다(2026-08-19, 리뷰 수정:
-// 이전엔 항상 'KRW'였는데, 해외주식 칩을 고르고 저장해도 서버에는 KRW로 나가 국내주식으로 분류되는
-// 버그였다 — assetClassOfAccountType('BROKERAGE','KRW') === 'DOMESTIC_STOCK'). currency는
-// selectedAssetClass에서 직접 파생시킨다(`selectedAssetClass === 'FOREIGN_STOCK' ? 'USD' : 'KRW'`) —
-// form.currency를 그대로 읽지 않는 이유: assetClassFormPreset은 BROKERAGE 외 4개 자산군(CASH_PENSION/
-// DEPOSIT/CRYPTO/ETC) 칩을 고를 때 currency 필드를 건드리지 않는다(그 함수 자체 주석 참고 — "이미
-// 사용자가 골라둔 통화를 조용히 되돌리면 안 된다"는 EditAccountModal 등 다른 호출부를 위한 설계다).
-// 그래서 해외주식 칩을 한 번이라도 골랐다가 다른 칩으로 바꾸면 form.currency엔 'USD'가 그대로 남는데,
-// 이 모달은 currency를 고르는 화면이 없어 사용자가 그 잔재를 볼 수도 고칠 수도 없다 — form.currency를
-// 곧이곧대로 읽으면 크립토/현금 등도 조용히 USD로 저장되는 새로운 사고가 난다. selectedAssetClass는
-// (BROKERAGE를 제외한 모든 type에서) currency와 무관하게 결정되므로 이 되짚음에 안전하다.
+// 통화 선택 UI는 없다 — 저장 시 보내는 currency는 자산 유형 칩에서 그대로 파생된다: 해외주식 칩이면
+// 'USD', 나머지 5개 칩은 'KRW'다. form.currency를 곧이곧대로 읽지 않는 이유는 assetClassFormPreset이
+// 주식 외 4개 자산군 칩을 고를 때 currency를 건드리지 않기 때문(그 함수 주석 참고 — "이미 사용자가
+// 골라둔 통화를 조용히 되돌리면 안 된다") — 해외주식 칩을 한 번 골랐다가 다른 칩으로 바꾸면
+// form.currency에 'USD' 잔재가 남는데, 이 모달에는 그걸 고칠 UI가 없다.
 //
-// 잔액 입력은 여전히 원화 금액 하나(form.initialBalanceKrw)뿐이다 — "달러 잔액 + 적용 환율 → 원화
-// 환산" 계산이나 USD/KRW 환율 입력, ₩/$ 심볼 분기는 되살리지 않는다(계좌 잔액을 원화로 받는 API
-// 계약은 통화 필드와 무관하다). 이자율(선택)/개설일(선택)/만기일(선택) 입력도 여전히 빠져 있다 —
-// 필요하면 계좌 등록 뒤 EditAccountModal에서 채울 수 있다.
+// 잔액 입력은 자산 유형에 따라 갈린다. 해외주식 칩은 실제 증권사 계좌처럼 **달러 예수금과 원화
+// 예수금이 동시에** 있을 수 있다(2026-08-20, 사용자 결정 — "환전 안 한 원화도 따로 있다") — 그래서
+// 이 칩만 입력칸이 두 개고 둘 다 선택 입력이다(한쪽만 채우거나 둘 다 비워도 된다). 두 칸은 환산 관계가
+// 아니라 서로 다른 돈이므로 하나를 고치면 다른 쪽 값이 바뀌는 로직을 넣지 않는다. 저장 시 이 두 값을
+// initialBalanceNative(달러)/initialBalanceKrw(원화)로 **함께** 싣는다 — 예전 계약(둘 중 통화에 맞는
+// 한쪽만 허용, 아래 환율 문단 참고)과 달리 이제 서버가 외화 계좌에도 두 필드를 동시에 받는다(신규
+// 백엔드 계약, 이 글 작성 시점 아직 배포 전 — 배포 전까지는 해외주식 등록이 400
+// INITIAL_BALANCE_CURRENCY_MISMATCH로 실패하는 게 정상이다). 나머지 5개 칩은 여전히 원화 한 칸만
+// initialBalanceKrw로 보낸다.
+//
+// 환율은 프론트가 다루지 않는다(2026-08-20 백엔드 계약 변경). 예전에는 서버가 원화 원금만 보관해
+// '달러 × 적용 환율'을 여기서 계산해 보냈지만, 이제 서버가 외화 원금을 그대로 보관하고 원화 평가액은
+// 기준일 환율로 매번 환산한다 — 프론트가 환율을 곱하면 오히려 이중 환산이 된다. 그래서 환율 입력칸도,
+// 환산 미리보기도, 곱셈 오버플로 방어도 모두 필요 없어졌다.
 //
 // 금융기관은 반드시 "고르는" 항목이다 — 계좌 이름과 같은 인라인 오류 패턴(필드 아래 var(--down) 문구)
 // 으로 미선택 저장을 막는다. 단, 고를 수 있는 값에는 목록 맨 아래의 **'없음'**이 포함된다(2026-08-19,
@@ -61,12 +64,14 @@ import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
-import { fmt, parseAmount } from '../../../utils/format'
+import { fmt, parseAmount, sanitizeDecimalInput } from '../../../utils/format'
 import { ASSET_CLASS_META, ASSET_CLASS_ORDER, assetClassFormPreset, assetClassOfAccountType } from '../../../data/assetsView'
 import { describeQueryError } from '../../../data/ledgerView'
 import { useGetInstitutions } from '@/services/institution'
 import { usePostAccount } from '@/services/account'
+import { isFxRateMissing } from '@/services/stock'
 import type { CreateAccountRequest } from '@/services/account'
+import type { Currency } from '@/services/common.type'
 
 function chipStyle(active: boolean): CSSProperties {
   return {
@@ -80,6 +85,13 @@ function chipStyle(active: boolean): CSSProperties {
 
 const LABEL_STYLE: CSSProperties = { fontSize: 12.5, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 8 }
 const FIELD_BORDER_STYLE: CSSProperties = { border: '0.5px solid var(--border)', borderRadius: 10, padding: '13px 16px' }
+// 금액/환율 입력칸 공통 스타일 — 통화 기호 span과 한 줄로 붙는 테두리 없는 input.
+const AMOUNT_INPUT_STYLE: CSSProperties = {
+  border: 'none', outline: 'none', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit',
+  width: '100%', color: 'var(--text-strong)',
+}
+const AMOUNT_PREFIX_STYLE: CSSProperties = { fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }
+const FIELD_HINT_STYLE: CSSProperties = { fontSize: 11.5, color: 'var(--text-mid)', marginTop: 6 }
 // GeneralModal.tsx의 재시도 배너와 동일한 텍스트 버튼 규격.
 const RETRY_BTN_STYLE: CSSProperties = {
   border: 'none', background: 'transparent', padding: 0, fontSize: 12, fontWeight: 700,
@@ -137,10 +149,15 @@ export function AddAccountModal() {
   const institutionsErr = describeQueryError(institutionsQuery.error)
 
 
-  // 자산 유형 칩은 서버 값(type+currency)에서 역산한다 — AssetCategoryModal이 프리셋을 미리 넣어준
-  // 채로 열려도 항상 지금 폼 상태와 일치하는 칩이 선택돼 보인다. currency는 화면에 노출되지 않지만
-  // 국내/해외주식 칩을 가르는 데는 여전히 쓰인다(파일 상단 주석 참고).
-  const selectedAssetClass = assetClassOfAccountType(form.type, form.currency)
+  // 자산 유형 칩은 서버 값(type)에서 역산한다 — AssetCategoryModal이 프리셋을 미리 넣어준 채로 열려도
+  // 항상 지금 폼 상태와 일치하는 칩이 선택돼 보인다. 계좌 유형이 6종으로 통합되면서 이제 통화를 보지
+  // 않고도 국내/해외주식이 갈린다.
+  const selectedAssetClass = assetClassOfAccountType(form.type)
+  const isForeignStock = selectedAssetClass === 'FOREIGN_STOCK'
+  // 실제로 전송할 통화. form.currency를 곧이곧대로 읽지 않는 이유는 파일 상단 주석 참고 — 해외주식이
+  // 아닌 자산군에서는 'USD' 잔재가 남을 수 있고, 이 화면에는 그걸 되돌릴 UI가 없다.
+  const accountCurrency: Currency = isForeignStock ? 'USD' : 'KRW'
+  const nativeAmount = Number(form.initialBalanceUsd) || 0
 
   if (!isOpen) return null
 
@@ -173,8 +190,12 @@ export function AddAccountModal() {
     const body: CreateAccountRequest = {
       name: form.name.trim(),
       type: form.type,
-      currency: selectedAssetClass === 'FOREIGN_STOCK' ? 'USD' : 'KRW',
-      initialBalanceKrw: form.initialBalanceKrw,
+      currency: accountCurrency,
+      // 해외주식은 달러 예수금과 원화 예수금이 서로 다른 돈이라 둘 다 싣는다(비웠으면 0) — 파일 상단
+      // 주석 참고. 나머지 5개 자산군은 지금처럼 원화 한 필드만 보낸다.
+      ...(isForeignStock
+        ? { initialBalanceNative: nativeAmount, initialBalanceKrw: form.initialBalanceKrw }
+        : { initialBalanceKrw: form.initialBalanceKrw }),
       isLiquid: form.isLiquid,
       // '없음'이면 institutionId를 아예 싣지 않는다(서버 스펙: "현금 등 무기관 자산은 생략한다").
       ...(form.institutionId !== null ? { institutionId: form.institutionId } : {}),
@@ -182,6 +203,27 @@ export function AddAccountModal() {
 
     postAccount.mutate(body, { onSuccess: resetAndClose })
   }
+
+  // 두 레이아웃(해외주식 2칸 / 나머지 5개 1칸)이 금융기관 필드를 그대로 공유하므로 한 곳에서만
+  // 정의한다 — 로딩/에러/미선택 상태를 두 군데에서 따로 관리하면 갈라지기 쉽다.
+  const institutionField = (
+    <div style={{ flex: 1, position: 'relative' }}>
+      <div style={LABEL_STYLE}>금융기관</div>
+      {institutionsQuery.isPending ? (
+        <div aria-busy style={{ ...FIELD_BORDER_STYLE, fontSize: 13.5, color: 'var(--text-weak)' }}>—</div>
+      ) : institutionsErr ? (
+        <div style={{ ...FIELD_BORDER_STYLE, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, fontSize: 12.5, color: 'var(--down)' }}>
+          금융기관을 불러오지 못했어요
+          <button type="button" onClick={() => void institutionsQuery.refetch()} style={RETRY_BTN_STYLE}>다시 시도</button>
+        </div>
+      ) : (
+        <Dropdown dd={ddInstitutionDisplay} maxHeight={220} />
+      )}
+      {institutionMissing && form.institutionId === null && !institutionNone && (
+        <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>금융기관을 선택해주세요</div>
+      )}
+    </div>
+  )
 
   return (
     <Modal onClose={resetAndClose} zIndex={90} width={480} panelStyle={{ maxHeight: '90vh', overflow: 'auto' }}>
@@ -232,36 +274,58 @@ export function AddAccountModal() {
           />
           {nameInvalid && <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>계좌 이름을 입력해주세요</div>}
         </div>
-        <div style={fieldRowStyle}>
-          <div style={{ flex: 1, position: 'relative' }}>
-            <div style={LABEL_STYLE}>금융기관</div>
-            {institutionsQuery.isPending ? (
-              <div aria-busy style={{ ...FIELD_BORDER_STYLE, fontSize: 13.5, color: 'var(--text-weak)' }}>—</div>
-            ) : institutionsErr ? (
-              <div style={{ ...FIELD_BORDER_STYLE, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, fontSize: 12.5, color: 'var(--down)' }}>
-                금융기관을 불러오지 못했어요
-                <button type="button" onClick={() => void institutionsQuery.refetch()} style={RETRY_BTN_STYLE}>다시 시도</button>
+        {isForeignStock ? (
+          <>
+            {institutionField}
+            <div style={fieldRowStyle}>
+              <div style={{ flex: 1 }}>
+                <div style={LABEL_STYLE}>달러 예수금</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...FIELD_BORDER_STYLE }}>
+                  <span style={AMOUNT_PREFIX_STYLE}>$</span>
+                  {/* 달러는 센트 단위가 있어 소수점 둘째 자리까지 받는다. 입력 도중 상태("12." 등)를
+                      지우지 않도록 문자열 그대로 보관하고 저장 시점에만 숫자로 환산한다. */}
+                  <input
+                    type="text" inputMode="decimal" placeholder="0.00"
+                    value={form.initialBalanceUsd}
+                    onChange={(e) => patchForm({ initialBalanceUsd: sanitizeDecimalInput(e.target.value, 2) })}
+                    style={AMOUNT_INPUT_STYLE}
+                  />
+                </div>
               </div>
-            ) : (
-              <Dropdown dd={ddInstitutionDisplay} maxHeight={220} />
-            )}
-            {institutionMissing && form.institutionId === null && !institutionNone && (
-              <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>금융기관을 선택해주세요</div>
-            )}
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={LABEL_STYLE}>현재 잔액</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...FIELD_BORDER_STYLE }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
-              <input
-                type="text" inputMode="numeric" placeholder="0"
-                value={form.initialBalanceKrw ? fmt(form.initialBalanceKrw) : ''}
-                onChange={(e) => patchForm({ initialBalanceKrw: parseAmount(e.target.value) })}
-                style={{ border: 'none', outline: 'none', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', width: '100%', color: 'var(--text-strong)' }}
-              />
+              <div style={{ flex: 1 }}>
+                <div style={LABEL_STYLE}>원화 예수금</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...FIELD_BORDER_STYLE }}>
+                  <span style={AMOUNT_PREFIX_STYLE}>₩</span>
+                  <input
+                    type="text" inputMode="numeric" placeholder="0"
+                    value={form.initialBalanceKrw ? fmt(form.initialBalanceKrw) : ''}
+                    onChange={(e) => patchForm({ initialBalanceKrw: parseAmount(e.target.value) })}
+                    style={AMOUNT_INPUT_STYLE}
+                  />
+                </div>
+              </div>
+            </div>
+            {/* 두 칸이 "같은 돈의 환산"이 아니라 "따로 들어 있는 두 돈"이라는 걸 분명히 한다 — 안 그러면
+                환전 안 한 원화를 달러 칸에 환산해서 적어야 하는지 헷갈릴 수 있다. */}
+            <div style={FIELD_HINT_STYLE}>달러와 원화, 계좌에 실제로 들어 있는 두 돈을 각각 적어주세요. 서로 환산해서 넣지 않아도 돼요</div>
+          </>
+        ) : (
+          <div style={fieldRowStyle}>
+            {institutionField}
+            <div style={{ flex: 1 }}>
+              <div style={LABEL_STYLE}>현재 잔액</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...FIELD_BORDER_STYLE }}>
+                <span style={AMOUNT_PREFIX_STYLE}>₩</span>
+                <input
+                  type="text" inputMode="numeric" placeholder="0"
+                  value={form.initialBalanceKrw ? fmt(form.initialBalanceKrw) : ''}
+                  onChange={(e) => patchForm({ initialBalanceKrw: parseAmount(e.target.value) })}
+                  style={AMOUNT_INPUT_STYLE}
+                />
+              </div>
             </div>
           </div>
-        </div>
+        )}
         <div>
           <div style={LABEL_STYLE}>유동성 여부</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -273,7 +337,16 @@ export function AddAccountModal() {
           </div>
         </div>
         {postAccount.error && (
-          <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{postAccount.error.message}</div>
+          // FX_RATE_NOT_FOUND(422)는 서버 장애가 아니라 "그 통화 환율 고시가 아직 없음"이다 — 달러 계좌를
+          // 만들 때만 나며, 사용자가 잘못한 게 아니므로 빨간 에러가 아니라 회색 안내로 렌더한다
+          // (docs/api-conventions.md "에러가 아닌 실패"). 그 외 실패는 서버 message를 그대로 보여준다.
+          isFxRateMissing(postAccount.error) ? (
+            <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>
+              아직 오늘 환율이 들어오지 않아 해외주식 계좌를 만들 수 없어요. 잠시 뒤에 다시 시도해주세요
+            </div>
+          ) : (
+            <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{postAccount.error.message}</div>
+          )
         )}
         <button
           onClick={handleSave}
