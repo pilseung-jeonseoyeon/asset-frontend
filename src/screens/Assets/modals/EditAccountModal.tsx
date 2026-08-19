@@ -13,15 +13,12 @@
 // 조인해 역추적했지만, 지금은 AccountRes.institutionId가 그대로 내려온다(무기관 계좌는 null).
 // 기관을 잘못 고른 계좌는 해지 후 다시 등록하는 것이 제품 흐름이다.
 //
-// 자산 유형은 이 모달에서 읽기 전용이다(2026-08-19, 제품 결정) — 유형·통화·세부 타입 모두 PATCH하지
-// 않는다. 이미 만들어진 계좌의 성격을 수정 화면에서 갈아끼우는 건 사용자 기대와 어긋나고, 기술적으로도
-// 성립하지 않았다: UpdateAccountRequest에는 currency 필드가 아예 없어 국내주식↔해외주식은 애초에 불가능
-// 했고(둘 다 BROKERAGE, 서버가 계좌 통화로 구분), 6분류가 접는 세부 AccountType(파킹통장/정기예금 등)은
-// 유형을 바꾸는 순간 대표 타입(CASH/INSTALLMENT_SAVINGS)으로 뭉개졌다. 그래서 선택 UI(칩 6개)를 없애고
-// 현재 값만 보여주는 읽기 전용 필드로 바꿨다 — 라벨은 서버 AccountType(10종)이 아니라 자산 화면 카드의
-// 6분류(assetClassMetaOf)로 매핑하고, 접힌 세부 타입은 그 옆에 그대로 덧붙여 보여준다(2026-08-17 도입,
-// 2026-08-19 읽기 전용화). 사용자가 건드릴 경로 자체가 없으니 원본 타입은 구조적으로 보존된다
-// (아래 useEffect가 서버가 내려준 값을 그대로 들고 있고, handleSave는 type을 보내지 않는다).
+// 자산 유형과 통화는 이 모달에서 읽기 전용이다(2026-08-19 제품 결정 + 서버 제약). 이미 만들어진 계좌의
+// 성격을 수정 화면에서 갈아끼우는 건 사용자 기대와 어긋나고, 통화는 애초에 바꿀 수단이 없다 —
+// UpdateAccountRequest에 currency도 등록 원금 필드도 없다(통화를 바꾸려면 해지 후 재등록이다).
+// 그래서 선택 UI 대신 현재 값만 보여준다. 라벨은 자산 화면 카드와 같은 6분류(assetClassMetaOf)를 쓰고,
+// 달러 계좌면 그 옆에 '달러'를 덧붙인다. 계좌 유형이 6종으로 통합된 뒤로는 6분류가 접고 있던 세부 타입
+// (파킹통장·정기예금 등)이 아예 없어져서, 유형을 바꿔도 뭉개질 값 자체가 사라졌다.
 // 계좌를 만들 때는 여전히 유형을 골라야 하므로 AddAccountModal의 칩은 그대로 둔다.
 //
 // 저장 중 닫기 잠금(2026-08-17, 리뷰 반영): handleSave는 계좌 정보 PATCH → 성공 시 잔액 PATCH를
@@ -37,6 +34,23 @@
 // 문자열이 0으로 해석되어, 다시 채우기 전에 저장을 누르면 잔액이 실수로 0원 정정된다. 자릿수가 너무
 // 커 안전 정수 범위를 벗어나는 값도 같은 자리에서 막는다(AddAccountModal의 달러 환산 오버플로 방어와
 // 같은 톤).
+//
+// **외화 계좌는 잔액 정정을 지원하지 않는다**(2026-08-20 백엔드 계약 — PATCH .../balance가
+// 400 BALANCE_ADJUSTMENT_NOT_SUPPORTED_FOR_FX로 거절한다). 외화 계좌의 balanceKrw는 저장값이 아니라
+// '외화 원금 × 조회 시점 환율 + 원장 증감'으로 매번 계산되는 값이라, 원화 금액을 덮어쓴다는 개념이
+// 성립하지 않기 때문이다. 그래서 USD 계좌에서는 잔액 칸을 읽기 전용으로 두고 지금 평가액만 보여준다 —
+// 예수금을 맞추려면 가계부에 거래를 기록해야 한다.
+//
+// 외화 계좌는 달러·원화 금액을 둘 다 보여준다(2026-08-20, 사용자 요청 — "달러, 원화 둘 다 보여줘야
+// 한다"). AccountRes.principalNative(등록 시점 원금, 계좌 통화 단위)와 balanceKrw(현재 평가액, 원화)는
+// 서로 다른 시점의 값이라 같은 돈의 두 표기가 아니다 — principalNative는 등록할 때 넣은 뒤로 고정이고,
+// balanceKrw는 조회할 때마다 그날 환율로 다시 계산된다. 그래서 "등록 시점 원금(달러)"과 "현재
+// 평가액(원화)"으로 라벨을 나눠 헷갈리지 않게 한다. **"현재 달러 잔액"은 서버가 주지 않으므로
+// balanceKrw ÷ 환율로 역산하지 않는다** — 환율을 프론트가 다루지 않는다는 계약을 어기게 된다
+// (docs/backend-requests.md 참고, 필요하면 서버에 요청).
+// principalKrw(등록 시점 원금의 원화 환산, 취득 시점 환율 고정)와 balanceKrw(현재 평가액)의 차이는
+// 환율 변동분이다 — "환차익/환차손" 같은 용어 대신 원화 환산액이 얼마나 늘고 줄었는지 그대로 풀어
+// 보여준다.
 
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -45,10 +59,8 @@ import { Modal } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
-import { fmt } from '../../../utils/format'
+import { fmt, formatCurrencyAmount } from '../../../utils/format'
 import {
-  ACCOUNT_TYPE_LABELS,
-  ASSET_CLASS_ACCOUNT_TYPE_PRESET,
   assetClassMetaOf,
   assetClassOfAccountType,
 } from '../../../data/assetsView'
@@ -95,17 +107,23 @@ export function EditAccountModal() {
   const [balanceEmptyError, setBalanceEmptyError] = useState(false)
 
   const account = accountQuery.data
-  // 표시할 자산군은 서버가 내려준 세부 타입에서 역산한다(6분류로 접어서 보여주기만 한다).
-  const selectedAssetClass = assetClassOfAccountType(form.type, form.currency)
+  // 표시할 자산군은 서버가 내려준 계좌 유형에서 역산한다(이제 1:1이라 접히는 세부 타입이 없다).
+  const selectedAssetClass = assetClassOfAccountType(form.type)
   const assetClassMeta = assetClassMetaOf(selectedAssetClass)
-  // 이 자산군의 "대표" AccountType과 실제 form.type이 다르면, 6분류가 접고 있는 세부 타입(예:
-  // 파킹통장·정기예금)이라는 뜻 — 자산군 라벨 옆에 그 세부 이름을 함께 보여준다.
-  const detailTypeLabel = form.type !== ASSET_CLASS_ACCOUNT_TYPE_PRESET[selectedAssetClass]
-    ? ACCOUNT_TYPE_LABELS[form.type]
-    : null
+  // 통화도 등록 후에는 바꿀 수 없다(PATCH에 currency 필드 자체가 없다) — 유형 옆에 함께 보여준다.
+  // 원화는 이 앱의 기본값이라 굳이 붙이지 않고, 해외주식 계좌가 달러인지 원화인지가 헷갈리는
+  // 경우이므로 달러일 때만 표시한다.
+  const currencyLabel = account?.currency === 'USD' ? '달러' : null
   // 잔액 입력 오버플로 방어 — parseAmount는 자릿수 상한이 없어 아주 큰 값이 JS 안전 정수 범위를 넘으면
   // 입력과 다른 정수가 서버로 나간다(AddAccountModal의 usdError='overflow'와 같은 이유).
   const isBalanceOverflow = balanceKrwInput !== null && !Number.isSafeInteger(balanceKrwInput)
+
+  // 통화는 서버가 준 값을 그대로 믿는다(form.currency는 폼 초기화 시점에 같은 값이 들어오지만, 잔액을
+  // 다룰 수 있는지는 저장된 계좌의 성격이라 서버 응답이 근거다).
+  const isForeignAccount = account?.currency === 'USD'
+  // 등록 시점 원금의 원화 환산(취득 시점 환율 고정)과 현재 평가액(조회 시점 환율)의 차이 — 환율이
+  // 그동안 얼마나 움직였는지를 보여준다. 0원이면 굳이 보여주지 않는다.
+  const fxDeltaKrw = account ? account.balanceKrw - account.principalKrw : 0
 
   // 폼 초기값 채우기(예외적으로 허용 — docs/state-management.md "서버 데이터를 AppState로 복사하지
   // 말 것. 단, 폼 초기값을 채우는 것은 예외").
@@ -133,11 +151,10 @@ export function EditAccountModal() {
         // 주석 참고.
         type: account.type,
         currency: account.currency,
-        // PATCH가 거부하는 필드(initialBalanceKrw/initialBalanceUsd/usdExchangeRate/openedAt)는 이
-        // 모달에서 전송하지 않는다 — 아래 값들은 AccountForm 타입을 채우기 위한 자리 채움일 뿐이다.
+        // PATCH가 거부하는 필드(initialBalanceKrw/initialBalanceUsd/openedAt)는 이 모달에서 전송하지
+        // 않는다 — 아래 값들은 AccountForm 타입을 채우기 위한 자리 채움일 뿐이다.
         initialBalanceKrw: 0,
         initialBalanceUsd: '',
-        usdExchangeRate: '',
         interestRate: null,
         openedAt: null,
         maturityDate: account.maturityDate,
@@ -164,6 +181,7 @@ export function EditAccountModal() {
     patchBalanceReset,
     deleteReset,
   ])
+
 
   if (!isOpen) return null
 
@@ -207,12 +225,20 @@ export function EditAccountModal() {
     setNameInvalid(missingName)
     if (missingName) return
 
-    if (balanceKrwInput === null) {
-      setBalanceEmptyError(true)
-      return
+    // 잔액 정정으로 보낼 원화 값. null이면 "이번엔 잔액을 건드리지 않는다"는 뜻이다 — 외화 계좌는
+    // 서버가 잔액 정정을 지원하지 않으므로(파일 상단 주석) 항상 null이고, 입력칸도 읽기 전용이다.
+    let nextBalanceKrw: number | null
+    if (isForeignAccount) {
+      nextBalanceKrw = null
+    } else {
+      if (balanceKrwInput === null) {
+        setBalanceEmptyError(true)
+        return
+      }
+      setBalanceEmptyError(false)
+      if (!Number.isSafeInteger(balanceKrwInput)) return // 필드 아래 isBalanceOverflow 안내로 이미 막혀 있다
+      nextBalanceKrw = balanceKrwInput
     }
-    setBalanceEmptyError(false)
-    if (!Number.isSafeInteger(balanceKrwInput)) return // 필드 아래 isBalanceOverflow 안내로 이미 막혀 있다
 
     const body: UpdateAccountRequest = {
       name: form.name.trim(),
@@ -223,7 +249,8 @@ export function EditAccountModal() {
       // PATCH는 생략한 필드를 건드리지 않으니 서버에 이미 저장된 만기일은 그대로 유지된다.
     }
 
-    const hasBalanceChange = balanceKrwInput !== account.balanceKrw
+    const hasBalanceChange = nextBalanceKrw !== null && nextBalanceKrw !== account.balanceKrw
+    const balanceToSave = nextBalanceKrw
 
     // 계좌 정보 저장과 잔액 정정은 서로 다른 API라 순서를 정해야 한다: 정보 저장을 먼저 시도하고,
     // 성공했을 때만 잔액 정정을 잇는다(동시에 쏘지 않음 — 실패 시 무엇이 저장됐는지 알 수 없어지는
@@ -234,12 +261,12 @@ export function EditAccountModal() {
       { id: account.id, body },
       {
         onSuccess: () => {
-          if (!hasBalanceChange) {
+          if (!hasBalanceChange || balanceToSave === null) {
             resetAndClose()
             return
           }
           patchAccountBalance.mutate(
-            { id: account.id, body: { balanceKrw: balanceKrwInput } },
+            { id: account.id, body: { balanceKrw: balanceToSave } },
             { onSuccess: resetAndClose },
           )
         },
@@ -296,8 +323,8 @@ export function EditAccountModal() {
                 <Icon name={assetClassMeta.icon} size={15} />
               </span>
               <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>{assetClassMeta.label}</span>
-              {detailTypeLabel && (
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-weak)' }}>· {detailTypeLabel}</span>
+              {currencyLabel && (
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-weak)' }}>· {currencyLabel}</span>
               )}
               <Icon name="lock" size={14} color="var(--text-weak)" style={{ marginLeft: 'auto', flexShrink: 0 }} />
             </div>
@@ -332,32 +359,48 @@ export function EditAccountModal() {
               </div>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={LABEL_STYLE}>현재 잔액</div>
-              {/* PATCH /accounts/{id}/balance로 잔액을 정정한다. AccountResponse.balanceKrw는 통화와
-                  무관하게 항상 원화 환산 정수다(account.type.ts 참고) — 같은 계좌를 보여주는
-                  AccountDetailModal.tsx도 항상 원화로 렌더한다(정합성 확인됨). USD 계좌라도 여기 값은
-                  원화이므로 `$` 기호를 붙이지 않는다(달러로 오인시키지 않기 위함). */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...FIELD_BORDER_STYLE }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
-                <input
-                  type="text" inputMode="numeric" placeholder="0"
-                  value={balanceKrwInput === null ? '' : fmt(balanceKrwInput)}
-                  onChange={(e) => {
-                    // 빈 문자열은 0이 아니라 "아직 값을 안 씀"으로 남긴다 — 파일 상단 주석 참고. 칸을
-                    // 전체 지운 순간 parseAmount('')가 0을 돌려주면, 다시 채우기 전에 저장을 눌렀을 때
-                    // 잔액이 실수로 0원 정정되는 사고로 이어진다(리뷰 지적).
-                    const digits = e.target.value.replace(/[^0-9]/g, '')
-                    setBalanceKrwInput(digits ? Number(digits) : null)
-                    if (balanceEmptyError) setBalanceEmptyError(false)
-                  }}
-                  style={{ border: 'none', outline: 'none', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', width: '100%', color: 'var(--text-strong)' }}
-                />
-              </div>
+              <div style={LABEL_STYLE}>{isForeignAccount ? '등록 시점 원금 (달러)' : '현재 잔액'}</div>
+              {isForeignAccount ? (
+                // 외화 계좌는 잔액 정정을 서버가 거절한다(파일 상단 주석) — 고칠 수 없는 칸을 열어두면
+                // 저장을 눌러야 비로소 에러를 보게 되므로, 아예 읽기 전용으로 둔다. 여기 보여주는 건
+                // '현재 달러 잔액'이 아니라 등록할 때 넣은 원금(principalNative)이다 — 서버가 현재 달러
+                // 잔액을 내려주지 않아 만들어낼 수 없다(파일 상단 주석).
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...FIELD_BORDER_STYLE }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>$</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-mid)' }}>
+                    {account.principalNative !== null ? formatCurrencyAmount(account.principalNative, 'USD') : '—'}
+                  </span>
+                  <Icon name="lock" size={14} color="var(--text-weak)" style={{ marginLeft: 'auto', flexShrink: 0 }} />
+                </div>
+              ) : (
+                // PATCH /accounts/{id}/balance로 잔액을 정정한다.
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...FIELD_BORDER_STYLE }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
+                  <input
+                    type="text" inputMode="numeric" placeholder="0"
+                    value={balanceKrwInput === null ? '' : fmt(balanceKrwInput)}
+                    onChange={(e) => {
+                      // 빈 문자열은 0이 아니라 "아직 값을 안 씀"으로 남긴다 — 파일 상단 주석 참고. 칸을
+                      // 전체 지운 순간 parseAmount('')가 0을 돌려주면, 다시 채우기 전에 저장을 눌렀을 때
+                      // 잔액이 실수로 0원 정정되는 사고로 이어진다(리뷰 지적).
+                      const digits = e.target.value.replace(/[^0-9]/g, '')
+                      setBalanceKrwInput(digits ? Number(digits) : null)
+                      if (balanceEmptyError) setBalanceEmptyError(false)
+                    }}
+                    style={{ border: 'none', outline: 'none', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', width: '100%', color: 'var(--text-strong)' }}
+                  />
+                </div>
+              )}
               {/* 잔액을 실제 값과 다르게 정정하면 서버가 차액만큼 가계부에 조정 거래를 자동으로 남긴다
                   (사용자가 놀라지 않도록 저장 전에 미리 알려준다). 값을 실제로 바꿨을 때는 색을 한 단계
                   올려(--text-weak → --text-mid) 훑고 지나치기 쉬운 문제를 줄인다(리뷰 지적) — 확인
                   모달까지는 단순 수정이 번거로워지므로 과하다고 판단해 별도로 만들지 않았다. */}
-              {isBalanceOverflow ? (
+              {isForeignAccount ? (
+                <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>
+                  계좌를 만들 때 넣은 금액이에요. 이 값은 바뀌지 않아요 — 지금 원화로 얼마인지는 아래
+                  현재 평가액에서 볼 수 있어요
+                </div>
+              ) : isBalanceOverflow ? (
                 <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>
                   금액이 너무 커서 저장할 수 없어요. 잔액을 다시 확인해주세요
                 </div>
@@ -376,6 +419,27 @@ export function EditAccountModal() {
               )}
             </div>
           </div>
+          {isForeignAccount && (
+            // 등록 시점 원금(달러, 위 필드)과 지금 평가액(원화, 여기)은 서로 다른 시점의 값이라 나란히
+            // 보여준다(파일 상단 주석 참고) — "현재 달러 잔액"은 서버가 주지 않아 만들 수 없다.
+            <div>
+              <div style={LABEL_STYLE}>현재 평가액 (원화)</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...FIELD_BORDER_STYLE }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-mid)' }}>{fmt(account.balanceKrw)}</span>
+                <Icon name="lock" size={14} color="var(--text-weak)" style={{ marginLeft: 'auto', flexShrink: 0 }} />
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>
+                등록 시점 원금을 오늘 환율로 다시 계산한 값이라 환율에 따라 매일 달라져요. 실제 예수금이
+                달라졌다면 가계부에 기록해주세요
+              </div>
+              {fxDeltaKrw !== 0 && (
+                <div style={{ fontSize: 11.5, fontWeight: 600, marginTop: 6, color: fxDeltaKrw > 0 ? 'var(--up)' : 'var(--down)' }}>
+                  {`환율 변동으로 원화 환산액이 등록 시점보다 ${fmt(Math.abs(fxDeltaKrw))}원 ${fxDeltaKrw > 0 ? '늘었어요' : '줄었어요'}`}
+                </div>
+              )}
+            </div>
+          )}
           <div>
             <div style={LABEL_STYLE}>유동성 여부</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
