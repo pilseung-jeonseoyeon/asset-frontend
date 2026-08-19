@@ -31,6 +31,7 @@ import {
   buildDashboardInstitutions,
   buildTrendChart,
   buildTrendYAxisTicks,
+  DASHBOARD_INSTITUTIONS_EMPTY_TEXT,
   pickTopAllocation,
   sumAllocationKrw,
 } from '../../data/dashboardView'
@@ -472,23 +473,29 @@ export function Dashboard() {
       <Card style={{ padding: 24 }} aria-busy={institutionsPending}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>주요 자산 보관처</div>
-          <span
-            onClick={() => setState({ modalOpen: 'institutions' })}
-            style={
-              isMobile
-                ? { fontSize: 12, color: 'var(--text-weak)', cursor: 'pointer', display: 'inline-block', padding: '15px 10px', margin: '-15px -10px' }
-                : { fontSize: 12, color: 'var(--text-weak)', cursor: 'pointer' }
-            }
-          >
-            전체 보기 ›
-          </span>
+          {/* 로딩 중에는 아직 목록 길이를 알 수 없어 숨긴 채로 시작하고(깜빡임 방지), 데이터가
+              없다고 확정된 경우(빈 배열)에만 계속 숨긴다 — 에러 상태는 목록 길이와 무관하게
+              "다시 볼 것"이 있을 수 있으므로 그대로 노출한다. */}
+          {!institutionsPending && (institutionsError || dashboardInstitutions.length > 0) && (
+            <button
+              type="button"
+              onClick={() => setState({ modalOpen: 'institutions' })}
+              style={
+                isMobile
+                  ? { border: 'none', background: 'transparent', fontFamily: 'inherit', fontSize: 12, color: 'var(--text-weak)', cursor: 'pointer', display: 'inline-block', padding: '15px 10px', margin: '-15px -10px' }
+                  : { border: 'none', background: 'transparent', fontFamily: 'inherit', fontSize: 12, color: 'var(--text-weak)', cursor: 'pointer', padding: 0 }
+              }
+            >
+              전체 보기 ›
+            </button>
+          )}
         </div>
         {institutionsPending ? (
           <div aria-busy style={EMPTY_TEXT_STYLE}>—</div>
         ) : institutionsError ? (
           <div style={ERROR_TEXT_STYLE}>{institutionsError.message}</div>
         ) : dashboardInstitutions.length === 0 ? (
-          <EmptyState text="계좌를 추가하면 보관처별 자산을 볼 수 있어요." />
+          <EmptyState text={DASHBOARD_INSTITUTIONS_EMPTY_TEXT} />
         ) : (
           // rgrid-cards가 아니라 전용 클래스를 쓴다 — 그 클래스의 <=900px 규칙(1fr로 강제)이
           // 여기서 원하는 모바일(<=767px) 2열 규칙과 달라, 같이 쓰면 !important 우선순위 때문에

@@ -235,6 +235,12 @@ export function pickTopAllocation(segments: DonutLegendItem[]): DonutLegendItem 
 
 // ---------- 주요 자산 보관처 ----------
 
+/**
+ * 보관처 목록이 비었을 때 쓰는 안내 문구. 대시보드 카드와 InstitutionsModal(전체 보기)이 같은
+ * 상황(보유 자산 0)을 가리키므로 문구를 하나로 공유한다.
+ */
+export const DASHBOARD_INSTITUTIONS_EMPTY_TEXT = '계좌를 추가하면 보관처별 자산을 볼 수 있어요.'
+
 export interface DashboardInstitutionView {
   /** 기관 미연결 버킷은 institutionId가 null이라 key로 쓸 수 없다 — 여기서 안정적인 문자열로 만든다. */
   key: string
@@ -246,9 +252,13 @@ export interface DashboardInstitutionView {
 }
 
 /**
- * `/assets/distribution?groupBy=INSTITUTION` 결과를 금액 내림차순으로 정리한다.
+ * `/assets/distribution?groupBy=INSTITUTION` 결과를 금액 내림차순으로 정리한다. `groups`를
+ * 기준으로 순회하므로(institutions를 기준으로 순회하지 않으므로) 기관 미연결 버킷
+ * (institutionId: null, "미지정")도 자연히 포함된다 — InstitutionsModal.tsx도 같은 이유로
+ * 이 함수를 재사용한다(limit만 다르고 나머지 규칙은 동일).
  * 아이콘 키는 이 응답에 없어 `GET /institutions`와 institutionId로 조인한다 — 조인에 실패하면
  * 빈 문자열로 두고 BankIcon의 기본 아이콘 폴백에 맡긴다(가짜 값 금지).
+ * 보유액이 0 이하인 그룹은 제외한다 — 서버가 0원 그룹을 내려줘도 "자산이 있는 곳"만 보여준다.
  */
 export function buildDashboardInstitutions(
   groups: AssetInstitutionGroup[],
@@ -256,6 +266,7 @@ export function buildDashboardInstitutions(
   limit = 4,
 ): DashboardInstitutionView[] {
   return [...groups]
+    .filter((g) => g.totalValueKrw > 0)
     .sort((a, b) => b.totalValueKrw - a.totalValueKrw)
     .slice(0, limit)
     .map((g) => {
