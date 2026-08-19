@@ -3,25 +3,26 @@
 // z-index 90, width 480px, maxHeight 90vh, padding "42px 30px" (NOT the default 30px — confirmed
 // per-instance).
 //
-// GET /accounts/{id}(AccountResponse)에는 institutionId/interestRate/openedAt이 없다(institutionName만
-// 내려온다) — institutionId는 GET /institutions 목록과 이름으로 조인해 역추적한다(기관명은 서버가
-// DB 유니크로 보장하므로 안전한 조인). interestRate는 조회 자체가 불가능해 이 폼에서는 노출하지 않는다
+// interestRate/openedAt은 GET /accounts/{id}(AccountRes) 응답에 없어 이 폼에서는 노출하지 않는다
 // (현재 값을 모르는 채로 덮어쓰게 하는 건 사고 위험이 크다 — 백엔드에 GET 응답 보강이 필요한 항목).
 //
-// 자산 유형 칩은 AddAccountModal과 동일하게 서버 AccountType(10종)이 아니라 자산 화면 카드의 6분류
-// (ASSET_CLASS_META/ASSET_CLASS_ORDER)를 쓴다(2026-08-17). 다만 이 모달은 PATCH 대상이라 두 가지가
-// AddAccountModal과 다르다.
-//  1) 통화는 수정 불가(UpdateAccountRequest에 currency 필드 자체가 없음) — 국내주식/해외주식은 둘 다
-//     BROKERAGE이고 서버가 계좌 통화로 구분하므로, 지금 계좌 통화(form.currency, 로드된 뒤로는 이 모달이
-//     절대 바꾸지 않는다)와 다른 통화가 필요한 칩은 눌러도 저장 후 원래대로 돌아가 혼란만 준다. 그래서
-//     `isCurrencyLocked`로 미리 걸러 비활성화한다.
-//  2) 6분류가 접는 세부 AccountType(예: 파킹통장/정기예금 → 현금/예적금 칩)은 사용자가 칩을 눌러야만
-//     `form.type`이 프리셋 값(CASH/INSTALLMENT_SAVINGS)으로 바뀐다 — 로드 시점에는 서버가 내려준 원본
-//     타입을 그대로 들고 있다(아래 useEffect). handleSave도 `form.type`이 로드된 원본과 실제로 달라졌을
-//     때만 body에 `type`을 싣는다 — 그래야 칩을 건드리지 않고 다른 필드만 고쳐 저장해도 파킹통장이
-//     조용히 CASH로 뭉개지는 정보 손실이 나지 않는다. 단, "이미 선택된 칩을 다시 누르는" 것도 클릭이라
-//     이 규칙만으로는 부족하다 — 아래 onClick이 자기 자신 재클릭을 별도로 걸러낸다(그러지 않으면 칩
-//     상태는 그대로인데 form.type만 프리셋으로 강등된다).
+// 금융기관도 이 모달에서 읽기 전용이다(2026-08-19, 제품 결정 — "계좌 번호가 이미 정해져 있는데 기관이
+// 달라질 일이 없다"). 그래서 서버가 내려준 institutionName을 그대로 보여주기만 하고 PATCH body에는
+// institutionId를 싣지 않는다. 기관을 고를 일이 없어졌으므로 이 모달은 GET /institutions를 아예
+// 호출하지 않는다 — 예전에는 응답에 institutionId가 없던 시절의 잔재로 기관 목록을 받아 이름으로
+// 조인해 역추적했지만, 지금은 AccountRes.institutionId가 그대로 내려온다(무기관 계좌는 null).
+// 기관을 잘못 고른 계좌는 해지 후 다시 등록하는 것이 제품 흐름이다.
+//
+// 자산 유형은 이 모달에서 읽기 전용이다(2026-08-19, 제품 결정) — 유형·통화·세부 타입 모두 PATCH하지
+// 않는다. 이미 만들어진 계좌의 성격을 수정 화면에서 갈아끼우는 건 사용자 기대와 어긋나고, 기술적으로도
+// 성립하지 않았다: UpdateAccountRequest에는 currency 필드가 아예 없어 국내주식↔해외주식은 애초에 불가능
+// 했고(둘 다 BROKERAGE, 서버가 계좌 통화로 구분), 6분류가 접는 세부 AccountType(파킹통장/정기예금 등)은
+// 유형을 바꾸는 순간 대표 타입(CASH/INSTALLMENT_SAVINGS)으로 뭉개졌다. 그래서 선택 UI(칩 6개)를 없애고
+// 현재 값만 보여주는 읽기 전용 필드로 바꿨다 — 라벨은 서버 AccountType(10종)이 아니라 자산 화면 카드의
+// 6분류(assetClassMetaOf)로 매핑하고, 접힌 세부 타입은 그 옆에 그대로 덧붙여 보여준다(2026-08-17 도입,
+// 2026-08-19 읽기 전용화). 사용자가 건드릴 경로 자체가 없으니 원본 타입은 구조적으로 보존된다
+// (아래 useEffect가 서버가 내려준 값을 그대로 들고 있고, handleSave는 type을 보내지 않는다).
+// 계좌를 만들 때는 여전히 유형을 골라야 하므로 AddAccountModal의 칩은 그대로 둔다.
 //
 // 저장 중 닫기 잠금(2026-08-17, 리뷰 반영): handleSave는 계좌 정보 PATCH → 성공 시 잔액 PATCH를
 // per-call onSuccess로 체이닝한다. TanStack Query v5의 MutationObserver.reset()은 진행 중인 mutation
@@ -41,36 +42,21 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
-import { Dropdown } from '../../../components/primitives/Dropdown/Dropdown'
 import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
-import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
 import { fmt } from '../../../utils/format'
 import {
   ACCOUNT_TYPE_LABELS,
   ASSET_CLASS_ACCOUNT_TYPE_PRESET,
-  ASSET_CLASS_META,
-  ASSET_CLASS_ORDER,
-  assetClassFormPreset,
+  assetClassMetaOf,
   assetClassOfAccountType,
 } from '../../../data/assetsView'
 import { ApiError } from '@/services/api'
-import { useGetInstitutions } from '@/services/institution'
 import { useDeleteAccount, useGetAccount, usePatchAccount, usePatchAccountBalance } from '@/services/account'
 import type { UpdateAccountRequest } from '@/services/account'
-import type { AssetClass, Currency } from '@/services/common.type'
 
-function chipStyle(active: boolean, disabled = false): CSSProperties {
-  if (disabled) {
-    return {
-      padding: '9px 14px', borderRadius: 10,
-      border: '0.5px solid var(--border)',
-      background: 'var(--fill-subtle)',
-      color: 'var(--text-weak)',
-      fontSize: 12.5, fontWeight: 700, cursor: 'not-allowed', fontFamily: 'inherit',
-    }
-  }
+function chipStyle(active: boolean): CSSProperties {
   return {
     padding: '9px 14px', borderRadius: 10,
     border: active ? '0.5px solid var(--accent)' : '0.5px solid var(--border)',
@@ -78,13 +64,6 @@ function chipStyle(active: boolean, disabled = false): CSSProperties {
     color: active ? '#fff' : 'var(--text-mid)',
     fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
   }
-}
-
-/** 이 자산군 칩을 고르면 현재 계좌 통화와 다른 통화가 필요한지. PATCH는 통화를 바꿀 수 없으므로 그런
- * 칩은 눌러도 반영되지 않아야 한다 — assetClassFormPreset이 통화를 지정하는 국내주식/해외주식에만 해당. */
-function isCurrencyLocked(assetClass: AssetClass, accountCurrency: Currency): boolean {
-  const preset = assetClassFormPreset(assetClass)
-  return preset.currency !== undefined && preset.currency !== accountCurrency
 }
 
 const LABEL_STYLE: CSSProperties = { fontSize: 12.5, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 8 }
@@ -100,8 +79,6 @@ export function EditAccountModal() {
   const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
 
   const accountQuery = useGetAccount(isOpen ? accountId : null)
-  const institutionsQuery = useGetInstitutions({ enabled: isOpen })
-  const institutions = institutionsQuery.data ?? []
   const patchAccount = usePatchAccount()
   const patchAccountBalance = usePatchAccountBalance()
   const deleteAccount = useDeleteAccount()
@@ -109,9 +86,6 @@ export function EditAccountModal() {
   // 이름 필드도 AddAccountModal의 nameInvalid와 같은 패턴으로 검증한다 — 예전에는 이름을 비운 채
   // 저장을 누르면 handleSave가 조용히 return해 아무 반응이 없었다(리뷰 지적).
   const [nameInvalid, setNameInvalid] = useState(false)
-  // 금융기관은 AddAccountModal과 동일하게 필수다(2026-08-19, 사용자 요청) — 계좌 이름과 같은 인라인
-  // 오류 패턴으로 미선택 저장을 막는다.
-  const [institutionMissing, setInstitutionMissing] = useState(false)
   // 잔액은 accountForm이 아니라 별도 로컬 상태로 둔다 — PATCH /accounts/{id}가 아니라 전용 잔액 정정
   // API(PATCH /accounts/{id}/balance)로 나가는 별개의 요청이라 accountForm의 필드가 아니다.
   // number | null인 이유는 파일 상단 주석 참고 — null은 "칸을 비워둔 채", 0은 "실제로 0을 입력함".
@@ -121,33 +95,17 @@ export function EditAccountModal() {
   const [balanceEmptyError, setBalanceEmptyError] = useState(false)
 
   const account = accountQuery.data
-  // 자산 유형 칩 강조는 form.type을 프리셋으로 되돌리지 않고 실제 저장된 세부 타입에서 역산한다 — 그래야
-  // 사용자가 칩을 누르기 전까지는 파킹통장/정기예금 같은 세부 정보가 유지된다(파일 상단 주석 참고).
+  // 표시할 자산군은 서버가 내려준 세부 타입에서 역산한다(6분류로 접어서 보여주기만 한다).
   const selectedAssetClass = assetClassOfAccountType(form.type, form.currency)
-  // 지금 칩(selectedAssetClass)의 "대표" AccountType과 실제 form.type이 다르면, 접힌 세부 타입(예:
-  // 파킹통장·정기예금)이 프리셋 뒤에 숨어 있다는 뜻 — 칩 목록 아래에 그 사실을 알리는 캡션을 붙인다.
+  const assetClassMeta = assetClassMetaOf(selectedAssetClass)
+  // 이 자산군의 "대표" AccountType과 실제 form.type이 다르면, 6분류가 접고 있는 세부 타입(예:
+  // 파킹통장·정기예금)이라는 뜻 — 자산군 라벨 옆에 그 세부 이름을 함께 보여준다.
   const detailTypeLabel = form.type !== ASSET_CLASS_ACCOUNT_TYPE_PRESET[selectedAssetClass]
     ? ACCOUNT_TYPE_LABELS[form.type]
     : null
-  // 모든 계좌는 통화가 하나로 고정되므로 국내주식/해외주식 중 하나는 항상 잠긴다 — "선택된 자산군이
-  // 주식류일 때만" 캡션을 보여주던 예전 조건은 현금·예적금 등 나머지 4개 자산군을 열었을 때 잠긴 칩의
-  // 이유를 설명하지 못했다(리뷰 지적).
-  const hasLockedAssetClassChip = ASSET_CLASS_ORDER.some((c) => isCurrencyLocked(c, form.currency))
   // 잔액 입력 오버플로 방어 — parseAmount는 자릿수 상한이 없어 아주 큰 값이 JS 안전 정수 범위를 넘으면
   // 입력과 다른 정수가 서버로 나간다(AddAccountModal의 usdError='overflow'와 같은 이유).
   const isBalanceOverflow = balanceKrwInput !== null && !Number.isSafeInteger(balanceKrwInput)
-
-  // 아래 두 훅(useEntityDropdown/useDatePicker)은 Rules of Hooks 때문에 조건부 return보다 먼저,
-  // 매 렌더 동일한 순서로 호출해야 한다 — 폼 동기화 여부와 무관하게 항상 호출한다.
-  const ddInstitution = useEntityDropdown(
-    'editAcctInst',
-    institutions,
-    (i) => i.id,
-    (i) => i.name,
-    form.institutionId,
-    (id) => setState((st) => ({ accountForm: { ...st.accountForm, institutionId: id } })),
-  )
-  const ddInstitutionDisplay = { ...ddInstitution, value: ddInstitution.value || '금융기관을 선택하세요' }
 
   // 폼 초기값 채우기(예외적으로 허용 — docs/state-management.md "서버 데이터를 AppState로 복사하지
   // 말 것. 단, 폼 초기값을 채우는 것은 예외").
@@ -156,23 +114,20 @@ export function EditAccountModal() {
   // dispatch하는 것이라 "Cannot update a component while rendering a different component" 경고가 나고
   // React가 루트 전체를 버리고 다시 렌더한다(실측 확인). 그래서 커밋 이후에 도는 useEffect로 옮겼다.
   //
-  // 기관 목록이 아직 도착하지 않았으면 조인을 미룬다 — 빈 배열에서 이름을 찾으면 institutionId가
-  // null로 굳어버리고, 그 시점에 form.id가 맞춰져 다시 조인할 기회가 사라진다.
   const patchReset = patchAccount.reset
   const patchBalanceReset = patchAccountBalance.reset
   const deleteReset = deleteAccount.reset
-  const institutionList = institutionsQuery.data
-  const isInstitutionsReady = institutionsQuery.isSuccess
 
   useEffect(() => {
-    if (!isOpen || !account || !isInstitutionsReady) return
+    if (!isOpen || !account) return
     if (form.id === account.id) return
 
-    const matchedInstitution = institutionList?.find((i) => i.name === account.institutionName)
     setState({
       accountForm: {
         id: account.id,
-        institutionId: matchedInstitution?.id ?? null,
+        // 읽기 전용이라 이 값으로 PATCH하지는 않는다 — AccountForm 타입을 채우기 위해 서버 값을
+        // 그대로 옮겨둘 뿐이다(무기관 계좌는 null).
+        institutionId: account.institutionId,
         name: account.name,
         // 서버가 내려준 세부 타입을 그대로 들고 있는다(6분류 프리셋으로 바꾸지 않는다) — 위 selectedAssetClass
         // 주석 참고.
@@ -196,7 +151,6 @@ export function EditAccountModal() {
     // 편집 대상이 바뀌었으니 이전 계좌의 해지 확인 상태와 실패 메시지를 물려주지 않는다.
     setCloseConfirmOpen(false)
     setNameInvalid(false)
-    setInstitutionMissing(false)
     setBalanceEmptyError(false)
     patchReset()
     patchBalanceReset()
@@ -204,8 +158,6 @@ export function EditAccountModal() {
   }, [
     isOpen,
     account,
-    isInstitutionsReady,
-    institutionList,
     form.id,
     setState,
     patchReset,
@@ -239,7 +191,6 @@ export function EditAccountModal() {
     // 로컬 확인 상태와 mutation 에러를 직접 지우지 않으면 다음에 연 계좌로 새어나간다.
     setCloseConfirmOpen(false)
     setNameInvalid(false)
-    setInstitutionMissing(false)
     setBalanceEmptyError(false)
     patchAccount.reset()
     patchAccountBalance.reset()
@@ -253,10 +204,8 @@ export function EditAccountModal() {
     if (!account) return
 
     const missingName = !form.name.trim()
-    const missingInstitution = form.institutionId === null
     setNameInvalid(missingName)
-    setInstitutionMissing(missingInstitution)
-    if (missingName || missingInstitution) return
+    if (missingName) return
 
     if (balanceKrwInput === null) {
       setBalanceEmptyError(true)
@@ -268,10 +217,8 @@ export function EditAccountModal() {
     const body: UpdateAccountRequest = {
       name: form.name.trim(),
       isLiquid: form.isLiquid,
-      // 자산 유형 칩을 실제로 건드려 form.type이 로드된 원본과 달라졌을 때만 보낸다 — 파일 상단 주석의
-      // "정보 손실 방지" 규칙. 칩을 안 건드리면 파킹통장/정기예금 같은 세부 타입이 그대로 유지된다.
-      ...(form.type !== account.type ? { type: form.type } : {}),
-      ...(form.institutionId !== null ? { institutionId: form.institutionId } : {}),
+      // type은 보내지 않는다 — 자산 유형은 읽기 전용이라 바뀔 경로가 없고(파일 상단 주석), PATCH는
+      // 생략한 필드를 건드리지 않으므로 파킹통장/정기예금 같은 세부 타입이 그대로 유지된다.
       // maturityDate는 이 모달에서 더 이상 입력받지 않으므로 보내지 않는다(2026-08-19, 폼 축소) —
       // PATCH는 생략한 필드를 건드리지 않으니 서버에 이미 저장된 만기일은 그대로 유지된다.
     }
@@ -341,47 +288,22 @@ export function EditAccountModal() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
             <div style={LABEL_STYLE}>자산 유형</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {ASSET_CLASS_ORDER.map((c) => {
-                const locked = isCurrencyLocked(c, form.currency)
-                const active = selectedAssetClass === c
-                return (
-                  <button
-                    key={c}
-                    className={locked ? undefined : 'mini-hov'}
-                    disabled={locked}
-                    title={locked ? '통화는 계좌를 만든 뒤에는 바꿀 수 없어요' : undefined}
-                    onClick={() => {
-                      // 이미 활성인 칩을 다시 눌러도 프리셋을 적용하지 않는다 — 적용하면 화면상 칩
-                      // 상태는 그대로인데 form.type만 프리셋 값(예: PARKING→CASH)으로 강등되어, 사용자가
-                      // 아무것도 안 바꾼 줄 알고 저장해도 세부 타입이 조용히 뭉개진다(리뷰 지적).
-                      if (active) return
-                      patchForm(assetClassFormPreset(c))
-                    }}
-                    style={chipStyle(active, locked)}
-                  >
-                    {locked && <Icon name="lock" size={11} style={{ marginRight: 3, verticalAlign: -1.5 }} />}
-                    {ASSET_CLASS_META[c].label}
-                  </button>
-                )
-              })}
+            {/* 선택 UI가 아니라 현재 값을 보여주는 읽기 전용 필드다(파일 상단 주석 참고). 접힌 세부
+                타입(파킹통장/정기예금 등)이 있으면 자산군 라벨 옆에 함께 적어, 무엇으로 저장돼 있는지
+                확인할 수 있게 한다. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--fill-subtle)', ...FIELD_BORDER_STYLE }}>
+              <span style={{ width: 26, height: 26, borderRadius: 8, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon name={assetClassMeta.icon} size={15} />
+              </span>
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>{assetClassMeta.label}</span>
+              {detailTypeLabel && (
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-weak)' }}>· {detailTypeLabel}</span>
+              )}
+              <Icon name="lock" size={14} color="var(--text-weak)" style={{ marginLeft: 'auto', flexShrink: 0 }} />
             </div>
-            {/* 통화는 계좌 생성 후 못 바꾸므로 국내주식/해외주식 중 하나는 항상 잠긴다 — 어느 자산군을
-                열었든(현금·예적금 등) 잠긴 칩이 있는 한 이유를 알려준다. 예전에는 국내/해외주식을 선택 중
-                일 때만 보여 나머지 4개 자산군에서는 회색 칩이 왜 안 눌리는지 알 길이 없었다(리뷰 지적). */}
-            {hasLockedAssetClassChip && (
-              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 8 }}>
-                통화는 계좌를 만든 뒤에는 바꿀 수 없어서 국내주식 · 해외주식은 서로 바꿀 수 없어요
-              </div>
-            )}
-            {/* 접힌 세부 타입(파킹통장/정기예금 등)은 칩 하나로는 안 보인다 — 확인할 길이 없으면
-                "뭉개졌나" 불안해진다(리뷰 지적). 위 onClick에서 같은 칩 재클릭은 무시하므로, 다른 칩을
-                눌러야만 실제로 바뀐다는 사실이 문구와 어긋나지 않는다. */}
-            {detailTypeLabel && (
-              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 8 }}>
-                현재 세부 유형: {detailTypeLabel} · 다른 칩을 선택하면 바뀌어요
-              </div>
-            )}
+            <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>
+              자산 유형은 계좌를 만든 뒤에는 바꿀 수 없어요
+            </div>
           </div>
           <div>
             <div style={LABEL_STYLE}>계좌 이름</div>
@@ -397,18 +319,17 @@ export function EditAccountModal() {
             {nameInvalid && <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>계좌 이름을 입력해주세요</div>}
           </div>
           <div style={fieldRowStyle}>
-            <div style={{ flex: 1, position: 'relative' }}>
+            <div style={{ flex: 1 }}>
               <div style={LABEL_STYLE}>금융기관</div>
-              {institutions.length === 0 ? (
-                <div style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>
-                  등록된 금융기관이 없어요
-                </div>
-              ) : (
-                <Dropdown dd={ddInstitutionDisplay} maxHeight={160} />
-              )}
-              {institutionMissing && form.institutionId === null && (
-                <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>금융기관을 선택해주세요</div>
-              )}
+              {/* 자산 유형과 같은 이유로 읽기 전용이다(파일 상단 주석 참고). 기관을 지정하지 않은
+                  계좌(현금 등)는 서버가 institutionName을 null로 내려주므로 '없음'으로 보여준다 —
+                  AddAccountModal의 '없음' 선택지와 같은 표기다. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--fill-subtle)', ...FIELD_BORDER_STYLE }}>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: account.institutionName ? 'var(--text-strong)' : 'var(--text-weak)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {account.institutionName ?? '없음'}
+                </span>
+                <Icon name="lock" size={14} color="var(--text-weak)" style={{ marginLeft: 'auto', flexShrink: 0 }} />
+              </div>
             </div>
             <div style={{ flex: 1 }}>
               <div style={LABEL_STYLE}>현재 잔액</div>
