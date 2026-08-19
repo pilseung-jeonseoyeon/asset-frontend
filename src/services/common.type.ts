@@ -6,29 +6,49 @@ export type Currency = 'KRW' | 'USD'
 
 export type PeriodUnit = 'DAY' | 'MONTH' | 'YEAR'
 
+/**
+ * 계좌 유형. 2026-08-20 백엔드 계약 변경으로 10종(CHECKING/PARKING/TERM_DEPOSIT/INSTALLMENT_SAVINGS/
+ * BROKERAGE/CRYPTO_WALLET/PENSION/PENSION_SAVINGS/CASH/REAL_ASSET)에서 6종으로 통합됐다 — 이제
+ * AssetClass와 1:1로 대응한다(이름만 CASH↔CASH, ETC↔PENSION_ETC로 다르다). 없어진 값을 보내면
+ * 400이 아니라 500이 나므로 이 목록 밖의 값을 만들지 말 것.
+ */
 export type AccountType =
-  | 'CHECKING'
-  | 'PARKING'
-  | 'TERM_DEPOSIT'
-  | 'INSTALLMENT_SAVINGS'
-  | 'BROKERAGE'
-  | 'CRYPTO_WALLET'
-  | 'PENSION'
-  | 'PENSION_SAVINGS'
   | 'CASH'
-  | 'REAL_ASSET'
+  | 'DEPOSIT'
+  | 'DOMESTIC_STOCK'
+  | 'FOREIGN_STOCK'
+  | 'CRYPTO'
+  | 'PENSION_ETC'
 
-export type InstitutionType = 'BANK' | 'BROKERAGE' | 'EXCHANGE' | 'PENSION' | 'OTHER'
+export type InstitutionType =
+  | 'BANK'
+  | 'SAVINGS_BANK'
+  | 'BROKERAGE'
+  | 'EXCHANGE'
+  | 'PENSION'
+  | 'CARD'
+  | 'LIFE_INSURANCE'
+  | 'NON_LIFE_INSURANCE'
+  | 'FINTECH'
+  | 'OTHER'
 
+/** 자산군 6분류. 2026-08-20 백엔드 계약 변경으로 CASH_PENSION → CASH로 이름이 바뀌었다. */
 export type AssetClass =
   | 'DOMESTIC_STOCK'
   | 'FOREIGN_STOCK'
   | 'DEPOSIT'
   | 'CRYPTO'
-  | 'CASH_PENSION'
+  | 'CASH'
   | 'ETC'
 
-export type TransactionType = 'INCOME' | 'EXPENSE' | 'SAVING' | 'TRANSFER'
+/**
+ * 거래 유형. ADJUSTMENT(잔액 조정)는 계좌 잔액을 정정할 때 **서버가 자동으로 만드는** 거래라
+ * 응답에만 나온다 — 사용자가 직접 만들 수 없으므로 요청에는 EditableTransactionType을 쓴다.
+ */
+export type TransactionType = 'INCOME' | 'EXPENSE' | 'SAVING' | 'TRANSFER' | 'ADJUSTMENT'
+
+/** 사용자가 직접 만들거나 검색 조건으로 쓸 수 있는 거래 유형(ADJUSTMENT 제외). */
+export type EditableTransactionType = Exclude<TransactionType, 'ADJUSTMENT'>
 
 export type CategoryKind = 'INCOME' | 'SAVING' | 'EXPENSE'
 
@@ -69,7 +89,7 @@ export interface TransactionSearchParams {
   month?: number
   from?: string
   to?: string
-  type?: TransactionType
+  type?: EditableTransactionType
   subcategoryId?: number
   accountId?: number
   /** 서버는 0-base. 화면의 1-base 페이지는 훅에서 변환한다. */

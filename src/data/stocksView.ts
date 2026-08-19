@@ -393,16 +393,17 @@ export function buildClosedHoldingCards(closedHoldings: ClosedHoldingResponse[])
 // ---------- 매매 계좌 필터 ----------
 
 /**
- * 시장별로 매매에 쓸 수 있는 계좌 타입. QuickStockModal은 아직 KR/US 두 시장만 다루므로 둘 다
- * 증권 계좌(BROKERAGE)만 허용한다 — 가상자산 지갑(CRYPTO_WALLET)까지 열어두면 증권 계좌 없이
- * 지갑만 있는 사용자가 KR/US 종목을 지갑 계좌로 등록할 수 있었다(서버가 계좌 타입을 검증하지
- * 않음, docs/backend-request.md B-1-3). CRYPTO 항목은 아직 매매 UI가 없지만, 나중에 CRYPTO 시장이
- * 추가될 때 이 표에 한 줄만 채우면 되도록 구조를 미리 남겨둔다.
+ * 시장별로 매매에 쓸 수 있는 계좌 타입. 서버가 계좌 타입을 검증하지 않아 현금 계좌로도 매매가 그대로
+ * 등록되던 문제를 프론트에서 좁혀 막는다.
+ *
+ * 2026-08-20 백엔드 계약 변경으로 계좌 유형이 6종이 되면서 국내/해외 증권 계좌가 타입 자체로 갈리게
+ * 됐다 — 예전에는 둘 다 BROKERAGE라 KR·US 모두 같은 목록을 봤지만, 이제 국내 종목은 국내주식 계좌,
+ * 해외 종목은 해외주식 계좌만 고를 수 있다. 통화가 맞지 않는 계좌로 매매가 잡히던 여지가 사라진다.
  */
 const TRADE_ACCOUNT_TYPES_BY_MARKET: Record<Market, AccountType[]> = {
-  KR: ['BROKERAGE'],
-  US: ['BROKERAGE'],
-  CRYPTO: ['CRYPTO_WALLET'],
+  KR: ['DOMESTIC_STOCK'],
+  US: ['FOREIGN_STOCK'],
+  CRYPTO: ['CRYPTO'],
 }
 
 /**

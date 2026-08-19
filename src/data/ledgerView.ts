@@ -33,7 +33,7 @@ import type {
   PeriodSummaryResponse,
   TransactionResponse,
 } from '@/services/transaction'
-import type { CategoryKind, Currency, TransactionType } from '@/services/common.type'
+import type { CategoryKind, Currency, EditableTransactionType, TransactionType } from '@/services/common.type'
 
 // ---------- 공용: 요청 실패 표시 ----------
 
@@ -65,15 +65,19 @@ export const ENTRY_TYPE_TO_CATEGORY_KIND: Record<'income' | 'saving' | 'expense'
   expense: 'EXPENSE',
 }
 
-/** EntryType(화면 탭 값) ↔ TransactionType(서버 값). */
-export const ENTRY_TYPE_TO_TX_TYPE: Record<'income' | 'expense' | 'saving' | 'transfer', TransactionType> = {
+/**
+ * EntryType(화면 탭 값) ↔ TransactionType(서버 값). ADJUSTMENT(잔액 조정)는 계좌 잔액을 정정할 때
+ * 서버가 자동으로 만드는 거래라 화면 탭에 대응하는 값이 없다 — 두 표 모두 사용자가 만들 수 있는
+ * 4종만 다루고, 목록에 섞여 들어오는 ADJUSTMENT는 읽기 전용으로만 렌더한다(Ledger.tsx 참고).
+ */
+export const ENTRY_TYPE_TO_TX_TYPE: Record<'income' | 'expense' | 'saving' | 'transfer', EditableTransactionType> = {
   income: 'INCOME',
   expense: 'EXPENSE',
   saving: 'SAVING',
   transfer: 'TRANSFER',
 }
 
-export const TX_TYPE_TO_ENTRY_TYPE: Record<TransactionType, 'income' | 'expense' | 'saving' | 'transfer'> = {
+export const TX_TYPE_TO_ENTRY_TYPE: Record<EditableTransactionType, 'income' | 'expense' | 'saving' | 'transfer'> = {
   INCOME: 'income',
   EXPENSE: 'expense',
   SAVING: 'saving',
@@ -345,6 +349,9 @@ const TX_TYPE_COLOR: Record<TransactionType, string> = {
   EXPENSE: 'var(--exp-text)',
   SAVING: 'var(--sav-text)',
   TRANSFER: 'var(--text-strong)',
+  // 잔액 조정은 수입도 지출도 아니다(순저축·저축률 집계에서 빠지고 총자산에만 반영된다) — 이체와
+  // 마찬가지로 전용 색 없이 중립색으로 둔다.
+  ADJUSTMENT: 'var(--text-strong)',
 }
 
 function shortDateLabel(isoDate: string): string {

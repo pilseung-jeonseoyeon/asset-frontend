@@ -20,68 +20,64 @@ import type { AccountType, AssetClass, Currency, InstitutionType } from '@/servi
 // 백엔드 확정값이 아니라 이 화면(AddAccountModal/EditAccountModal/InstitutionsModal)에서 붙이는
 // 프론트 전용 표기이므로, 실제 서비스 오픈 전 백엔드와 라벨 문구를 맞춰야 한다.
 
+// 2026-08-20 백엔드 계약 변경으로 AccountType이 6종으로 통합되면서, 계좌 유형 라벨은 자산군 6분류
+// 라벨과 같은 문구가 됐다(ASSET_CLASS_META 참고) — 두 목록이 갈라지지 않도록 라벨은 자산군 쪽을
+// 정본으로 삼고 여기서는 그대로 가져다 쓴다.
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   CASH: '현금',
-  CHECKING: '입출금',
-  PARKING: '파킹통장',
-  TERM_DEPOSIT: '정기예금',
-  INSTALLMENT_SAVINGS: '적금',
-  BROKERAGE: '증권계좌',
-  CRYPTO_WALLET: '가상자산',
-  PENSION: '연금',
-  PENSION_SAVINGS: '연금저축',
-  REAL_ASSET: '실물자산',
+  DEPOSIT: '예적금',
+  DOMESTIC_STOCK: '국내주식',
+  FOREIGN_STOCK: '해외주식',
+  CRYPTO: '가상자산',
+  PENSION_ETC: '연금·기타',
 }
-
-/** 칩 표시 순서 — 현금성 자산부터 투자/연금 순으로 사용자가 훑기 쉬운 순서. */
-export const ACCOUNT_TYPE_ORDER: AccountType[] = [
-  'CASH',
-  'CHECKING',
-  'PARKING',
-  'TERM_DEPOSIT',
-  'INSTALLMENT_SAVINGS',
-  'BROKERAGE',
-  'CRYPTO_WALLET',
-  'PENSION',
-  'PENSION_SAVINGS',
-  'REAL_ASSET',
-]
 
 export const INSTITUTION_TYPE_LABELS: Record<InstitutionType, string> = {
   BANK: '은행',
+  SAVINGS_BANK: '저축은행',
   BROKERAGE: '증권사',
   EXCHANGE: '거래소',
   PENSION: '연금',
+  CARD: '카드사',
+  LIFE_INSURANCE: '생명보험',
+  NON_LIFE_INSURANCE: '손해보험',
+  FINTECH: '핀테크',
   OTHER: '기타',
 }
 
-export const INSTITUTION_TYPE_ORDER: InstitutionType[] = ['BANK', 'BROKERAGE', 'EXCHANGE', 'PENSION', 'OTHER']
+export const INSTITUTION_TYPE_ORDER: InstitutionType[] = [
+  'BANK',
+  'SAVINGS_BANK',
+  'BROKERAGE',
+  'EXCHANGE',
+  'CARD',
+  'LIFE_INSURANCE',
+  'NON_LIFE_INSURANCE',
+  'FINTECH',
+  'PENSION',
+  'OTHER',
+]
 
 /**
- * 자산군(AssetClass) → 계좌 추가 시 기본 선택할 AccountType. 임의 추측이 아니라 백엔드
- * `AccountService.splitByClass`가 AccountType을 AssetClass로 묶는 규칙의 **역방향**이다(그 방향으로
- * 접힌 6종 중 어느 AccountType이 대표인지는 각 자산군에서 실제로 쓰이는 계좌 종류를 그대로 따랐다).
- * 어디까지나 칩의 기본 선택일 뿐이며 사용자가 다른 칩으로 바꿀 수 있다 — AssetCategoryModal이 "계좌
- * 추가"를 열 때 해당 자산군 칸의 기본값으로만 쓴다.
- *
- * 예적금(DEPOSIT)에는 정기예금·적금 둘 다 접히는데 대표는 제품 결정으로 '적금'이다(2026-08-17).
- * 서버 규칙만으로는 어느 쪽이 대표인지 정해지지 않으므로 임의로 바꾸지 말 것.
+ * 자산군(AssetClass) → 계좌 유형(AccountType). 2026-08-20 백엔드 계약 변경으로 AccountType이 6종으로
+ * 통합되면서 **두 enum이 1:1로 대응**하게 됐다 — 예전처럼 여러 세부 타입이 하나의 자산군으로 접히는
+ * 구조가 아니므로, "대표 타입을 고른다"는 개념도 "접힌 세부 타입"도 더 이상 없다. 이름만 ETC ↔
+ * PENSION_ETC로 다르다.
  */
 export const ASSET_CLASS_ACCOUNT_TYPE_PRESET: Record<AssetClass, AccountType> = {
-  CASH_PENSION: 'CASH',
-  DEPOSIT: 'INSTALLMENT_SAVINGS',
-  DOMESTIC_STOCK: 'BROKERAGE',
-  FOREIGN_STOCK: 'BROKERAGE',
-  CRYPTO: 'CRYPTO_WALLET',
-  ETC: 'PENSION_SAVINGS',
+  CASH: 'CASH',
+  DEPOSIT: 'DEPOSIT',
+  DOMESTIC_STOCK: 'DOMESTIC_STOCK',
+  FOREIGN_STOCK: 'FOREIGN_STOCK',
+  CRYPTO: 'CRYPTO',
+  ETC: 'PENSION_ETC',
 }
 
 /**
- * 자산군 칩을 고를 때 함께 반영할 계좌 폼 필드. AccountType은 위 프리셋을 그대로 쓰되, 국내주식/해외주식은
- * 둘 다 BROKERAGE라 AccountType만으로는 구분이 안 된다 — 서버가 증권계좌 예수금 통화로 국내/해외를 가르므로
- * (AddAccountModal.tsx 상단 주석 참고) 여기서 currency도 같이 정해준다. 나머지 4개 자산군은 currency를
- * 건드리지 않는다 — 이미 사용자가 골라둔 통화(예: 달러로 적어둔 가상자산)를 자산 유형 칩을 눌렀다고 조용히
- * 원화로 되돌리면 안 되기 때문이다.
+ * 자산군 칩을 고를 때 함께 반영할 계좌 폼 필드. 국내주식/해외주식은 이제 AccountType 자체가 갈리므로
+ * currency로 구분할 필요가 없지만, 통화는 여전히 폼이 전송하는 별도 필드라 칩과 함께 정해준다 —
+ * 해외주식은 USD, 국내주식은 KRW다. 나머지 4개 자산군은 currency를 건드리지 않는다: 이미 사용자가
+ * 골라둔 통화(예: 달러로 적어둔 가상자산)를 자산 유형 칩을 눌렀다고 조용히 원화로 되돌리면 안 된다.
  */
 export function assetClassFormPreset(assetClass: AssetClass): { type: AccountType; currency?: Currency } {
   const type = ASSET_CLASS_ACCOUNT_TYPE_PRESET[assetClass]
@@ -91,28 +87,23 @@ export function assetClassFormPreset(assetClass: AssetClass): { type: AccountTyp
 }
 
 /**
- * AccountType(+currency) → 자산군(칩) 역방향 판정. 백엔드 `AccountService.splitByClass`가 AccountType
- * 10종을 6개 자산군으로 접는 규칙을 그대로 옮긴 것 — 위 프리셋과 반대 방향이라 서로 다른 로직이 필요하다
- * (프리셋은 자산군 하나에 대표 AccountType 하나만 고르지만, 역방향은 10종 전부가 반드시 6개 중 하나로
- * 떨어져야 한다: 정기예금도 적금과 마찬가지로 예적금이고, 기존에 PARKING으로 저장된 계좌도 반드시 현금으로
- * 판정돼야 한다). BROKERAGE는 currency로 국내/해외를 가른다(USD가 아니면 국내주식).
+ * AccountType → 자산군(칩) 역방향 판정. 위 프리셋의 정확한 역이다(1:1) — 예전에는 AccountType 10종을
+ * 6개 자산군으로 접으면서 증권계좌를 통화로 갈라야 했지만, 이제 서버가 계좌 유형 자체를 6종으로 주므로
+ * 통화를 볼 필요가 없다.
  */
-export function assetClassOfAccountType(type: AccountType, currency: Currency): AssetClass {
+export function assetClassOfAccountType(type: AccountType): AssetClass {
   switch (type) {
-    case 'CHECKING':
-    case 'PARKING':
     case 'CASH':
-    case 'PENSION':
-      return 'CASH_PENSION'
-    case 'TERM_DEPOSIT':
-    case 'INSTALLMENT_SAVINGS':
+      return 'CASH'
+    case 'DEPOSIT':
       return 'DEPOSIT'
-    case 'BROKERAGE':
-      return currency === 'USD' ? 'FOREIGN_STOCK' : 'DOMESTIC_STOCK'
-    case 'CRYPTO_WALLET':
+    case 'DOMESTIC_STOCK':
+      return 'DOMESTIC_STOCK'
+    case 'FOREIGN_STOCK':
+      return 'FOREIGN_STOCK'
+    case 'CRYPTO':
       return 'CRYPTO'
-    case 'PENSION_SAVINGS':
-    case 'REAL_ASSET':
+    case 'PENSION_ETC':
       return 'ETC'
     default: {
       // 서버가 새 AccountType을 추가하고 프론트가 아직 그 값을 모르면 여기로 떨어진다(배포 시차 시 실제
@@ -138,7 +129,7 @@ interface AssetClassMeta {
 }
 
 export const ASSET_CLASS_META: Record<AssetClass, AssetClassMeta> = {
-  CASH_PENSION: { icon: 'wallet', color: 'var(--accent)', label: '현금' },
+  CASH: { icon: 'wallet', color: 'var(--accent)', label: '현금' },
   DEPOSIT: { icon: 'savings', color: 'var(--accent)', label: '예적금' },
   DOMESTIC_STOCK: { icon: 'trending_up', color: 'var(--accent)', label: '국내주식' },
   FOREIGN_STOCK: { icon: 'public', color: 'var(--accent)', label: '해외주식' },
@@ -161,7 +152,7 @@ export function assetClassMetaOf(assetClass: AssetClass): AssetClassMeta {
  * 한다 — 서버 응답 순서나 유니언 선언 순서를 그대로 쓰면 카드가 뒤섞인다.
  */
 export const ASSET_CLASS_ORDER: AssetClass[] = [
-  'CASH_PENSION',
+  'CASH',
   'DEPOSIT',
   'DOMESTIC_STOCK',
   'FOREIGN_STOCK',

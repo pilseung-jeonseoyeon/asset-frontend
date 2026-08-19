@@ -817,7 +817,12 @@ function LedgerHistory() {
                 <div
                   key={t.key}
                   className="mini-hov"
-                  onClick={() =>
+                  onClick={() => {
+                    // 잔액 조정(ADJUSTMENT)은 계좌 잔액을 정정할 때 **서버가 자동으로 만드는** 거래라
+                    // 사용자가 고칠 수 없다(서버도 ADJUSTMENT_NOT_ALLOWED로 거부한다). 편집 모달을 열면
+                    // 저장 시점에야 에러가 나므로 아예 열지 않는다 — 잔액을 다시 맞추려면 계좌 수정
+                    // 화면의 '현재 잔액'을 고쳐 새 조정 거래를 만들게 한다.
+                    if (t.type === 'ADJUSTMENT') return
                     setState({
                       modalOpen: 'ledgerEntry',
                       entryType: TX_TYPE_TO_ENTRY_TYPE[t.type],
@@ -841,8 +846,8 @@ function LedgerHistory() {
                       },
                       openDropdown: null,
                     })
-                  }
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8, cursor: 'pointer' }}
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8, cursor: t.type === 'ADJUSTMENT' ? 'default' : 'pointer' }}
                 >
                   <div style={{ fontSize: 11.5, color: 'var(--text-weak)', width: 44, flex: 'none' }}>{t.dateLabel}</div>
                   <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5 }}>

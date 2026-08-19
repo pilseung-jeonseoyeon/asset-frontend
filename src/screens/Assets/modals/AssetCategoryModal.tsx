@@ -101,8 +101,9 @@ export function AssetCategoryModal() {
               addAccountReturnTo: null,
               // 어느 자산군 칸에서 열었는지 폼에 반영해야 한다 — 안 하면 기본값(BLANK_ACCOUNT_FORM.type
               // === 'CASH')이 항상 선택되어 해외주식 칸에서 만든 계좌가 현금으로 저장되는 사고가 난다.
-              // 해외주식은 currency까지 같이 넣어야 한다 — 국내/해외주식 둘 다 AccountType은 BROKERAGE라
-              // type만으로는 AddAccountModal이 열렸을 때 두 칩을 구분할 수 없다(assetClassFormPreset 참고).
+              // 해외주식은 currency까지 같이 넣어준다 — AccountType 자체가 DOMESTIC_STOCK/FOREIGN_STOCK로
+              // 갈리지만(assetClassOfAccountType), 계좌 통화(currency)는 별도 필드라 폼에 함께 채워야
+              // AddAccountModal이 기본 선택 통화를 맞게 보여준다(assetClassFormPreset 참고).
               accountForm: { ...BLANK_ACCOUNT_FORM, ...assetClassFormPreset(selectedAssetCat.id) },
             })
           }
