@@ -36,9 +36,15 @@
 // 계약은 통화 필드와 무관하다). 이자율(선택)/개설일(선택)/만기일(선택) 입력도 여전히 빠져 있다 —
 // 필요하면 계좌 등록 뒤 EditAccountModal에서 채울 수 있다.
 //
-// 금융기관은 이제 선택이 아니라 필수다 — 계좌 이름과 같은 인라인 오류 패턴(필드 아래 var(--down) 문구)
-// 으로 미선택 저장을 막는다. 목록이 아직 로딩 중이거나 비어 있을 때 저장을 누르면 그 상태 자체가
-// "선택 불가"이므로 institutionId 없이 그냥 진행하지 않고 동일한 오류 문구로 막는다.
+// 금융기관은 반드시 "고르는" 항목이다 — 계좌 이름과 같은 인라인 오류 패턴(필드 아래 var(--down) 문구)
+// 으로 미선택 저장을 막는다. 단, 고를 수 있는 값에는 목록 맨 아래의 **'없음'**이 포함된다(2026-08-19,
+// 사용자 요청 — "현금이면 없음으로 해야 할 것 같다"). 서버도 무기관 계좌를 정식으로 지원한다
+// (CreateAccountReq.institutionId: "금융기관 ID — 현금 등 무기관 자산은 생략한다").
+// 그래서 "아직 아무것도 안 고름"과 "없음을 골랐음"을 반드시 구분해야 한다 — 둘 다 institutionId는
+// null이므로 form만으로는 갈라낼 수 없어 로컬 상태 institutionNone으로 후자를 표시한다. 저장 시
+// institutionId는 아예 싣지 않는다(위 스펙의 "생략한다").
+// 목록이 비어 있어도 '없음'은 항상 고를 수 있으므로 예전의 "등록된 금융기관이 없어요" 막다른 안내는
+// 두지 않는다 — 옵션이 '없음' 하나뿐인 드롭다운이 그 상황을 그대로 보여준다.
 //
 // 기관 추가 진입점은 두지 않는다(2026-08-19, 사용자 결정): POST/DELETE /institutions API는 있지만
 // 제품상 프론트에 기관 추가·삭제 기능은 필요 없다고 정리됐다 — 한때 여기에 "금융기관 추가" 버튼과
@@ -92,6 +98,11 @@ export function AddAccountModal() {
   // 쌓는다 — 데스크톱은 기존 그대로 좌우 2열.
   const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
 
+  const [nameInvalid, setNameInvalid] = useState(false)
+  const [institutionMissing, setInstitutionMissing] = useState(false)
+  // "없음을 명시적으로 골랐다" — institutionId가 null인 두 상태(미선택 / 없음)를 가르는 유일한 근거다.
+  const [institutionNone, setInstitutionNone] = useState(false)
+
   const ddInstitution = useEntityDropdown(
     'addAcctInst',
     institutions,
@@ -100,14 +111,31 @@ export function AddAccountModal() {
     form.institutionId,
     (id) => {
       setState((st) => ({ accountForm: { ...st.accountForm, institutionId: id } }))
+      setInstitutionNone(false)
       setInstitutionMissing(false)
     },
   )
-  const ddInstitutionDisplay = { ...ddInstitution, value: ddInstitution.value || '금융기관을 선택하세요' }
+  // 서버 기관 목록 뒤에 프론트가 직접 붙이는 '없음' 옵션 — 현금처럼 어느 기관에도 속하지 않는 자산용
+  // (파일 상단 주석 참고). 서버에 존재하는 기관이 아니므로 id는 문자열 sentinel을 쓴다(Dropdown의
+  // React key 용도일 뿐 서버로 나가지 않는다).
+  const ddInstitutionDisplay = {
+    ...ddInstitution,
+    value: institutionNone ? '없음' : ddInstitution.value || '금융기관을 선택하세요',
+    options: [
+      ...ddInstitution.options,
+      {
+        id: 'none',
+        name: '없음',
+        pick: () => {
+          setState((st) => ({ accountForm: { ...st.accountForm, institutionId: null }, openDropdown: null }))
+          setInstitutionNone(true)
+          setInstitutionMissing(false)
+        },
+      },
+    ],
+  }
   const institutionsErr = describeQueryError(institutionsQuery.error)
 
-  const [nameInvalid, setNameInvalid] = useState(false)
-  const [institutionMissing, setInstitutionMissing] = useState(false)
 
   // 자산 유형 칩은 서버 값(type+currency)에서 역산한다 — AssetCategoryModal이 프리셋을 미리 넣어준
   // 채로 열려도 항상 지금 폼 상태와 일치하는 칩이 선택돼 보인다. currency는 화면에 노출되지 않지만
@@ -127,6 +155,7 @@ export function AddAccountModal() {
     // 에러를 직접 지우지 않으면 다음에 "계좌 추가"를 열었을 때 지난 실패 메시지가 그대로 보인다.
     setNameInvalid(false)
     setInstitutionMissing(false)
+    setInstitutionNone(false)
     postAccount.reset()
   }
 
@@ -135,7 +164,8 @@ export function AddAccountModal() {
 
   const handleSave = () => {
     const missingName = !form.name.trim()
-    const missingInstitution = form.institutionId === null
+    // '없음'을 고른 것도 어엿한 선택이다 — 아직 아무것도 안 고른 경우만 막는다.
+    const missingInstitution = form.institutionId === null && !institutionNone
     setNameInvalid(missingName)
     setInstitutionMissing(missingInstitution)
     if (missingName || missingInstitution) return
@@ -146,7 +176,8 @@ export function AddAccountModal() {
       currency: selectedAssetClass === 'FOREIGN_STOCK' ? 'USD' : 'KRW',
       initialBalanceKrw: form.initialBalanceKrw,
       isLiquid: form.isLiquid,
-      institutionId: form.institutionId as number,
+      // '없음'이면 institutionId를 아예 싣지 않는다(서버 스펙: "현금 등 무기관 자산은 생략한다").
+      ...(form.institutionId !== null ? { institutionId: form.institutionId } : {}),
     }
 
     postAccount.mutate(body, { onSuccess: resetAndClose })
@@ -211,14 +242,10 @@ export function AddAccountModal() {
                 금융기관을 불러오지 못했어요
                 <button type="button" onClick={() => void institutionsQuery.refetch()} style={RETRY_BTN_STYLE}>다시 시도</button>
               </div>
-            ) : institutions.length === 0 ? (
-              <div style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>
-                등록된 금융기관이 없어요
-              </div>
             ) : (
               <Dropdown dd={ddInstitutionDisplay} maxHeight={220} />
             )}
-            {institutionMissing && form.institutionId === null && (
+            {institutionMissing && form.institutionId === null && !institutionNone && (
               <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>금융기관을 선택해주세요</div>
             )}
           </div>
