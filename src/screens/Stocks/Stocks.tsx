@@ -26,6 +26,7 @@ import { Card } from '../../components/primitives/Card/Card'
 import { DeepCard } from '../../components/primitives/DeepCard/DeepCard'
 import { DonutChart } from '../../components/primitives/DonutChart/DonutChart'
 import { SegmentedTab } from '../../components/primitives/SegmentedTab/SegmentedTab'
+import { Skeleton } from '../../components/primitives/Skeleton/Skeleton'
 import { useAppState } from '../../state/AppStateContext'
 import { darkTab, liteTab } from '../../state/selectors/stocks'
 import { fmt, formatKoreanAbbrev } from '../../utils/format'
@@ -35,6 +36,7 @@ import {
   buildGroupReturns,
   buildHoldingCards,
   buildMarketIndexViews,
+  MARKET_INDEX_COUNT,
   buildPortfolioSummary,
   buildSectorComposition,
   buildTradeRows,
@@ -50,6 +52,16 @@ import { useGetTrades } from '@/services/trade'
 const EMPTY_TEXT_STYLE: CSSProperties = { fontSize: 12.5, color: 'var(--text-weak)' }
 const EMPTY_TEXT_STYLE_DEEP: CSSProperties = { fontSize: 12.5, color: 'var(--deep-label)' }
 const ERROR_TEXT_STYLE: CSSProperties = { fontSize: 11.5, color: 'var(--down)' }
+// 시장 지표 타일 — 실제 지표 카드와 로딩 스켈레톤이 같은 크기·간격을 쓰도록 한 곳에 둔다.
+const INDEX_TILE_STYLE: CSSProperties = {
+  background: 'var(--fill-subtle)',
+  borderRadius: 10,
+  padding: '10px 14px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+}
 // 1억 원 미만 금액에는 축약 캡션을 병기하지 않는다(ds_rules_v2_5.md §4-2) — Dashboard.tsx의
 // AbbrevCaption과 동일 기준.
 const ABBREV_THRESHOLD = 100_000_000
@@ -114,7 +126,9 @@ export function Stocks() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* 실시간 시장 지표 — Yahoo Finance를 매 요청 실시간 조회해 느릴 수 있다. */}
+      {/* 실시간 시장 지표 — Yahoo Finance를 매 요청 실시간 조회해 느릴 수 있다. 그래서 로딩 중에는
+          '—' 한 줄이 아니라 실제 카드와 같은 자리·같은 높이의 스켈레톤을 깔아, 값이 도착해도 아래
+          블록들이 밀려 내려가지 않게 한다(2026-08-19, 사용자 요청). */}
       <Card style={{ padding: '16px 20px' }} aria-busy={indicesQuery.isPending}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -122,7 +136,17 @@ export function Stocks() {
           </div>
         </div>
         {indicesQuery.isPending ? (
-          <div aria-busy style={EMPTY_TEXT_STYLE}>—</div>
+          <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: `repeat(${MARKET_INDEX_COUNT},1fr)`, gap: 12 }}>
+            {Array.from({ length: MARKET_INDEX_COUNT }, (_, i) => (
+              <div key={i} style={INDEX_TILE_STYLE}>
+                <Skeleton width={54} height={13} />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
+                  <Skeleton width={74} height={15} />
+                  <Skeleton width={38} height={11} />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : indicesQuery.error ? (
           <div style={ERROR_TEXT_STYLE}>{indicesQuery.error.message}</div>
         ) : indexViews.length === 0 ? (
@@ -130,18 +154,7 @@ export function Stocks() {
         ) : (
           <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: `repeat(${indexViews.length},1fr)`, gap: 12 }}>
             {indexViews.map((idx) => (
-              <div
-                key={idx.symbol}
-                style={{
-                  background: 'var(--fill-subtle)',
-                  borderRadius: 10,
-                  padding: '10px 14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 8,
-                }}
-              >
+              <div key={idx.symbol} style={INDEX_TILE_STYLE}>
                 <div style={{ fontSize: 13, fontWeight: 700 }}>{idx.label}</div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 15, fontWeight: 700 }}>{idx.valueFmt}</div>

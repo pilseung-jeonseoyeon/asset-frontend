@@ -59,6 +59,10 @@ const INDEX_SYMBOL_LABELS: Record<string, string> = {
  */
 const MARKET_INDEX_ORDER = ['KOSPI', 'SPX', 'IXIC', 'USDKRW']
 
+/** 로딩 중 스켈레톤을 몇 칸 그릴지 — 실제로 도착할 지표 개수와 같은 칸 수라야 레이아웃이 튀지 않는다.
+ *  (일부 심볼 조회가 실패하면 실제 칸 수가 줄어들 수는 있다.) */
+export const MARKET_INDEX_COUNT = MARKET_INDEX_ORDER.length
+
 function marketIndexOrderIndex(symbol: string): number {
   const idx = MARKET_INDEX_ORDER.indexOf(symbol)
   return idx === -1 ? MARKET_INDEX_ORDER.length : idx

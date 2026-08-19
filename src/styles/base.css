@@ -144,6 +144,21 @@ html.theme-dark .monit-logo-dark { display: block }
 .row-actions { opacity: 0; transition: opacity .12s ease }
 .mini-hov:hover .row-actions { opacity: 1 }
 
+/* 로딩 자리표시(스켈레톤) — components/primitives/Skeleton/Skeleton.tsx 전용 클래스.
+   색은 기존 토큰만 쓴다: 막대 바탕은 var(--border), 훑고 지나가는 하이라이트는 var(--track).
+   라이트/다크 모두 카드 배경(--fill-subtle/--surface)과 한 단계 차이가 나서 읽힌다. */
+.skeleton {
+  background-image: linear-gradient(90deg, var(--border) 0%, var(--track) 45%, var(--border) 90%);
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  from { background-position: 140% 50% }
+  to { background-position: -40% 50% }
+}
+
 /* Mobile shell (<=767px, docs/mobile.md) */
 @media (max-width:767px) {
   .sheet-up {
@@ -177,6 +192,13 @@ html.theme-dark .monit-logo-dark { display: block }
 @media (prefers-reduced-motion: reduce) {
   .sheet-up {
     animation: none
+  }
+
+  /* 움직임을 줄여달라는 설정에서는 훑고 지나가는 애니메이션 대신 단색 막대로만 남긴다. */
+  .skeleton {
+    animation: none;
+    background-image: none;
+    background-color: var(--border)
   }
 }
 
