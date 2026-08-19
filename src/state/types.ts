@@ -8,7 +8,7 @@
 // stub handlers. Password strings are deliberately NOT part of this shape — see screens/Auth/*Form.tsx
 // header comments for why they stay in local useState instead.
 
-import type { AccountType, AssetClass, Currency, InstitutionType } from '@/services/common.type'
+import type { AccountType, AssetClass, Currency } from '@/services/common.type'
 
 export type Screen = 'dashboard' | 'asset' | 'stock' | 'ledger' | 'settings'
 export type AssetTab = 'overview' | 'accounts' | 'goals'
@@ -42,31 +42,16 @@ export interface AccountForm {
   type: AccountType
   currency: Currency
   /** 신규 생성 시에만 전송 — 수정 시 서버가 거부(UpdateAccountRequest에 필드 자체가 없음). currency가
-   * USD면 이 값을 직접 입력받지 않고 initialBalanceUsd × usdExchangeRate로 저장 시점에 계산해 채운다
-   * (서버 initialBalanceKrw는 통화와 무관하게 항상 원화 정수 — POST /accounts 명세, AddAccountModal.tsx
-   * 결함 1 배경 참고). */
+   * KRW일 때 이 값을 그대로 initialBalanceKrw로 보낸다(POST /accounts 명세). */
   initialBalanceKrw: number
-  /** currency === 'USD'일 때만 쓰는 잔액 입력 보조 필드(원시 입력 문자열, 소수점 2자리까지). 서버가
-   * 외화 원금을 보관하지 않으므로 이 값 자체는 전송하지 않고 initialBalanceKrw 계산에만 쓰인다. */
+  /** currency === 'USD'일 때 쓰는 잔액 입력값(원시 입력 문자열, 소수점 2자리까지) — 저장 시 숫자로
+   * 바꿔 initialBalanceNative로 그대로 보낸다. 환율은 프론트가 다루지 않는다(2026-08-20 계약) —
+   * 서버가 등록 시점 환율로 원화 환산액을 확정한다. */
   initialBalanceUsd: string
-  /** "1달러 = ? 원" 적용 환율 입력 문자열(소수점 2자리까지). USD/KRW 환율을 서버가 내려주지 않아
-   * 사용자가 직접 입력해야 한다(하드코딩·추정 금지, CLAUDE.md). */
-  usdExchangeRate: string
   interestRate: number | null
   openedAt: string | null
   maturityDate: string | null
   isLiquid: boolean
-}
-
-// InstitutionsModal의 기관 추가/수정 폼 초안. id가 null이면 신규, 아니면 수정 대상 institutionId.
-// null이면 폼이 닫혀 있음(목록 뷰)을 뜻한다.
-export interface InstitutionForm {
-  id: number | null
-  name: string
-  type: InstitutionType
-  /** src/design/bank-institutions.ts의 tokenKey 중 하나(서버가 받는 값 집합이 불명확해 프론트가 아는
-   * 값만 고르게 한다) 또는 미선택 null. */
-  icon: string | null
 }
 
 export interface AppState {
@@ -126,7 +111,6 @@ export interface AppState {
   /** 수정 대상 accountId. null이면 editAccount 모달이 닫혀 있음. */
   editAccount: number | null
   accountForm: AccountForm
-  institutionForm: InstitutionForm | null
   addingCatGroup: string | null
   addAccountReturnTo: string | null
   addGoalReturnTo: string | null

@@ -17,7 +17,6 @@ export const BLANK_ACCOUNT_FORM: AccountForm = {
   currency: 'KRW',
   initialBalanceKrw: 0,
   initialBalanceUsd: '',
-  usdExchangeRate: '',
   interestRate: null,
   openedAt: null,
   maturityDate: null,
@@ -68,7 +67,6 @@ export const initialState: AppState = {
 
   editAccount: null,
   accountForm: BLANK_ACCOUNT_FORM,
-  institutionForm: null,
   addingCatGroup: null,
   addAccountReturnTo: null,
   addGoalReturnTo: null,
