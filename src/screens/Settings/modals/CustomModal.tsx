@@ -2,8 +2,9 @@
 // z-index 80, width 540px, maxHeight 86vh.
 // ddMonthStart는 이제 AppState가 아니라 서버 사용자 설정(GET/PATCH /users/me/settings)을 읽고 쓴다.
 // 드롭다운 마크업 자체는 L3345-3357 그대로다.
-// D-Day 알림 토글은 GeneralModal.tsx의 환율 자동 갱신 행과 완전히 같은 규칙을 따른다: Switch
-// 프리미티브 + 독립 mutation 인스턴스 + 설정을 못 받아온 구간엔 스위치 대신 '—' 플레이스홀더.
+// D-Day 알림 토글 규칙: Switch 프리미티브 + 독립 mutation 인스턴스 + 설정을 못 받아온 구간엔
+// 스위치 대신 '—' 플레이스홀더. (같은 규칙을 쓰던 GeneralModal.tsx의 "환율 자동 갱신" 행은
+// 2026-08-20에 제거됐다 — 지금은 이 토글이 그 규칙의 유일한 사례다.)
 
 import type { CSSProperties } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
@@ -21,7 +22,7 @@ const ROW_STYLE: CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 0', borderBottom: '0.5px solid var(--track)',
 }
 const ERROR_STYLE: CSSProperties = { fontSize: 11.5, color: 'var(--down)', marginTop: 4 }
-// GeneralModal.tsx의 기준 통화·환율 자동 갱신 행과 동일한 '값 없음' 플레이스홀더 규격.
+// GeneralModal.tsx의 기준 통화 행과 동일한 '값 없음' 플레이스홀더 규격.
 const VALUE_PILL_STYLE: CSSProperties = {
   fontSize: 13, fontWeight: 700, color: 'var(--text-mid)', background: 'var(--track)', padding: '7px 12px', borderRadius: 8,
 }

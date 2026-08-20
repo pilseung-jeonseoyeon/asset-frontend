@@ -1,28 +1,24 @@
 // Source: secret/Asset Manager v14.dc.html L3187-3248 (modalGeneral) — markup transcribed verbatim.
 // z-index 80, width 540px, maxHeight 86vh.
 //
-// 원본에는 이 세 행에 핸들러가 없어(테마는 AppState에만 반영, 기준 통화·환율 자동 갱신은 정적
-// 마크업) 이전 주석이 "비기능으로 그대로 이식"이라고 적어뒀었다. 지금은 CustomModal.tsx가 월
-// 시작일을 서버와 연동한 것과 같은 방식으로 세 항목 모두 GET/PATCH /users/me/settings에 연결한다:
+// 원본에는 이 행들에 핸들러가 없어(테마는 AppState에만 반영, 기준 통화는 정적 마크업) 이전 주석이
+// "비기능으로 그대로 이식"이라고 적어뒀었다. 지금은 CustomModal.tsx가 월 시작일을 서버와 연동한 것과
+// 같은 방식으로 GET/PATCH /users/me/settings에 연결한다:
 // - 테마: AppState 낙관적 반영 + localStorage 캐시(부팅 FOUC 방지, src/utils/theme.ts) + 서버 저장.
 //   실패 롤백은 이 화면이 하지 않는다 — pickTheme 안 주석 참고.
 // - 기준 통화: 서버 값을 읽기 전용으로 보여준다. USD를 골라도 대시보드 등 모든 응답이 원화 고정
 //   필드(totalAssetKrw 등)라 화면 금액이 하나도 안 바뀌므로(다통화 표기 미지원, 별도 백엔드 요청
 //   항목으로 남겨둠), 드롭다운 대신 "대시보드 레이아웃" 행이 이미 쓰는 "추후 업데이트" 배지를 붙인다.
-// - 환율 자동 갱신: Switch 프리미티브로 교체해 PATCH로 저장한다.
 //
-// 테마와 환율 자동 갱신은 각각 독립된 usePatchUserSettings() 인스턴스를 쓴다 — 하나를 공유하면
-// mutate() 호출마다 이전 mutation의 관찰자가 떨어져 나가(TanStack Query 동작), 두 행을 겹쳐서
-// 조작했을 때 먼저 보낸 행의 실패 메시지가 영영 표시되지 않는다(리뷰 #3). 이 덕분에 어느 행이
-// 실패했는지 variables로 추론하던 failed/isFieldPending 헬퍼도 필요 없다 — 각 행이 자기
-// mutation의 error/isPending만 보면 된다.
+// 2026-08-20: "환율 자동 갱신" 행을 뺐다(사용자 판단 — 켜고 끄는 의미가 없다). 서버 설정 필드
+// (UserSettingsRes.fxAutoRefresh)와 PATCH 계약 자체는 그대로 남아 있고 화면에서만 사라진 것이라,
+// 다시 노출하려면 이 파일에 행 하나를 되살리면 된다. 프론트는 환율을 직접 다루지 않는다(CLAUDE.md).
 //
 // Mobile (<=767px): 라이트/다크/시스템 토글은 데스크톱 패딩(~24px)이 docs/mobile.md §5의 44px
 // 터치 타깃에 못 미쳐 모바일 변형만 세로로 키운다(데스크톱 패딩은 그대로) — themeBtn 참고.
 
 import type { CSSProperties } from 'react'
 import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
-import { Switch } from '../../../components/primitives/Switch/Switch'
 import { useAppState } from '../../../state/AppStateContext'
 import { useCloseModal } from '../../../state/selectors/modal'
 import { storeTheme, toThemeType } from '../../../utils/theme'
@@ -57,15 +53,15 @@ const ERROR_STYLE: CSSProperties = { fontSize: 11.5, color: 'var(--down)', margi
 // 구분해서, 조회가 아직 안 끝난 것뿐인데 실패로 오인하지 않게 한다(리뷰 #5).
 const LOADING_STYLE: CSSProperties = { fontSize: 11.5, color: 'var(--text-weak)', marginTop: 4 }
 
-// 2차 리뷰 #1: settingsError를 행마다 반복해서 보여주면(테마·기준 통화·환율 세 곳) 같은 실패
+// 2차 리뷰 #1: settingsError를 행마다 반복해서 보여주면(테마·기준 통화 등) 같은 실패
 // 문장이 한 화면에 3번 쌓인다 — 조회 상태(로딩/에러)는 모달 상단에 한 번만 보여준다. LoginForm.tsx의
 // "비밀번호를 잊으셨나요?" 링크와 동일한 텍스트 버튼 규격(배경 없음, --accent, 12px/700)을 재사용한다.
 const RETRY_BTN_STYLE: CSSProperties = {
   border: 'none', background: 'transparent', padding: 0, fontSize: 12, fontWeight: 700,
   color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit', marginLeft: 8,
 }
-// 기준 통화·환율 자동 갱신 두 행이 공유하는 "값 없음" 플레이스홀더 pill — 서버 응답이 없을 때
-// 스위치를 거짓으로 "켜짐" 표시하지 않기 위해 기준 통화 행과 동일한 모양을 쓴다(리뷰 #2).
+// 기준 통화 행의 값 pill. 서버 응답이 없으면 '—'로 둔다 — "서버 응답에 없는 값은 화면에 그리지
+// 않는다"는 이 저장소 원칙(리뷰 #2).
 const VALUE_PILL_STYLE: CSSProperties = {
   fontSize: 13, fontWeight: 700, color: 'var(--text-mid)', background: 'var(--track)', padding: '7px 12px', borderRadius: 8,
 }
@@ -79,18 +75,16 @@ export function GeneralModal() {
 
   const isOpen = state.modalOpen === 'general'
   const {
-    settings,
     data: settingsData,
     isPending: isSettingsPending,
     error: settingsError,
     refetch: refetchSettings,
   } = useGetUserSettings({ enabled: isOpen })
   // 행마다 독립된 mutation 인스턴스를 쓴다 — 하나를 공유하면 mutate() 호출마다 이전 mutation의
-  // 관찰자가 떨어져 나가, 테마 저장 실패 중에 환율을 토글하면 테마 쪽 실패 메시지가 영영 표시되지
-  // 않는다(리뷰 #3). 덕분에 각 행은 자기 mutation의 error/isPending만 보면 되고, variables로
-  // "어느 필드가 실패했는지" 추론하던 헬퍼가 필요 없다.
+  // 관찰자가 떨어져 나가, 두 행을 겹쳐 조작했을 때 먼저 보낸 행의 실패 메시지가 영영 표시되지
+  // 않는다(리뷰 #3). 지금은 저장하는 행이 테마 하나뿐이라 인스턴스도 하나지만, 저장하는 행을
+  // 다시 늘릴 때는 공유하지 말고 인스턴스를 하나 더 만들 것.
   const patchTheme = usePatchUserSettings()
-  const patchFxAutoRefresh = usePatchUserSettings()
 
   if (!isOpen) return null
 
@@ -99,18 +93,16 @@ export function GeneralModal() {
   // closeAndReset과 동일한 패턴) — 두 mutation 모두 reset한다.
   const closeAndReset = () => {
     patchTheme.reset()
-    patchFxAutoRefresh.reset()
     closeModal()
   }
 
   // 설정을 못 받아온 구간(!settingsData: 최초 로딩 또는 조회 실패)에서는 테마 버튼도 막는다.
   // pickTheme은 무조건 AppState·localStorage를 먼저 바꾸는데, 이 구간엔 캐시가 비어 있어
   // usePatchUserSettings의 onMutate가 스냅샷을 못 찍고, 그래서 실패해도 onError가 롤백할 대상이
-  // 없다 — 저장도 안 되고 되돌아가지도 않는 상태가 된다(리뷰 #4). 환율 스위치는 원래도 같은
-  // 이유로 비활성이라, 여기서도 맞춰야 두 컨트롤의 활성 조건이 일관된다.
+  // 없다 — 저장도 안 되고 되돌아가지도 않는 상태가 된다(리뷰 #4).
   // 2차 리뷰에서 "조회 실패 시에도 테마 버튼은 활성화하자"는 제안이 있었지만 채택하지 않았다 —
-  // 그러면 위 이유대로 롤백 대상 없이 "저장도 안 되고 되돌아가지도 않는" 상태가 되고, 환율
-  // 스위치와도 활성 조건이 어긋난다. 대신 상단 배너의 "다시 시도"로 즉시 복구할 수 있게 했다.
+  // 그러면 위 이유대로 롤백 대상 없이 "저장도 안 되고 되돌아가지도 않는" 상태가 된다. 대신 상단
+  // 배너의 "다시 시도"로 즉시 복구할 수 있게 했다.
   const controlsDisabled = !settingsData || isSettingsPending
   const themeDisabled = controlsDisabled || patchTheme.isPending
 
@@ -166,26 +158,6 @@ export function GeneralModal() {
               추후 업데이트
             </span>
           </div>
-        </div>
-        <div style={ROW_STYLE}>
-          <div>
-            <div style={{ fontSize: 13.5, fontWeight: 600 }}>환율 자동 갱신</div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>매일 09:00 기준</div>
-            {patchFxAutoRefresh.error && <div style={ERROR_STYLE}>{patchFxAutoRefresh.error.message}</div>}
-          </div>
-          {settingsData ? (
-            <Switch
-              label="환율 자동 갱신"
-              checked={settings.fxAutoRefresh}
-              disabled={controlsDisabled || patchFxAutoRefresh.isPending}
-              onChange={(next) => patchFxAutoRefresh.mutate({ fxAutoRefresh: next })}
-            />
-          ) : (
-            // settingsData가 없는 구간(최초 로딩·조회 실패)에는 DEFAULT_USER_SETTINGS 폴백값 true가
-            // "켜져 있다"고 거짓말을 하게 되므로, 스위치 대신 기준 통화 행과 같은 '—' 플레이스홀더를
-            // 보여준다 — "서버 응답에 없는 값은 화면에 그리지 않는다"는 이 저장소 원칙과 동일(리뷰 #2).
-            <span style={VALUE_PILL_STYLE}>—</span>
-          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 0' }}>
           <div>
