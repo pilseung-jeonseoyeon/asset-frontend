@@ -3,10 +3,9 @@
 // groupBy=INSTITUTION + GET /institutions (previously hardcoded mock data — see git history for
 // src/data/mockDashboard.ts). View-model conversion lives in src/data/dashboardView.ts.
 //
-// Dropped vs. the old mock (server genuinely doesn't send these, or the source never computed them
-// generically — CLAUDE.md forbids inventing a general abbreviation/axis-label helper the source
-// didn't have):
-//   - "7월 이후는 예정 구간" 미래 구간 음영·기준선: 서버가 예측값을 주지 않는다.
+// 총자산 추이의 x축은 항상 올해 1월~12월이고, 데이터가 있는 마지막 달 이후는 "예정 구간"으로만
+// 음영 처리한다(원본 dc.html의 표기 복원 — 2026-08-20). 음영은 어디까지나 "아직 값이 없는 구간"
+// 표시이고 예측선이 아니다 — 서버는 미래 예측값을 주지 않으므로 선을 연장하지 말 것.
 // 총자산 추이 y축 눈금 라벨(13억/11억/9억, dc.html L919-922)은 buildTrendYAxisTicks(dashboardView.ts)로
 // 복원했다(2026-08-17) — formatKoreanAbbrev 신설 전에는 계산 수단이 없어 생략돼 있었다.
 // 신규 사용자를 위한 빈 상태는 카드 단위로 처리한다(자산은 있는데 목표만 없는 중간 상태 포함) —
@@ -61,6 +60,10 @@ const DASHED_CTA_STYLE_DEEP: CSSProperties = {
 }
 // 1억 원 미만 금액에는 축약 캡션을 병기하지 않는다(ds_rules §4-2).
 const ABBREV_THRESHOLD = 100_000_000
+
+// 총자산 추이 x축은 데이터 개수와 무관하게 항상 올해 12달 전부다(Ledger.tsx의 MONTH_LABELS와
+// 같은 규칙 — 두 화면의 월 축 표기가 갈라지지 않도록 문자열을 맞춰 둔다).
+const TREND_MONTH_LABELS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
 
 function AbbrevCaption({ amountKrw, deep }: { amountKrw: number; deep?: boolean }) {
   if (Math.abs(amountKrw) < ABBREV_THRESHOLD) return null
@@ -132,8 +135,13 @@ export function Dashboard() {
   const trendQuery = useGetDashboardTrend(trendRange, 'MONTH')
   const trendChart = buildTrendChart(trendQuery.points)
   const trendAsOf = trendChart.dates.length > 0 ? trendChart.dates[trendChart.dates.length - 1] : null
-  const monthLabels = trendChart.dates.map((d) => `${Number(d.slice(5, 7))}월`)
   const yAxisTicks = buildTrendYAxisTicks(trendQuery.points)
+  // x축 강조는 "마지막 데이터"가 아니라 오늘이 속한 달 — 데이터가 밀려 있어도 축은 달력이다.
+  const currentMonth = todayYearMonth().month
+  // 마지막 데이터가 있는 달의 다음 달부터가 예정 구간이다(음영 시작점은 buildTrendChart가 계산).
+  const trendFutureFromMonth = trendAsOf ? Number(trendAsOf.slice(5, 7)) + 1 : null
+  const hasFutureRange =
+    trendChart.futureFromX !== null && trendFutureFromMonth !== null && trendFutureFromMonth <= 12
 
   let trendPctFmt: string | null = null
   let trendPositive = true
@@ -165,16 +173,16 @@ export function Dashboard() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
-      {/* 월간 리포트 배너 — 계좌가 없는 신규 사용자에게는 숨긴다("자산이 있어야 볼 리포트가
-          있다"는 최소 조건일 뿐, ReportOverlay 자체는 계좌 유무와 무관하게 전부 목업이다 —
-          CLAUDE.md 참고). hero.isEmpty는 이제 allocation 실시간 합계까지 반영하므로, 계좌 등록
-          첫날(summary 스냅샷 미생성)에도 계좌가 있으면 배너가 정상 노출된다 — 의도된 동작. hero가
-          아직 없는 로딩/에러 상태에서도 숨겨서 데이터 도착 시 배너가 깜빡이며 나타났다 사라지는
-          것을 막는다. */}
+      {/* 월간 리포트 배너 — ReportOverlay가 아직 전부 목업이라(CLAUDE.md "아직 목업인 곳은 월간
+          리포트 오버레이 한 곳뿐") 실제 값처럼 읽히는 화면을 열지 않고 "준비 중"만 알린다.
+          클릭 대상이 아니므로 button이 아닌 div로 두고 hover(qbtn)도 붙이지 않는다 — 배지 표기는
+          AccountModal의 "준비 중" 행과 같은 규격.
+          계좌가 없는 신규 사용자에게는 여전히 숨긴다("자산이 있어야 볼 리포트가 있다"는 최소 조건).
+          hero.isEmpty는 allocation 실시간 합계까지 반영하므로 계좌 등록 첫날에도 계좌가 있으면
+          정상 노출된다 — 의도된 동작. hero가 아직 없는 로딩/에러 상태에서도 숨겨서 데이터 도착 시
+          배너가 깜빡이며 나타났다 사라지는 것을 막는다. */}
       {hero && !hero.isEmpty && (
-        <button
-          onClick={() => setState({ reportOpen: true, reportSlide: 0 })}
-          className="qbtn"
+        <div
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -182,9 +190,7 @@ export function Dashboard() {
             padding: '11px 18px',
             borderRadius: 10,
             border: '0.5px solid var(--border)',
-            cursor: 'pointer',
             textAlign: 'left',
-            fontFamily: 'inherit',
             background: 'var(--surface)',
             boxShadow: 'var(--shadow-card)',
           }}
@@ -201,18 +207,30 @@ export function Dashboard() {
               flex: 'none',
             }}
           >
-            <Icon name="auto_awesome" size={17} color="var(--text-strong)" />
+            <Icon name="auto_awesome" size={17} color="var(--text-mid)" />
           </span>
           <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)', whiteSpace: 'nowrap' }}>
-              이번 달 리포트 보기
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-mid)', whiteSpace: 'nowrap' }}>
+              이번 달 리포트
             </span>
-            <span style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 400 }}>
-              이번 달 내 자산이 어떻게 움직였는지 확인해보세요
+            <span style={{ fontSize: 12, color: 'var(--text-weak)', fontWeight: 400 }}>
+              이번 달 내 자산이 어떻게 움직였는지 곧 보여드릴게요
             </span>
           </div>
-          <Icon name="chevron_right" size={20} color="var(--text-mid)" />
-        </button>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: 'var(--text-weak)',
+              background: 'var(--track)',
+              borderRadius: 8,
+              padding: '5px 10px',
+              flex: 'none',
+            }}
+          >
+            준비 중
+          </span>
+        </div>
       )}
 
       {/* ROW 1: 총자산 히어로 + 목표버킷 */}
@@ -372,7 +390,11 @@ export function Dashboard() {
                 ) : (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <span style={{ fontSize: 11, color: 'var(--text-weak)' }}>올해 {currentYear}년 총자산 추이</span>
+                      {/* 모바일에서는 카드 폭이 좁아 두 줄로 접히므로 같은 뜻의 짧은 문구로 줄인다. */}
+                      <span style={{ fontSize: 11, color: 'var(--text-weak)' }}>
+                        {isMobile ? '올해 총자산 추이' : '올해 1월~12월 총자산 추이'}
+                        {hasFutureRange ? (isMobile ? ` · ${trendFutureFromMonth}월 이후 예정` : ` · ${trendFutureFromMonth}월 이후는 예정 구간`) : ''}
+                      </span>
                       {trendPctFmt && (
                         <span style={{ fontSize: 11, fontWeight: 700, color: trendPositive ? 'var(--up)' : 'var(--down)' }}>
                           {trendPctFmt}
@@ -394,6 +416,16 @@ export function Dashboard() {
                       )}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <svg viewBox="0 0 600 92" preserveAspectRatio="none" style={{ width: '100%', height: 92, display: 'block' }}>
+                          {trendChart.futureFromX !== null && (
+                            <rect
+                              x={trendChart.futureFromX}
+                              y="0"
+                              width={600 - trendChart.futureFromX}
+                              height="92"
+                              style={{ fill: 'var(--track)' }}
+                              opacity="0.55"
+                            />
+                          )}
                           <g style={{ stroke: 'var(--track)' }}>
                             <line x1="0" y1="6" x2="600" y2="6" />
                             <line x1="0" y1="46" x2="600" y2="46" />
@@ -417,10 +449,10 @@ export function Dashboard() {
                           />
                         </svg>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-weak)', marginTop: 5 }}>
-                          {monthLabels.map((m, i) => (
+                          {TREND_MONTH_LABELS.map((m, i) => (
                             <span
-                              key={`${m}-${i}`}
-                              style={i === monthLabels.length - 1 ? { fontWeight: 700, color: 'var(--accent)' } : undefined}
+                              key={m}
+                              style={i + 1 === currentMonth ? { fontWeight: 700, color: 'var(--accent)' } : undefined}
                             >
                               {m}
                             </span>

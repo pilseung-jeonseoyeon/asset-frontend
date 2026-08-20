@@ -102,16 +102,26 @@ export interface TrendChartView {
   path: string | null
   /** 마지막 점의 좌표 — 원본 마크업이 여기에 강조용 원을 찍는다. */
   lastPoint: { x: number; y: number } | null
-  /** 원본 응답 순서 그대로의 날짜 축(x축 라벨용). */
+  /**
+   * 아직 데이터가 없는 "예정 구간"(마지막 지점 ~ 12월) 음영의 시작 x좌표.
+   * 마지막 지점이 이미 12월이면 null(음영 없음).
+   */
+  futureFromX: number | null
+  /** 월 중복을 제거한 뒤의 날짜들(오름차순). 마지막 값이 "기준일" 표기에 쓰인다. */
   dates: string[]
 }
 
 /**
  * 스냅샷 추이를 viewBox 좌표계로 정규화한다.
  *
+ * x축은 **데이터 개수가 아니라 올해 1월~12월 달력**이다(x = width * (월 - 1) / 11). 데이터를
+ * 등간격으로 펼치면 8월까지밖에 없는 값이 12월 자리까지 늘어나 "올해 추이"를 오독하게 된다 —
+ * 데이터가 있는 달까지만 선을 그리고, 그 뒤는 화면에서 `futureFromX`부터 예정 구간으로 음영
+ * 처리한다(원본 dc.html L919-940의 "N월 이후는 예정 구간" 복원).
+ *
  * 주의: `unit=MONTH`로 받은 응답의 `date`는 그 달의 말일이 아니라 **데이터가 있는 마지막
- * 날짜**다(API-SPEC §4.2). 이 함수는 날짜를 등간격으로만 배치하므로 화면에서 "월말 값"이라고
- * 라벨링하지 말 것.
+ * 날짜**다(API-SPEC §4.2). 이 함수는 날짜의 "일"은 무시하고 월 자리에만 찍으므로 화면에서
+ * "월말 값"이라고 라벨링하지 말 것.
  */
 export function buildTrendChart(
   points: TrendPointResponse[],
@@ -119,21 +129,25 @@ export function buildTrendChart(
   height = 92,
   padding = 6,
 ): TrendChartView {
-  // API-SPEC §4.2는 예시만 오름차순이고 정렬을 보장하지 않는다. x좌표를 배열 인덱스로 매기므로
-  // 순서가 어긋나면 선이 앞뒤로 튄다 — buildAccountTrendPath(assetsView.ts)와 같은 이유의 방어적
-  // 정렬이며, 원본 dc.html에 직접 대응하는 근거는 없다.
+  // API-SPEC §4.2는 예시만 오름차순이고 정렬을 보장하지 않는다. x좌표를 월로 매기므로 순서가
+  // 어긋나면 선이 앞뒤로 튄다 — buildAccountTrendPath(assetsView.ts)와 같은 이유의 방어적 정렬.
   const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date))
-  const dates = sorted.map((p) => p.date)
-  if (sorted.length < 2) return { path: null, lastPoint: null, dates }
+  // 한 달에 지점이 여럿이면(unit=DAY로 받은 경우) x가 겹쳐 세로선이 생긴다 — 그 달의 마지막
+  // 값만 남긴다.
+  const byMonth = new Map<number, TrendPointResponse>()
+  for (const p of sorted) byMonth.set(Number(p.date.slice(5, 7)), p)
+  const monthly = [...byMonth.entries()].sort((a, b) => a[0] - b[0])
+  const dates = monthly.map(([, p]) => p.date)
+  if (monthly.length < 2) return { path: null, lastPoint: null, futureFromX: null, dates }
 
-  const values = sorted.map((p) => p.totalValueKrw)
+  const values = monthly.map(([, p]) => p.totalValueKrw)
   const min = Math.min(...values)
   const max = Math.max(...values)
   const span = max - min
   const usable = height - padding * 2
 
-  const coords = sorted.map((p, i) => {
-    const x = (width * i) / (sorted.length - 1)
+  const coords = monthly.map(([month, p]) => {
+    const x = (width * (month - 1)) / 11
     // 값이 전부 같으면(span 0) 0으로 나누지 말고 가운데 높이에 평평하게 그린다.
     const ratio = span === 0 ? 0.5 : (p.totalValueKrw - min) / span
     // SVG는 y가 아래로 커지므로 값이 클수록 y가 작아야 한다.
@@ -141,9 +155,11 @@ export function buildTrendChart(
     return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 }
   })
 
+  const lastPoint = coords[coords.length - 1]
   return {
     path: coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x} ${c.y}`).join(' '),
-    lastPoint: coords[coords.length - 1],
+    lastPoint,
+    futureFromX: lastPoint.x < width ? lastPoint.x : null,
     dates,
   }
 }
