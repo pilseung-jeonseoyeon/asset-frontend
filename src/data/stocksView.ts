@@ -27,7 +27,7 @@
 // 실제 손익 금액(unrealizedPnlKrw)은 계속 보여준다. currentPriceFmt/buildTradeRows.amountFmt는
 // 통화별 소수 자릿수를 고정하는 utils/format.ts의 formatCurrencyAmount로 교체했다.
 
-import { fmt, formatCurrencyAmount } from '../utils/format'
+import { fmt, fmtKrw, formatCurrencyAmount } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
 import { findBankInstitution } from '../design/bank-institutions'
 import type { ClosedHoldingResponse, HoldingGroupResponse, HoldingResponse } from '@/services/stock'
@@ -254,7 +254,7 @@ export function buildHoldingCards(holdings: HoldingResponse[]): HoldingCardView[
       marketLabel: MARKET_LABELS[h.market],
       sector: h.sector ?? '기타',
       ticker: h.ticker,
-      costFmt: fmt(h.totalCostKrw),
+      costFmt: fmtKrw(h.totalCostKrw),
       qtyFmt: fmt(h.quantity),
       currentPriceFmt,
       dayChangePctFmt,
@@ -276,8 +276,8 @@ export function buildHoldingCards(holdings: HoldingResponse[]): HoldingCardView[
     return {
       ...base,
       priceMissing: false,
-      valueFmt: fmt(h.valuationKrw),
-      gainFmt: `${sign}${fmt(Math.abs(h.unrealizedPnlKrw))}원${pctPart}`,
+      valueFmt: fmtKrw(h.valuationKrw),
+      gainFmt: `${sign}${fmtKrw(Math.abs(h.unrealizedPnlKrw))}원${pctPart}`,
       positive,
       returnPct: h.returnRatePercent,
     }
@@ -340,10 +340,10 @@ export function buildPortfolioSummary(holdings: HoldingResponse[], totalAssetKrw
   const sharePct = totalAssetKrw ? (totalValue / totalAssetKrw) * 100 : null
   return {
     totalValueKrw: totalValue,
-    totalValueFmt: priced.length === 0 ? null : fmt(totalValue),
-    totalCostFmt: priced.length === 0 ? null : fmt(pricedCost),
+    totalValueFmt: priced.length === 0 ? null : fmtKrw(totalValue),
+    totalCostFmt: priced.length === 0 ? null : fmtKrw(pricedCost),
     hasMissingPrice,
-    pnlFmt: priced.length === 0 ? null : `${pnlPositive ? '+' : '−'}${fmt(Math.abs(pnl))}`,
+    pnlFmt: priced.length === 0 ? null : `${pnlPositive ? '+' : '−'}${fmtKrw(Math.abs(pnl))}`,
     pnlPositive,
     returnRateFmt: returnRateAvailable ? `${returnRatePositive ? '+' : '−'}${Math.abs(returnRate).toFixed(1)}%` : null,
     holdingCount: holdings.length,
@@ -381,9 +381,9 @@ export function buildClosedHoldingCards(closedHoldings: ClosedHoldingResponse[])
       marketLabel: MARKET_LABELS[h.market],
       sector: h.sector ?? '기타',
       ticker: h.ticker,
-      principalFmt: fmt(h.principalKrw),
-      proceedsFmt: fmt(h.proceedsKrw),
-      gainFmt: `${sign}${fmt(Math.abs(h.realizedPnlKrw))}원 (${pctPart})`,
+      principalFmt: fmtKrw(h.principalKrw),
+      proceedsFmt: fmtKrw(h.proceedsKrw),
+      gainFmt: `${sign}${fmtKrw(Math.abs(h.realizedPnlKrw))}원 (${pctPart})`,
       positive,
       closedAtFmt: isoDateToDisplay(h.closedAt),
     }
@@ -414,6 +414,25 @@ const TRADE_ACCOUNT_TYPES_BY_MARKET: Record<Market, AccountType[]> = {
 export function filterTradeAccounts(accounts: AccountResponse[], market: Market): AccountResponse[] {
   const allowed = TRADE_ACCOUNT_TYPES_BY_MARKET[market]
   return accounts.filter((a) => allowed.includes(a.type))
+}
+
+/**
+ * 계좌 유형 → 그 계좌가 담을 수 있는 시장. 위 TRADE_ACCOUNT_TYPES_BY_MARKET의 역방향이며(1:1이라
+ * 역이 성립한다), 매매 대상이 아닌 4개 유형(현금·예적금·연금기타)은 null이다.
+ *
+ * 보유 종목 추가(AddHoldingsModal)는 시장이 아니라 계좌를 먼저 고르는 순서라 이 방향이 필요하다 —
+ * 고른 계좌가 종목 검색 결과·평단가 통화·수량 단위를 전부 결정한다.
+ */
+export function marketOfAccountType(type: AccountType): Market | null {
+  const found = (Object.keys(TRADE_ACCOUNT_TYPES_BY_MARKET) as Market[]).find((m) =>
+    TRADE_ACCOUNT_TYPES_BY_MARKET[m].includes(type),
+  )
+  return found ?? null
+}
+
+/** 종목·코인을 담을 수 있는 계좌만(국내주식·해외주식·가상자산) — 시장 구분 없이 전부. */
+export function filterHoldingAccounts(accounts: AccountResponse[]): AccountResponse[] {
+  return accounts.filter((a) => marketOfAccountType(a.type) !== null)
 }
 
 export interface AccountInstitutionMeta {
@@ -478,6 +497,6 @@ export function buildTradeRows(trades: TradeResponse[], market?: Market, limit: 
       amountFmt:
         marketToCurrency(t.market) === 'USD'
           ? `$${formatCurrencyAmount(t.quantity * t.price, 'USD')}`
-          : `${fmt(t.quantity * t.price)}원`,
+          : `${fmtKrw(t.quantity * t.price)}원`,
     }))
 }

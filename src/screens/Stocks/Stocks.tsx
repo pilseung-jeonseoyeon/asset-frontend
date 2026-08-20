@@ -29,7 +29,7 @@ import { SegmentedTab } from '../../components/primitives/SegmentedTab/Segmented
 import { Skeleton } from '../../components/primitives/Skeleton/Skeleton'
 import { useAppState } from '../../state/AppStateContext'
 import { darkTab, liteTab } from '../../state/selectors/stocks'
-import { fmt, formatKoreanAbbrev } from '../../utils/format'
+import { fmt, fmtKrw, formatKoreanAbbrev } from '../../utils/format'
 import { isoDateToDisplay } from '../../utils/date'
 import {
   buildClosedHoldingCards,
@@ -86,6 +86,9 @@ export function Stocks() {
 
   const openBuy = () => setState({ modalOpen: 'quickStock', stockTradeMode: 'buy' })
   const openSell = () => setState({ modalOpen: 'quickStock', stockTradeMode: 'sell' })
+  // 이미 갖고 있던 종목을 기존 계좌에 한 번에 넣는 진입점(2026-08-20 추가) — 매수 모달을 종목 수만큼
+  // 여닫지 않아도 되게 한다. AddHoldingsModal 헤더 주석 참고.
+  const openAddHoldings = () => setState({ modalOpen: 'addHoldings' })
 
   const indicesQuery = useGetMarketIndices()
   const indexViews = buildMarketIndexViews(indicesQuery.indices)
@@ -323,7 +326,7 @@ export function Stocks() {
                   {/* 서버가 직접 계산한 원화 평가액(heldKrwValuation) — 더 이상 GET /indices의
                       USDKRW로 근사하지 않는다(docs/frontend-todo.md A-7). */}
                   <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>
-                    ≈ {fmt(exchangeSummary.data.heldKrwValuation)}원 ({isoDateToDisplay(exchangeSummary.data.rateAsOf)} 매매기준율 기준)
+                    ≈ {fmtKrw(exchangeSummary.data.heldKrwValuation)}원 ({isoDateToDisplay(exchangeSummary.data.rateAsOf)} 매매기준율 기준)
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -354,13 +357,16 @@ export function Stocks() {
 
       {/* 보유 종목 */}
       <Card style={{ padding: 26 }} aria-busy={holdingsQuery.isPending}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={setStAll} style={liteTab(stockTab === '전체')}>전체</button>
-            <button onClick={setStKr} style={liteTab(stockTab === '국내')}>국내 주식</button>
-            <button onClick={setStUs} style={liteTab(stockTab === '해외')}>해외 주식</button>
+        {/* 좁은 폭에서는 탭 묶음과 버튼 묶음이 줄바꿈으로 위아래로 나뉜다 — 한 줄에 6개(탭 3 + 버튼 3)를
+            욱여넣으면 아이폰 폭에서 라벨이 글자 단위로 꺾여 "매/수"처럼 세로로 쪼개진다(2026-08-20,
+            "보유 종목 추가" 버튼을 늘리면서 확인). 각 버튼에 nowrap을 줘서 꺾이는 대신 줄을 넘기게 한다. */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={setStAll} style={{ ...liteTab(stockTab === '전체'), whiteSpace: 'nowrap' }}>전체</button>
+            <button onClick={setStKr} style={{ ...liteTab(stockTab === '국내'), whiteSpace: 'nowrap' }}>국내 주식</button>
+            <button onClick={setStUs} style={{ ...liteTab(stockTab === '해외'), whiteSpace: 'nowrap' }}>해외 주식</button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <button
               onClick={openBuy}
               className="qbtn"
@@ -376,6 +382,7 @@ export function Stocks() {
                 fontSize: 12.5,
                 fontWeight: 700,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
                 transition: 'transform .12s',
               }}
             >
@@ -397,11 +404,34 @@ export function Stocks() {
                 fontSize: 12.5,
                 fontWeight: 700,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
                 transition: 'transform .12s',
               }}
             >
               <Icon name="remove" size={16} />
               매도
+            </button>
+            <button
+              onClick={openAddHoldings}
+              className="qbtn"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '8px 13px',
+                borderRadius: 10,
+                border: '0.5px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text-strong)',
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'transform .12s',
+              }}
+            >
+              <Icon name="library_add" size={16} />
+              보유 종목 추가
             </button>
           </div>
         </div>
@@ -657,5 +687,5 @@ function signColor(n: number): string {
 }
 
 function signedAmount(n: number): string {
-  return (n >= 0 ? '+' : '−') + fmt(Math.abs(n))
+  return (n >= 0 ? '+' : '−') + fmtKrw(Math.abs(n))
 }
