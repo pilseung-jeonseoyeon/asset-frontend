@@ -406,20 +406,45 @@ export interface CalendarCell {
   highlighted: boolean
 }
 
-function dayLine(kind: 'income' | 'saving' | 'expense', amt: number): DayLine {
-  const sign = kind === 'income' ? '+' : kind === 'expense' ? '−' : ''
+function dayLine(kind: 'income' | 'saving' | 'expense' | 'transfer', amt: number): DayLine {
+  // 이체는 부호를 붙이지 않는다 — 번 돈도 쓴 돈도 아니고 내 계좌 사이를 옮겨간 것이라
+  // +/−를 붙이면 수입·지출처럼 읽힌다. 대신 방향 기호(⇄)를 앞에 달아 한눈에 구분되게 한다.
+  const sign = kind === 'income' ? '+' : kind === 'expense' ? '−' : kind === 'transfer' ? '⇄ ' : ''
   return {
     text: sign + fmt(amt),
-    color: kind === 'income' ? 'var(--inc-text)' : kind === 'saving' ? 'var(--sav-text)' : 'var(--exp-text)',
+    // 이체는 디자인 시스템에 전용 색이 없다(CLAUDE.md 도메인 컨텍스트) — 수입·지출·저축보다
+    // 한 톤 낮은 --text-mid로 렌더해 세 종류의 색 대비를 흐리지 않게 한다.
+    color:
+      kind === 'income' ? 'var(--inc-text)'
+      : kind === 'saving' ? 'var(--sav-text)'
+      : kind === 'transfer' ? 'var(--text-mid)'
+      : 'var(--exp-text)',
   }
 }
 
-function linesForDay(d: DailySummaryResponse | undefined): DayLine[] {
-  if (!d) return []
+/**
+ * 날짜별 이체 합계. 서버의 일별 요약(GET /transactions/summaries/daily)은 수입·지출·저축 세 가지만
+ * 내려주므로(DailySummaryResponse) 이체는 거래 목록에서 따로 받아 여기서 날짜별로 합산한다.
+ * 서버가 일별 요약에 이체 합계를 추가해주면 이 함수와 별도 조회는 지울 수 있다.
+ */
+export function buildTransferTotalsByDate(txs: TransactionResponse[]): Map<string, number> {
+  const byDate = new Map<string, number>()
+  txs.forEach((t) => {
+    if (t.type !== 'TRANSFER') return
+    byDate.set(t.transactionDate, (byDate.get(t.transactionDate) ?? 0) + t.amount)
+  })
+  return byDate
+}
+
+function linesForDay(d: DailySummaryResponse | undefined, transferAmt: number): DayLine[] {
   const out: DayLine[] = []
-  if (d.incomeAmount > 0) out.push(dayLine('income', d.incomeAmount))
-  if (d.savingAmount > 0) out.push(dayLine('saving', d.savingAmount))
-  if (d.expenseAmount > 0) out.push(dayLine('expense', d.expenseAmount))
+  if (d) {
+    if (d.incomeAmount > 0) out.push(dayLine('income', d.incomeAmount))
+    if (d.savingAmount > 0) out.push(dayLine('saving', d.savingAmount))
+    if (d.expenseAmount > 0) out.push(dayLine('expense', d.expenseAmount))
+  }
+  // 이체는 늘 마지막 줄 — 네 종류가 모두 있는 날에도 수입·지출·저축이 먼저 눈에 들어와야 한다.
+  if (transferAmt > 0) out.push(dayLine('transfer', transferAmt))
   return out
 }
 
@@ -443,7 +468,11 @@ export interface MonthCalendarResult {
  * 달력월 날짜(예: 정산 6월 응답에 섞인 7/1~7/14)가 엉뚱한 칸(6/1~6/14)에 그려진다. 연·월까지 대조해
  * 이 격자(cursor.year-cursor.month)에 속하지 않는 날짜는 조용히 버리고, hasOutOfGridData로 알린다.
  */
-export function buildMonthCalendarRows(cursor: YearMonthCursor, daily: DailySummaryResponse[]): MonthCalendarResult {
+export function buildMonthCalendarRows(
+  cursor: YearMonthCursor,
+  daily: DailySummaryResponse[],
+  transferByDate: Map<string, number>,
+): MonthCalendarResult {
   const dim = daysInMonth(cursor.year, cursor.month)
   const startDow = firstWeekday(cursor.year, cursor.month)
   const monthPrefix = `${cursor.year}-${String(cursor.month).padStart(2, '0')}-`
@@ -468,7 +497,7 @@ export function buildMonthCalendarRows(cursor: YearMonthCursor, daily: DailySumm
       day,
       isoDate: `${monthPrefix}${String(day).padStart(2, '0')}`,
       label: String(day),
-      lines: linesForDay(byDay.get(day)),
+      lines: linesForDay(byDay.get(day), transferByDate.get(`${monthPrefix}${String(day).padStart(2, '0')}`) ?? 0),
       highlighted: isCurrentMonth && day === todayDate,
     })
   }
@@ -483,7 +512,11 @@ export function buildMonthCalendarRows(cursor: YearMonthCursor, daily: DailySumm
  * 주간 뷰의 한 주(월~일, 7칸 고정 — 빈 칸 없음). 소속 달(weekOwnerYearMonth)과 실제 날짜의 달이
  * 다르면(월 경계에 걸친 주) 그 칸만 "M/D"로 표시해 어느 달인지 구분한다.
  */
-export function buildWeekCalendarRow(mondayIso: string, daily: DailySummaryResponse[]): CalendarCell[] {
+export function buildWeekCalendarRow(
+  mondayIso: string,
+  daily: DailySummaryResponse[],
+  transferByDate: Map<string, number>,
+): CalendarCell[] {
   const dates = weekDates(mondayIso)
   const owner = weekOwnerYearMonth(mondayIso)
   const byDate = new Map(daily.map((d) => [d.date, d]))
@@ -497,7 +530,7 @@ export function buildWeekCalendarRow(mondayIso: string, daily: DailySummaryRespo
       day,
       isoDate: iso,
       label: year === owner.year && month === owner.month ? String(day) : `${month}/${day}`,
-      lines: linesForDay(byDate.get(iso)),
+      lines: linesForDay(byDate.get(iso), transferByDate.get(iso) ?? 0),
       highlighted: iso === todayIso,
     }
   })
@@ -511,6 +544,15 @@ function formatMonthDay(iso: string): string {
 export function weekPeriodLabel(mondayIso: string): string {
   const { year, month } = weekOwnerYearMonth(mondayIso)
   return `${year}년 ${month}월 ${weekIndexInMonth(mondayIso)}주차`
+}
+
+/**
+ * 달력에서 하루를 골랐을 때 목록 제목. 예: '8월 12일 (수) 내역'.
+ * 요일까지 붙이는 이유는 사용자가 고른 칸이 맞는지 목록 제목만 보고 확인할 수 있어야 하기 때문이다.
+ */
+export function dayListTitle(iso: string): string {
+  const weekday = ['일', '월', '화', '수', '목', '금', '토'][new Date(`${iso}T00:00:00`).getDay()]
+  return `${Number(iso.slice(5, 7))}월 ${Number(iso.slice(8, 10))}일 (${weekday}) 내역`
 }
 
 /** 목록 제목. 예: '6월 4주차 (6.22 – 6.28) 내역'. */

@@ -170,6 +170,12 @@ export interface AppState {
    * 경계를 서버가 안 알려줘 순수 달력 주(월요일 시작) 기준이다 — ledgerYear/ledgerMonth와 별도로 둔다.
    */
   ledgerWeekAnchor: string
+  /**
+   * 내역 탭에서 사용자가 달력의 특정 날짜 칸을 눌러 고른 날('YYYY-MM-DD'). null이면 기간 전체를 본다.
+   * 고르면 아래 목록이 그 하루로 좁혀진다 — 예전에는 날짜 칸을 누르면 곧바로 지출 입력 폼이 열려서,
+   * 특히 모바일(칸에 금액 없이 색 점만 남음)에서 "그날 뭐 썼지"를 볼 방법이 아예 없었다.
+   */
+  ledgerSelectedDate: string | null
   // monthStartDay(정산월 시작일)는 서버 사용자 설정에 있다 — services/user의 useGetUserSettings 참고
 
   // selection defaults for entry form

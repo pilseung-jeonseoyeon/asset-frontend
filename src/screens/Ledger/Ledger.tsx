@@ -3,7 +3,8 @@
 // account services + src/data/ledgerView.ts. See ledgerView.ts header for which formulas are
 // design-system rules (kept verbatim) vs. new server-input plumbing.
 
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
+import type { KeyboardEvent } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
 import { Card } from '../../components/primitives/Card/Card'
 import { DeepCard } from '../../components/primitives/DeepCard/DeepCard'
@@ -31,8 +32,10 @@ import {
   buildSavingsBars,
   buildSavingsRing,
   buildSubscriptionRows,
+  buildTransferTotalsByDate,
   buildWeekCalendarRow,
   computeRecentAvgSavingsRate,
+  dayListTitle,
   describeQueryError,
   getLedgerHeroTitle,
   getSavingsRingCopy,
@@ -80,36 +83,125 @@ function ErrorLine({ message, muted }: { message: string; muted: boolean }) {
   return <div style={{ fontSize: 11.5, color: muted ? 'var(--text-weak)' : 'var(--down)' }}>{message}</div>
 }
 
-function CalendarCellView({ cell, onOpen }: { cell: CalendarCell; onOpen: () => void }) {
+/** 달력의 이체 줄을 만들기 위해 한 번에 받아오는 이체 거래 수. 한 달치 이체가 이 수를 넘으면
+ *  넘친 만큼은 달력에 그려지지 않고 캡션으로 안내한다(transferTruncated). */
+const CALENDAR_TRANSFER_SIZE = 200
+
+/**
+ * 모바일은 7칸을 화면 폭에 균등 분배한다 — minmax(0,1fr)의 0이 핵심으로, 1fr만 쓰면 칸 안 내용의
+ * min-content가 트랙을 밀어올려 격자가 다시 화면 밖으로 넘어간다(CalendarCellView 주석 참고).
+ */
+const CALENDAR_GRID_COLUMNS = (isMobile: boolean) =>
+  isMobile ? 'repeat(7, minmax(0, 1fr))' : 'repeat(7, 1fr)'
+
+/** 모바일 달력 칸의 색 점이 무슨 뜻인지 알려주는 범례. 색은 dayLine(ledgerView.ts)과 같은 순서. */
+const CALENDAR_DOT_LEGEND: { label: string; color: string }[] = [
+  { label: '수입', color: 'var(--inc-text)' },
+  { label: '저축', color: 'var(--sav-text)' },
+  { label: '지출', color: 'var(--exp-text)' },
+  { label: '이체', color: 'var(--text-mid)' },
+]
+
+function CalendarCellView({
+  cell,
+  selected,
+  onSelect,
+  onAdd,
+}: {
+  cell: CalendarCell
+  selected: boolean
+  onSelect: () => void
+  onAdd: () => void
+}) {
   // 그리드 아이템은 기본적으로 내용물의 min-content보다 작아지지 않는다(min-width:auto). 금액
-  // 배지의 안 끊어지는 숫자 문자열이 이 칸의 min-content라 좁은 폭(모바일)에서 칸 너비를 그대로
-  // 강제로 늘려 캘린더 전체가 뷰포트 밖으로 밀려났었다(가로 스크롤 발생 확인됨). minWidth:0으로
-  // 그리드 트랙이 실제 배정된 몫만큼만 차지하게 하고, 배지는 그 안에서 넘치면 말줄임표로 자른다
-  // (모바일의 고정폭 칼럼과 함께 쓰면 대부분 값은 안 잘리고, 아주 큰 금액만 말줄임 처리된다).
-  // 데스크톱은 칸이 이미 배지보다 넓어 이 값들이 실제로 작동할 일이 없어 렌더링이 그대로다.
+  // 배지의 안 끊어지는 숫자 문자열이 이 칸의 min-content라 좁은 폭에서 칸 너비를 그대로 강제로
+  // 늘려 캘린더 전체가 뷰포트 밖으로 밀려난다. minWidth:0으로 그리드 트랙이 실제 배정된 몫만큼만
+  // 차지하게 하고, 배지는 그 안에서 넘치면 말줄임표로 자른다.
   //
-  // 모바일 가로 스크롤 캘린더는 기본적으로 맨 왼쪽(1일)부터 보인다 — "오늘"이 스크롤 영역
-  // 오른쪽에 있으면 "오늘로 이동"을 눌러도 화면 밖이라 못 찾는다. 오늘 칸을 자동으로 보이는
-  // 위치까지 스크롤한다(데스크톱은 overflow:visible이라 이 호출이 사실상 아무 일도 안 한다).
+  // 모바일은 아예 금액 배지를 그리지 않는다(2026-08-20). 칸 폭을 64px로 고정하고 가로 스크롤로
+  // 넘기던 방식은 7칸(496px)이 어떤 폰 화면에도 들어가지 않아, 열자마자 한 열이 잘린 채로 보이고
+  // "달력이 넘어갔다"로 읽혔다. 7칸을 화면 폭에 균등 분배(minmax(0,1fr))하는 대신 칸 안에는
+  // 날짜와 거래 종류별 색 점만 남기고, 금액은 바로 아래 "전체 내역" 목록에서 본다 — 가로 스크롤이
+  // 사라지고 한 달이 한 화면에 들어온다. 점 색은 배지와 같은 dayLine의 color를 그대로 쓴다
+  // (수입 --inc-text / 저축 --sav-text / 지출 --exp-text / 이체 --text-mid).
   const isMobile = useIsMobile()
-  const cellRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (isMobile && cell.highlighted) {
-      cellRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' })
-    }
-  }, [isMobile, cell.highlighted])
+
+  // 칸은 원래 그냥 클릭되는 div였다. "그날 내역 보기" 토글이 되면서 눌림 상태(aria-pressed)를 알려야
+  // 하는데, aria-pressed는 role="button"이 있어야 유효하다 — role을 붙이면 키보드로도 눌려야 하므로
+  // tabIndex와 Enter/Space 처리를 함께 둔다(그 전까지 이 칸은 키보드로 도달조차 못 했다).
+  const interactiveProps = {
+    role: 'button',
+    tabIndex: 0,
+    'aria-pressed': selected,
+    onClick: onSelect,
+    onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return
+      e.preventDefault()
+      onSelect()
+    },
+  }
+
+  if (isMobile) {
+    return (
+      <div
+        {...interactiveProps}
+        style={{
+          height: 44,
+          minWidth: 0,
+          borderRadius: 8,
+          // 고른 날은 오늘(highlighted)보다 한 단계 진하게 — 둘이 같으면 "내가 누른 칸"이 어디인지
+          // 알 수 없다. 선택은 사용자의 조작 결과라 오늘 표시보다 우선한다.
+          border: selected
+            ? '1px solid var(--accent)'
+            : cell.highlighted
+              ? '0.5px solid var(--accent)'
+              : '0.5px solid var(--track)',
+          background: selected ? 'var(--accent-soft)' : cell.highlighted ? 'var(--fill-subtle)' : undefined,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 3,
+          cursor: 'pointer',
+        }}
+      >
+        <div
+          style={{
+            fontSize: 12.5,
+            fontWeight: 700,
+            lineHeight: 1,
+            color: cell.highlighted ? 'var(--text-strong)' : 'var(--text-mid)',
+          }}
+        >
+          {cell.label}
+        </div>
+        {/* 점이 하나도 없는 날에도 높이가 흔들리지 않도록 자리(5px)는 항상 잡아 둔다. */}
+        <div style={{ display: 'flex', gap: 2.5, height: 5, alignItems: 'center' }}>
+          {cell.lines.map((ln: DayLine, i: number) => (
+            <span key={i} style={{ width: 5, height: 5, borderRadius: 999, background: ln.color }} />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
-      ref={cellRef}
-      onClick={onOpen}
+      {...interactiveProps}
       style={{
-        height: 96,
+        // 배지 한 줄이 약 20px + 줄 간격 2px, 위 여백(날짜 숫자 자리) 20px, 상하 padding 7px씩 —
+        // 수입·저축·지출·이체 네 줄이 모두 있는 날에도 잘리지 않는 높이다(3줄 96px → 4줄 120px).
+        height: 120,
         minWidth: 0,
         borderRadius: 8,
-        border: cell.highlighted ? '0.5px solid var(--accent)' : '0.5px solid var(--track)',
+        // 선택 표시는 모바일 칸과 같은 규칙 — 위 isMobile 분기 주석 참고.
+        border: selected
+          ? '1px solid var(--accent)'
+          : cell.highlighted
+            ? '0.5px solid var(--accent)'
+            : '0.5px solid var(--track)',
         padding: 7,
-        background: cell.highlighted ? 'var(--fill-subtle)' : undefined,
+        background: selected ? 'var(--accent-soft)' : cell.highlighted ? 'var(--fill-subtle)' : undefined,
         position: 'relative',
         cursor: 'pointer',
       }}
@@ -126,9 +218,25 @@ function CalendarCellView({ cell, onOpen }: { cell: CalendarCell; onOpen: () => 
       >
         {cell.label}
       </div>
-      <span className="ms" style={{ position: 'absolute', top: 6, right: 6, fontSize: 13, color: 'var(--text-weak)' }}>
-        add
-      </span>
+      {/* 칸 자체를 누르면 이제 "그날 내역 보기"라, 예전에 칸 클릭이 하던 "그날 거래 추가"는 이
+          + 아이콘이 이어받는다. stopPropagation으로 칸의 선택 동작과 겹치지 않게 한다.
+          (모바일 칸에는 이 아이콘이 없다 — 대신 목록 위 "이 날짜에 거래 추가" 버튼으로 들어간다.) */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onAdd()
+        }}
+        aria-label={`${cell.label}일에 거래 추가`}
+        className="mini-hov"
+        style={{
+          position: 'absolute', top: 2, right: 2, width: 24, height: 24, borderRadius: 6,
+          border: 'none', background: 'transparent', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', cursor: 'pointer', padding: 0,
+        }}
+      >
+        <span className="ms" style={{ fontSize: 13, color: 'var(--text-weak)' }}>add</span>
+      </button>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 20 }}>
         {cell.lines.map((ln: DayLine, i: number) => (
           <div
@@ -588,13 +696,28 @@ function LedgerHistory() {
   // 목록 조회: 서버 TransactionSearchReq가 from/to를 지원하므로(OpenAPI 실측) 주간 뷰는 정산월
   // year/month 대신 from/to로 직접 필터한다 — year/month를 함께 보내면 이 화면이 쓰는 달력 주(월요일
   // 시작)와 서버의 정산월 경계가 어긋날 때 필터 조건이 서로 충돌해 없어도 될 결과 누락이 생길 수 있다.
+  // 달력에서 하루를 고르면 목록을 그 하루로 좁힌다(from=to=그 날). 정산월 year/month를 함께 보내지
+  // 않는 이유는 주간 뷰와 같다 — 고른 날이 정산월 경계 밖일 수 있어 두 조건이 충돌하면 있어야 할
+  // 거래가 사라진다. 하루치는 5건을 넘길 수 있으므로 페이지네이션은 그대로 둔다.
+  const selectedDate = state.ledgerSelectedDate
   const txQuery = useGetTransactions(
-    isWeek
-      ? { from: weekAnchor, to: weekEnd, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] }
-      : { year: cursor.year, month: cursor.month, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] },
+    selectedDate
+      ? { from: selectedDate, to: selectedDate, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] }
+      : isWeek
+        ? { from: weekAnchor, to: weekEnd, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] }
+        : { year: cursor.year, month: cursor.month, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] },
   )
   const dailyQueryA = useGetDailySummaries(weekStartMonth)
   const dailyQueryB = useGetDailySummaries(weekEndMonth, { enabled: needsSecondMonth })
+  // 달력의 이체 줄: 서버의 일별 요약(DailySummaryResponse)은 수입·지출·저축 세 가지만 내려주므로
+  // 이체는 거래 목록에서 TRANSFER만 따로 받아 날짜별로 합산한다. 기간 조건은 위 목록 조회와 똑같이
+  // 주간은 from/to, 월간은 정산월 year/month를 쓴다 — 달력과 목록이 다른 기간을 보면 안 된다.
+  // 서버가 일별 요약에 이체 합계를 추가해주면 이 조회는 통째로 지울 수 있다.
+  const transferQuery = useGetTransactions(
+    isWeek
+      ? { from: weekAnchor, to: weekEnd, type: 'TRANSFER', page: 1, size: CALENDAR_TRANSFER_SIZE }
+      : { year: cursor.year, month: cursor.month, type: 'TRANSFER', page: 1, size: CALENDAR_TRANSFER_SIZE },
+  )
   const accountsQuery = useGetAccounts()
 
   const rows = buildLedgerTx(txQuery.data?.content ?? [], accountsQuery.data ?? [])
@@ -605,6 +728,11 @@ function LedgerHistory() {
   const dailyErr = describeQueryError(dailyQueryA.error ?? dailyQueryB.error)
   const dailyPending = dailyQueryA.isPending || (needsSecondMonth && dailyQueryB.isPending)
   const dailySummaries = needsSecondMonth ? [...dailyQueryA.summaries, ...dailyQueryB.summaries] : dailyQueryA.summaries
+  const transferPage = transferQuery.data
+  const transferByDate = buildTransferTotalsByDate(transferPage?.content ?? [])
+  // 이체가 한 화면 조회 한도를 넘으면 넘친 만큼은 달력에 그려지지 않는다 — 조용히 빠뜨리지 않고
+  // 캡션으로 알린다(현실적으로 한 달에 이체 200건을 넘길 일은 거의 없다).
+  const transferTruncated = (transferPage?.totalElements ?? 0) > (transferPage?.content.length ?? 0)
 
   // 마지막 페이지의 마지막 거래를 지우면 그 페이지가 사라진다. 커서를 그대로 두면 서버가 빈
   // content를 돌려주고, 페이지 버튼도 totalPages가 줄면서 사라져 되돌아갈 방법이 없어진다
@@ -615,24 +743,24 @@ function LedgerHistory() {
     }
   }, [totalPages, state.ledgerPage, setState])
 
-  const { rows: monthRows, hasOutOfGridData } = buildMonthCalendarRows(cursor, dailySummaries)
-  const weekRow = buildWeekCalendarRow(weekAnchor, dailySummaries)
+  const { rows: monthRows, hasOutOfGridData } = buildMonthCalendarRows(cursor, dailySummaries, transferByDate)
+  const weekRow = buildWeekCalendarRow(weekAnchor, dailySummaries, transferByDate)
 
   const goToMonth = (delta: number) => {
     const next = shiftYearMonth(cursor, delta)
-    setState({ ledgerYear: next.year, ledgerMonth: next.month, ledgerPage: 1 })
+    setState({ ledgerYear: next.year, ledgerMonth: next.month, ledgerPage: 1, ledgerSelectedDate: null })
   }
   const goToWeek = (delta: number) => {
     const nextAnchor = addDays(weekAnchor, delta * 7)
     const owner = weekOwnerYearMonth(nextAnchor)
-    setState({ ledgerWeekAnchor: nextAnchor, ledgerYear: owner.year, ledgerMonth: owner.month, ledgerPage: 1 })
+    setState({ ledgerWeekAnchor: nextAnchor, ledgerYear: owner.year, ledgerMonth: owner.month, ledgerPage: 1, ledgerSelectedDate: null })
   }
   const goToToday = () => {
     const t = todayYearMonth()
     if (isWeek) {
-      setState({ ledgerWeekAnchor: mondayOf(toISODate(new Date())), ledgerYear: t.year, ledgerMonth: t.month, ledgerPage: 1 })
+      setState({ ledgerWeekAnchor: mondayOf(toISODate(new Date())), ledgerYear: t.year, ledgerMonth: t.month, ledgerPage: 1, ledgerSelectedDate: null })
     } else {
-      setState({ ledgerYear: t.year, ledgerMonth: t.month, ledgerPage: 1 })
+      setState({ ledgerYear: t.year, ledgerMonth: t.month, ledgerPage: 1, ledgerSelectedDate: null })
     }
   }
   // 주간/월간 토글: 상대 뷰가 보던 위치를 최대한 이어받는다. 월간 → 주간은 지금 커서 달이 실제
@@ -645,11 +773,11 @@ function LedgerHistory() {
     const t = todayYearMonth()
     const inCurrentMonth = t.year === cursor.year && t.month === cursor.month
     const nextAnchor = inCurrentMonth ? mondayOf(toISODate(new Date())) : firstOwnedWeekMonday(cursor.year, cursor.month)
-    setState({ ledgerRange: 'week', ledgerWeekAnchor: nextAnchor, ledgerPage: 1 })
+    setState({ ledgerRange: 'week', ledgerWeekAnchor: nextAnchor, ledgerPage: 1, ledgerSelectedDate: null })
   }
   const switchToMonth = () => {
     const owner = weekOwnerYearMonth(weekAnchor)
-    setState({ ledgerRange: 'month', ledgerYear: owner.year, ledgerMonth: owner.month, ledgerPage: 1 })
+    setState({ ledgerRange: 'month', ledgerYear: owner.year, ledgerMonth: owner.month, ledgerPage: 1, ledgerSelectedDate: null })
   }
 
   // 새 거래 입력 진입점(캘린더 날짜 클릭 · 상단 유형별 버튼) 공용 초기화. 이전에 열려 있던 수정 세션의
@@ -674,6 +802,15 @@ function LedgerHistory() {
   // cell.isoDate로 바로 만든다 — 주간 뷰의 셀은 월 경계를 넘어 cursor.year/month와 다른 달에 속할 수
   // 있어(예: 8월 마지막 주에 9월 1일 칸이 섞임) cursor로 재조합하면 엉뚱한 날짜가 만들어진다.
   const openDayEntry = (isoDate: string) => openNewEntry('expense', true, isoDateToDisplay(isoDate))
+
+  // 달력 칸 클릭 = "그날 내역 보기". 같은 칸을 다시 누르면 해제해 기간 전체로 돌아간다 — 선택을
+  // 푸는 방법이 목록 위 X 하나뿐이면 모바일에서 되돌리기가 번거롭다. 날짜가 바뀌면 페이지는 1로.
+  const selectDay = (isoDate: string) => () =>
+    setState((st) => ({
+      ledgerSelectedDate: st.ledgerSelectedDate === isoDate ? null : isoDate,
+      ledgerPage: 1,
+    }))
+  const clearSelectedDay = () => setState({ ledgerSelectedDate: null, ledgerPage: 1 })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -748,28 +885,32 @@ function LedgerHistory() {
         ) : (
           <>
             {isWeek && (
-              // 모바일에서는 7칸을 1fr로 욱여넣으면 배지 안 끊어지는 숫자 때문에 셀이 너무
-              // 좁아진다(칸당 40px 미만) — 칸 너비를 고정하고 가로 스크롤로 넘긴다.
-              <div style={{ overflowX: isMobile ? 'auto' : 'visible' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(7,64px)' : 'repeat(7,1fr)', gap: 8 }}>
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: CALENDAR_GRID_COLUMNS(isMobile), gap: isMobile ? 4 : 8 }}>
                   {WEEKDAY_HEADERS.map((h) => (
-                    <div key={h.label} style={{ fontSize: 11.5, fontWeight: 700, color: h.color, textAlign: 'center', paddingBottom: 4 }}>
+                    <div key={h.label} style={{ fontSize: isMobile ? 10.5 : 11.5, fontWeight: 700, color: h.color, textAlign: 'center', paddingBottom: 4 }}>
                       {h.label}
                     </div>
                   ))}
                   {/* 주간 뷰는 항상 7칸이 실제 날짜라 빈 칸이 없다(월 경계를 넘는 칸도 label이 "M/D"로
                       스스로 구분되므로 별도 처리가 필요 없다). */}
                   {weekRow.map((cell) => (
-                    <CalendarCellView key={cell.isoDate} cell={cell} onOpen={openDayEntry(cell.isoDate)} />
+                    <CalendarCellView
+                      key={cell.isoDate}
+                      cell={cell}
+                      selected={selectedDate === cell.isoDate}
+                      onSelect={selectDay(cell.isoDate)}
+                      onAdd={openDayEntry(cell.isoDate)}
+                    />
                   ))}
                 </div>
               </div>
             )}
             {!isWeek && (
-              <div style={{ overflowX: isMobile ? 'auto' : 'visible' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(7,64px)' : 'repeat(7,1fr)', gap: 8 }}>
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: CALENDAR_GRID_COLUMNS(isMobile), gap: isMobile ? 4 : 8 }}>
                   {WEEKDAY_HEADERS.map((h) => (
-                    <div key={h.label} style={{ fontSize: 11.5, fontWeight: 700, color: h.color, textAlign: 'center', paddingBottom: 4 }}>
+                    <div key={h.label} style={{ fontSize: isMobile ? 10.5 : 11.5, fontWeight: 700, color: h.color, textAlign: 'center', paddingBottom: 4 }}>
                       {h.label}
                     </div>
                   ))}
@@ -777,12 +918,31 @@ function LedgerHistory() {
                       (예: 인덱스 1의 빈 칸 vs 1일 셀) — 접두사로 분리한다. */}
                   {monthRows.flat().map((cell, i) =>
                     cell ? (
-                      <CalendarCellView key={`d-${cell.day}`} cell={cell} onOpen={openDayEntry(cell.isoDate)} />
+                      <CalendarCellView
+                        key={`d-${cell.day}`}
+                        cell={cell}
+                        selected={selectedDate === cell.isoDate}
+                        onSelect={selectDay(cell.isoDate)}
+                        onAdd={openDayEntry(cell.isoDate)}
+                      />
                     ) : (
                       <div key={`e-${i}`} />
                     ),
                   )}
                 </div>
+              </div>
+            )}
+            {/* 색 점만으로는 무슨 거래인지 알 수 없다 — 모바일에서만 범례를 붙인다
+                (데스크톱은 칸 안에 금액 배지가 그대로 있어 범례가 필요 없다). */}
+            {isMobile && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 12, fontSize: 11, color: 'var(--text-weak)' }}>
+                {CALENDAR_DOT_LEGEND.map((d) => (
+                  <span key={d.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: 999, background: d.color }} />
+                    {d.label}
+                  </span>
+                ))}
+                <span style={{ marginLeft: 'auto' }}>날짜를 누르면 그날 내역</span>
               </div>
             )}
             {/* 정산월(monthStartDay≠1)이면 서버가 이 달력월과 다른 달의 날짜도 함께 내려줄 수 있는데,
@@ -793,16 +953,60 @@ function LedgerHistory() {
                 일부 거래는 정산월 경계 때문에 캘린더에 표시되지 못했어요. 아래 목록에서 확인해주세요.
               </div>
             )}
+            {transferTruncated && (
+              <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-weak)' }}>
+                이체가 너무 많아 일부는 캘린더에 표시되지 못했어요. 아래 목록에서 확인해주세요.
+              </div>
+            )}
           </>
         )}
 
         <div style={{ marginTop: 22, paddingTop: 18, borderTop: '0.5px solid var(--track)' }}>
           {/* keepPreviousData 때문에 기간을 옮기면 새 데이터가 오기 전까지 이전 기간 거래가 그대로
               보인다. 제목은 이미 새 기간으로 바뀌어 있으므로, 갱신 중임을 옆에 표시해 오해를 막는다. */}
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>{isWeek ? weekListTitle(weekAnchor) : `${yearMonthLabel(cursor)} 전체 내역`}</div>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>
+              {selectedDate
+                ? dayListTitle(selectedDate)
+                : isWeek
+                  ? weekListTitle(weekAnchor)
+                  : `${yearMonthLabel(cursor)} 전체 내역`}
+            </div>
             {txQuery.isFetching && !txQuery.isPending && (
               <span aria-busy style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>불러오는 중…</span>
+            )}
+            {selectedDate && (
+              <>
+                {/* 하루로 좁힌 상태를 되돌리는 칩. 터치 최소치(44px)를 지킨다(docs/mobile.md §5). */}
+                <button
+                  type="button"
+                  onClick={clearSelectedDay}
+                  className="mini-hov"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4, minHeight: 44, padding: '0 10px',
+                    borderRadius: 8, border: 'none', background: 'var(--track)', color: 'var(--text-mid)',
+                    fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  <Icon name="close" size={13} />
+                  {isWeek ? '이 주 전체' : '이 달 전체'}
+                </button>
+                {/* 예전에 달력 칸 클릭이 하던 "그날 거래 추가"의 모바일 경로 — 데스크톱 칸의 + 아이콘과 같은 동작. */}
+                <button
+                  type="button"
+                  onClick={openDayEntry(selectedDate)}
+                  className="mini-hov"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4, minHeight: 44, padding: '0 10px',
+                    borderRadius: 8, border: 'none', background: 'var(--accent-soft)', color: 'var(--accent)',
+                    fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                    marginLeft: 'auto',
+                  }}
+                >
+                  <Icon name="add" size={14} />
+                  이 날짜에 거래 추가
+                </button>
+              </>
             )}
           </div>
           {txQuery.isPending ? (
@@ -810,7 +1014,9 @@ function LedgerHistory() {
           ) : txErr ? (
             <ErrorLine message={txErr.message} muted={txErr.muted} />
           ) : rows.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>{isWeek ? '이 주에는' : '이 달에는'} 거래 내역이 없어요.</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>
+              {selectedDate ? '이 날에는' : isWeek ? '이 주에는' : '이 달에는'} 거래 내역이 없어요.
+            </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {rows.map((t) => (
@@ -859,7 +1065,12 @@ function LedgerHistory() {
                     )}
                   </div>
                   {t.tag && (
-                    <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 8, whiteSpace: 'nowrap', background: 'var(--fill-subtle)', color: 'var(--text-mid)' }}>
+                    // 태그는 사용자가 직접 지은 계좌명·소분류명이라 길이 제한이 없다(ledgerView.ts
+                    // buildLedgerTx). flex 아이템의 자동 최소 크기는 내용의 min-content라, nowrap만
+                    // 걸고 두면 긴 이름이 이 줄 전체를 화면 밖으로 밀어낸다 — 위 카테고리 랭킹 행과
+                    // 같은 방식으로 최대 폭을 정하고 넘치면 말줄임 처리한다(전체 값은 눌러서 여는
+                    // 수정 모달에서 볼 수 있다).
+                    <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 8, whiteSpace: 'nowrap', background: 'var(--fill-subtle)', color: 'var(--text-mid)', flex: 'none', maxWidth: 96, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {t.tag}
                     </span>
                   )}

@@ -96,6 +96,7 @@ export const initialState: AppState = {
   ledgerYear: todayCursor.year,
   ledgerMonth: todayCursor.month,
   ledgerWeekAnchor: mondayOf(toISODate(new Date())),
+  ledgerSelectedDate: null,
 
   expenseCatSel: '식비',
   incomeTypeSel: '급여',
