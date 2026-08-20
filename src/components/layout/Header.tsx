@@ -12,6 +12,7 @@
 import type { MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Avatar } from '../primitives/Avatar/Avatar'
+import { MonitLogo } from './MonitLogo'
 import { Icon } from '../primitives/Icon/Icon'
 import { useAppState } from '../../state/AppStateContext'
 import { useIsMobile } from '../../utils/useMediaQuery'
@@ -58,6 +59,16 @@ const NOTIF_ITEM_STYLE = {
   cursor: 'pointer',
   textAlign: 'left' as const,
   fontFamily: 'inherit',
+}
+
+// 화면에서는 감추되 스크린리더에는 남기는 관례 스타일(AccountHoldingsField의 aria-live 블록과 같은 값).
+const SR_ONLY_STYLE = {
+  position: 'absolute' as const,
+  width: 1,
+  height: 1,
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap' as const,
 }
 
 const MARK_ALL_READ_BTN_STYLE = {
@@ -119,8 +130,19 @@ export function Header() {
   return (
     <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 26, gap: 24 }}>
       <div>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text-strong)' }}>
-          Monit
+        {/* 모바일(<=767px)에서는 글자 대신 로고 마크를 쓴다(2026-08-20 요청). 데스크톱은 사이드바가
+            이미 같은 마크를 달고 있어 상단바까지 로고를 두면 같은 마크가 두 번 나오므로 글자로 둔다.
+            h1은 두 경우 모두 유지하고, 로고일 때는 화면에서만 감춘 텍스트로 제목을 남긴다 — 스크린리더가
+            읽을 페이지 제목이 사라지면 안 된다. */}
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text-strong)', display: 'flex', alignItems: 'center' }}>
+          {isMobile ? (
+            <>
+              <MonitLogo />
+              <span style={SR_ONLY_STYLE}>Monit</span>
+            </>
+          ) : (
+            'Monit'
+          )}
         </h1>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

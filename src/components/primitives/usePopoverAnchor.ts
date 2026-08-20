@@ -44,6 +44,23 @@ interface TriggerRect {
   right: number
 }
 
+/**
+ * 소프트 키보드가 가리고 남은 "실제로 보이는" 높이. `window.innerHeight`(레이아웃 뷰포트)는 iOS·
+ * Android 모두 키보드가 올라와도 줄지 않으므로, 그 값으로 아래 여백을 계산하면 키보드가 차지한
+ * 영역까지 "비어 있다"고 판정한다. 그러면 팝오버가 아래로 열리고 그 아래는 통째로 키보드다 —
+ * 사용자 눈에는 검색을 해도 아무 일이 안 일어나는 것처럼 보인다(AccountHoldingsField의 종목 검색은
+ * 키보드가 떠 있는 상태에서만 쓰는 유일한 팝오버라 이 문제가 여기서만 드러났다, 2026-08-20 수정).
+ *
+ * `visualViewport.height`는 키보드가 가린 만큼 줄어든다. 트리거 rect는 레이아웃 뷰포트 좌표계라,
+ * 키보드가 뜨면서 페이지가 밀려 올라간 만큼(`offsetTop`)을 더해 같은 좌표계로 맞춘다.
+ * 미지원 브라우저에서는 예전과 똑같이 `innerHeight`로 떨어진다.
+ */
+function visibleViewportBounds(): { top: number; bottom: number } {
+  const vv = typeof window !== 'undefined' ? window.visualViewport : undefined
+  if (!vv) return { top: 0, bottom: window.innerHeight }
+  return { top: vv.offsetTop, bottom: vv.height + vv.offsetTop }
+}
+
 export interface PopoverAnchor {
   /** Attach to the trigger element (must wrap the same node the desktop-absolute fallback treats as `position:relative` anchor). */
   anchorRef: RefObject<HTMLDivElement | null>
@@ -93,9 +110,18 @@ export function usePopoverAnchor(active: boolean, preferredHeight: number = DEFA
     // to the target — listening on `document` with `capture:true` catches scrolling inside the modal
     // panel/sheet (and the window itself), so a fixed popover never drifts away from its trigger.
     document.addEventListener('scroll', update, true)
+    // 소프트 키보드가 열리고 닫히는 것은 `window` resize로 잡히지 않는다(레이아웃 뷰포트가 그대로라
+    // 이벤트 자체가 안 나거나, 나더라도 innerHeight가 안 변한다). visualViewport의 resize/scroll이
+    // 그 변화를 알려주는 유일한 신호다 — 이걸 듣지 않으면 키보드가 올라온 뒤에도 팝오버가 열릴
+    // 방향을 다시 계산하지 않는다(visibleViewportBottom 주석 참고).
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', update)
+    vv?.addEventListener('scroll', update)
     return () => {
       window.removeEventListener('resize', update)
       document.removeEventListener('scroll', update, true)
+      vv?.removeEventListener('resize', update)
+      vv?.removeEventListener('scroll', update)
     }
   }, [active])
 
@@ -103,8 +129,12 @@ export function usePopoverAnchor(active: boolean, preferredHeight: number = DEFA
     return { anchorRef, style: undefined, rect: undefined, maxHeight: undefined, openAbove: false }
   }
 
-  const spaceBelow = window.innerHeight - rect.bottom - POPOVER_VIEWPORT_MARGIN - POPOVER_GAP
-  const spaceAbove = rect.top - POPOVER_VIEWPORT_MARGIN - POPOVER_GAP
+  // 여닫을 방향은 "키보드가 가리고 남은 실제 가시 영역" 기준으로 정한다 — innerHeight로 재면 키보드
+  // 뒤로 열린다(visibleViewportBounds 주석 참고). 아래의 top/bottom px 값 자체는 그대로 레이아웃
+  // 뷰포트 좌표계를 쓴다: position:fixed의 기준 상자는 시각 뷰포트가 아니라 레이아웃 뷰포트다.
+  const visible = visibleViewportBounds()
+  const spaceBelow = visible.bottom - rect.bottom - POPOVER_VIEWPORT_MARGIN - POPOVER_GAP
+  const spaceAbove = rect.top - visible.top - POPOVER_VIEWPORT_MARGIN - POPOVER_GAP
   const openAbove = spaceBelow < preferredHeight && spaceAbove > spaceBelow
 
   return {

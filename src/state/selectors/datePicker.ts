@@ -63,6 +63,16 @@ const HIDDEN_CELL_STYLE: CSSProperties = {
 }
 
 /**
+ * 아직 고른 날짜가 없을 때 달력이 처음 펼쳐지는 달. 원본은 목업이라 `{ y: 2026, m: 7 }`이 상수로
+ * 박혀 있었는데, 그대로 두면 시간이 지날수록 모든 달력이 2026년 7월에서 열린다(2026-08-20 확인 —
+ * 계좌 등록의 개설일·만기일이 지난달에서 열렸다). 오늘이 속한 달에서 열도록 계산으로 바꿨다.
+ */
+function currentNav(): DateNav {
+  const now = new Date()
+  return { y: now.getFullYear(), m: now.getMonth() + 1 }
+}
+
+/**
  * @param maxISO 'YYYY-MM-DD' — 지정하면 이 날짜 이후는 선택할 수 없다(비활성 표시 + pick 없음),
  *   다음 달 이동도 그 달까지만 허용한다. 매매·환전처럼 미래 일자가 성립하지 않는 폼에서만 쓴다 —
  *   가계부 거래 날짜에는 적용하지 않는다(예정 지출을 미리 기록할 수 있어야 하는 제품 결정, 별도 확인 전까지 보류).
@@ -70,7 +80,7 @@ const HIDDEN_CELL_STYLE: CSSProperties = {
 export function useDatePicker(
   key: string,
   defaultDisplay: string,
-  defaultNav: DateNav = { y: 2026, m: 7 },
+  defaultNav: DateNav = currentNav(),
   maxISO?: string,
 ): DatePickerState {
   const { state, setState } = useAppState()
