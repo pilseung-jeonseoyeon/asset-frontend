@@ -49,6 +49,14 @@ export function useGetAccountSnapshots(accountId: number | null, range: DateRang
 /**
  * 계좌·스냅샷이 바뀌면 서버가 잔액을 다시 계산하므로 자산 분포/대시보드까지 함께 무효화한다.
  * 기관은 "활성 계좌 보유 여부"가 달라져 삭제 가능 상태가 바뀌므로 포함한다.
+ *
+ * 매매(trade)·보유 종목(stock)도 함께 지운다: 계좌 등록이 holdings를 함께 받으면 서버가 그만큼 BUY
+ * 매매를 만들고(CreateAccountReq.holdings), 계좌를 지우면 그 매매도 함께 사라지므로 주식 화면이 옛
+ * 목록을 그대로 들고 있으면 안 된다.
+ *
+ * 목표(goal)도 포함한다: GoalResponse.annual은 "실시간 총자산 기준" 진행률이라(goal.type.ts) 계좌
+ * 하나만 추가해도 값이 달라진다. 이게 빠져 있어서 총자산 히어로·도넛은 즉시 갱신되는데 대시보드
+ * 목표 카드만 옛 진행률로 남아 있었다(2026-08-20 수정).
  */
 function useInvalidateAccount() {
   const queryClient = useQueryClient()
@@ -57,6 +65,9 @@ function useInvalidateAccount() {
     void queryClient.invalidateQueries({ queryKey: qk.asset.all() })
     void queryClient.invalidateQueries({ queryKey: qk.dashboard.all() })
     void queryClient.invalidateQueries({ queryKey: qk.institution.all() })
+    void queryClient.invalidateQueries({ queryKey: qk.stock.all() })
+    void queryClient.invalidateQueries({ queryKey: qk.trade.all() })
+    void queryClient.invalidateQueries({ queryKey: qk.goal.all() })
   }
 }
 

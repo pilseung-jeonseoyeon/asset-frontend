@@ -42,7 +42,7 @@
 // 예수금을 맞추려면 가계부에 거래를 기록해야 한다.
 //
 // 외화 계좌는 달러·원화 금액을 함께 보여준다(2026-08-20, 사용자 요청 — "달러, 원화 둘 다 보여줘야
-// 한다"). AccountRes.initialBalanceNative(등록 시점 달러 예수금 원금, 계좌 통화 단위)와
+// 한다"). AccountRes.initialBalanceUsd(등록 시점 달러 예수금 원금, 계좌 통화 단위)와
 // initialBalanceKrw(등록 시점 원화 예수금 원금, 원화)는 최근 커밋(7fcbf61)대로 해외주식 계좌가 등록
 // 시점에 함께 넣을 수 있는 서로 다른 돈이라 나란히 보여준다 — "등록 시점 달러 예수금"과 "등록 시점
 // 원화 예수금"으로 라벨을 나눠 헷갈리지 않게 한다. balanceKrw(현재 평가액, 원화)는 이 둘의 조회 시점
@@ -126,8 +126,8 @@ export function EditAccountModal() {
   // "등록 시점 원화 예수금"은 값이 있을 때만 보여준다 — 달러만 넣고 만든 해외주식 계좌(가장 흔한
   // 경우)는 initialBalanceKrw가 0이라, 상시 노출하면 "₩0"과 안내 문구가 항상 뜬다(리뷰 지적). OpenAPI
   // 상 initialBalanceKrw는 required·non-null이지만, 바로 이 파일이 "타입 선언을 믿었다가 런타임에
-  // 터진" 사고(initialBalanceNative의 undefined 크래시)를 겪었으므로, null/undefined도 함께 걸러
-  // initialBalanceNative와 같은 수준으로 방어한다.
+  // 터진" 사고(initialBalanceUsd의 undefined 크래시)를 겪었으므로, null/undefined도 함께 걸러
+  // initialBalanceUsd와 같은 수준으로 방어한다.
   const hasKrwDeposit = isForeignAccount && !!account?.initialBalanceKrw
 
   // 폼 초기값 채우기(예외적으로 허용 — docs/state-management.md "서버 데이터를 AppState로 복사하지
@@ -376,17 +376,17 @@ export function EditAccountModal() {
               {isForeignAccount ? (
                 // 외화 계좌는 잔액 정정을 서버가 거절한다(파일 상단 주석) — 고칠 수 없는 칸을 열어두면
                 // 저장을 눌러야 비로소 에러를 보게 되므로, 아예 읽기 전용으로 둔다. 여기 보여주는 건
-                // '현재 달러 잔액'이 아니라 등록할 때 넣은 달러 예수금 원금(initialBalanceNative)이다 —
+                // '현재 달러 잔액'이 아니라 등록할 때 넣은 달러 예수금 원금(initialBalanceUsd)이다 —
                 // 서버가 현재 달러 잔액을 내려주지 않아 만들어낼 수 없다(파일 상단 주석). null이면 아직
                 // 환전 전(원화 예수금만 있는 상태)이라는 뜻이라 '—'로 보여준다.
                 <div
                   role="group"
-                  aria-label={`등록 시점 달러 예수금(읽기 전용) ${account.initialBalanceNative != null ? `$${formatCurrencyAmount(account.initialBalanceNative, 'USD')}` : '없음'}`}
+                  aria-label={`등록 시점 달러 예수금(읽기 전용) ${account.initialBalanceUsd != null ? `$${formatCurrencyAmount(account.initialBalanceUsd, 'USD')}` : '없음'}`}
                   style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--fill-subtle)', ...FIELD_BORDER_STYLE }}
                 >
                   <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>$</span>
                   <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-mid)' }}>
-                    {account.initialBalanceNative != null ? formatCurrencyAmount(account.initialBalanceNative, 'USD') : '—'}
+                    {account.initialBalanceUsd != null ? formatCurrencyAmount(account.initialBalanceUsd, 'USD') : '—'}
                   </span>
                   <Icon name="lock" size={14} color="var(--text-weak)" style={{ marginLeft: 'auto', flexShrink: 0 }} ariaHidden />
                 </div>
