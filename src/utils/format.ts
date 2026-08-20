@@ -7,6 +7,18 @@ export function fmt(n: number): string {
 }
 
 /**
+ * 원화 금액 표시. 원은 소수점을 쓰지 않으므로 소수부를 **버린다**(2026-08-20, 사용자 요청).
+ * 해외 종목의 원화 환산액(HoldingRes.valuationKrw 등)은 달러 시세 × 환율이라 소수가 섞여 오는데,
+ * 그대로 fmt()에 넣으면 주식 화면에 `6,665,311.125원`처럼 나왔다.
+ * 반올림이 아니라 버림인 이유는 없는 돈이 생기지 않게 하기 위함이고, Math.trunc라 음수(손익)도
+ * 0 방향으로 줄어든다 — −1,234.9원이 −1,235원으로 커지지 않는다.
+ * 수량(주/개)에는 쓰지 말 것 — 해외주식·코인은 소수점 수량이 정상이다(3.5주).
+ */
+export function fmtKrw(n: number): string {
+  return fmt(Math.trunc(n))
+}
+
+/**
  * 통화별 고정 소수 자릿수로 금액을 포맷한다. fmt()와 마찬가지로 통화 기호(₩/$)는 포함하지
  * 않는다 — 붙이는 건 호출부 몫이다. 원화는 소수점 없는 정수, 그 외(현재는 USD만 취급)는
  * 소수점 2자리로 고정한다. fmt()가 자릿수를 고정하지 않아 USD 금액이 `$77` / `$77.5` /
@@ -14,7 +26,7 @@ export function fmt(n: number): string {
  * 포맷 함수를 새로 만들지 않도록 이 헬퍼 하나로 통일한다.
  */
 export function formatCurrencyAmount(n: number, currency: Currency): string {
-  if (currency === 'KRW') return fmt(n)
+  if (currency === 'KRW') return fmtKrw(n)
   return n.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
