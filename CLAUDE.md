@@ -38,6 +38,7 @@
 - [`docs/code-convention.md`](./docs/code-convention.md) — 명명 규칙, import 순서, 컴포넌트 작성 스타일
 - [`docs/api-conventions.md`](./docs/api-conventions.md) — axios/React Query 기반 API 통신 규칙, 서비스 폴더 구조
 - [`docs/mobile.md`](./docs/mobile.md) — 모바일 브레이크포인트, 바텀시트/하단탭 규격, 터치 대응
+- [`docs/excel-import.md`](./docs/excel-import.md) — 가계부 엑셀 가져오기의 프론트 제안 계약(엑셀 열 순서·엔드포인트·응답). **백엔드 API는 아직 없음** — 서버가 생기면 OpenAPI와 대조해 갱신
 
 **백엔드 API 스펙의 정본은 실행 중인 서버의 OpenAPI 문서입니다.** 별도의 API 스펙 문서
 (예전의 `secret/API-SPEC.md`)는 더 이상 유지하지 않습니다 — 새로 만들지 마세요.
@@ -52,7 +53,7 @@
 
 - 기술 스택: Vite + React 19 + TypeScript. `react-router-dom`(`BrowserRouter`)으로 로그인 후 5개 메뉴 화면(`/dashboard` `/assets` `/stocks` `/ledger` `/settings`)을 URL에 연결합니다 — 그 외 경로(`/`, 알 수 없는 경로)는 `/dashboard`로 리다이렉트됩니다. 라우팅 범위는 이 5개 화면뿐이고, 화면 내 탭(가계부 개요/내역, 주식 전체/국내/해외)이나 모달은 여전히 주소와 무관하게 `AppState`로만 관리됩니다. CSS 프레임워크 없음. 테스트 러너 아직 미구성.
 - 상태는 세 레이어로 나뉩니다: 앱 자체 reducer/context(`AppState`) + React Query(서버 상태) + Zustand(`src/stores/` — 전역 로딩, 인증 토큰). 경계는 `docs/state-management.md` 참고.
-- **데이터는 서버에서 옵니다.** axios + React Query 기반 API 레이어가 `src/services/{domain}/`에 도메인별로 있고(`auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification` `export`), 자산·가계부·주식 화면과 헤더 알림·자산 목표는 조회와 생성/수정/삭제가 모두 실제 API에 연결되어 있습니다.
+- **데이터는 서버에서 옵니다.** axios + React Query 기반 API 레이어가 `src/services/{domain}/`에 도메인별로 있고(`auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification` `export` `import`), 자산·가계부·주식 화면과 헤더 알림·자산 목표는 조회와 생성/수정/삭제가 모두 실제 API에 연결되어 있습니다. 단 `import`(가계부 엑셀 가져오기)는 **백엔드 API가 아직 없어** 프론트 레이어만 먼저 만들어 둔 상태입니다 — 계약 제안은 `docs/excel-import.md`.
   **아직 목업인 곳은 월간 리포트 오버레이(`ReportOverlay.tsx`) 한 곳뿐입니다.** 대시보드 화면은 서버 통신(`src/services/dashboard`)과 뷰모델 변환(`src/data/dashboardView.ts`)을 거쳐 실제 API에 연결되어 있습니다(`mockDashboard.ts`는 삭제됨).
 - 진입점: `src/main.tsx`가 `BrowserRouter` → `QueryClientProvider` → `AppStateProvider`로 감싼 `App`을 `index.html`의 `#root`에 마운트합니다. `src/index.css`는 `fonts.css` → `tokens.css` → `bank-tokens.css` → `base.css` 순으로 import합니다. `App.tsx`는 현재 테마를 적용(`useApplyTheme`)한 뒤 `AppShell`을 렌더링합니다. 화면 전환은 더 이상 `state.screen`이 아니라 `AuthenticatedApp.tsx`의 `<Routes>`가 담당합니다(경로 목록은 `navItems.ts`의 `NAV_ITEMS`를 사이드바/하단탭과 공유).
 - `tsconfig.json`은 project references 구조입니다: `src/`는 `tsconfig.app.json`, Vite 설정은 `tsconfig.node.json`을 사용합니다. 전체 빌드는 항상 `tsc -b`로 실행하세요(단순 `tsc` 아님).
