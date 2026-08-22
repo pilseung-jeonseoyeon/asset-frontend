@@ -1,23 +1,34 @@
 {
-  "outputStyle": "monit-friendly",
   "permissions": {
     "allow": [
       "Edit(./src/**)",
       "Edit(./docs/**)",
       "Edit(./public/**)",
-      "Bash(pnpm install)", "Bash(pnpm dev)", "Bash(pnpm build)",
-      "Bash(pnpm lint)", "Bash(pnpm preview)",
-      "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)",
-      "Bash(git add *)", "Bash(git commit*)", "Bash(git branch)",
+      "Bash(pnpm install)",
+      "Bash(pnpm dev)",
+      "Bash(pnpm build)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm preview)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add *)",
+      "Bash(git commit*)",
+      "Bash(git branch)",
       "Bash(git pull*)"
     ],
     "deny": [
-      "Read(./.env)", "Read(./.env.*)",
-      "Edit(./.env)", "Edit(./.env.*)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Edit(./.env)",
+      "Edit(./.env.*)",
       "Edit(./secret/**)",
-      "Bash(rm -rf *)", "Bash(sudo *)",
-      "Bash(git add -f *)", "Bash(git add --force *)",
-      "Bash(git reset --hard*)", "Bash(git clean -f*)",
+      "Bash(rm -rf *)",
+      "Bash(sudo *)",
+      "Bash(git add -f *)",
+      "Bash(git add --force *)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
       "Bash(git branch -D *)"
     ]
   },
@@ -65,5 +76,9 @@
         ]
       }
     ]
+  },
+  "outputStyle": "monit-friendly",
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true
   }
 }
