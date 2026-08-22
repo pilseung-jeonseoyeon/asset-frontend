@@ -20,6 +20,13 @@
 // 하드코딩 "투자 수익/원금 회수" 블록(구 showInvestBreakdown)은 대응 API가 없어 제거했다(주석 없이
 // 지우면 히스토리 추적이 어려워 여기 남긴다 — ds_rules 10-4의 "투자 실현 수익" 분리 기록은 매도
 // 체결(트레이드) 쪽에서 다룰 몫이라 이 모달의 범위가 아니다).
+//
+// 최근 내역 추천(2026-08-23): 신규 등록 중 "내용"을 2글자 이상 치면 최근 6개월 거래에서 비슷한 제목을
+// 찾아 칩 최대 3개를 입력칸 아래에 보여준다. 칩을 누르면 제목·금액·소분류·계좌(저축·이체는 출금/상대
+// 계좌)를 한 번에 채운다. 자동으로 채우지는 않는다. 목록은 모달이 열릴 때 한 번 받고(React Query 캐시,
+// 거래 등록 시 transaction 키가 무효화되어 다음에 열면 새로 반영), 제목 비교는 ledgerView의
+// buildEntrySuggestions가 한다 — 서버에 제목 검색이 없어서다. 수정 모드에서는 보여주지 않는다(이미
+// 값이 다 차 있고, 엉뚱한 칩을 눌러 기존 거래가 덮어써지는 사고를 막는다).
 
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -31,19 +38,32 @@ import { SegmentedTab } from '../../../components/primitives/SegmentedTab/Segmen
 import { useAppState } from '../../../state/AppStateContext'
 import { useEntityDropdown, type DropdownState } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
-import { isoDateToDisplay, pickedToISODate, toISODate } from '../../../utils/date'
+import { isoDateToDisplay, pickedToISODate, recentMonthsRange, toISODate } from '../../../utils/date'
 import { fmt, parseAmount } from '../../../utils/format'
-import { ENTRY_TYPE_TO_CATEGORY_KIND, ENTRY_TYPE_TO_TX_TYPE, findSubcategoryById } from '../../../data/ledgerView'
-import type { EntryType } from '../../../state/types'
+import { ENTRY_TYPE_TO_CATEGORY_KIND, ENTRY_TYPE_TO_TX_TYPE, buildEntrySuggestions, findSubcategoryById } from '../../../data/ledgerView'
+import type { EntrySuggestion } from '../../../data/ledgerView'
+import type { AppState, EntryType } from '../../../state/types'
 import { ApiError } from '@/services/api'
 import { useGetAccounts } from '@/services/account'
 import { useGetCategories } from '@/services/category'
-import { useDeleteTransaction, usePostTransaction, usePutTransaction } from '@/services/transaction'
+import { useDeleteTransaction, useGetTransactions, usePostTransaction, usePutTransaction } from '@/services/transaction'
 import type { CreateTransactionRequest, UpdateTransactionRequest } from '@/services/transaction'
 
 const LABEL_STYLE: CSSProperties = { fontSize: 12.5, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 8 }
 const FIELD_BORDER_STYLE: CSSProperties = { border: '0.5px solid var(--border)', borderRadius: 10, padding: '13px 16px' }
 const ERROR_STYLE: CSSProperties = { fontSize: 11.5, color: 'var(--down)', marginTop: 6 }
+// 추천 칩 — 보조 톤 알약. minHeight 44는 docs/mobile.md의 터치 영역 최소 규격.
+const SUGGESTION_CHIP_STYLE: CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 44, padding: '0 12px', borderRadius: 999,
+  border: '0.5px solid var(--border)', background: 'var(--surface)', fontSize: 11.5, fontWeight: 600,
+  color: 'var(--text-mid)', fontFamily: 'inherit', cursor: 'pointer', maxWidth: '100%',
+}
+const SUGGESTION_DESC_STYLE: CSSProperties = {
+  fontWeight: 700, color: 'var(--text-strong)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+}
+// 추천 후보로 받아 둘 최근 거래 범위. 개인 가계부 규모에서 6개월·500건이면 자주 쓰는 제목은 다 들어온다.
+const SUGGESTION_MONTHS_BACK = 6
+const SUGGESTION_FETCH_SIZE = 500
 
 const CONTENT_PLACEHOLDER: Record<EntryType, string> = {
   income: '급여, 상여, 이자 등',
@@ -69,8 +89,17 @@ export function LedgerEntryModal() {
   const postTx = usePostTransaction()
   const putTx = usePutTransaction()
   const deleteTx = useDeleteTransaction()
+  // 추천 후보. 신규 등록일 때만 받는다(수정 모드엔 추천을 안 보여주므로 요청도 안 한다).
+  const suggestionsEnabled = isOpen && !isEditing
+  const recentTxQuery = useGetTransactions(
+    { ...recentMonthsRange(SUGGESTION_MONTHS_BACK), page: 1, size: SUGGESTION_FETCH_SIZE },
+    { enabled: suggestionsEnabled },
+  )
 
   const [amountInvalid, setAmountInvalid] = useState(false)
+  // 칩을 누른 뒤에는 제목을 다시 고칠 때까지 칩을 숨긴다 — 방금 채운 값과 같은 칩이 계속 떠 있으면
+  // "아직 안 채워진 건가?" 하고 헷갈린다.
+  const [suggestionApplied, setSuggestionApplied] = useState(false)
   const [descInvalid, setDescInvalid] = useState(false)
   const [sameAccountInvalid, setSameAccountInvalid] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -124,6 +153,34 @@ export function LedgerEntryModal() {
   // 카테고리가 선택된 것처럼 보이는데 실제로는 null이 전송돼 SUBCATEGORY_REQUIRED가 난다.
   const submitSubcategoryId = state.entrySubcategoryId ?? effectiveSubcategory?.id ?? null
 
+  const entryCatVisible = !isTransfer
+  const suggestions: EntrySuggestion[] =
+    suggestionsEnabled && !suggestionApplied
+      ? buildEntrySuggestions(recentTxQuery.data?.content ?? [], accounts, state.entryDescription, ENTRY_TYPE_TO_TX_TYPE[entryType])
+      : []
+
+  // 칩 적용: 제목·금액은 항상 채우고, 소분류·계좌는 지금도 존재하는 것만 채운다(그 사이 지워졌을 수 있다 —
+  // 없는 id를 넣으면 드롭다운은 첫 항목을 보여주는데 제출값은 사라진 id가 되어 SUBCATEGORY_NOT_FOUND가 난다).
+  const applySuggestion = (s: EntrySuggestion) => {
+    const hasAccount = (id: number | null) => id !== null && accounts.some((a) => a.id === id)
+    const patch: Partial<AppState> = { entryDescription: s.description, entryAmount: s.amount }
+    if (entryCatVisible && s.subcategoryId !== null && findSubcategoryById(categories, s.subcategoryId)) {
+      patch.entrySubcategoryId = s.subcategoryId
+    }
+    if (needsTransferAccount) {
+      // 저축·이체: 거래의 accountId가 출금 계좌, transferAccountId가 상대(저축·입금) 계좌다(파일 상단 주석).
+      if (hasAccount(s.accountId)) patch.entryWithdrawAccountId = s.accountId
+      if (hasAccount(s.transferAccountId)) patch.entryAccountId = s.transferAccountId
+    } else if (hasAccount(s.accountId)) {
+      patch.entryAccountId = s.accountId
+    }
+    setState(patch)
+    setSuggestionApplied(true)
+    setAmountInvalid(false)
+    setDescInvalid(false)
+    setSameAccountInvalid(false)
+  }
+
   const ddEntryCatMajor: DropdownState = {
     value: effectiveCategory?.name ?? '',
     open: state.openDropdown === 'entryCatMajor',
@@ -149,7 +206,6 @@ export function LedgerEntryModal() {
     : state.entryTabsVisible
       ? '가계부 입력'
       : entryType === 'income' ? '수입 입력' : entryType === 'saving' ? '저축 입력' : isTransfer ? '이체 입력' : '지출 입력'
-  const entryCatVisible = !isTransfer
   const entryShowWithdraw = needsTransferAccount
   const ledgerEntryAcctLabel = isSaving ? '저축계좌' : isTransfer ? '입금계좌' : '계좌'
   const entrySaveLabel = isEditing
@@ -183,6 +239,7 @@ export function LedgerEntryModal() {
     setDescInvalid(false)
     setSameAccountInvalid(false)
     setDeleteConfirmOpen(false)
+    setSuggestionApplied(false)
     postTx.reset()
     putTx.reset()
     deleteTx.reset()
@@ -361,10 +418,35 @@ export function LedgerEntryModal() {
             onChange={(e) => {
               setState({ entryDescription: e.target.value })
               if (descInvalid) setDescInvalid(false)
+              if (suggestionApplied) setSuggestionApplied(false)
             }}
             style={{ width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box' }}
           />
           {descInvalid && <div style={ERROR_STYLE}>내용을 입력해주세요</div>}
+          {suggestions.length > 0 && (
+            <div role="group" aria-label="최근 내역에서 채우기" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+              {suggestions.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  className="mini-hov"
+                  onClick={() => applySuggestion(s)}
+                  title={`${s.description} · ${fmt(s.amount)}원${s.tag ? ` · ${s.tag}` : ''} — 눌러서 채우기`}
+                  style={SUGGESTION_CHIP_STYLE}
+                >
+                  <span style={SUGGESTION_DESC_STYLE}>{s.description}</span>
+                  <span style={{ color: 'var(--text-weak)' }}>·</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text-strong)' }}>{fmt(s.amount)}원</span>
+                  {s.tag && (
+                    <>
+                      <span style={{ color: 'var(--text-weak)' }}>·</span>
+                      <span style={{ whiteSpace: 'nowrap' }}>{s.tag}</span>
+                    </>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div>

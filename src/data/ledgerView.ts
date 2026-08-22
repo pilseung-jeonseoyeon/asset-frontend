@@ -390,6 +390,79 @@ export function buildLedgerTx(transactions: TransactionResponse[], accounts: Acc
   })
 }
 
+// ---------- 입력 모달: 최근 내역 기반 추천 ----------
+//
+// 서버 GET /transactions에는 제목(description) 검색이 없어(조건은 정산월·날짜 구간·유형·소분류·계좌뿐),
+// 입력 모달이 최근 N개월치를 한 번 받아 두고 브라우저에서 제목을 비교한다(2026-08-23). "거의 같은 제목"은
+// 공백·대소문자를 무시한 포함 일치로 잡고, 앞부분이 일치하는 것을 먼저 보여준다. 같은 제목은 가장 최근
+// 거래 하나로 합친다(금액은 그 최근 값). 사용자가 칩을 눌렀을 때만 채우고, 자동으로 채우지는 않는다 —
+// 엉뚱한 값이 들어가면 지우는 쪽이 더 번거롭다(2026-08-23 사용자 결정).
+
+export interface EntrySuggestion {
+  key: string
+  description: string
+  amount: number
+  /** 칩 꼬리표 — 수입·지출·저축은 소분류명, 이체는 상대 계좌명(없으면 빈 문자열). */
+  tag: string
+  accountId: number
+  subcategoryId: number | null
+  transferAccountId: number | null
+}
+
+/** 이 글자 수(공백 제거 기준) 미만이면 추천하지 않는다 — 한 글자는 거의 모든 내역에 걸려 소음만 된다. */
+export const ENTRY_SUGGESTION_MIN_CHARS = 2
+export const ENTRY_SUGGESTION_LIMIT = 3
+
+function normalizeDescription(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, '')
+}
+
+/**
+ * 입력 중인 제목(query)과 비슷한 최근 거래를 최대 limit개 고른다. 현재 입력 유형(txType)과 같은 거래만
+ * 본다 — 지출 입력 중에 수입 내역이 추천되면 소분류 종류(CategoryKind)가 달라 채울 수 없기 때문이다.
+ * transactions는 최신순이라고 가정하지 않고 여기서 다시 정렬한다(서버 기본 정렬이 바뀌어도 안전하게).
+ */
+export function buildEntrySuggestions(
+  transactions: TransactionResponse[],
+  accounts: AccountResponse[],
+  query: string,
+  txType: EditableTransactionType,
+  limit: number = ENTRY_SUGGESTION_LIMIT,
+): EntrySuggestion[] {
+  const q = normalizeDescription(query)
+  if (q.length < ENTRY_SUGGESTION_MIN_CHARS) return []
+
+  const sorted = transactions
+    .filter((t) => t.type === txType)
+    .slice()
+    .sort((a, b) => (a.transactionDate === b.transactionDate ? b.id - a.id : a.transactionDate < b.transactionDate ? 1 : -1))
+
+  const seen = new Set<string>()
+  const prefix: EntrySuggestion[] = []
+  const contains: EntrySuggestion[] = []
+  for (const t of sorted) {
+    const n = normalizeDescription(t.description)
+    if (!n || seen.has(n) || !n.includes(q)) continue
+    seen.add(n)
+    const tag =
+      t.type === 'TRANSFER'
+        ? (accounts.find((a) => a.id === t.transferAccountId)?.name ?? '')
+        : (t.subcategoryName ?? '')
+    const item: EntrySuggestion = {
+      key: String(t.id),
+      description: t.description.trim(),
+      amount: t.amount,
+      tag,
+      accountId: t.accountId,
+      subcategoryId: t.subcategoryId,
+      transferAccountId: t.transferAccountId,
+    }
+    ;(n.startsWith(q) ? prefix : contains).push(item)
+    if (prefix.length >= limit) break
+  }
+  return [...prefix, ...contains].slice(0, limit)
+}
+
 // ---------- 캘린더 일별 수입/저축/지출 ----------
 
 export interface DayLine {
