@@ -13,12 +13,12 @@
 // **유형별 폼 분기**(2026-08-20, 사용자 요청): 유형마다 필요한 입력이 다르므로 한 폼을 돌려쓰지 않고
 // FORM_FIELDS 표 하나로 "이 유형이 어떤 필드를 쓰는가"를 정의하고 JSX와 검증이 그 표만 본다. 조건문을
 // JSX 여기저기 흩뿌리면 "예적금만 만기일 필수" 같은 규칙이 화면과 검증 사이에서 갈라진다.
-//   현금      금액(금융기관은 모든 유형 공통 — 입출금 통장은 기관을, 지갑 현금은 '없음'을 고른다)
-//   예적금    금액 + 이율(선택) + 개설일(선택) + 만기일(필수)
+//   현금      현재 잔액(금융기관은 모든 유형 공통 — 입출금 통장은 기관을, 지갑 현금은 '없음'을 고른다)
+//   예적금    현재 잔액 + 이율(선택) + 개설일(선택) + 만기일(필수)
 //   국내주식  원화 예수금 + 보유 종목(KR)
 //   해외주식  원화 예수금 + 달러 예수금 + 보유 종목(US)
 //   가상자산  원화 예수금 + 보유 코인(CRYPTO)
-//   연금·기타 현재 평가액
+//   연금·기타 현재 잔액
 // 이율·개설일·만기일은 2026-08-19 폼 축소 때 지웠다가 이번에 되살린 것이다(커밋 0747fe4^) — DatePicker
 // 팝오버가 잘리지 않게 단독 전체 폭 행으로 두는 배치와, resetAndClose에서 dpPicked/dpNav 키를 지우는
 // 처리는 그때 이미 해결해둔 것이라 그대로 가져왔다. 이 둘을 빼먹으면 각각 달력이 잘리고, 모달을 다시
@@ -110,12 +110,14 @@ interface FormFields {
 }
 
 const FORM_FIELDS: Record<AssetClass, FormFields> = {
-  CASH: { amountLabel: '금액', usdBalance: false, savingsFields: false, holdingMarket: null },
-  DEPOSIT: { amountLabel: '금액', usdBalance: false, savingsFields: true, holdingMarket: null },
+  // 현금·예적금·연금기타는 모두 '현재 잔액'으로 통일한다(2026-08-22, 사용자 요청 — 유형마다 '금액'/
+  // '현재 평가액'으로 달라 헷갈렸다). 주식·가상자산만 종목과 구분하려고 '원화 예수금'을 유지한다.
+  CASH: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarket: null },
+  DEPOSIT: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: true, holdingMarket: null },
   DOMESTIC_STOCK: { amountLabel: '원화 예수금', usdBalance: false, savingsFields: false, holdingMarket: 'KR' },
   FOREIGN_STOCK: { amountLabel: '원화 예수금', usdBalance: true, savingsFields: false, holdingMarket: 'US' },
   CRYPTO: { amountLabel: '원화 예수금', usdBalance: false, savingsFields: false, holdingMarket: 'CRYPTO' },
-  ETC: { amountLabel: '현재 평가액', usdBalance: false, savingsFields: false, holdingMarket: null },
+  ETC: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarket: null },
 }
 
 /** 서버가 6종 밖의 AccountType을 내려줘 assetClassOfAccountType이 모르는 값으로 접혔을 때의 폴백. */
