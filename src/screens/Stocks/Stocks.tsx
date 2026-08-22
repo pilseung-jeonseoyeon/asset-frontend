@@ -320,9 +320,7 @@ export function Stocks() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
                 <div>
                   <div style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 600 }}>총 보유 USD</div>
-                  {/* 보유 달러는 액센트 — 환전 내역 모달의 "원 → 달러" 행과 같은 색이라 "파랑 = 보유
-                      달러"로 읽힌다(ExchangeHistoryModal 목록 주석 참고). */}
-                  <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em', color: 'var(--accent)' }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em', color: 'var(--text-strong)' }}>
                     $ {fmt(exchangeSummary.data.heldForeignAmount)}
                   </div>
                   {/* 서버가 직접 계산한 원화 평가액(heldKrwValuation) — 더 이상 GET /indices의
