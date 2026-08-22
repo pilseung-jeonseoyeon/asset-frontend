@@ -15,9 +15,9 @@
 // JSX 여기저기 흩뿌리면 "예적금만 만기일 필수" 같은 규칙이 화면과 검증 사이에서 갈라진다.
 //   현금      현재 잔액(금융기관은 모든 유형 공통 — 입출금 통장은 기관을, 지갑 현금은 '없음'을 고른다)
 //   예적금    현재 잔액 + 이율(선택) + 개설일(선택) + 만기일(필수)
-//   국내주식  원화 예수금 + 보유 종목(KR)
-//   해외주식  원화 예수금 + 달러 예수금 + 보유 종목(US)
-//   가상자산  원화 예수금 + 보유 코인(CRYPTO)
+//   국내주식  현재 잔액 + 보유 종목(KR)
+//   해외주식  현재 달러 잔액 + 현재 원화 잔액 + 보유 종목(US)
+//   가상자산  현재 잔액 + 보유 코인(CRYPTO)
 //   연금·기타 현재 잔액
 // 이율·개설일·만기일은 2026-08-19 폼 축소 때 지웠다가 이번에 되살린 것이다(커밋 0747fe4^) — DatePicker
 // 팝오버가 잘리지 않게 단독 전체 폭 행으로 두는 배치와, resetAndClose에서 dpPicked/dpNav 키를 지우는
@@ -99,9 +99,10 @@ import type { AssetClass, Currency, Market } from '@/services/common.type'
  * 소유한다. JSX도 검증도 이 표 하나만 본다 — 조건을 두 군데 적으면 반드시 갈라진다.
  */
 interface FormFields {
-  /** 원화 금액 칸의 라벨 — 유형에 따라 부르는 이름이 다르다. */
+  /** 원화 금액 칸의 라벨. 6개 유형 모두 '현재 잔액'이고, 달러 칸이 함께 있는 해외주식만 '현재 원화
+   *  잔액'으로 구분한다(2026-08-22, 사용자 요청 — '예수금'·'평가액' 같은 용어가 유형마다 달라 헷갈렸다). */
   amountLabel: string
-  /** 달러 예수금 칸(해외주식 전용). */
+  /** 달러 잔액 칸(해외주식 전용). */
   usdBalance: boolean
   /** 이율·개설일·만기일(예적금 전용). 만기일만 필수다. */
   savingsFields: boolean
@@ -110,13 +111,11 @@ interface FormFields {
 }
 
 const FORM_FIELDS: Record<AssetClass, FormFields> = {
-  // 현금·예적금·연금기타는 모두 '현재 잔액'으로 통일한다(2026-08-22, 사용자 요청 — 유형마다 '금액'/
-  // '현재 평가액'으로 달라 헷갈렸다). 주식·가상자산만 종목과 구분하려고 '원화 예수금'을 유지한다.
   CASH: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarket: null },
   DEPOSIT: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: true, holdingMarket: null },
-  DOMESTIC_STOCK: { amountLabel: '원화 예수금', usdBalance: false, savingsFields: false, holdingMarket: 'KR' },
-  FOREIGN_STOCK: { amountLabel: '원화 예수금', usdBalance: true, savingsFields: false, holdingMarket: 'US' },
-  CRYPTO: { amountLabel: '원화 예수금', usdBalance: false, savingsFields: false, holdingMarket: 'CRYPTO' },
+  DOMESTIC_STOCK: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarket: 'KR' },
+  FOREIGN_STOCK: { amountLabel: '현재 원화 잔액', usdBalance: true, savingsFields: false, holdingMarket: 'US' },
+  CRYPTO: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarket: 'CRYPTO' },
   ETC: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarket: null },
 }
 
@@ -519,7 +518,7 @@ export function AddAccountModal() {
             {institutionField}
             <div style={fieldRowStyle}>
               <div style={{ flex: 1 }}>
-                <div style={LABEL_STYLE}>달러 예수금</div>
+                <div style={LABEL_STYLE}>현재 달러 잔액</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...FIELD_BORDER_STYLE }}>
                   <span style={AMOUNT_PREFIX_STYLE}>$</span>
                   {/* 달러는 센트 단위가 있어 소수점 둘째 자리까지 받는다. 입력 도중 상태("12." 등)를
