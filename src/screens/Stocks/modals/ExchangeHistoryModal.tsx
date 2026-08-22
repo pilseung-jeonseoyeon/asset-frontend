@@ -209,14 +209,18 @@ export function ExchangeHistoryModal() {
                   onClick={() => openEdit(r.id)}
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '0.5px solid var(--border)', borderRadius: 10, padding: '13px 16px', cursor: 'pointer' }}
                 >
+                  {/* 달러를 산 행(원 → 달러)은 라벨·달러 금액을 액센트로 칠해 판 행(달러 → 원)과 한눈에
+                      구분한다(2026-08-22 사용자 지적 — 두 방향이 같은 색이라 헷갈렸다). 디자인 규칙상
+                      "파랑"으로 허용된 유채색은 액센트 인디고뿐이라 새 색을 만들지 않고 --accent를 쓴다.
+                      주식 화면의 "총 보유 USD"도 같은 색이라 "파랑 = 보유 달러"로 읽힌다. */}
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)' }}>{sideLabel(r.side)}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: r.side === 'BUY' ? 'var(--accent)' : 'var(--text-strong)' }}>{sideLabel(r.side)}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>
                       {isoDateToDisplay(r.exchangedAt)} · {fmt(r.rate)}원
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flex: 'none' }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>${fmt(r.foreignAmount)}</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: r.side === 'BUY' ? 'var(--accent)' : 'var(--text-strong)' }}>${fmt(r.foreignAmount)}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>{fmtKrw(r.krwAmount)}원</div>
                   </div>
                 </div>
