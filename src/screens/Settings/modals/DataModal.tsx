@@ -1,9 +1,9 @@
 // Source: secret/Asset Manager v14.dc.html L3251-3306 (modalData) — row markup/order transcribed
 // verbatim. 4개 행 중 실제 기능이 붙은 건 두 개다.
-//  - "엑셀로 가져오기"(2026-08-22): 편한가계부 양식 엑셀을 올려 거래를 일괄 등록한다. 행을 누르면 바로
-//    아래에 인라인 패널이 펼쳐지고(양식 내려받기 · 파일 올리기 · 결과 요약), 서버가 파일을 해석한다.
-//    **백엔드 API는 아직 없다** — 계약 제안은 docs/excel-import.md, 프론트 레이어는 src/services/import.
-//    서버가 생기기 전까지는 두 버튼 모두 "요청 실패" 문구를 보여준다(의도된 상태).
+//  - "엑셀로 가져오기"(2026-08-22): 모닛 양식 엑셀을 올려 거래를 일괄 등록한다(GET/POST
+//    /import/excel/transactions). 행을 누르면 바로 아래에 인라인 패널이 펼쳐지고(양식 내려받기 · 파일
+//    올리기 · 결과 요약), 서버가 파일을 해석한다. 서버는 한 행이라도 틀리면 아무것도 등록하지 않으므로
+//    결과는 "N건 등록" 또는 "틀린 행 목록 + 고쳐서 다시 올리기" 둘 중 하나다 — 계약은 docs/excel-import.md.
 //  - "전체 내역 내보내기"(GET /export/excel/transactions, GET /export/excel/trades): 눌러서 거래/매매 중
 //    하나를 고르는 인라인 드롭다운(CustomModal.tsx의 월 시작일 드롭다운과 동일한 수동 구현 패턴).
 // 나머지 2개(백업/복원·초기화)는 대응 API가 없어 GeneralModal.tsx의 "추후 업데이트" 배지로 왜 눌러도
@@ -69,8 +69,10 @@ const EXPORT_OPTIONS: { kind: ExportKind; label: string }[] = [
   { kind: 'trades', label: '주식 매매 내역' },
 ]
 
-// 양식 열 순서(docs/excel-import.md) — 사용자가 양식을 내려받기 전에도 무엇을 채워야 하는지 알 수 있게 적어둔다.
-const IMPORT_COLUMNS = '날짜 · 계좌 · 대분류 · 소분류 · 내용 · 금액 · 수입/지출/저축/이체 · 메모'
+// 양식 1번 시트의 A~I 열 순서(서버 IMPORT_TRANSACTION_HEADERS, docs/excel-import.md) — 양식을 내려받기 전에도
+// 무엇을 채워야 하는지 알 수 있게 적어둔다. 이름은 양식 2번 시트("등록된 이름")에 있는 것과 같아야 한다.
+const IMPORT_COLUMNS = '날짜 · 계좌 · 대분류 · 소분류 · 내용 · 금액 · 구분 · 메모 · 상대계좌'
+const IMPORT_REFERENCE_SHEET = '등록된 이름'
 
 function ComingSoonRow({ action }: { action: ComingSoonAction }) {
   return (
@@ -166,7 +168,7 @@ export function DataModal() {
             </span>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: 700 }}>엑셀로 가져오기</div>
-              <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>XLSX · 편한가계부 양식으로 가계부 거래 일괄 등록</div>
+              <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>XLSX · 모닛 양식으로 가계부 거래 일괄 등록</div>
             </div>
             <Icon name={importOpen ? 'expand_less' : 'expand_more'} size={18} color="var(--text-weak)" />
           </button>
@@ -179,7 +181,8 @@ export function DataModal() {
             >
               <div style={{ fontSize: 11.5, color: 'var(--text-mid)', lineHeight: 1.6 }}>
                 양식을 내려받아 A열부터 <b style={{ color: 'var(--text-strong)' }}>{IMPORT_COLUMNS}</b> 순서로 채운 뒤 올려주세요.
-                계좌·분류는 모닛에 등록된 이름과 같아야 해요.
+                계좌·분류는 양식의 &lsquo;{IMPORT_REFERENCE_SHEET}&rsquo; 시트에 있는 이름과 같아야 하고, 이체·저축은 상대계좌 칸을 채워야 해요.
+                한 줄이라도 틀리면 전체가 등록되지 않으니 알려드리는 줄을 고쳐 다시 올려주세요.
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
@@ -228,29 +231,27 @@ export function DataModal() {
               </div>
               {template.error && <div role="alert" style={ERROR_TEXT_STYLE}>{template.error.message}</div>}
               {upload.error && <div role="alert" style={ERROR_TEXT_STYLE}>{upload.error.message}</div>}
-              {result && (
+              {result && result.errors.length === 0 && (
                 <div role="status" style={{ fontSize: 12, color: 'var(--text-mid)', lineHeight: 1.6 }}>
+                  <b style={{ color: 'var(--text-strong)' }}>{result.importedCount.toLocaleString('ko-KR')}건</b> 등록했어요
+                </div>
+              )}
+              {result && result.errors.length > 0 && (
+                // 서버가 전체 롤백했다 — 한 건도 등록되지 않았음을 먼저 말하고, 고칠 행을 번호로 알려준다.
+                <div role="alert" style={{ fontSize: 12, color: 'var(--text-mid)', lineHeight: 1.6 }}>
                   <div>
-                    <b style={{ color: 'var(--text-strong)' }}>{result.successCount.toLocaleString('ko-KR')}건</b> 등록했어요
-                    {result.failureCount > 0 && (
-                      <>
-                        {' · '}
-                        <b style={{ color: 'var(--down)' }}>{result.failureCount.toLocaleString('ko-KR')}건</b>은 건너뛰었어요
-                      </>
-                    )}
-                    <span style={{ color: 'var(--text-weak)' }}> (전체 {result.totalRows.toLocaleString('ko-KR')}행)</span>
+                    <b style={{ color: 'var(--down)' }}>{result.errors.length.toLocaleString('ko-KR')}줄</b>에 문제가 있어 등록하지 않았어요.
+                    아래 줄을 고친 뒤 다시 올려주세요.
                   </div>
-                  {result.failures.length > 0 && (
-                    // 실패 행이 많을 수 있어 목록만 안에서 스크롤한다 — 모달 본문이 끝없이 길어지지 않게.
-                    <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, maxHeight: 160, overflowY: 'auto', fontSize: 11.5 }}>
-                      {result.failures.map((f) => (
-                        <li key={`${f.row}-${f.message}`} style={{ display: 'flex', gap: 8, padding: '3px 0' }}>
-                          <span style={{ color: 'var(--text-weak)', flex: 'none', minWidth: 36 }}>{f.row}행</span>
-                          <span style={{ color: 'var(--text-strong)' }}>{f.message}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  {/* 실패 행이 많을 수 있어 목록만 안에서 스크롤한다 — 모달 본문이 끝없이 길어지지 않게. */}
+                  <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, maxHeight: 160, overflowY: 'auto', fontSize: 11.5 }}>
+                    {result.errors.map((f) => (
+                      <li key={`${f.rowNumber}-${f.code}`} style={{ display: 'flex', gap: 8, padding: '3px 0' }}>
+                        <span style={{ color: 'var(--text-weak)', flex: 'none', minWidth: 36 }}>{f.rowNumber}행</span>
+                        <span style={{ color: 'var(--text-strong)' }}>{f.message}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
