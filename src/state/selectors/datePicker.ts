@@ -5,11 +5,22 @@
 //
 // 연도 그리드(yearCells, 2026-08-18 추가): 개설일·만기일처럼 오늘에서 수십 년 떨어진 날짜를 고를 때
 // chevron 한 달씩 이동으로는 사실상 못 쓴다는 지적으로 추가했다. 연도 목록·연도 셀 강조·연도 선택 시
-// nav 갱신은 전부 계산이라 이 파일(셀렉터)에 두고, "지금 연도 그리드를 보여줄지"라는 순수 UI 전환
+// nav 갱신은 전부 계산이라 이 파일(셀렉터)에 두고, "지금 어느 그리드를 보여줄지"라는 순수 UI 전환
 // 상태만 DatePicker.tsx가 로컬 useState로 갖는다(기존 "계산은 셀렉터, 렌더는 컴포넌트" 경계 유지).
 // 범위는 오늘 기준 -50년~+50년이고, maxISO가 있으면 그 연도를 상한으로 자른다(매매·환전일처럼 미래가
 // 성립하지 않는 폼). 강조는 실제로 고른 날짜(dpPicked)가 아니라 지금 보고 있는 달(dpNav.y) 기준이다
 // — 아직 날짜를 고르지 않았어도 지금 탐색 중인 연도가 어디인지는 알려줘야 한다.
+//
+// 월 그리드(monthCells, 2026-08-22 추가): 연도는 바로 고를 수 있는데 월은 chevron으로만 움직여야
+// 한다는 지적으로 추가했다. yearCells와 같은 패턴 — 12칸, 강조는 지금 보고 있는 달(dpNav.m) 기준,
+// maxISO가 속한 연도를 보고 있으면 그 이후 달은 날짜 셀의 future 처리와 같은 방식으로 비활성이다.
+// 헤더 라벨도 "2026년 8월" 하나가 아니라 yearLabel("2026년")·monthOnlyLabel("8월") 둘로 나눠 각각
+// 버튼이 되게 했다.
+//
+// 날짜 셀(cells)은 항상 6주(42칸)다(2026-08-22): 달마다 4~6주로 칸 수가 달라지면 팝오버 패널 높이가
+// 달을 넘길 때마다 바뀌고, 그 높이로 위/아래 열림 방향을 다시 판정하는 usePopoverAnchor가 패널을
+// 위아래로 튀게 했다. 뒤쪽 남는 칸을 HIDDEN_CELL_STYLE로 채워 칸 수를 고정하면 DatePicker.tsx가
+// 본문 높이를 상수로 둘 수 있다.
 
 import type { CSSProperties } from 'react'
 import { useAppState } from '../AppStateContext'
@@ -35,16 +46,35 @@ interface YearCell {
   pick: () => void
 }
 
+interface MonthCell {
+  m: number
+  label: string
+  /** 지금 보고 있는 달(dpNav.m)과 같은가 — yearCells.isNavYear와 같은 기준. */
+  isNavMonth: boolean
+  cellStyle: CSSProperties
+  /** maxISO가 속한 연도를 보고 있을 때 그 이후 달(전부 미래)은 pick이 없다 — 날짜 셀의 future 처리와 동일. */
+  pick?: () => void
+}
+
+/** 날짜 그리드는 항상 6주(42칸) — 파일 상단 주석 참고. DatePicker.tsx의 고정 본문 높이 계산과 짝이다. */
+export const DP_GRID_CELL_COUNT = 42
+
 export interface DatePickerState {
   value: string
   open: boolean
   toggle: () => void
-  monthLabel: string
+  /** 헤더의 연도 버튼 라벨("2026년") — 월 라벨과 분리해 각각 버튼이 된다(파일 상단 주석 참고). */
+  yearLabel: string
+  /** 헤더의 월 버튼 라벨("8월"). */
+  monthOnlyLabel: string
   prevMonth: () => void
   nextMonth: () => void
   /** true면 현재 보이는 달이 이미 maxDate가 속한 달이라 다음 달로 넘어갈 필요가 없다(모두 미래). */
   nextDisabled: boolean
+  /** 항상 DP_GRID_CELL_COUNT(42)칸 — 앞뒤 빈칸은 HIDDEN_CELL_STYLE. */
   cells: DateCell[]
+  /** 1~12월 선택 그리드. yearCells처럼 팝오버가 닫혀 있으면 빈 배열이다. */
+  monthCells: MonthCell[]
   /** 오늘 기준 -50년~+50년(maxISO가 있으면 그 연도가 상한) 연도 선택 그리드. 팝오버가 닫혀 있으면
    *  계산 자체를 건너뛰고 빈 배열이다(아래 훅 본문 주석 참고). */
   yearCells: YearCell[]
@@ -130,9 +160,47 @@ export function useDatePicker(
             })),
     })
   }
+  // 뒤쪽 남는 칸을 채워 항상 42칸으로 맞춘다(파일 상단 주석 참고).
+  while (cells.length < DP_GRID_CELL_COUNT) {
+    cells.push({ d: '', cellStyle: HIDDEN_CELL_STYLE })
+  }
 
   // 이미 maxISO가 속한 달을 보고 있으면 그 다음 달은 전부 미래라 이동할 이유가 없다.
   const nextDisabled = maxY !== null && maxM !== null && nav.y === maxY && nav.m === maxM
+
+  // 월 그리드: 지금 보고 있는 연도(nav.y) 안의 12달. maxISO가 속한 연도를 보고 있으면 그 이후 달은
+  // 전부 미래라 비활성(날짜 셀의 future 처리와 같은 스타일·같은 "pick 없음")이다. yearCells와 같은
+  // 이유로 팝오버가 열려 있을 때만 계산한다.
+  const monthCells: MonthCell[] = []
+  if (open) {
+    for (let m = 1; m <= 12; m++) {
+      const isNavMonth = m === nav.m
+      const isFuture = maxY !== null && maxM !== null && (nav.y > maxY || (nav.y === maxY && m > maxM))
+      monthCells.push({
+        m,
+        label: DP_MONTH_NAMES[m - 1],
+        isNavMonth,
+        cellStyle: {
+          borderRadius: 8,
+          border: 'none',
+          cursor: isFuture ? 'default' : 'pointer',
+          fontFamily: 'inherit',
+          fontSize: 12,
+          fontWeight: 700,
+          background: isNavMonth ? 'var(--accent)' : 'transparent',
+          color: isFuture ? 'var(--text-weak)' : isNavMonth ? '#fff' : 'var(--text-strong)',
+          opacity: isFuture ? 0.45 : 1,
+        },
+        pick: isFuture
+          ? undefined
+          : () =>
+              setState((st) => {
+                const cur = (st.dpNav as Record<string, DateNav>)[key] || defaultNav
+                return { dpNav: { ...st.dpNav, [key]: { y: cur.y, m } } }
+              }),
+      })
+    }
+  }
 
   // 연도 그리드: 오늘 기준 -50/+50년, maxISO가 있으면 그 연도를 상한으로 자른다(nextDisabled와 같은
   // 근거 — 매매·환전일처럼 미래가 성립하지 않는 폼에서 그 이후 연도를 애초에 고를 수 없게 한다).
@@ -184,7 +252,8 @@ export function useDatePicker(
     value,
     open,
     toggle: () => setState((st) => ({ openDropdown: st.openDropdown === 'dp_' + key ? null : 'dp_' + key })),
-    monthLabel: `${nav.y}년 ${DP_MONTH_NAMES[nav.m - 1]}`,
+    yearLabel: `${nav.y}년`,
+    monthOnlyLabel: DP_MONTH_NAMES[nav.m - 1],
     prevMonth: () =>
       setState((st) => {
         const cur = (st.dpNav as Record<string, DateNav>)[key] || defaultNav
@@ -203,6 +272,7 @@ export function useDatePicker(
           }),
     nextDisabled,
     cells,
+    monthCells,
     yearCells,
     goToday: () =>
       setState((st) => {
