@@ -13,7 +13,7 @@
 // **유형별 폼 분기**(2026-08-20, 사용자 요청): 유형마다 필요한 입력이 다르므로 한 폼을 돌려쓰지 않고
 // FORM_FIELDS 표 하나로 "이 유형이 어떤 필드를 쓰는가"를 정의하고 JSX와 검증이 그 표만 본다. 조건문을
 // JSX 여기저기 흩뿌리면 "예적금만 만기일 필수" 같은 규칙이 화면과 검증 사이에서 갈라진다.
-//   현금      금액. 금융기관 칸 자체를 감춘다(무기관 계좌로 저장)
+//   현금      금액(금융기관은 모든 유형 공통 — 입출금 통장은 기관을, 지갑 현금은 '없음'을 고른다)
 //   예적금    금액 + 이율(선택) + 개설일(선택) + 만기일(필수)
 //   국내주식  원화 예수금 + 보유 종목(KR)
 //   해외주식  원화 예수금 + 달러 예수금 + 보유 종목(US)
@@ -63,8 +63,9 @@
 // 사용자 요청). 서버도 무기관 계좌를 정식 지원한다(CreateAccountReq.institutionId: "금융기관 ID —
 // 현금 등 무기관 자산은 생략한다"). 그래서 "아직 아무것도 안 고름"과 "없음을 골랐음"을 반드시 구분해야
 // 한다 — 둘 다 institutionId는 null이므로 로컬 상태 institutionNone으로 후자를 표시한다. 저장 시
-// institutionId는 아예 싣지 않는다. **현금 유형은 이 필드를 아예 감추고 검증도 건너뛴다**(2026-08-20,
-// 사용자 결정 — 현금은 기관이 없는 게 정상이라 매번 '없음'을 고르게 할 이유가 없다).
+// institutionId는 아예 싣지 않는다. 현금 유형도 이 필드를 똑같이 보여준다(2026-08-22, 사용자 결정 —
+// 입출금 통장처럼 기관이 있는 현금이 흔하다; 2026-08-20에 "현금은 기관이 없는 게 정상"이라며 감췄던
+// 것을 되돌렸다). 지갑 속 현금처럼 기관이 없으면 '없음'을 고르면 된다.
 //
 // 기관 추가 진입점은 두지 않는다(2026-08-19, 사용자 결정): POST/DELETE /institutions API는 있지만
 // 제품상 프론트에 기관 추가·삭제 기능은 필요 없다고 정리됐다 — 되살리지 말 것. 목록 조회 실패(isError)는
@@ -98,8 +99,6 @@ import type { AssetClass, Currency, Market } from '@/services/common.type'
  * 소유한다. JSX도 검증도 이 표 하나만 본다 — 조건을 두 군데 적으면 반드시 갈라진다.
  */
 interface FormFields {
-  /** 금융기관 칸을 보여줄지. 현금만 false다(감추면 검증도 건너뛴다). */
-  institution: boolean
   /** 원화 금액 칸의 라벨 — 유형에 따라 부르는 이름이 다르다. */
   amountLabel: string
   /** 달러 예수금 칸(해외주식 전용). */
@@ -111,12 +110,12 @@ interface FormFields {
 }
 
 const FORM_FIELDS: Record<AssetClass, FormFields> = {
-  CASH: { institution: false, amountLabel: '금액', usdBalance: false, savingsFields: false, holdingMarket: null },
-  DEPOSIT: { institution: true, amountLabel: '금액', usdBalance: false, savingsFields: true, holdingMarket: null },
-  DOMESTIC_STOCK: { institution: true, amountLabel: '원화 예수금', usdBalance: false, savingsFields: false, holdingMarket: 'KR' },
-  FOREIGN_STOCK: { institution: true, amountLabel: '원화 예수금', usdBalance: true, savingsFields: false, holdingMarket: 'US' },
-  CRYPTO: { institution: true, amountLabel: '원화 예수금', usdBalance: false, savingsFields: false, holdingMarket: 'CRYPTO' },
-  ETC: { institution: true, amountLabel: '현재 평가액', usdBalance: false, savingsFields: false, holdingMarket: null },
+  CASH: { amountLabel: '금액', usdBalance: false, savingsFields: false, holdingMarket: null },
+  DEPOSIT: { amountLabel: '금액', usdBalance: false, savingsFields: true, holdingMarket: null },
+  DOMESTIC_STOCK: { amountLabel: '원화 예수금', usdBalance: false, savingsFields: false, holdingMarket: 'KR' },
+  FOREIGN_STOCK: { amountLabel: '원화 예수금', usdBalance: true, savingsFields: false, holdingMarket: 'US' },
+  CRYPTO: { amountLabel: '원화 예수금', usdBalance: false, savingsFields: false, holdingMarket: 'CRYPTO' },
+  ETC: { amountLabel: '현재 평가액', usdBalance: false, savingsFields: false, holdingMarket: null },
 }
 
 /** 서버가 6종 밖의 AccountType을 내려줘 assetClassOfAccountType이 모르는 값으로 접혔을 때의 폴백. */
@@ -323,9 +322,8 @@ export function AddAccountModal() {
 
   const handleSave = () => {
     const missingName = !form.name.trim()
-    // '없음'을 고른 것도 어엿한 선택이다 — 아직 아무것도 안 고른 경우만 막는다. 현금은 필드 자체가
-    // 없으므로 검증도 하지 않는다.
-    const missingInstitution = fields.institution && form.institutionId === null && !institutionNone
+    // '없음'을 고른 것도 어엿한 선택이다 — 아직 아무것도 안 고른 경우만 막는다(현금 포함 모든 유형).
+    const missingInstitution = form.institutionId === null && !institutionNone
     const maturityPicked = state.dpPicked['addAccountMaturity'] as { y: number; m: number; d: number } | undefined
     const maturityDate = maturityPicked ? pickedToISODate(maturityPicked) : (form.maturityDate ?? undefined)
     const missingMaturity = fields.savingsFields && !maturityDate
@@ -360,8 +358,8 @@ export function AddAccountModal() {
         ? { initialBalanceUsd: usdAmount, initialBalanceKrw: form.initialBalanceKrw }
         : { initialBalanceKrw: form.initialBalanceKrw }),
       isLiquid: form.isLiquid,
-      // '없음'이거나 현금이면 institutionId를 아예 싣지 않는다(서버 스펙: "현금 등 무기관 자산은 생략한다").
-      ...(fields.institution && form.institutionId !== null ? { institutionId: form.institutionId } : {}),
+      // '없음'이면 institutionId를 아예 싣지 않는다(서버 스펙: "현금 등 무기관 자산은 생략한다").
+      ...(form.institutionId !== null ? { institutionId: form.institutionId } : {}),
       // 예적금 전용. 그 외 유형은 위 applyAssetClass가 이미 비워둔다.
       ...(fields.savingsFields && form.interestRate !== null ? { interestRate: form.interestRate } : {}),
       ...(fields.savingsFields && openedAt ? { openedAt } : {}),
@@ -537,14 +535,11 @@ export function AddAccountModal() {
             {/* 두 칸이 "같은 돈의 환산"이 아니라 "따로 들어 있는 두 돈"이라는 걸 분명히 한다. */}
             <div style={FIELD_HINT_STYLE}>달러와 원화, 계좌에 실제로 들어 있는 두 돈을 각각 적어주세요. 서로 환산해서 넣지 않아도 돼요</div>
           </>
-        ) : fields.institution ? (
+        ) : (
           <div style={fieldRowStyle}>
             {institutionField}
             {krwAmountField}
           </div>
-        ) : (
-          // 현금은 금융기관 칸이 없어 금액 한 칸만 전체 폭으로 둔다.
-          <div style={{ display: 'flex' }}>{krwAmountField}</div>
         )}
 
         {fields.savingsFields && (
