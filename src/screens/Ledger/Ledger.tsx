@@ -427,7 +427,7 @@ function LedgerOverview() {
                 <div style={{ fontSize: 15, fontWeight: 700 }}>고정 지출</div>
                 {!fixed.isPending && !fixedErr && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-strong)' }}>월 {fixedTotalFmt}원</span>}
               </div>
-              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginBottom: 16 }}>결제수단 표기 · 자동 차감</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginBottom: 16 }}>주거, 보험 등</div>
               {fixed.isPending ? (
                 <LoadingLine />
               ) : fixedErr ? (
@@ -473,10 +473,10 @@ function LedgerOverview() {
             </Card>
             <Card style={{ padding: 24 }} aria-busy={subs.isPending}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                <div style={{ fontSize: 15, fontWeight: 700 }}>구독 · 정기결제</div>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>구독</div>
                 {!subs.isPending && !subsErr && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-strong)' }}>월 {subsTotalFmt}원</span>}
               </div>
-              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginBottom: 16 }}>이번 달 구독료 합계</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginBottom: 16 }}>음악, OTT 등</div>
               {subs.isPending ? (
                 <LoadingLine />
               ) : subsErr ? (
