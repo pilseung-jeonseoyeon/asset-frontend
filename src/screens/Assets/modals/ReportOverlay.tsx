@@ -222,10 +222,25 @@ export function ReportOverlay() {
             </div>
             <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                {/* 확정 심볼 — secret/monit-symbol-spec.md §3-1(라이트). 20px에서도 같은 코드를 쓴다(규격 §4).
+                    이 오버레이는 문서에 한 번만 열리므로 id는 고정값으로 충분하다. */}
                 <svg width="20" height="20" viewBox="0 0 100 100">
-                  <path d="M50,0 C14,0 0,14 0,50 C0,86 14,100 50,100 C86,100 100,86 100,50 C100,14 86,0 50,0 Z" fill="#2A2E5C" />
-                  <path d="M28,62 L28,34 L50,55 L72,34 L72,74" fill="none" stroke="#FFFFFF" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="28" cy="68" r="8.5" fill="#ABA5E4" />
+                  <defs>
+                    <linearGradient id="monit-ov-report" gradientUnits="userSpaceOnUse" x1="38.48" y1="62.89" x2="47.46" y2="53.91">
+                      <stop offset="0" stopColor="#6761CD" stopOpacity="0" />
+                      <stop offset="1" stopColor="#6761CD" stopOpacity=".76" />
+                    </linearGradient>
+                    <clipPath id="monit-clip-report">
+                      <rect width="100" height="100" rx="24.26" ry="24.26" />
+                    </clipPath>
+                  </defs>
+                  <rect width="100" height="100" rx="24.26" ry="24.26" fill="#2A2E5C" />
+                  <path d="M47.75 44.92 L47.75 91.8 L0.88 91.8 Z" fill="url(#monit-ov-report)" clipPath="url(#monit-clip-report)" />
+                  <circle cx="78.22" cy="27.15" r="5.57" fill="#6979F8" />
+                  <g fill="none" stroke="#FFFFFF" strokeWidth="14.16" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18.95 67.38 L40.62 45.61" />
+                    <path d="M48.63 67.38 L71.48 45.61 L73.54 67.38" />
+                  </g>
                 </svg>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-weak)', letterSpacing: '-.01em' }}>Monit</span>
               </div>
