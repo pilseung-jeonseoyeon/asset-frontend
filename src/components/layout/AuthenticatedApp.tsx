@@ -50,6 +50,7 @@ import { ExchangeHistoryModal } from '../../screens/Stocks/modals/ExchangeHistor
 import { AddAccountModal } from '../../screens/Assets/modals/AddAccountModal'
 import { EditAccountModal } from '../../screens/Assets/modals/EditAccountModal'
 import { AssetCategoryModal } from '../../screens/Assets/modals/AssetCategoryModal'
+import { RealEstateSoonModal } from '../../screens/Assets/modals/RealEstateSoonModal'
 import { AddGoalModal } from '../../screens/Assets/modals/AddGoalModal'
 import { InstitutionsModal } from '../../screens/Assets/modals/InstitutionsModal'
 import { ReportOverlay } from '../../screens/Assets/modals/ReportOverlay'
@@ -173,6 +174,9 @@ export function AuthenticatedApp() {
       </ModalErrorBoundary>
       <ModalErrorBoundary onReset={resetModalState({ assetCat: null })} zIndex={80} title="자산 카테고리 상세">
         <AssetCategoryModal />
+      </ModalErrorBoundary>
+      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="부동산">
+        <RealEstateSoonModal />
       </ModalErrorBoundary>
       <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="자산 목표 설정">
         <AddGoalModal />
