@@ -60,12 +60,24 @@
 | 그림자 | `var(--shadow-modal)` 유지 (§6-2) |
 | 상단 그래버 | `36x4px`, `radius 999px`, `var(--border)`, 중앙 정렬 |
 | 등장 | 아래에서 위로 `220ms cubic-bezier(.2,.7,.3,1)`. `prefers-reduced-motion` 시 비활성 |
+| 닫기 제스처 | 아래로 스와이프(2026-08-28 추가). 임계값 `min(96px, 패널 높이 × 0.28)` |
 
 - 호출부가 넘기는 `zIndex`는 그대로 유지한다(§7-1 중첩 모달 규칙이 이미 값을 정해둠).
 - 호출부의 `width`는 모바일에서 무시된다.
 - **모달은 스크림(배경) 클릭으로 닫지 않는다.** 입력 중 실수로 배경을 눌러 폼이 통째로 날아가는
-  걸 막기 위해서다 — 닫는 방법은 Esc 키(`Modal`이 직접 처리, 중첩 시 맨 위 하나만 반응)와
-  호출부가 그리는 X/취소 버튼뿐이다. 그래서 모든 모달은 눈에 보이는 닫기 버튼을 반드시 가져야 한다.
+  걸 막기 위해서다 — 닫는 방법은 아래로 스와이프, Esc 키(`Modal`이 직접 처리, 중첩 시 맨 위 하나만
+  반응), 호출부가 그리는 X/취소 버튼이다. 그래서 모든 모달은 눈에 보이는 닫기 버튼을 반드시 가져야
+  한다(스와이프는 터치 기기에만 있는 보조 수단이다).
+- **아래로 스와이프해서 닫기**(`Modal.tsx`의 `useSheetSwipeDown`, 2026-08-28 사용자 요청). 패널
+  전체에서 받고(그래버 바 4px만 잡으라고 하면 너무 작다), 아래 조건에서는 가로채지 않는다:
+  시트나 그 안의 스크롤 영역이 이미 스크롤돼 있을 때(`isScrolledDown` — 맨 위까지 올라와야 시작),
+  드롭다운·달력 팝오버가 열려 있을 때(`state.openDropdown !== null` — 팝오버는 `position: fixed`
+  여도 DOM상 패널의 자손이라 터치가 버블링된다), 가로 이동이 세로보다 클 때, 위로 끌 때.
+  **끄는 동안에만 인라인 `transform`을 건다** — 상시로 걸면 그 패널이 `position: fixed` 자손의
+  기준 상자가 되어 `usePopoverAnchor` 팝오버가 엉뚱한 자리에 붙는다.
+  React의 `onTouchMove`는 루트에 passive로 붙어 `preventDefault`가 통하지 않으므로(배경 스크롤·
+  당겨서 새로고침을 막아야 한다) 패널에 `{ passive: false }` 네이티브 리스너를 직접 붙인다.
+  `ReportOverlay`·`AccountModal`은 공용 `Modal`을 쓰지 않아 이 제스처가 없다.
 - **내부 팝오버(드롭다운·달력)는 `usePopoverAnchor`로 띄운다.** 시트는 세로 스크롤 때문에
   `overflow-y: auto`이고 데스크톱 모달도 대부분 `panelStyle`로 `overflow: auto`를 덮어써서,
   `position: absolute` 팝오버는 양쪽 모두에서 잘린다. `src/components/primitives/usePopoverAnchor.ts`가

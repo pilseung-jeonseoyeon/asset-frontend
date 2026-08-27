@@ -9,8 +9,12 @@
 // (so callers keep their padding/overflow tweaks), but width/borderRadius/maxHeight are re-applied AFTER
 // panelStyle so a caller's desktop-only values for those three (e.g. an explicit width or 90vh maxHeight)
 // can never win on mobile. zIndex is untouched — callers' §7-1 nesting order still applies.
+//
+// 모바일 시트는 **아래로 스와이프해서 내릴 수 있다**(2026-08-28, 사용자 요청). 스크림 클릭은 여전히
+// 닫지 않는다(아래 긴 주석 참고) — 실수로 배경을 눌러 폼이 날아가는 사고는 그대로 막으면서, 요즘
+// 앱의 표준 제스처만 더한 것이다. 구현은 useSheetSwipeDown 참고.
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useAppState } from '../../../state/AppStateContext'
@@ -41,6 +45,128 @@ function isTopmostModal(id: number): boolean {
   return top.id === id
 }
 
+
+// ---------- 바텀시트 아래로 스와이프해서 닫기 (모바일 전용) ----------
+//
+// 회색 그래버 바가 원래는 장식이었는데, 눌러서 내리는 게 안 된다는 지적을 받아 실제 제스처를 붙였다.
+// 규칙:
+//   - 시트(또는 그 안의 스크롤 영역)를 이미 스크롤해 내려가 있으면 가로채지 않는다 — 먼저 맨 위까지
+//     올라와야 드래그가 시작된다. 안 그러면 내용을 훑어 읽다가 시트가 통째로 끌려 내려간다.
+//   - 세로로 ACTIVATE_PX 이상, 그리고 가로 이동보다 크게 움직여야 "닫기 제스처"로 확정한다
+//     (탭·가로 스크롤 칩 줄과 구분).
+//   - 손을 뗐을 때 임계값을 넘겼으면 닫고, 아니면 제자리로 되돌아간다.
+//
+// React의 onTouchMove는 루트에 passive로 붙어 preventDefault가 통하지 않는다. 배경 페이지 스크롤과
+// 크롬 모바일의 "당겨서 새로고침"을 막으려면 preventDefault가 꼭 필요하므로, 패널 엘리먼트에
+// { passive: false } 네이티브 리스너를 직접 붙인다.
+// 패널만 보는 게 아니라 터치가 시작된 지점에서 패널까지 거슬러 올라가며 "이미 스크롤해 내려간
+// 영역"이 있는지 본다 — TermsDetailOverlay처럼 패널 대신 안쪽 div가 스크롤되는 모달에서, 그 글을
+// 읽어 내려가던 중 아래로 훑으면 시트가 닫혀버리는 걸 막기 위해서다.
+function isScrolledDown(target: EventTarget | null, panel: HTMLElement): boolean {
+  let node = target instanceof Element ? target : null
+  while (node) {
+    if (node.scrollTop > 0) return true
+    if (node === panel) return false
+    node = node.parentElement
+  }
+  return false
+}
+
+const SHEET_DRAG_ACTIVATE_PX = 6
+const SHEET_DRAG_CLOSE_PX = 96
+const SHEET_DRAG_CLOSE_RATIO = 0.28
+
+function useSheetSwipeDown(
+  panelRef: React.RefObject<HTMLDivElement | null>,
+  enabled: boolean,
+  onCloseRef: React.RefObject<() => void>,
+  // 드롭다운·달력 팝오버는 position:fixed지만 DOM상으로는 이 패널의 자손이라 터치가 여기까지
+  // 버블링된다. 팝오버가 열려 있는 동안 목록을 훑어 내리면 시트가 같이 끌려 내려가므로 막는다.
+  popoverOpenRef: React.RefObject<unknown>,
+) {
+  // dragY는 "지금 손가락을 따라 얼마나 내려와 있는가". 0이면 transform 자체를 걸지 않는다 —
+  // transform이 남아 있으면 그 요소가 position:fixed 자손의 기준 상자가 되어, 시트 안에서
+  // usePopoverAnchor로 띄우는 드롭다운·달력(둘 다 position:fixed)이 엉뚱한 자리에 붙는다.
+  const [dragY, setDragY] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
+
+  useEffect(() => {
+    const panel = panelRef.current
+    if (!enabled || !panel) return
+
+    let startX = 0
+    let startY = 0
+    let tracking = false // 터치가 시작돼 후보로 지켜보는 중
+    let active = false // 임계값을 넘어 닫기 제스처로 확정된 상태
+    let dy = 0
+
+    const stop = () => {
+      tracking = false
+      active = false
+      dy = 0
+      setIsDragging(false)
+      setDragY(0)
+    }
+
+    const handleStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1 || popoverOpenRef.current != null || isScrolledDown(e.target, panel)) {
+        tracking = false
+        return
+      }
+      startX = e.touches[0].clientX
+      startY = e.touches[0].clientY
+      tracking = true
+      active = false
+      dy = 0
+    }
+
+    const handleMove = (e: TouchEvent) => {
+      if (!tracking) return
+      const deltaY = e.touches[0].clientY - startY
+      const deltaX = e.touches[0].clientX - startX
+      if (!active) {
+        // 위로 끌거나 가로로 더 많이 움직였으면 이번 터치는 시트 드래그로 쓰지 않는다.
+        if (deltaY < 0 || Math.abs(deltaX) > Math.abs(deltaY)) {
+          tracking = false
+          return
+        }
+        if (deltaY <= SHEET_DRAG_ACTIVATE_PX) return
+        active = true
+        setIsDragging(true)
+      }
+      dy = Math.max(0, deltaY)
+      // 브라우저가 이미 스크롤을 시작한 뒤에는 cancelable이 false라 호출할 수 없다(콘솔 경고 방지).
+      if (e.cancelable) e.preventDefault()
+      setDragY(dy)
+    }
+
+    const handleEnd = () => {
+      if (!active) {
+        tracking = false
+        return
+      }
+      // 짧은 시트는 96px를 못 채우고 화면 밖으로 나가버리므로 높이 비율도 함께 본다.
+      const threshold = Math.min(SHEET_DRAG_CLOSE_PX, panel.offsetHeight * SHEET_DRAG_CLOSE_RATIO)
+      const shouldClose = dy >= threshold
+      stop()
+      if (shouldClose) onCloseRef.current()
+    }
+
+    panel.addEventListener('touchstart', handleStart, { passive: true })
+    panel.addEventListener('touchmove', handleMove, { passive: false })
+    panel.addEventListener('touchend', handleEnd)
+    panel.addEventListener('touchcancel', stop)
+    return () => {
+      panel.removeEventListener('touchstart', handleStart)
+      panel.removeEventListener('touchmove', handleMove)
+      panel.removeEventListener('touchend', handleEnd)
+      panel.removeEventListener('touchcancel', stop)
+    }
+  }, [enabled, panelRef, onCloseRef, popoverOpenRef])
+
+  return { dragY, isDragging }
+}
+
 export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalProps) {
   const isMobile = useIsMobile()
   const { state, setState } = useAppState()
@@ -67,6 +193,9 @@ export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalPro
   onCloseRef.current = onClose
   const openDropdownRef = useRef(state.openDropdown)
   openDropdownRef.current = state.openDropdown
+
+  const panelRef = useRef<HTMLDivElement>(null)
+  const { dragY, isDragging } = useSheetSwipeDown(panelRef, isMobile, onCloseRef, openDropdownRef)
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -98,6 +227,9 @@ export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalPro
         maxWidth: '100%',
         maxHeight: '88vh',
         overflowY: 'auto',
+        // 시트 끝까지 스크롤했을 때 그 힘이 뒤 페이지로 넘어가(또는 크롬 모바일의 당겨서 새로고침으로)
+        // 이어지지 않게 막는다 — 스와이프로 닫기와 뒤 페이지 스크롤이 섞이면 둘 다 어정쩡해진다.
+        overscrollBehavior: 'contain',
         boxShadow: 'var(--shadow-modal)',
       }
     : {
@@ -144,12 +276,18 @@ export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalPro
       }}
     >
       <div
+        ref={panelRef}
         onClick={(e) => e.stopPropagation()}
         className={isMobile ? 'sheet-up' : undefined}
         style={{
           ...basePanelStyle,
           ...panelStyle,
           ...mobileForcedStyle,
+          // dragY가 0이면 transform을 아예 걸지 않는다(위 useSheetSwipeDown 주석 — position:fixed
+          // 팝오버가 이 패널 기준으로 붙어버리는 걸 피하려는 것). 손을 뗀 뒤 제자리로 돌아가는 구간만
+          // transition을 준다 — 끄는 동안에는 손가락을 그대로 따라가야 한다.
+          ...(dragY > 0 ? { transform: `translateY(${dragY}px)` } : null),
+          ...(isMobile ? { transition: isDragging ? 'none' : 'transform .2s cubic-bezier(.2,.7,.3,1)' } : null),
         }}
       >
         {isMobile && (
@@ -160,6 +298,8 @@ export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalPro
           // right along with everything else (down to ~2px, not 0, but visibly squashed). The other 15
           // Modal callers leave panelStyle's `display` at the block default, so the grabber isn't a flex
           // item there and this has no effect on them.
+          // 이 바 자체에 리스너를 붙이지 않는다 — 4px짜리 막대만 잡으라고 하면 너무 작다.
+          // 스와이프는 패널 전체에서 받고(useSheetSwipeDown), 이 바는 "내릴 수 있다"는 표시다.
           <div
             aria-hidden="true"
             style={{ width: 36, height: 4, borderRadius: 999, background: 'var(--border)', margin: '0 auto 14px', flexShrink: 0 }}
