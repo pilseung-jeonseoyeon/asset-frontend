@@ -1,4 +1,4 @@
-import type { AccountType, Currency, SnapshotSource } from '../common.type'
+import type { AccountType, Currency } from '../common.type'
 
 // balanceKrw·initialBalanceKrw·totalPrincipalKrw는 원화(KRW) 정수다. balanceKrw는 저장값이 아니라 매
 // 요청 원장(스냅샷·매매·환전)에서 재계산된 값이다 — 프론트에서 다시 계산하지 말 것.
@@ -70,18 +70,21 @@ export interface CreateAccountRequest {
    *  예수금(둘 다 있을 수 있는 실제 증권사 해외주식 계좌를 반영한 것, 2026-08-20 계약).
    *  생략하면 0. 0 이상 정수(음수는 400 INVALID_INPUT). */
   initialBalanceKrw?: number
-  /** 등록 시점 외화 예수금 원금(달러, 소수점 둘째 자리까지) — **외화 계좌 전용**. 원화 계좌가 보내면
-   *  400 INITIAL_BALANCE_CURRENCY_MISMATCH. 외화 계좌는 initialBalanceKrw와 함께 보낼 수도, 한쪽만
-   *  보낼 수도 있다 — 둘은 서로 다른 돈이라 합산되지 않는다. */
+  /** 등록 시점 외화 예수금 원금(달러, 소수점 둘째 자리까지). 보낼 수 있는 계좌는 **외화 표시 계좌
+   *  또는 주식·가상자산 계좌**다(2026-08-27 라이브 OpenAPI 설명) — 원화 표시 증권계좌도 환전 전
+   *  원화와 환전한 달러를 함께 가지므로 여기 해당한다. 그 밖의 원화 계좌가 보내면 400
+   *  INITIAL_BALANCE_CURRENCY_MISMATCH("원화 계좌는 외화 원금을 가질 수 없습니다"). initialBalanceKrw와
+   *  함께 보낼 수도, 한쪽만 보낼 수도 있다 — 둘은 서로 다른 돈이라 합산되지 않는다. */
   initialBalanceUsd?: number
   interestRate?: number
   openedAt?: string
   maturityDate?: string
   isLiquid: boolean
   sortOrder?: number
-  /** 등록과 함께 넣을 보유 종목(최대 100건). **주식(DOMESTIC_STOCK·FOREIGN_STOCK)과 가상자산(CRYPTO)
-   *  계좌만 보낼 수 있고, 그 외 유형에 보내면 400 INVALID_ACCOUNT_TYPE이며 계좌도 만들어지지 않는다.**
-   *  생략하면 보유 없이 계좌만 등록한다. */
+  /** 등록과 함께 넣을 보유 종목(최대 100건). **주식(STOCK)과 가상자산(CRYPTO) 계좌만 보낼 수 있고,
+   *  그 외 유형에 보내면 400 INVALID_ACCOUNT_TYPE이며 계좌도 만들어지지 않는다.** 주식 계좌 하나에
+   *  국내(KR)·해외(US) 종목을 섞어 담을 수 있다 — price가 종목 표시 통화 기준이라 줄마다 단위가
+   *  다를 수 있다. 생략하면 보유 없이 계좌만 등록한다. */
   holdings?: CreateAccountHoldingRequest[]
 }
 
@@ -108,14 +111,3 @@ export interface AdjustBalanceRequest {
   description?: string
 }
 
-export interface AccountSnapshotResponse {
-  snapshotDate: string
-  valueKrw: number
-  valueNative: number | null
-  source: SnapshotSource
-}
-
-export interface UpsertSnapshotRequest {
-  valueKrw: number
-  valueNative?: number
-}

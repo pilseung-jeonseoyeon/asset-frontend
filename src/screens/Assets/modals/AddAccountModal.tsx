@@ -15,8 +15,7 @@
 // JSX 여기저기 흩뿌리면 "예적금만 만기일 필수" 같은 규칙이 화면과 검증 사이에서 갈라진다.
 //   현금      현재 잔액(금융기관은 모든 유형 공통 — 입출금 통장은 기관을, 지갑 현금은 '없음'을 고른다)
 //   예적금    현재 잔액 + 이율(선택) + 개설일(선택) + 만기일(필수)
-//   국내주식  현재 잔액 + 보유 종목(KR)
-//   해외주식  현재 달러 잔액 + 현재 원화 잔액 + 보유 종목(US)
+//   주식      현재 원화 잔액 + 현재 달러 잔액 + 보유 종목(KR·US 혼합)
 //   가상자산  현재 잔액 + 보유 코인(CRYPTO)
 //   연금·기타 현재 잔액
 // 이율·개설일·만기일은 2026-08-19 폼 축소 때 지웠다가 이번에 되살린 것이다(커밋 0747fe4^) — DatePicker
@@ -29,8 +28,9 @@
 // 그대로 나타난다. 프론트가 계좌를 만든 뒤 POST /trades를 여러 번 부르는 방식이 아니라 한 요청이므로,
 // 중간에 실패해 "계좌만 만들어진" 어중간한 상태가 생기지 않는다(유형이 안 맞으면 400
 // INVALID_ACCOUNT_TYPE이고 계좌도 만들어지지 않는다 — OpenAPI 명시).
-// 평단가 통화는 원화가 아니라 **종목 표시 통화**다: 해외주식은 달러, 국내주식·가상자산은 원화
-// (AccountHoldingsField가 시장에 맞춰 입력받은 값을 그대로 싣는다).
+// 평단가 통화는 원화가 아니라 **종목 표시 통화**다: 해외 종목은 달러, 국내 종목·가상자산은 원화.
+// 주식 계좌 하나에 국내·해외를 섞어 담을 수 있으므로 이 단위는 계좌가 아니라 **줄마다** 갈린다
+// (AccountHoldingsField가 줄에 붙여둔 market을 그대로 따른다).
 //
 // 모달 구조는 2스텝 마법사가 아니라 한 화면 스크롤이다(2026-08-20, UX 검토): 이 모달은 대부분
 // AssetCategoryModal이 유형을 프리셋해서 열기 때문에, 스텝을 나누면 가장 흔한 경로에서 이미 정해진
@@ -41,18 +41,22 @@
 // 스크롤 밖으로 나가면 모바일에서 닫을 수단이 사라진다. 하단(저장 버튼)은 고정하지 않는다 — 이유는
 // 아래 footerStyle 주석 참고.
 //
-// 통화 선택 UI는 없다 — 저장 시 보내는 currency는 자산 유형 칩에서 그대로 파생된다: 해외주식 칩이면
-// 'USD', 나머지 5개 칩은 'KRW'다. form.currency를 곧이곧대로 읽지 않는 이유는 assetClassFormPreset이
-// 주식 외 4개 자산군 칩을 고를 때 currency를 건드리지 않기 때문이다(그 함수 주석 참고).
+// 통화 선택 UI는 없다 — 저장 시 보내는 currency는 항상 'KRW'다. 서버 계약상 currency는 금액 필드의
+// 단위가 아니라 **표기용**이고(AccountRes.currency 설명), 달러 예수금은 통화와 무관하게
+// initialBalanceUsd라는 별도 필드로 나가기 때문이다. 2026-08-27 주식 통합 전에는 해외주식 칩만
+// 'USD'를 보냈지만, 그 칩이 국내주식과 합쳐지면서 "이 계좌는 달러 계좌"라고 단정할 근거가 사라졌다 —
+// 국내 종목만 담은 증권계좌까지 USD 표기가 될 수는 없다.
 //
-// 잔액 입력은 자산 유형에 따라 갈린다. 해외주식 칩은 실제 증권사 계좌처럼 **달러 예수금과 원화
-// 예수금이 동시에** 있을 수 있다(2026-08-20, 사용자 결정 — "환전 안 한 원화도 따로 있다") — 그래서
-// 이 칩만 입력칸이 두 개고 둘 다 선택 입력이다. 두 칸은 환산 관계가 아니라 서로 다른 돈이므로 하나를
-// 고치면 다른 쪽이 바뀌는 로직을 넣지 않는다. 저장 시 두 값을 initialBalanceUsd(달러)/
-// initialBalanceKrw(원화)로 함께 싣는다 — **필드명이 initialBalanceNative가 아니다**(그 이름은 서버
-// 계약에 존재한 적이 없고, 그대로 보내면 달러 예수금이 조용히 누락된다. account.type.ts 주석 참고).
-// 원화 계좌에 initialBalanceUsd를 보내면 400 INITIAL_BALANCE_CURRENCY_MISMATCH이므로 해외주식일
-// 때만 싣는다.
+// 잔액 입력은 자산 유형에 따라 갈린다. 주식 칩은 실제 증권사 계좌처럼 **달러 예수금과 원화 예수금이
+// 동시에** 있을 수 있다(2026-08-20, 사용자 결정 — "환전 안 한 원화도 따로 있다") — 그래서 이 칩만
+// 입력칸이 두 개고 둘 다 선택 입력이다. 두 칸은 환산 관계가 아니라 서로 다른 돈이므로 하나를 고치면
+// 다른 쪽이 바뀌는 로직을 넣지 않는다. 저장 시 두 값을 initialBalanceUsd(달러)/initialBalanceKrw(원화)로
+// 함께 싣는다 — **필드명이 initialBalanceNative가 아니다**(그 이름은 서버 계약에 존재한 적이 없고,
+// 그대로 보내면 달러 예수금이 조용히 누락된다. account.type.ts 주석 참고).
+// initialBalanceUsd를 보낼 수 있는 계좌는 "외화 표시 계좌 **또는 주식·가상자산 계좌**"라 원화 표기
+// 주식 계좌도 해당한다(2026-08-27 라이브 OpenAPI 설명). 다만 그 밖의 원화 계좌가 보내면 400
+// INITIAL_BALANCE_CURRENCY_MISMATCH이므로, **실제로 달러를 입력했을 때만** 싣는다 — 0을 굳이 보내
+// 서버 검증을 건드릴 이유가 없다.
 //
 // 환율은 프론트가 다루지 않는다(2026-08-20 백엔드 계약 변경). 서버가 외화 원금을 그대로 보관하고 원화
 // 평가액은 기준일 환율로 매번 환산한다 — 프론트가 환율을 곱하면 이중 환산이 된다. 그래서 환율 입력칸도,
@@ -106,17 +110,18 @@ interface FormFields {
   usdBalance: boolean
   /** 이율·개설일·만기일(예적금 전용). 만기일만 필수다. */
   savingsFields: boolean
-  /** 보유 종목/코인 리스트를 붙일 시장. null이면 리스트 없음. */
-  holdingMarket: Market | null
+  /** 보유 종목/코인 리스트를 붙일 시장 목록. 빈 배열이면 리스트 없음. */
+  holdingMarkets: Market[]
 }
 
 const FORM_FIELDS: Record<AssetClass, FormFields> = {
-  CASH: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarket: null },
-  DEPOSIT: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: true, holdingMarket: null },
-  DOMESTIC_STOCK: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarket: 'KR' },
-  FOREIGN_STOCK: { amountLabel: '현재 원화 잔액', usdBalance: true, savingsFields: false, holdingMarket: 'US' },
-  CRYPTO: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarket: 'CRYPTO' },
-  ETC: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarket: null },
+  CASH: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarkets: [] },
+  DEPOSIT: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: true, holdingMarkets: [] },
+  // 국내주식·해외주식이 합쳐진 칸이라 예전 해외주식 폼(원화+달러 두 칸)이 기본이 된다 — 증권계좌
+  // 하나가 환전 전 원화와 환전한 달러를 함께 갖기 때문(2026-08-27, 사용자 결정).
+  STOCK: { amountLabel: '현재 원화 잔액', usdBalance: true, savingsFields: false, holdingMarkets: ['KR', 'US'] },
+  CRYPTO: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarkets: ['CRYPTO'] },
+  ETC: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarkets: [] },
 }
 
 /** 서버가 6종 밖의 AccountType을 내려줘 assetClassOfAccountType이 모르는 값으로 접혔을 때의 폴백. */
@@ -236,7 +241,9 @@ export function AddAccountModal() {
   const selectedAssetClass = assetClassOfAccountType(form.type)
   const fields = formFieldsOf(selectedAssetClass)
   // 실제로 전송할 통화. form.currency를 곧이곧대로 읽지 않는 이유는 파일 상단 주석 참고.
-  const accountCurrency: Currency = fields.usdBalance ? 'USD' : 'KRW'
+  // 표기용 통화는 항상 원화다(파일 상단 "통화 선택 UI는 없다" 단락 참고) — 달러 예수금은 통화와
+  // 무관하게 initialBalanceUsd로 따로 나간다.
+  const accountCurrency: Currency = 'KRW'
   const usdAmount = Number(form.initialBalanceUsd) || 0
 
   // 필드 옆 빨간 문구와 저장 버튼 위 요약이 같은 근거를 보도록 한 벌로 계산한다. 만기일은 플래그만
@@ -353,11 +360,10 @@ export function AddAccountModal() {
       name: form.name.trim(),
       type: form.type,
       currency: accountCurrency,
-      // 해외주식은 달러 예수금과 원화 예수금이 서로 다른 돈이라 둘 다 싣는다(비웠으면 0) — 파일 상단
-      // 주석 참고. 나머지 5개 자산군은 원화 한 필드만 보낸다(원화 계좌에 달러 필드를 보내면 400).
-      ...(fields.usdBalance
-        ? { initialBalanceUsd: usdAmount, initialBalanceKrw: form.initialBalanceKrw }
-        : { initialBalanceKrw: form.initialBalanceKrw }),
+      initialBalanceKrw: form.initialBalanceKrw,
+      // 주식은 달러 예수금과 원화 예수금이 서로 다른 돈이라 둘 다 싣는다 — 파일 상단 주석 참고.
+      // 달러 칸을 비웠으면 필드 자체를 빼서 서버의 통화 검증을 건드리지 않는다(0을 보낼 이유가 없다).
+      ...(fields.usdBalance && usdAmount > 0 ? { initialBalanceUsd: usdAmount } : {}),
       isLiquid: form.isLiquid,
       // '없음'이면 institutionId를 아예 싣지 않는다(서버 스펙: "현금 등 무기관 자산은 생략한다").
       ...(form.institutionId !== null ? { institutionId: form.institutionId } : {}),
@@ -365,17 +371,18 @@ export function AddAccountModal() {
       ...(fields.savingsFields && form.interestRate !== null ? { interestRate: form.interestRate } : {}),
       ...(fields.savingsFields && openedAt ? { openedAt } : {}),
       ...(fields.savingsFields && maturityDate ? { maturityDate } : {}),
-      // 보유 종목은 리스트가 붙는 3개 유형에서, 실제로 담은 게 있을 때만 싣는다 — 그 외 유형에 빈
-      // 배열이라도 보내면 400 INVALID_ACCOUNT_TYPE으로 계좌 자체가 안 만들어진다(OpenAPI 명시).
-      // fields.holdingMarket으로 막고 있어 현재 UI에서는 생길 수 없지만, 두 조건을 함께 둬서 나중에
-      // 유형이 늘어도 잘못된 조합이 나가지 않게 한다.
-      ...(fields.holdingMarket && holdings.length > 0
+      // 보유 종목은 리스트가 붙는 2개 유형(주식·가상자산)에서, 실제로 담은 게 있을 때만 싣는다 —
+      // 그 외 유형에 빈 배열이라도 보내면 400 INVALID_ACCOUNT_TYPE으로 계좌 자체가 안 만들어진다
+      // (OpenAPI 명시). fields.holdingMarkets로 막고 있어 현재 UI에서는 생길 수 없지만, 두 조건을
+      // 함께 둬서 나중에 유형이 늘어도 잘못된 조합이 나가지 않게 한다.
+      ...(fields.holdingMarkets.length > 0 && holdings.length > 0
         ? {
             holdings: holdings.map((h) => ({
               stockId: h.stockId,
               quantity: Number(h.quantityStr) || 0,
-              // 평단가는 종목 표시 통화 기준이다 — 해외(US)는 달러 문자열 그대로, 국내·코인은 원화
-              // 정수. AccountHoldingsField가 시장에 맞는 단위로 입력받아 두므로 여기서 환산하지 않는다.
+              // 평단가는 종목 표시 통화 기준이다 — 해외(US)는 달러, 국내·코인은 원화. 한 계좌에
+              // 국내·해외가 섞이므로 줄마다 단위가 다를 수 있다. AccountHoldingsField가 각 줄의
+              // 시장에 맞는 단위로 입력받아 두므로 여기서 환산하지 않는다.
               price: Number(h.avgPriceStr) || 0,
             })),
           }
@@ -473,7 +480,7 @@ export function AddAccountModal() {
               {ASSET_CLASS_META[pendingAssetClass].label}(으)로 바꿀까요?
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--text-weak)', lineHeight: 1.6 }}>
-              추가한 {fields.holdingMarket === 'CRYPTO' ? '코인' : '종목'} {holdings.length}개가 사라져요. 계좌 이름과 금액은 그대로 남아요.
+              추가한 {fields.holdingMarkets[0] === 'CRYPTO' ? '코인' : '종목'} {holdings.length}개가 사라져요. 계좌 이름과 금액은 그대로 남아요.
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
@@ -572,16 +579,15 @@ export function AddAccountModal() {
           </>
         )}
 
-        {fields.holdingMarket && (
-          // key에 market을 걸어 유형이 바뀌면 통째로 다시 마운트한다. 담긴 목록(holdings)은
+        {fields.holdingMarkets.length > 0 && (
+          // key에 시장 목록을 걸어 유형이 바뀌면 통째로 다시 마운트한다. 담긴 목록(holdings)은
           // applyAssetClass가 비우지만, **고르는 중이던 종목**은 이 컴포넌트 내부 상태(pending)라
-          // 부모가 손댈 수 없다 — key가 없으면 국내주식에서 '삼성전자'를 고른 상태로 해외주식으로
-          // 바꿨을 때 그 줄이 그대로 남아 단가 기호만 ₩→$로 바뀌고, 그대로 추가하면 해외주식
-          // 계좌에 국내 종목이 달러 평단가로 등록된다(서버는 계좌 유형과 종목 시장을 검증하지
-          // 않는다). 2026-08-20 수정.
+          // 부모가 손댈 수 없다 — key가 없으면 주식에서 '삼성전자'를 고른 상태로 가상자산으로
+          // 바꿨을 때 그 줄이 그대로 남고, 그대로 추가하면 코인 계좌에 주식이 등록된다(서버는 계좌
+          // 유형과 종목 시장을 검증하지 않는다). 2026-08-20 수정.
           <AccountHoldingsField
-            key={fields.holdingMarket}
-            market={fields.holdingMarket}
+            key={fields.holdingMarkets.join(',')}
+            markets={fields.holdingMarkets}
             enabled={isOpen}
             items={holdings}
             onChange={setHoldings}

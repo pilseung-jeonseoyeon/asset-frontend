@@ -396,13 +396,14 @@ export function buildClosedHoldingCards(closedHoldings: ClosedHoldingResponse[])
  * 시장별로 매매에 쓸 수 있는 계좌 타입. 서버가 계좌 타입을 검증하지 않아 현금 계좌로도 매매가 그대로
  * 등록되던 문제를 프론트에서 좁혀 막는다.
  *
- * 2026-08-20 백엔드 계약 변경으로 계좌 유형이 6종이 되면서 국내/해외 증권 계좌가 타입 자체로 갈리게
- * 됐다 — 예전에는 둘 다 BROKERAGE라 KR·US 모두 같은 목록을 봤지만, 이제 국내 종목은 국내주식 계좌,
- * 해외 종목은 해외주식 계좌만 고를 수 있다. 통화가 맞지 않는 계좌로 매매가 잡히던 여지가 사라진다.
+ * 2026-08-27 계약 변경으로 DOMESTIC_STOCK/FOREIGN_STOCK이 STOCK 하나가 되면서 **KR과 US가 같은
+ * 계좌 타입을 본다** — 실제 증권계좌 하나가 삼성전자와 애플을 함께 담기 때문이다. 잠깐 유지됐던
+ * "국내 종목은 국내주식 계좌만" 규칙은 서버에서 사라졌으니 되살리지 말 것. 그래도 이 표가 남아 있는
+ * 이유는 그대로다: 현금·예적금·연금 계좌로 매매가 잡히는 것은 계속 막는다.
  */
 const TRADE_ACCOUNT_TYPES_BY_MARKET: Record<Market, AccountType[]> = {
-  KR: ['DOMESTIC_STOCK'],
-  US: ['FOREIGN_STOCK'],
+  KR: ['STOCK'],
+  US: ['STOCK'],
   CRYPTO: ['CRYPTO'],
 }
 
@@ -417,22 +418,25 @@ export function filterTradeAccounts(accounts: AccountResponse[], market: Market)
 }
 
 /**
- * 계좌 유형 → 그 계좌가 담을 수 있는 시장. 위 TRADE_ACCOUNT_TYPES_BY_MARKET의 역방향이며(1:1이라
- * 역이 성립한다), 매매 대상이 아닌 4개 유형(현금·예적금·연금기타)은 null이다.
+ * 계좌 유형 → 그 계좌가 담을 수 있는 시장 **목록**. 위 TRADE_ACCOUNT_TYPES_BY_MARKET의 역방향이며,
+ * 매매 대상이 아닌 유형(현금·예적금·연금기타)은 빈 배열이다.
+ *
+ * 2026-08-27 이전에는 계좌 유형과 시장이 1:1이라 Market 하나를 돌려줬지만, STOCK 계좌가 KR과 US를
+ * 함께 담게 되면서 배열이 됐다 — 이 계좌에 담긴 종목의 시장은 계좌가 아니라 **고른 종목**이 정한다
+ * (AccountHoldingsField가 줄마다 StockRes.market을 들고 있다).
  *
  * 보유 종목 추가(AddHoldingsModal)는 시장이 아니라 계좌를 먼저 고르는 순서라 이 방향이 필요하다 —
- * 고른 계좌가 종목 검색 결과·평단가 통화·수량 단위를 전부 결정한다.
+ * 고른 계좌가 종목 검색 결과의 범위를 정한다.
  */
-export function marketOfAccountType(type: AccountType): Market | null {
-  const found = (Object.keys(TRADE_ACCOUNT_TYPES_BY_MARKET) as Market[]).find((m) =>
+export function marketsOfAccountType(type: AccountType): Market[] {
+  return (Object.keys(TRADE_ACCOUNT_TYPES_BY_MARKET) as Market[]).filter((m) =>
     TRADE_ACCOUNT_TYPES_BY_MARKET[m].includes(type),
   )
-  return found ?? null
 }
 
-/** 종목·코인을 담을 수 있는 계좌만(국내주식·해외주식·가상자산) — 시장 구분 없이 전부. */
+/** 종목·코인을 담을 수 있는 계좌만(주식·가상자산) — 시장 구분 없이 전부. */
 export function filterHoldingAccounts(accounts: AccountResponse[]): AccountResponse[] {
-  return accounts.filter((a) => marketOfAccountType(a.type) !== null)
+  return accounts.filter((a) => marketsOfAccountType(a.type).length > 0)
 }
 
 export interface AccountInstitutionMeta {
@@ -462,6 +466,12 @@ export function accountInstitutionMeta(
 
 export interface TradeRowView {
   id: number
+  /**
+   * 원본 체결일('YYYY-MM-DD'). dateLabel은 'MM.DD'로 잘려 연도가 없어 정렬·병합에 쓸 수 없다 —
+   * 계좌 상세가 가계부 거래와 한 목록으로 섞을 때 이 값으로 날짜를 비교한다(assetsView
+   * buildAccountActivity).
+   */
+  isoDate: string
   dateLabel: string
   stockName: string
   tag: string
@@ -491,6 +501,7 @@ export function buildTradeRows(trades: TradeResponse[], market?: Market, limit: 
     .slice(0, limit)
     .map((t) => ({
       id: t.id,
+      isoDate: t.tradeDate,
       dateLabel: shortTradeDateLabel(t.tradeDate),
       stockName: t.stockName,
       tag: t.side === 'BUY' ? '매수' : '매도',

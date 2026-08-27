@@ -17,8 +17,8 @@
 //    dd 상태를 공유해 한쪽에서 고른 계좌가 다른 쪽으로 새는 버그가 된다(과거 useDropdown 기반 구현의
 //    실제 버그였음. 지금은 계좌 선택을 로컬 상태로 들고 있어 값 자체는 새지 않지만, 두 모달이 동시에
 //    같은 openDropdown 키를 다투지 않도록 키는 여전히 분리한다).
-//  - 계좌 드롭다운은 GET /accounts 전체가 아니라 filterTradeAccounts(선택된 시장에 맞는 타입만 — KR은
-//    DOMESTIC_STOCK, US는 FOREIGN_STOCK, CRYPTO는 CRYPTO)로 좁혔다 — 서버가 계좌 타입을 검증하지
+//  - 계좌 드롭다운은 GET /accounts 전체가 아니라 filterTradeAccounts(선택된 시장에 맞는 타입만 — KR·US는
+//    STOCK, CRYPTO는 CRYPTO)로 좁혔다 — 서버가 계좌 타입을 검증하지
 //    않아(docs/backend-request.md B-1-3) 현금 계좌는 물론, 증권 계좌 없이 가상자산 지갑만 있는 사용자가
 //    KR/US 종목을 지갑 계좌로 등록하는 것까지 막는다. 적합한 계좌가 0개면 빈 드롭다운 대신 "증권계좌를
 //    먼저 추가해주세요" + 계좌 추가 버튼으로 보낸다.

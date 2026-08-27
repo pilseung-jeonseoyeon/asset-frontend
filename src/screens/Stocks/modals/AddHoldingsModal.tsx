@@ -8,9 +8,12 @@
 // POST /accounts의 holdings는 계좌 생성 시에만). 그래서 여기서는 담은 줄 수만큼 POST /trades(BUY)를
 // 순차로 보낸다 — 순차인 이유와 부분 실패 처리는 usePostTradesBulk(trade.hook.ts) 주석 참고.
 //
-// 계좌를 먼저 고르는 순서인 이유: 계좌 유형이 시장(KR/US/CRYPTO)을 결정하고, 시장이 다시 종목 검색
-// 결과·평균단가 통화·수량 단위를 결정한다(marketOfAccountType). QuickStockModal은 반대로 시장 탭을
-// 먼저 고르지만, 여기서는 "이 계좌에 담긴 것을 채워 넣는다"가 사용자의 머릿속 순서다.
+// 계좌를 먼저 고르는 순서인 이유: 계좌 유형이 담을 수 있는 시장 범위를 정하고, 그 범위가 종목 검색
+// 결과를 좁힌다(marketsOfAccountType). QuickStockModal은 반대로 시장 탭을 먼저 고르지만, 여기서는
+// "이 계좌에 담긴 것을 채워 넣는다"가 사용자의 머릿속 순서다.
+//
+// 2026-08-27 주식 통합 뒤로 증권 계좌 하나가 KR·US를 함께 담으므로, 계좌가 정하는 것은 "시장 하나"가
+// 아니라 **시장 목록**이다. 평균단가 통화와 수량 단위는 계좌가 아니라 고른 종목이 정한다.
 //
 // 입력 블록 자체는 AccountHoldingsField를 그대로 재사용한다(검색 팝오버·담은 목록·수량/평단가 인라인
 // 입력). 다른 점은 안내 문구뿐이다 — 계좌 등록 폼은 체결일이 무조건 오늘이지만 이 모달은 기준일을
@@ -27,7 +30,7 @@ import { useAppState } from '../../../state/AppStateContext'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate } from '../../../utils/date'
-import { accountInstitutionMeta, filterHoldingAccounts, marketOfAccountType } from '../../../data/stocksView'
+import { accountInstitutionMeta, filterHoldingAccounts, marketsOfAccountType } from '../../../data/stocksView'
 import { AccountHoldingsField } from '../../Assets/modals/AccountHoldingsField'
 import type { DraftHolding } from '../../Assets/modals/AccountHoldingsField'
 import { useGetAccounts } from '@/services/account'
@@ -60,16 +63,18 @@ export function AddHoldingsModal() {
   const postTrades = usePostTradesBulk()
 
   const selectedAccount = accountId !== null ? accounts.find((a) => a.id === accountId) : undefined
-  const market = selectedAccount ? marketOfAccountType(selectedAccount.type) : null
+  const markets = selectedAccount ? marketsOfAccountType(selectedAccount.type) : []
+  const marketsKey = markets.join(',')
 
   const pickAccount = (id: number) => {
     const next = accounts.find((a) => a.id === id)
-    const nextMarket = next ? marketOfAccountType(next.type) : null
-    // 담은 종목은 시장에 종속돼 있다 — 국내 계좌에 담아둔 종목을 해외 계좌로 그대로 옮길 수 없으므로
-    // 시장이 바뀌면 비운다. AddAccountModal은 유형 칩을 바꿀 때 확인을 먼저 받지만, 여기서는 아직
-    // 아무것도 서버로 나가지 않은 로컬 입력이고 되돌리는 비용도 "다시 검색해서 담기"뿐이라 곧바로
-    // 비우되, 비웠다는 사실을 문구로 알린다.
-    if (market && nextMarket !== market && holdings.length > 0) {
+    const nextMarketsKey = next ? marketsOfAccountType(next.type).join(',') : ''
+    // 담은 종목은 시장에 종속돼 있다 — 증권 계좌에 담아둔 종목을 코인 지갑으로 그대로 옮길 수 없으므로
+    // **담을 수 있는 시장 범위가 바뀌면** 비운다. 증권 계좌끼리 바꾸는 경우는 범위가 같으므로 비우지
+    // 않는다(2026-08-27 주식 통합 전에는 국내↔해외 계좌 변경이 여기 걸렸다). AddAccountModal은 유형
+    // 칩을 바꿀 때 확인을 먼저 받지만, 여기서는 아직 아무것도 서버로 나가지 않은 로컬 입력이고
+    // 되돌리는 비용도 "다시 검색해서 담기"뿐이라 곧바로 비우되, 비웠다는 사실을 문구로 알린다.
+    if (marketsKey && nextMarketsKey !== marketsKey && holdings.length > 0) {
       setHoldings([])
       setClearedByAccountChange(true)
     } else {
@@ -125,7 +130,7 @@ export function AddHoldingsModal() {
     postTrades.reset()
   }
 
-  const isCrypto = market === 'CRYPTO'
+  const isCrypto = markets.length > 0 && markets.every((m) => m === 'CRYPTO')
   const unitWord = isCrypto ? '코인' : '종목'
 
   const handleSave = () => {
@@ -238,14 +243,14 @@ export function AddHoldingsModal() {
           <DatePicker dp={dpTradeDate} />
         </div>
 
-        {market ? (
+        {markets.length > 0 ? (
           <div>
-            {/* key에 market을 걸어 계좌를 바꾸면 통째로 다시 마운트한다 — 담긴 목록은 pickAccount가
-                비우지만 "고르는 중이던 종목"은 이 컴포넌트 내부 상태라 부모가 비울 수 없다
-                (AddAccountModal의 같은 자리 주석 참고). */}
+            {/* key에 시장 목록을 걸어 계좌 종류가 바뀌면 통째로 다시 마운트한다 — 담긴 목록은
+                pickAccount가 비우지만 "고르는 중이던 종목"은 이 컴포넌트 내부 상태라 부모가 비울 수
+                없다(AddAccountModal의 같은 자리 주석 참고). */}
             <AccountHoldingsField
-              key={market}
-              market={market}
+              key={marketsKey}
+              markets={markets}
               enabled={isOpen}
               items={holdings}
               onChange={(next) => {

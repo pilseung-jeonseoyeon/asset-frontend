@@ -4,21 +4,38 @@
 // Opened from AssetCategoryModal's account rows, which sit at z-index 80 (§7-1 1단 모달) — this is a
 // 2단 모달 (z-index 90), same as EditAccountModal/AddAccountModal opened from the same parent.
 //
-// Data: GET /accounts/{id}(계좌 정보·현재 잔액) + GET /accounts/{id}/snapshots(최근 6개월 추이) +
-// GET /transactions?accountId=(최근 거래내역). "원금 대비 +N%" 배지는 AccountResponse에 원금이 없어
-// 제거했다 — docs/backend-requests.md 참고.
+// Data: GET /accounts/{id}(계좌 정보·현재 잔액) + GET /transactions?accountId=(가계부 거래)
+// + GET /trades?accountId=(주식·가상자산 계좌의 매수·매도).
+// "원금 대비 +N%" 배지는 AccountResponse에 원금이 없어 제거했다.
+//
+// **"최근 거래내역"은 두 리소스를 합친 목록이다**(2026-08-27, 사용자 요청 — "주식 매수 매도 한거
+// 보여줄 수 있나"). 서버에 둘을 함께 주는 API가 없어 프론트가 날짜순으로 병합한다(assetsView
+// buildAccountActivity). 매매는 가계부 거래를 따로 만들지 않으므로 같은 건이 두 번 뜨지 않는다.
+// GET /trades는 매매가 있을 수 있는 유형(주식·가상자산)에서만 부른다 — 현금 계좌까지 부르면
+// 언제나 빈 응답인 요청을 계좌를 열 때마다 한 번씩 더 보내게 된다.
+//
+// **"최근 6개월 추이" 칸은 없다**(2026-08-27, 사용자 결정 — "상세에 추이 그래프 빼줘"). 채울 수 없는
+// 빈 상자가 잔액과 거래내역 사이를 가로막고 있을 이유가 없다.
+// 경위: 예전에는 GET /accounts/{id}/snapshots를 불렀는데 그 주소가 서버에서 사라졌고(2026-08-26 라이브
+// OpenAPI 대조: 문서 전체에 snapshot 0건), 404 응답에 서버 표준 에러 본문이 없어 "Request failed with
+// status code 404"라는 영문 원문이 그대로 카드에 노출됐다. 호출을 걷어내고 빈 상태로 뒀다가, 이번에
+// 칸 자체를 지웠다.
+// **GET /dashboard/trend?type=으로 되살리지 말 것**(2026-08-27 확인): 그 API에는 계좌를 지정하는
+// 파라미터가 없어 그 유형 계좌 **전부의 합계**를 돌려준다 — 증권 계좌가 8개면 8개 합계가 나오므로
+// 계좌 하나의 추이인 척 그리면 틀린 숫자가 된다. 자산군 단위 그래프는 AssetCategoryModal이 쓴다.
+// 백엔드에 계좌별 추이(accountId 필터)가 생기면 그때 이 자리에 선 그래프를 만든다.
 
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
-import { recentMonthsRange } from '../../../utils/date'
 import { fmt } from '../../../utils/format'
-import { buildAccountDetailHeader, buildAccountTrendPath, formatBigAmountCaption } from '../../../data/assetsView'
+import { buildAccountActivity, buildAccountDetailHeader, formatBigAmountCaption } from '../../../data/assetsView'
 import { buildLedgerTx, describeQueryError } from '../../../data/ledgerView'
-import { useGetAccount, useGetAccounts, useGetAccountSnapshots } from '@/services/account'
+import { buildTradeRows, marketsOfAccountType } from '../../../data/stocksView'
+import { useGetAccount, useGetAccounts } from '@/services/account'
 import { useGetTransactions } from '@/services/transaction'
+import { useGetTrades } from '@/services/trade'
 
-const TREND_RANGE_MONTHS = 6
 const RECENT_TX_SIZE = 5
 
 export function AccountDetailModal() {
@@ -27,10 +44,15 @@ export function AccountDetailModal() {
   const isOpen = accountId !== null
 
   const accountQuery = useGetAccount(isOpen ? accountId : null)
-  const snapshotsQuery = useGetAccountSnapshots(isOpen ? accountId : null, recentMonthsRange(TREND_RANGE_MONTHS))
   const txQuery = useGetTransactions(
     { accountId: accountId ?? undefined, page: 1, size: RECENT_TX_SIZE },
     { enabled: isOpen },
+  )
+  // 매매가 있을 수 있는 유형인지는 계좌 응답이 와야 알 수 있다 — 그전까지는 요청을 보내지 않는다.
+  const hasTrades = accountQuery.data ? marketsOfAccountType(accountQuery.data.type).length > 0 : false
+  const tradesQuery = useGetTrades(
+    { accountId: accountId ?? undefined },
+    { enabled: isOpen && hasTrades },
   )
   // TRANSFER 거래의 상대 계좌명 조인용(ledgerView.buildLedgerTx가 요구하는 인자) — API-SPEC 참고.
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })
@@ -43,8 +65,14 @@ export function AccountDetailModal() {
   const err = describeQueryError(accountQuery.error)
   const header = account ? buildAccountDetailHeader(account) : null
   const bigAmountCaption = account ? formatBigAmountCaption(account.balanceKrw) : null
-  const trendPath = snapshotsQuery.data ? buildAccountTrendPath(snapshotsQuery.data) : null
+  // 두 목록을 각자의 규칙으로 최신순으로 만든 뒤 날짜로 병합해 상위 RECENT_TX_SIZE건만 남긴다.
+  // 매매는 여기서 limit을 걸지 않고(buildTradeRows 기본값 10건) 병합 후에 자른다 — 매매가 몰린
+  // 날이 있으면 가계부 거래가 밀려날 수 있는데, 그건 "최근에 일어난 일"이라는 기준상 맞는 동작이다.
   const txRows = buildLedgerTx(txQuery.data?.content ?? [], accountsQuery.data ?? [])
+  const tradeRows = buildTradeRows(tradesQuery.trades)
+  const activityRows = buildAccountActivity(txRows, tradeRows, RECENT_TX_SIZE)
+  // 둘 중 하나만 실패해도 나머지는 보여준다 — 매매를 못 불러왔다고 가계부 거래까지 감출 이유가 없다.
+  const activityError = txQuery.error ?? tradesQuery.error
 
   return (
     <Modal onClose={closeAccount} zIndex={90} width={560} panelStyle={{ maxHeight: '86vh', overflow: 'auto' }}>
@@ -105,33 +133,16 @@ export function AccountDetailModal() {
             )}
           </div>
 
-          <div style={{ background: 'var(--fill-subtle)', borderRadius: 10, padding: 16, marginBottom: 20 }}>
-            <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginBottom: 8 }}>최근 {TREND_RANGE_MONTHS}개월 추이</div>
-            {snapshotsQuery.isPending ? (
-              <div aria-busy style={{ fontSize: 12, color: 'var(--text-weak)', height: 56, display: 'flex', alignItems: 'center' }}>—</div>
-            ) : snapshotsQuery.error ? (
-              <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{snapshotsQuery.error.message}</div>
-            ) : trendPath ? (
-              <svg viewBox="0 0 100 44" style={{ width: '100%', height: 56, display: 'block' }} preserveAspectRatio="none">
-                <path d={trendPath} fill="none" style={{ stroke: 'var(--accent)' }} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : (
-              <div style={{ fontSize: 12, color: 'var(--text-weak)', padding: '10px 0' }}>추이를 표시할 데이터가 아직 없어요.</div>
-            )}
-          </div>
-
           <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>최근 거래내역</div>
-          {txQuery.isPending ? (
+          {txQuery.isPending || (hasTrades && tradesQuery.isPending) ? (
             <div aria-busy style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
-          ) : txQuery.error ? (
-            <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{txQuery.error.message}</div>
-          ) : txRows.length === 0 ? (
+          ) : activityRows.length === 0 ? (
             <div style={{ fontSize: 12.5, color: 'var(--text-weak)', padding: '13px 0' }}>
-              이 계좌의 거래내역이 아직 없어요.
+              {activityError ? activityError.message : '이 계좌의 거래내역이 아직 없어요.'}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {txRows.map((t) => (
+              {activityRows.map((t) => (
                 <div key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '0.5px solid var(--track)' }}>
                   <div style={{ fontSize: 11.5, color: 'var(--text-weak)', width: 44, flex: 'none' }}>{t.dateLabel}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -142,9 +153,17 @@ export function AccountDetailModal() {
                       {t.tag}
                     </span>
                   )}
-                  <div style={{ fontSize: 13.5, fontWeight: 700, width: 110, textAlign: 'right', color: t.amountColor }}>{t.amount}원</div>
+                  {/* amountText에 '원'·'$'가 이미 들어 있다 — 여기서 '원'을 덧붙이면 해외 종목
+                      매매($1,101.75)가 원화로 잘못 읽힌다. */}
+                  <div style={{ fontSize: 13.5, fontWeight: 700, width: 110, textAlign: 'right', color: t.amountColor }}>{t.amountText}</div>
                 </div>
               ))}
+              {/* 한쪽만 실패했을 때: 보이는 목록이 전부가 아니라는 사실을 조용히 넘기지 않는다. */}
+              {activityError && (
+                <div style={{ fontSize: 11.5, color: 'var(--down)', paddingTop: 10 }}>
+                  일부 내역을 불러오지 못했어요: {activityError.message}
+                </div>
+              )}
             </div>
           )}
         </>

@@ -1,22 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { qk } from '../queryKeys'
-import type { AccountListParams, DateRange } from '../common.type'
+import type { AccountListParams } from '../common.type'
 import {
   deleteAccount,
-  deleteAccountSnapshot,
   getAccount,
   getAccounts,
-  getAccountSnapshots,
   patchAccount,
   patchAccountBalance,
   postAccount,
-  putAccountSnapshot,
 } from './account.service'
 import type {
   AdjustBalanceRequest,
   CreateAccountRequest,
   UpdateAccountRequest,
-  UpsertSnapshotRequest,
 } from './account.type'
 
 export function useGetAccounts(
@@ -38,13 +34,6 @@ export function useGetAccount(accountId: number | null) {
   })
 }
 
-export function useGetAccountSnapshots(accountId: number | null, range: DateRange) {
-  return useQuery({
-    queryKey: qk.account.snapshots(accountId ?? 0, range),
-    queryFn: () => getAccountSnapshots(accountId as number, range),
-    enabled: accountId !== null,
-  })
-}
 
 /**
  * 계좌·스냅샷이 바뀌면 서버가 잔액을 다시 계산하므로 자산 분포/대시보드까지 함께 무효화한다.
@@ -120,27 +109,3 @@ export function usePatchAccountBalance() {
   })
 }
 
-export function usePutAccountSnapshot() {
-  const invalidate = useInvalidateAccount()
-  return useMutation({
-    mutationFn: ({
-      accountId,
-      snapshotDate,
-      body,
-    }: {
-      accountId: number
-      snapshotDate: string
-      body: UpsertSnapshotRequest
-    }) => putAccountSnapshot(accountId, snapshotDate, body),
-    onSuccess: invalidate,
-  })
-}
-
-export function useDeleteAccountSnapshot() {
-  const invalidate = useInvalidateAccount()
-  return useMutation({
-    mutationFn: ({ accountId, snapshotDate }: { accountId: number; snapshotDate: string }) =>
-      deleteAccountSnapshot(accountId, snapshotDate),
-    onSuccess: invalidate,
-  })
-}

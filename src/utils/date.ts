@@ -162,8 +162,8 @@ export function yearEndISODate(d: Date = new Date()): string {
 }
 
 /**
- * 오늘로부터 최근 monthsBack개월의 DateRange('YYYY-MM-DD', 양끝 포함). 계좌 잔액 추이처럼
- * "최근 N개월" 스냅샷을 조회하는 곳에서 쓴다. from/to 둘 다 필수인 GET .../snapshots 파라미터에 맞춘다.
+ * 오늘로부터 최근 monthsBack개월의 DateRange('YYYY-MM-DD', 양끝 포함). "최근 N개월"을 기간으로
+ * 받는 조회에서 쓴다(현재는 가계부 입력의 최근 내역 추천). 양끝이 모두 필수인 파라미터에 맞춘 형태다.
  */
 export function recentMonthsRange(monthsBack: number, today: Date = new Date()): DateRange {
   const y = today.getFullYear()

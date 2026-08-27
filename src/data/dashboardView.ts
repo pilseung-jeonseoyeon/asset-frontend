@@ -130,7 +130,7 @@ export function buildTrendChart(
   padding = 6,
 ): TrendChartView {
   // API-SPEC §4.2는 예시만 오름차순이고 정렬을 보장하지 않는다. x좌표를 월로 매기므로 순서가
-  // 어긋나면 선이 앞뒤로 튄다 — buildAccountTrendPath(assetsView.ts)와 같은 이유의 방어적 정렬.
+  // 어긋나면 선이 앞뒤로 튄다 — 그래서 방어적으로 한 번 더 정렬한다.
   const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date))
   // 한 달에 지점이 여럿이면(unit=DAY로 받은 경우) x가 겹쳐 세로선이 생긴다 — 그 달의 마지막
   // 값만 남긴다.

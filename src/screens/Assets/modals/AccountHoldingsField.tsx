@@ -1,5 +1,10 @@
-// 계좌 추가 모달(AddAccountModal)의 "보유 종목/코인" 반복 입력 블록. 국내주식·해외주식·가상자산
-// 세 유형에서만 쓴다.
+// 계좌 추가 모달(AddAccountModal)의 "보유 종목/코인" 반복 입력 블록. 주식·가상자산 두 유형에서만 쓴다.
+//
+// **한 계좌에 국내·해외 종목을 섞어 담는다**(2026-08-27, 서버가 DOMESTIC_STOCK/FOREIGN_STOCK을
+// STOCK 하나로 합친 데 맞춤): 시장은 계좌가 아니라 **고른 종목**이 정하므로, prop은 Market 하나가
+// 아니라 "이 계좌가 담을 수 있는 시장 목록"(markets)이고 담긴 줄마다 자기 market을 들고 있다.
+// 그래서 수량 단위(주/개)와 평단가 통화(₩/$)도 블록 전체가 아니라 줄 단위로 갈린다 — 삼성전자 줄은
+// ₩, 애플 줄은 $로 같은 리스트 안에 나란히 있을 수 있다.
 //
 // 여기 담은 값은 부모(AddAccountModal)가 CreateAccountRequest.holdings로 계좌와 **한 요청에** 실어
 // 보낸다(2026-08-20 백엔드 계약 추가). 서버가 각 줄을 등록일 체결 BUY 매매로 기록하므로 등록 직후
@@ -7,6 +12,8 @@
 //
 // 평균단가의 단위는 **원화가 아니라 종목 표시 통화**다 — US는 달러, KR과 CRYPTO는 원화. 서버가
 // 그대로 평단가로 받으므로 여기서 환율을 곱하면 안 된다(CreateAccountHoldingReq.price 설명).
+// 시장이 섞이면서 이 규칙이 줄마다 달라졌으니, market을 블록 어딘가에 한 번 계산해두고 재사용하는
+// 식으로 되돌리지 말 것 — 그 순간 애플 평단가가 원화로 저장된다.
 //
 // 검색 자체는 QuickStockModal.tsx L332-380의 흐름을 그대로 따른다(GET /stocks?keyword= → 결과를
 // market으로 거름). 다만 **결과 목록은 인라인 블록이 아니라 팝오버로 띄운다**(2026-08-20, 사용자 지적
@@ -50,6 +57,11 @@ export interface DraftHolding {
   quantityStr: string
   /** 원시 입력 문자열. 단위는 시장에서 파생된다(US만 달러). */
   avgPriceStr: string
+  /**
+   * 고른 종목의 시장. 서버로는 나가지 않지만(매매·보유 등록은 stockId로 시장을 알아낸다) 이 줄의
+   * 수량 단위와 평단가 통화를 결정하므로 줄에 붙여둔다 — 계좌 유형에서 다시 유추할 수 없다.
+   */
+  market: Market
 }
 
 const LABEL_STYLE: CSSProperties = { fontSize: 12.5, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 8 }
@@ -92,9 +104,17 @@ function priceLabel(market: Market, raw: string): string {
   return market === 'US' ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${fmt(n)}원`
 }
 
+/** 검색 결과에서 국내/해외를 구분해주는 짧은 배지 문구. 시장이 하나뿐인 계좌에서는 쓰지 않는다. */
+function marketBadge(market: Market): string {
+  return market === 'US' ? '해외' : market === 'KR' ? '국내' : '코인'
+}
+
 interface Props {
-  /** 자산 유형 칩에서 파생된 시장. 검색 결과 필터·평균단가 통화·수량 단위를 모두 결정한다. */
-  market: Market
+  /**
+   * 이 계좌가 담을 수 있는 시장 목록(주식 계좌는 ['KR','US'], 가상자산 계좌는 ['CRYPTO']).
+   * 검색 결과의 범위만 정하고, 개별 줄의 통화·단위는 그 줄의 종목이 정한다.
+   */
+  markets: Market[]
   /** 모달이 열려 있고 이 유형일 때만 검색 요청을 보낸다. */
   enabled: boolean
   items: DraftHolding[]
@@ -104,8 +124,11 @@ interface Props {
   hint?: ReactNode
 }
 
-export function AccountHoldingsField({ market, enabled, items, onChange, hint }: Props) {
-  const isCrypto = market === 'CRYPTO'
+export function AccountHoldingsField({ markets, enabled, items, onChange, hint }: Props) {
+  // 코인 계좌는 시장이 CRYPTO 하나뿐이다 — 주식 계좌(KR·US)와 섞이는 경우가 없어 블록 단위 문구
+  // (제목·플레이스홀더)는 이 판정 하나로 충분하다. 금액 단위는 여기서 정하지 않는다(줄 단위).
+  const isCrypto = markets.length > 0 && markets.every((m) => m === 'CRYPTO')
+  const showMarketBadge = markets.length > 1
   const heading = isCrypto ? '보유 코인' : '보유 종목'
   const isMobile = useIsMobile()
 
@@ -115,7 +138,7 @@ export function AccountHoldingsField({ market, enabled, items, onChange, hint }:
   // 팝오버를 배경 클릭으로 닫은 뒤에도 검색어는 남는다 — 그래서 "검색어가 있다"와 "목록이 열려 있다"를
   // 따로 들고, 입력칸을 다시 누르면 열린다.
   const [resultsOpen, setResultsOpen] = useState(false)
-  const [pending, setPending] = useState<{ stockId: number; stockName: string; ticker: string } | null>(null)
+  const [pending, setPending] = useState<{ stockId: number; stockName: string; ticker: string; market: Market } | null>(null)
   const [quantityStr, setQuantityStr] = useState('')
   const [avgPriceStr, setAvgPriceStr] = useState('')
   // 확정("추가") 버튼을 눌렀을 때만 계산한다 — 입력 도중 빨간 문구가 앞서 뜨지 않게 하는 이 저장소의
@@ -124,7 +147,7 @@ export function AccountHoldingsField({ market, enabled, items, onChange, hint }:
 
   const showResults = resultsOpen && !pending && !!keyword.trim()
   const searchQuery = useGetStocks(keyword, { enabled: enabled && showResults })
-  const results = searchQuery.stocks.filter((s) => s.market === market)
+  const results = searchQuery.stocks.filter((s) => markets.includes(s.market))
   const addedIds = new Set(items.map((h) => h.stockId))
 
   // 팝오버가 위로 열릴지 아래로 열릴지는 패널의 실측 높이로 정한다(Dropdown.tsx와 같은 이유 — 훅의
@@ -218,7 +241,9 @@ export function AccountHoldingsField({ market, enabled, items, onChange, hint }:
                   {h.stockName} <span style={{ color: 'var(--text-weak)', fontWeight: 600 }}>{h.ticker}</span>
                 </div>
                 <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>
-                  {h.quantityStr}{unitLabel(market)} · {priceLabel(market, h.avgPriceStr)}
+                  {/* 단위·통화는 블록이 아니라 이 줄의 종목이 정한다 — 한 리스트에 ₩ 줄과 $ 줄이 섞인다. */}
+                  {h.quantityStr}{unitLabel(h.market)} · {priceLabel(h.market, h.avgPriceStr)}
+                  {showMarketBadge && ` · ${marketBadge(h.market)}`}
                 </div>
               </div>
               {/* 삭제는 확인 없이 즉시 — 아직 서버에 아무것도 없는 로컬 입력이라 다시 검색해 넣으면 그만이다.
@@ -265,14 +290,14 @@ export function AccountHoldingsField({ market, enabled, items, onChange, hint }:
                   }}
                   style={BARE_INPUT_STYLE}
                 />
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-weak)', flexShrink: 0 }}>{unitLabel(market)}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-weak)', flexShrink: 0 }}>{unitLabel(pending.market)}</span>
               </div>
             </div>
             <div style={{ flex: 1 }}>
               <div style={LABEL_STYLE}>평균단가</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...FIELD_BORDER_STYLE }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>{market === 'US' ? '$' : '₩'}</span>
-                {market === 'US' ? (
+                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>{pending.market === 'US' ? '$' : '₩'}</span>
+                {pending.market === 'US' ? (
                   <input
                     type="text" inputMode="decimal" placeholder="0.00"
                     value={avgPriceStr}
@@ -358,7 +383,7 @@ export function AccountHoldingsField({ market, enabled, items, onChange, hint }:
                         type="button"
                         className="mini-hov"
                         onClick={() => {
-                          setPending({ stockId: s.id, stockName: s.name, ticker: s.ticker })
+                          setPending({ stockId: s.id, stockName: s.name, ticker: s.ticker, market: s.market })
                           setResultsOpen(false)
                           setRowError(null)
                         }}
@@ -369,6 +394,11 @@ export function AccountHoldingsField({ market, enabled, items, onChange, hint }:
                         <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {s.name} <span style={{ color: 'var(--text-weak)', fontWeight: 600 }}>{s.ticker}</span>
                         </span>
+                        {/* 국내·해외가 한 목록에 섞이면 이름만으로는 구분이 안 된다(같은 이름의 국내·해외
+                            종목이 실제로 있다) — 시장이 둘 이상일 때만 배지를 붙인다. */}
+                        {showMarketBadge && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-weak)', flexShrink: 0 }}>{marketBadge(s.market)}</span>
+                        )}
                         {already && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-weak)', flexShrink: 0 }}>담음</span>}
                       </button>
                     )

@@ -11,23 +11,25 @@ import type { TreemapBlock } from '../components/primitives/Treemap/Treemap'
 import { fmt } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
 import { toPercentages } from './dashboardView'
-import type { AccountResponse, AccountSnapshotResponse } from '@/services/account'
+import type { LedgerTxRow } from './ledgerView'
+import type { TradeRowView } from './stocksView'
+import type { TrendPointResponse } from '@/services/dashboard'
+import type { AccountResponse } from '@/services/account'
 import type { AssetClassGroup, LockedAccount } from '@/services/asset'
-import type { AccountType, AssetClass, Currency, InstitutionType } from '@/services/common.type'
+import type { AccountType, AssetClass, InstitutionType } from '@/services/common.type'
 
 // ---------- 계좌/기관 유형 ↔ 한글 라벨 ----------
 // 서버 AccountType/InstitutionType은 영문 코드값만 내려준다(common.type.ts 주석 참고). 한글 라벨은
 // 백엔드 확정값이 아니라 이 화면(AddAccountModal/EditAccountModal/InstitutionsModal)에서 붙이는
 // 프론트 전용 표기이므로, 실제 서비스 오픈 전 백엔드와 라벨 문구를 맞춰야 한다.
 
-// 2026-08-20 백엔드 계약 변경으로 AccountType이 6종으로 통합되면서, 계좌 유형 라벨은 자산군 6분류
-// 라벨과 같은 문구가 됐다(ASSET_CLASS_META 참고) — 두 목록이 갈라지지 않도록 라벨은 자산군 쪽을
-// 정본으로 삼고 여기서는 그대로 가져다 쓴다.
+// AccountType이 자산군과 1:1로 통합되면서(2026-08-20, 2026-08-27) 계좌 유형 라벨은 자산군 라벨과
+// 같은 문구가 됐다(ASSET_CLASS_META 참고) — 두 목록이 갈라지지 않도록 라벨은 자산군 쪽을 정본으로
+// 삼고 여기서는 그대로 가져다 쓴다.
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   CASH: '현금',
   DEPOSIT: '예적금',
-  DOMESTIC_STOCK: '국내주식',
-  FOREIGN_STOCK: '해외주식',
+  STOCK: '주식',
   CRYPTO: '가상자산',
   PENSION_ETC: '연금·기타',
 }
@@ -59,37 +61,36 @@ export const INSTITUTION_TYPE_ORDER: InstitutionType[] = [
 ]
 
 /**
- * 자산군(AssetClass) → 계좌 유형(AccountType). 2026-08-20 백엔드 계약 변경으로 AccountType이 6종으로
- * 통합되면서 **두 enum이 1:1로 대응**하게 됐다 — 예전처럼 여러 세부 타입이 하나의 자산군으로 접히는
- * 구조가 아니므로, "대표 타입을 고른다"는 개념도 "접힌 세부 타입"도 더 이상 없다. 이름만 ETC ↔
- * PENSION_ETC로 다르다.
+ * 자산군(AssetClass) → 계좌 유형(AccountType). **두 enum이 1:1로 대응**한다(2026-08-20 통합,
+ * 2026-08-27 주식 합침) — 예전처럼 여러 세부 타입이 하나의 자산군으로 접히는 구조가 아니므로,
+ * "대표 타입을 고른다"는 개념도 "접힌 세부 타입"도 없다. 이름만 ETC ↔ PENSION_ETC로 다르다.
  */
 export const ASSET_CLASS_ACCOUNT_TYPE_PRESET: Record<AssetClass, AccountType> = {
   CASH: 'CASH',
   DEPOSIT: 'DEPOSIT',
-  DOMESTIC_STOCK: 'DOMESTIC_STOCK',
-  FOREIGN_STOCK: 'FOREIGN_STOCK',
+  STOCK: 'STOCK',
   CRYPTO: 'CRYPTO',
   ETC: 'PENSION_ETC',
 }
 
 /**
- * 자산군 칩을 고를 때 함께 반영할 계좌 폼 필드. 국내주식/해외주식은 이제 AccountType 자체가 갈리므로
- * currency로 구분할 필요가 없지만, 통화는 여전히 폼이 전송하는 별도 필드라 칩과 함께 정해준다 —
- * 해외주식은 USD, 국내주식은 KRW다. 나머지 4개 자산군은 currency를 건드리지 않는다: 이미 사용자가
- * 골라둔 통화(예: 달러로 적어둔 가상자산)를 자산 유형 칩을 눌렀다고 조용히 원화로 되돌리면 안 된다.
+ * 자산군 칩을 고를 때 함께 반영할 계좌 폼 필드 — 이제 계좌 유형 하나뿐이다.
+ *
+ * 2026-08-27까지는 해외주식 칩이 currency를 'USD'로, 국내주식 칩이 'KRW'로 함께 덮어썼다. 두 칩이
+ * 하나로 합쳐지면서 그 특례를 없앴다: 증권계좌 하나가 원화 예수금과 달러 예수금을 **동시에** 갖고
+ * (initialBalanceKrw / initialBalanceUsd 두 필드로 따로 전송한다), 서버 계약상 currency는 금액 필드의
+ * 단위가 아니라 표기용이다(AccountRes.currency 설명). 칩이 통화를 강제할 근거가 사라졌으므로 폼
+ * 기본값(BLANK_ACCOUNT_FORM.currency === 'KRW')을 그대로 둔다 — 이미 사용자가 골라둔 통화를 칩을
+ * 눌렀다고 조용히 되돌리지 않는다는 기존 원칙도 그대로다.
  */
-export function assetClassFormPreset(assetClass: AssetClass): { type: AccountType; currency?: Currency } {
-  const type = ASSET_CLASS_ACCOUNT_TYPE_PRESET[assetClass]
-  if (assetClass === 'FOREIGN_STOCK') return { type, currency: 'USD' }
-  if (assetClass === 'DOMESTIC_STOCK') return { type, currency: 'KRW' }
-  return { type }
+export function assetClassFormPreset(assetClass: AssetClass): { type: AccountType } {
+  return { type: ASSET_CLASS_ACCOUNT_TYPE_PRESET[assetClass] }
 }
 
 /**
  * AccountType → 자산군(칩) 역방향 판정. 위 프리셋의 정확한 역이다(1:1) — 예전에는 AccountType 10종을
- * 6개 자산군으로 접으면서 증권계좌를 통화로 갈라야 했지만, 이제 서버가 계좌 유형 자체를 6종으로 주므로
- * 통화를 볼 필요가 없다.
+ * 자산군으로 접으면서 증권계좌를 통화로 갈라야 했지만, 이제 서버가 계좌 유형 자체를 자산군과 같은
+ * 5종으로 주므로 통화를 볼 필요가 없다.
  */
 export function assetClassOfAccountType(type: AccountType): AssetClass {
   switch (type) {
@@ -97,10 +98,8 @@ export function assetClassOfAccountType(type: AccountType): AssetClass {
       return 'CASH'
     case 'DEPOSIT':
       return 'DEPOSIT'
-    case 'DOMESTIC_STOCK':
-      return 'DOMESTIC_STOCK'
-    case 'FOREIGN_STOCK':
-      return 'FOREIGN_STOCK'
+    case 'STOCK':
+      return 'STOCK'
     case 'CRYPTO':
       return 'CRYPTO'
     case 'PENSION_ETC':
@@ -131,8 +130,9 @@ interface AssetClassMeta {
 export const ASSET_CLASS_META: Record<AssetClass, AssetClassMeta> = {
   CASH: { icon: 'wallet', color: 'var(--accent)', label: '현금' },
   DEPOSIT: { icon: 'savings', color: 'var(--accent)', label: '예적금' },
-  DOMESTIC_STOCK: { icon: 'trending_up', color: 'var(--accent)', label: '국내주식' },
-  FOREIGN_STOCK: { icon: 'public', color: 'var(--accent)', label: '해외주식' },
+  // 아이콘은 합쳐지기 전 국내주식 것(trending_up)을 승계한다 — 해외주식이 쓰던 'public'(지구본)은
+  // 국내 종목까지 담는 칸의 표기로는 어긋난다.
+  STOCK: { icon: 'trending_up', color: 'var(--accent)', label: '주식' },
   CRYPTO: { icon: 'currency_bitcoin', color: 'var(--accent)', label: '가상자산' },
   ETC: { icon: 'account_balance', color: 'var(--accent)', label: '연금·기타' },
 }
@@ -147,15 +147,15 @@ export function assetClassMetaOf(assetClass: AssetClass): AssetClassMeta {
 }
 
 /**
- * 자산 카드 표시 순서(dc.html assetCatsRaw: 현금 → 예적금 → 국내주식 → 해외주식 → 가상자산 →
- * 연금·기타). `AssetClass` 유니언 선언 순서(common.type.ts)와는 다르므로 반드시 이 상수로 정렬해야
- * 한다 — 서버 응답 순서나 유니언 선언 순서를 그대로 쓰면 카드가 뒤섞인다.
+ * 자산 카드 표시 순서(현금 → 예적금 → 주식 → 가상자산 → 연금·기타). `AssetClass` 유니언 선언
+ * 순서(common.type.ts)와는 다르므로 반드시 이 상수로 정렬해야 한다 — 서버 응답 순서나 유니언 선언
+ * 순서를 그대로 쓰면 카드가 뒤섞인다. 화면의 '부동산' 칸은 서버 자산군이 아니라 여기 없다
+ * (Assets.tsx가 이 목록 뒤에 "준비 중" 카드를 따로 붙인다).
  */
 export const ASSET_CLASS_ORDER: AssetClass[] = [
   'CASH',
   'DEPOSIT',
-  'DOMESTIC_STOCK',
-  'FOREIGN_STOCK',
+  'STOCK',
   'CRYPTO',
   'ETC',
 ]
@@ -391,30 +391,103 @@ export function formatBigAmountCaption(n: number): string | null {
   return man === 0 ? `약 ${eok}억 원` : `약 ${eok}억 ${man.toLocaleString('ko-KR')}만 원`
 }
 
+
+// ---------- 계좌 상세: 가계부 거래 + 매매 합친 활동 목록 ----------
+//
+// 계좌 상세 모달의 "최근 거래내역"은 두 서버 리소스를 합친 것이다(2026-08-27, 사용자 요청 —
+// "주식 매수 매도 한거 보여줄 수 있나"): GET /transactions(가계부 거래)와 GET /trades(매매).
+// 서버에 둘을 함께 주는 API는 없고, 매매는 가계부 거래를 만들지도 않는다(등록 직후 계좌 잔액이
+// 예수금 그대로인 것으로 확인) — 그래서 같은 건이 두 번 뜰 일은 없고, 프론트가 날짜로 병합한다.
+//
+// 이 함수가 ledgerView도 stocksView도 아닌 여기 있는 이유: 두 뷰 레이어가 서로를 import하면
+// (가계부 ↔ 주식) 순환이 생긴다. 병합은 이 모달을 소유한 자산 화면의 관심사다.
+//
+// 합치는 쪽이 두 목록의 정렬을 다시 하지 않는다는 점이 중요하다 — 각 목록은 이미 자기 규칙으로
+// 최신순이고(가계부는 서버 sort=transactionDate,desc + id,desc / 매매는 buildTradeRows), 여기서는
+// **날짜만** 비교한다. Array.prototype.sort가 안정 정렬이라 같은 날짜 안의 순서는 원본 그대로
+// 유지된다(가계부 → 매매 순).
+
+export interface AccountActivityRow {
+  key: string
+  isoDate: string
+  dateLabel: string
+  desc: string
+  tag: string
+  /** 통화 기호·단위까지 이미 붙은 최종 표기('700,000원' / '$1,101.75'). 호출부가 '원'을 덧붙이지 말 것 —
+   *  해외 종목 매매는 달러라 '원'을 붙이면 틀린 금액이 된다. */
+  amountText: string
+  amountColor: string
+}
+
+/**
+ * 매매 금액은 무채색이다 — 투자 거래는 수입/지출이 아니라 이체로 취급한다(ds_rules_v2_5 §10-4,
+ * buildTradeRows 주석과 같은 규칙).
+ */
+const TRADE_AMOUNT_COLOR = 'var(--text-strong)'
+
+export function buildAccountActivity(
+  txRows: LedgerTxRow[],
+  tradeRows: TradeRowView[],
+  limit: number,
+): AccountActivityRow[] {
+  const fromTx: AccountActivityRow[] = txRows.map((t) => ({
+    // key에 접두사를 붙인다 — 거래 id와 매매 id는 서로 다른 테이블이라 값이 겹칠 수 있고,
+    // 겹치면 React가 두 줄을 같은 항목으로 보고 한 줄만 그린다.
+    key: `tx-${t.id}`,
+    isoDate: t.isoDate,
+    dateLabel: t.dateLabel,
+    desc: t.desc,
+    tag: t.tag,
+    amountText: `${t.amount}원`,
+    amountColor: t.amountColor,
+  }))
+  const fromTrade: AccountActivityRow[] = tradeRows.map((t) => ({
+    key: `trade-${t.id}`,
+    isoDate: t.isoDate,
+    dateLabel: t.dateLabel,
+    desc: t.stockName,
+    tag: t.tag,
+    amountText: t.amountFmt,
+    amountColor: TRADE_AMOUNT_COLOR,
+  }))
+  return [...fromTx, ...fromTrade]
+    .sort((a, b) => b.isoDate.localeCompare(a.isoDate))
+    .slice(0, limit)
+}
+
+// ---------- 자산군 추이 스파크라인 ----------
+//
+// GET /dashboard/trend?type={AccountType}(2026-08-27 백엔드 추가)의 응답을 작은 선 그래프로 바꾼다.
+// 계좌 유형과 자산군이 1:1이 된 덕에 "STOCK 계좌만 골라 계산한 추이 = 주식 자산군 추이"가 된다.
+//
+// **대시보드의 buildTrendChart를 쓰지 않는 이유**: 그쪽은 x축이 데이터 개수가 아니라 올해 1~12월
+// 달력이다("올해 추이"라서 맞는 설계). 여기는 "최근 6개월" 창이라 같은 규칙을 쓰면 그래프가 오른쪽
+// 절반에만 몰리고, 구간이 해를 넘기면(예: 11월~2월) 월 번호가 되감겨 선이 앞뒤로 튄다. 그래서 x는
+// 응답 순서대로 균등 배치한다 — 서버가 unit=MONTH에서 구간당 한 점씩, 항상 date 오름차순으로
+// 준다는 계약(OpenAPI 설명)에 기댄 것이다.
+//
+// 점이 0~1개면 선을 그릴 수 없으므로 null — 호출부는 억지로 직선을 긋지 말고 빈 상태로 대체할 것.
+
 const TREND_VIEWBOX_TOP = 6
 const TREND_VIEWBOX_BOTTOM = 40
 
-/**
- * 계좌 스냅샷 → SVG path(`viewBox="0 0 100 44"`, x는 스냅샷 순서를 0~100에 균등 배치, y는 최소/최대
- * 값을 6~40에 매핑). 스냅샷이 0~1개면 선을 그릴 수 없으므로 null — 호출부는 그래프 영역 자체를 숨기거나
- * 빈 상태로 대체할 것(직선을 억지로 그리지 않는다).
- */
-export function buildAccountTrendPath(snapshots: AccountSnapshotResponse[]): string | null {
-  if (snapshots.length < 2) return null
-  const sorted = [...snapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate))
-  const values = sorted.map((s) => s.valueKrw)
+export function buildAssetClassTrendPath(points: TrendPointResponse[]): string | null {
+  if (points.length < 2) return null
+  const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date))
+  const values = sorted.map((p) => p.totalValueKrw)
   const min = Math.min(...values)
   const max = Math.max(...values)
   const span = max - min
 
-  const points = sorted.map((s, i) => {
+  const coords = sorted.map((p, i) => {
     const x = (i / (sorted.length - 1)) * 100
+    // 값이 전부 같으면(span 0) 0으로 나누지 말고 가운데 높이에 평평하게 그린다.
     const y =
       span === 0
         ? (TREND_VIEWBOX_TOP + TREND_VIEWBOX_BOTTOM) / 2
-        : TREND_VIEWBOX_BOTTOM - ((s.valueKrw - min) / span) * (TREND_VIEWBOX_BOTTOM - TREND_VIEWBOX_TOP)
+        : TREND_VIEWBOX_BOTTOM - ((p.totalValueKrw - min) / span) * (TREND_VIEWBOX_BOTTOM - TREND_VIEWBOX_TOP)
     return `${x.toFixed(1)} ${y.toFixed(1)}`
   })
 
-  return `M${points[0]} L${points.slice(1).join(' L')}`
+  return `M${coords[0]} L${coords.slice(1).join(' L')}`
 }

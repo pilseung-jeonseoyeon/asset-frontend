@@ -7,16 +7,15 @@ export type Currency = 'KRW' | 'USD'
 export type PeriodUnit = 'DAY' | 'MONTH' | 'YEAR'
 
 /**
- * 계좌 유형. 2026-08-20 백엔드 계약 변경으로 10종(CHECKING/PARKING/TERM_DEPOSIT/INSTALLMENT_SAVINGS/
- * BROKERAGE/CRYPTO_WALLET/PENSION/PENSION_SAVINGS/CASH/REAL_ASSET)에서 6종으로 통합됐다 — 이제
- * AssetClass와 1:1로 대응한다(이름만 CASH↔CASH, ETC↔PENSION_ETC로 다르다). 없어진 값을 보내면
- * 400이 아니라 500이 나므로 이 목록 밖의 값을 만들지 말 것.
+ * 계좌 유형. 2026-08-27 라이브 OpenAPI 대조로 **5종**임을 확인했다 — 직전 6종에서
+ * DOMESTIC_STOCK/FOREIGN_STOCK이 STOCK 하나로 합쳐졌다(실제 증권계좌 하나가 원화·달러 예수금과
+ * 국내·해외 종목을 함께 담기 때문). AssetClass와 여전히 1:1이며 이름만 ETC↔PENSION_ETC로 다르다.
+ * 없어진 값을 보내면 400이 아니라 500이 나므로 이 목록 밖의 값을 만들지 말 것.
  */
 export type AccountType =
   | 'CASH'
   | 'DEPOSIT'
-  | 'DOMESTIC_STOCK'
-  | 'FOREIGN_STOCK'
+  | 'STOCK'
   | 'CRYPTO'
   | 'PENSION_ETC'
 
@@ -32,10 +31,16 @@ export type InstitutionType =
   | 'FINTECH'
   | 'OTHER'
 
-/** 자산군 6분류. 2026-08-20 백엔드 계약 변경으로 CASH_PENSION → CASH로 이름이 바뀌었다. */
+/**
+ * 자산군 5분류. 2026-08-27 라이브 OpenAPI 대조로 DOMESTIC_STOCK/FOREIGN_STOCK이 STOCK 하나로
+ * 합쳐진 것을 확인했다(AccountType 주석 참고).
+ *
+ * **화면의 '부동산' 칸은 여기 없다** — 서버에 부동산 자산군이 아직 없어서 등록도 조회도 되지 않고,
+ * 자산 화면이 "준비 중" 안내 카드로만 따로 그린다(Assets.tsx). 서버에 생기기 전까지 이 유니언에
+ * 넣지 말 것 — 넣는 순간 도넛·트리맵·응답 파싱이 전부 있지도 않은 값을 다룰 수 있는 척하게 된다.
+ */
 export type AssetClass =
-  | 'DOMESTIC_STOCK'
-  | 'FOREIGN_STOCK'
+  | 'STOCK'
   | 'DEPOSIT'
   | 'CRYPTO'
   | 'CASH'
@@ -59,8 +64,6 @@ export type Market = 'KR' | 'US' | 'CRYPTO'
 export type TradeSide = 'BUY' | 'SELL'
 
 export type ForeignExchangeSide = 'BUY' | 'SELL'
-
-export type SnapshotSource = 'AUTO' | 'MANUAL'
 
 export type ThemeType = 'LIGHT' | 'DARK' | 'SYSTEM'
 

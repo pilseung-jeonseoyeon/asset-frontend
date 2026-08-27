@@ -1,5 +1,6 @@
 import type {
   AccountListParams,
+  AccountType,
   CategoryKind,
   Currency,
   DateRange,
@@ -40,8 +41,6 @@ export const qk = {
     all: () => ['account'] as const,
     list: (params: AccountListParams = {}) => ['account', 'list', params] as const,
     detail: (accountId: number) => ['account', 'detail', accountId] as const,
-    snapshots: (accountId: number, range: DateRange) =>
-      ['account', 'snapshots', accountId, range] as const,
   },
   asset: {
     all: () => ['asset'] as const,
@@ -94,8 +93,8 @@ export const qk = {
   dashboard: {
     all: () => ['dashboard'] as const,
     summary: () => ['dashboard', 'summary'] as const,
-    trend: (range: DateRange, unit: 'DAY' | 'MONTH') =>
-      ['dashboard', 'trend', { ...range, unit }] as const,
+    trend: (range: DateRange, unit: 'DAY' | 'MONTH', type?: AccountType) =>
+      ['dashboard', 'trend', { ...range, unit, type }] as const,
     allocation: () => ['dashboard', 'allocation'] as const,
     reports: (period: Partial<YearMonth>) => ['dashboard', 'reports', period] as const,
   },
