@@ -13,7 +13,6 @@ import { isoDateToDisplay } from '../utils/date'
 import { toPercentages } from './dashboardView'
 import type { LedgerTxRow } from './ledgerView'
 import type { TradeRowView } from './stocksView'
-import type { TrendPointResponse } from '@/services/dashboard'
 import type { AccountResponse } from '@/services/account'
 import type { AssetClassGroup, LockedAccount } from '@/services/asset'
 import type { AccountType, AssetClass, InstitutionType } from '@/services/common.type'
@@ -455,39 +454,3 @@ export function buildAccountActivity(
     .slice(0, limit)
 }
 
-// ---------- 자산군 추이 스파크라인 ----------
-//
-// GET /dashboard/trend?type={AccountType}(2026-08-27 백엔드 추가)의 응답을 작은 선 그래프로 바꾼다.
-// 계좌 유형과 자산군이 1:1이 된 덕에 "STOCK 계좌만 골라 계산한 추이 = 주식 자산군 추이"가 된다.
-//
-// **대시보드의 buildTrendChart를 쓰지 않는 이유**: 그쪽은 x축이 데이터 개수가 아니라 올해 1~12월
-// 달력이다("올해 추이"라서 맞는 설계). 여기는 "최근 6개월" 창이라 같은 규칙을 쓰면 그래프가 오른쪽
-// 절반에만 몰리고, 구간이 해를 넘기면(예: 11월~2월) 월 번호가 되감겨 선이 앞뒤로 튄다. 그래서 x는
-// 응답 순서대로 균등 배치한다 — 서버가 unit=MONTH에서 구간당 한 점씩, 항상 date 오름차순으로
-// 준다는 계약(OpenAPI 설명)에 기댄 것이다.
-//
-// 점이 0~1개면 선을 그릴 수 없으므로 null — 호출부는 억지로 직선을 긋지 말고 빈 상태로 대체할 것.
-
-const TREND_VIEWBOX_TOP = 6
-const TREND_VIEWBOX_BOTTOM = 40
-
-export function buildAssetClassTrendPath(points: TrendPointResponse[]): string | null {
-  if (points.length < 2) return null
-  const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date))
-  const values = sorted.map((p) => p.totalValueKrw)
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const span = max - min
-
-  const coords = sorted.map((p, i) => {
-    const x = (i / (sorted.length - 1)) * 100
-    // 값이 전부 같으면(span 0) 0으로 나누지 말고 가운데 높이에 평평하게 그린다.
-    const y =
-      span === 0
-        ? (TREND_VIEWBOX_TOP + TREND_VIEWBOX_BOTTOM) / 2
-        : TREND_VIEWBOX_BOTTOM - ((p.totalValueKrw - min) / span) * (TREND_VIEWBOX_BOTTOM - TREND_VIEWBOX_TOP)
-    return `${x.toFixed(1)} ${y.toFixed(1)}`
-  })
-
-  return `M${coords[0]} L${coords.slice(1).join(' L')}`
-}
