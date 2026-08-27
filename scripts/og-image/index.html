@@ -89,29 +89,23 @@
   <body>
     <div class="frame">
       <div class="brand">
-        <!-- public/favicon.svg 와 동일한 도형 -->
+        <!-- public/favicon.svg / MonitLogo.tsx 라이트 변형과 같은 도형(확정 심볼 "볼 터미널 M").
+             타일 색만 다르다 — 그 이유는 아래 주석 참고. -->
         <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <linearGradient id="monit-og-bg" x1="0" y1="0" x2="0" y2="1">
-              <!-- 파비콘(#363C74→#1F2247)보다 밝게 잡는다. 배너 배경 자체가 같은 남색이라
-                   원본 값 그대로면 로고 타일이 배경에 묻혀 사각형이 보이지 않는다. -->
-              <stop offset="0" stop-color="#5A61B4" />
-              <stop offset="1" stop-color="#383E7C" />
+            <linearGradient id="monit-og-ov" gradientUnits="userSpaceOnUse" x1="38.48" y1="62.89" x2="47.46" y2="53.91">
+              <stop offset="0" stop-color="#6761CD" stop-opacity="0" />
+              <stop offset="1" stop-color="#6761CD" stop-opacity=".76" />
             </linearGradient>
+            <clipPath id="monit-og-clip"><rect width="100" height="100" rx="24.26" ry="24.26" /></clipPath>
           </defs>
-          <path
-            d="M50,0 C14,0 0,14 0,50 C0,86 14,100 50,100 C86,100 100,86 100,50 C100,14 86,0 50,0 Z"
-            fill="url(#monit-og-bg)"
-          />
-          <path
-            d="M28,62 L28,34 L50,55 L72,34 L72,74"
-            fill="none"
-            stroke="#FFFFFF"
-            stroke-width="10"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          <circle cx="28" cy="68" r="8.5" fill="#ABA5E4" />
+          <rect width="100" height="100" rx="24.26" ry="24.26" fill="#2A2E5C" />
+          <path d="M47.75 44.92 L47.75 91.8 L0.88 91.8 Z" fill="url(#monit-og-ov)" clip-path="url(#monit-og-clip)" />
+          <circle cx="78.22" cy="27.15" r="5.57" fill="#6979F8" />
+          <g fill="none" stroke="#FFFFFF" stroke-width="14.16" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18.95 67.38 L40.62 45.61" />
+            <path d="M48.63 67.38 L71.48 45.61 L73.54 67.38" />
+          </g>
         </svg>
         <div class="wordmark">Monit</div>
       </div>

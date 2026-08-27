@@ -33,14 +33,20 @@
          - 이미지 원본은 scripts/og-image/index.html 이다. 아래 문구를 고치면 그 파일도 같이
            고치고 PNG를 다시 뽑을 것(다시 뽑는 명령은 그 파일 상단 주석에 있다).
          - 카카오는 URL별 미리보기를 며칠간 캐시한다. 배포 후 카카오 개발자사이트의 디버거에서
-           캐시를 초기화해야 기존 대화방에도 새 미리보기가 뜬다. -->
+           캐시를 초기화해야 기존 대화방에도 새 미리보기가 뜬다.
+         - og:image 뒤의 ?v= 는 이미지 캐시 무효화용이다(2026-08-27, 로고를 확정 심볼로 교체하며
+           추가). 파일명이 그대로면 슬랙·트위터 등은 예전 이미지를 계속 들고 있으므로, 배너를 다시
+           뽑을 때마다 이 숫자를 올린다. 쿼리는 경로 매칭에 영향이 없어 vercel.json은 손대지
+           않아도 된다. 다만 **카카오는 이걸로 해결되지 않는다** — 카카오가 캐시하는 것은 이미지가
+           아니라 공유된 페이지 주소(monit.io.kr)의 수집 결과이므로 위 디버거 초기화가 반드시
+           필요하다. -->
     <meta name="description" content="흩어진 자산을 한곳에서. 예금·주식·가계부까지 한 화면으로." />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Monit" />
     <meta property="og:title" content="Monit" />
     <meta property="og:description" content="흩어진 자산을 한곳에서. 예금·주식·가계부까지 한 화면으로." />
     <meta property="og:url" content="https://monit.io.kr" />
-    <meta property="og:image" content="https://monit.io.kr/og-image.png" />
+    <meta property="og:image" content="https://monit.io.kr/og-image.png?v=2" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -49,7 +55,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Monit" />
     <meta name="twitter:description" content="흩어진 자산을 한곳에서. 예금·주식·가계부까지 한 화면으로." />
-    <meta name="twitter:image" content="https://monit.io.kr/og-image.png" />
+    <meta name="twitter:image" content="https://monit.io.kr/og-image.png?v=2" />
 
     <!-- 첫 페인트 전 테마 적용. main.tsx는 type="module"이라 지연 실행되고, 프로덕션 빌드에서는
          CSS <link>가 렌더를 막는 동안 흰 화면이 먼저 그려질 수 있다 — 동기 인라인 스크립트만
