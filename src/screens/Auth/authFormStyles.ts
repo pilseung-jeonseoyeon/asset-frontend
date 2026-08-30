@@ -6,7 +6,7 @@
 
 import type { CSSProperties, FormEvent } from 'react'
 
-export const authInput: CSSProperties = {
+export const authInputStyle: CSSProperties = {
   width: '100%',
   height: 46,
   borderRadius: 10,
@@ -21,9 +21,9 @@ export const authInput: CSSProperties = {
 }
 
 /** 입력창 안에 눈 아이콘 버튼(비밀번호 표시/숨김)을 겹쳐 놓을 자리를 남긴 변형. */
-export const authInputPw: CSSProperties = { ...authInput, paddingRight: 46 }
+export const authPasswordInputStyle: CSSProperties = { ...authInputStyle, paddingRight: 46 }
 
-export const authPrimary: CSSProperties = {
+export const authPrimaryButtonStyle: CSSProperties = {
   width: '100%',
   height: 48,
   borderRadius: 10,
@@ -38,14 +38,14 @@ export const authPrimary: CSSProperties = {
 }
 
 /** 제출 조건 미충족/전송 중일 때의 비활성 표시. `disabled` 속성과 함께 스타일만 이걸로 교체한다. */
-export const authPrimaryOff: CSSProperties = {
-  ...authPrimary,
+export const authPrimaryButtonDisabledStyle: CSSProperties = {
+  ...authPrimaryButtonStyle,
   background: 'var(--track)',
   color: 'var(--text-weak)',
   cursor: 'default',
 }
 
-export const authSecondary: CSSProperties = {
+export const authSecondaryButtonStyle: CSSProperties = {
   width: '100%',
   height: 48,
   borderRadius: 10,
@@ -59,8 +59,8 @@ export const authSecondary: CSSProperties = {
   marginTop: 8,
 }
 
-/** 체크박스(로그인 유지·마케팅 수신 동의) — source L3609 checkBox(on, size) 이식, size 기본 18. */
-export function checkBox(on: boolean, size = 18): CSSProperties {
+/** 체크박스(로그인 유지·마케팅 수신 동의) — source L3609 checkboxStyle(on, size) 이식, size 기본 18. */
+export function checkboxStyle(on: boolean, size = 18): CSSProperties {
   return {
     width: size,
     height: size,
@@ -94,7 +94,7 @@ export function filterPasswordInput(e: FormEvent<HTMLInputElement>) {
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /** 회원가입 1/3 "모두 동의합니다" 토글 버튼 — source L557. */
-export const agreeAllBtn: CSSProperties = {
+export const agreeAllButtonStyle: CSSProperties = {
   width: '100%',
   display: 'flex',
   alignItems: 'center',
@@ -113,7 +113,7 @@ export const agreeAllBtn: CSSProperties = {
  * §5)이 라벨 텍스트와 `justify-content:space-between`만으로 붙으면, 라벨이 길어 줄바꿈되는 폭에서
  * 둘 사이 간격이 0px까지 좁아질 수 있다(개인정보 항목 라벨이 실제로 이 경우에 해당). gap이 항상
  * 최소 여백을 보장해 인접한 두 터치 영역이 맞닿지 않게 한다. */
-export const agreementRow: CSSProperties = {
+export const agreementRowStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -124,7 +124,7 @@ export const agreementRow: CSSProperties = {
 
 /** 약관 항목 체크 토글(아이콘 + 라벨) — source L566. `minWidth:0`은 위 agreementRow의 gap과 짝으로,
  * 라벨이 좁은 화면에서 "보기 ›"를 밀어내지 않고 자기 폭 안에서 줄바꿈하도록 한다. */
-export const agreementToggleBtn: CSSProperties = {
+export const agreementToggleButtonStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 10,

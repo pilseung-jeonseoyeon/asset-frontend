@@ -24,7 +24,7 @@
 
 import type { CSSProperties } from 'react'
 import { useAppState } from '../AppStateContext'
-import { DP_MONTH_NAMES, daysInMonth, firstWeekday } from '../../utils/date'
+import { DATE_PICKER_MONTH_NAMES, daysInMonth, firstWeekday } from '../../utils/date'
 
 interface DateNav {
   y: number
@@ -57,7 +57,7 @@ interface MonthCell {
 }
 
 /** 날짜 그리드는 항상 6주(42칸) — 파일 상단 주석 참고. DatePicker.tsx의 고정 본문 높이 계산과 짝이다. */
-export const DP_GRID_CELL_COUNT = 42
+export const DATE_PICKER_GRID_CELL_COUNT = 42
 
 export interface DatePickerState {
   value: string
@@ -71,7 +71,7 @@ export interface DatePickerState {
   nextMonth: () => void
   /** true면 현재 보이는 달이 이미 maxDate가 속한 달이라 다음 달로 넘어갈 필요가 없다(모두 미래). */
   nextDisabled: boolean
-  /** 항상 DP_GRID_CELL_COUNT(42)칸 — 앞뒤 빈칸은 HIDDEN_CELL_STYLE. */
+  /** 항상 DATE_PICKER_GRID_CELL_COUNT(42)칸 — 앞뒤 빈칸은 HIDDEN_CELL_STYLE. */
   cells: DateCell[]
   /** 1~12월 선택 그리드. yearCells처럼 팝오버가 닫혀 있으면 빈 배열이다. */
   monthCells: MonthCell[]
@@ -161,7 +161,7 @@ export function useDatePicker(
     })
   }
   // 뒤쪽 남는 칸을 채워 항상 42칸으로 맞춘다(파일 상단 주석 참고).
-  while (cells.length < DP_GRID_CELL_COUNT) {
+  while (cells.length < DATE_PICKER_GRID_CELL_COUNT) {
     cells.push({ d: '', cellStyle: HIDDEN_CELL_STYLE })
   }
 
@@ -178,7 +178,7 @@ export function useDatePicker(
       const isFuture = maxY !== null && maxM !== null && (nav.y > maxY || (nav.y === maxY && m > maxM))
       monthCells.push({
         m,
-        label: DP_MONTH_NAMES[m - 1],
+        label: DATE_PICKER_MONTH_NAMES[m - 1],
         isNavMonth,
         cellStyle: {
           borderRadius: 8,
@@ -253,7 +253,7 @@ export function useDatePicker(
     open,
     toggle: () => setState((st) => ({ openDropdown: st.openDropdown === 'dp_' + key ? null : 'dp_' + key })),
     yearLabel: `${nav.y}년`,
-    monthOnlyLabel: DP_MONTH_NAMES[nav.m - 1],
+    monthOnlyLabel: DATE_PICKER_MONTH_NAMES[nav.m - 1],
     prevMonth: () =>
       setState((st) => {
         const cur = (st.dpNav as Record<string, DateNav>)[key] || defaultNav

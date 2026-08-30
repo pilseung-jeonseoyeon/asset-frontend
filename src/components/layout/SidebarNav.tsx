@@ -1,7 +1,7 @@
 // Source: secret/Asset Manager v14.dc.html L704-758 (SIDEBAR) — transcribed verbatim.
 // Vertical sidebar: outer aside 96px, inner surface box 64px, logo (light/dark SVG swap via CSS class,
 // L710-731 fixed hex — see plan §"Monit 로고 색상" decision: kept literal, not tokenized), 5 nav buttons
-// (navStyle/navHover from state/selectors/nav.ts), avatar (36px, opens modalAccount).
+// (sidebarNavItemStyle/sidebarNavHoverStyle from state/selectors/nav.ts), avatar (36px, opens modalAccount).
 //
 // Nav items render as real <a> (react-router-dom's Link) rather than <button> so open-in-new-tab and
 // copy-link work — active state is derived from useLocation() against NAV_ITEMS' path, not AppState
@@ -14,7 +14,7 @@ import { NAV_ITEMS } from './navItems'
 import { MonitLogo } from './MonitLogo'
 import { Avatar } from '../primitives/Avatar/Avatar'
 import { useAppState } from '../../state/AppStateContext'
-import { navHover, navStyle } from '../../state/selectors/nav'
+import { sidebarNavHoverStyle, sidebarNavItemStyle } from '../../state/selectors/nav'
 import { useProfileName } from '@/services/user'
 
 function NavButton({ path, icon, label }: NavItem) {
@@ -29,7 +29,7 @@ function NavButton({ path, icon, label }: NavItem) {
       aria-current={active ? 'page' : undefined}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      style={{ textDecoration: 'none', ...navStyle(active), ...(hovered ? navHover(active) : null) }}
+      style={{ textDecoration: 'none', ...sidebarNavItemStyle(active), ...(hovered ? sidebarNavHoverStyle(active) : null) }}
     >
       <span className="ms" style={{ fontSize: 23 }}>
         {icon}

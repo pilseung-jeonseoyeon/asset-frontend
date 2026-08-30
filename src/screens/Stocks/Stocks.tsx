@@ -28,7 +28,7 @@ import { DonutChart } from '../../components/primitives/DonutChart/DonutChart'
 import { SegmentedTab } from '../../components/primitives/SegmentedTab/SegmentedTab'
 import { Skeleton } from '../../components/primitives/Skeleton/Skeleton'
 import { useAppState } from '../../state/AppStateContext'
-import { darkTab, liteTab } from '../../state/selectors/stocks'
+import { stockDeepTabStyle, stockLightTabStyle } from '../../state/selectors/stockTabStyles'
 import { formatNumber, formatKrw, formatKoreanAbbrev } from '../../utils/format'
 import { isoDateToDisplay } from '../../utils/date'
 import {
@@ -178,9 +178,9 @@ export function Stocks() {
         <DeepCard style={{ padding: 26, width: '100%', height: '100%', justifyContent: 'flex-start' }} aria-busy={holdingsQuery.isPending}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>주식 포트폴리오 요약</div>
           <div style={{ display: 'flex', borderBottom: '0.5px solid var(--deep-divider)', marginBottom: 22 }}>
-            <button onClick={setStAll} style={darkTab(stockTab === '전체')}>전체</button>
-            <button onClick={setStKr} style={darkTab(stockTab === '국내')}>국내 주식</button>
-            <button onClick={setStUs} style={darkTab(stockTab === '해외')}>해외 주식</button>
+            <button onClick={setStAll} style={stockDeepTabStyle(stockTab === '전체')}>전체</button>
+            <button onClick={setStKr} style={stockDeepTabStyle(stockTab === '국내')}>국내 주식</button>
+            <button onClick={setStUs} style={stockDeepTabStyle(stockTab === '해외')}>해외 주식</button>
           </div>
           {holdingsQuery.isPending ? (
             <div aria-busy style={EMPTY_TEXT_STYLE_DEEP}>—</div>
@@ -362,9 +362,9 @@ export function Stocks() {
             "보유 종목 추가" 버튼을 늘리면서 확인). 각 버튼에 nowrap을 줘서 꺾이는 대신 줄을 넘기게 한다. */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={setStAll} style={{ ...liteTab(stockTab === '전체'), whiteSpace: 'nowrap' }}>전체</button>
-            <button onClick={setStKr} style={{ ...liteTab(stockTab === '국내'), whiteSpace: 'nowrap' }}>국내 주식</button>
-            <button onClick={setStUs} style={{ ...liteTab(stockTab === '해외'), whiteSpace: 'nowrap' }}>해외 주식</button>
+            <button onClick={setStAll} style={{ ...stockLightTabStyle(stockTab === '전체'), whiteSpace: 'nowrap' }}>전체</button>
+            <button onClick={setStKr} style={{ ...stockLightTabStyle(stockTab === '국내'), whiteSpace: 'nowrap' }}>국내 주식</button>
+            <button onClick={setStUs} style={{ ...stockLightTabStyle(stockTab === '해외'), whiteSpace: 'nowrap' }}>해외 주식</button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <button

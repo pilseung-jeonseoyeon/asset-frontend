@@ -2,7 +2,7 @@
 // globally from the sidebar avatar (openAccountProfile, L751), not owned by any single screen — see the
 // plan's Phase 5 note on why this is NOT built as a Ledger-owned modal despite its line range sitting
 // near the Ledger section of the source file.
-// authInput/authPrimary/authSecondary (source L3572-3589) and filterPasswordInput (L3636) live in
+// authInputStyle/authPrimaryButtonStyle/authSecondaryButtonStyle (source L3572-3589) and filterPasswordInput (L3636) live in
 // screens/Auth/authFormStyles.ts (the real auth screens' canonical home for these constants) and are
 // reused here verbatim for the password-change subview instead of keeping a second copy.
 // 로그아웃 버튼은 usePostLogout()에 연결되어 있다 — 실패해도 클라이언트 세션은 끊는다
@@ -20,7 +20,7 @@ import { Avatar } from '../../primitives/Avatar/Avatar'
 import { Switch } from '../../primitives/Switch/Switch'
 import { useAppState } from '../../../state/AppStateContext'
 import { stopPropagation, useCloseModal } from '../../../state/selectors/modal'
-import { authInput, authPrimary, authSecondary, filterPasswordInput } from '../../../screens/Auth/authFormStyles'
+import { authInputStyle, authPrimaryButtonStyle, authSecondaryButtonStyle, filterPasswordInput } from '../../../screens/Auth/authFormStyles'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useDeleteMe, useGetMe, usePatchMe, usePatchPassword, useProfileName } from '@/services/user'
 import { usePostLogout, PASSWORD_PATTERN, PASSWORD_RULE_TEXT } from '@/services/auth'
@@ -556,7 +556,7 @@ export function AccountModal() {
                   value={currentPw}
                   onChange={(e) => setCurrentPw(e.target.value)}
                   onInput={filterPasswordInput}
-                  style={authInput}
+                  style={authInputStyle}
                 />
               </div>
               <div style={{ marginBottom: 14 }}>
@@ -571,7 +571,7 @@ export function AccountModal() {
                   value={newPw}
                   onChange={(e) => setNewPw(e.target.value)}
                   onInput={filterPasswordInput}
-                  style={authInput}
+                  style={authInputStyle}
                 />
               </div>
               <div style={{ marginBottom: 14 }}>
@@ -586,7 +586,7 @@ export function AccountModal() {
                   value={confirmPw}
                   onChange={(e) => setConfirmPw(e.target.value)}
                   onInput={filterPasswordInput}
-                  style={authInput}
+                  style={authInputStyle}
                 />
               </div>
 
@@ -602,11 +602,11 @@ export function AccountModal() {
                 className="pill-btn"
                 disabled={patchPassword.isPending}
                 aria-busy={patchPassword.isPending}
-                style={{ ...authPrimary, opacity: patchPassword.isPending ? 0.7 : 1 }}
+                style={{ ...authPrimaryButtonStyle, opacity: patchPassword.isPending ? 0.7 : 1 }}
               >
                 {patchPassword.isPending ? '저장 중…' : '저장'}
               </button>
-              <button type="button" className="pill-btn" onClick={closePasswordView} style={authSecondary}>
+              <button type="button" className="pill-btn" onClick={closePasswordView} style={authSecondaryButtonStyle}>
                 취소
               </button>
             </form>
@@ -652,7 +652,7 @@ export function AccountModal() {
                   placeholder="이름 입력"
                   value={profileNameInput}
                   onChange={(e) => setProfileNameInput(e.target.value)}
-                  style={authInput}
+                  style={authInputStyle}
                 />
               </div>
 
@@ -683,11 +683,11 @@ export function AccountModal() {
                 className="pill-btn"
                 disabled={patchProfile.isPending}
                 aria-busy={patchProfile.isPending}
-                style={{ ...authPrimary, opacity: patchProfile.isPending ? 0.7 : 1 }}
+                style={{ ...authPrimaryButtonStyle, opacity: patchProfile.isPending ? 0.7 : 1 }}
               >
                 {patchProfile.isPending ? '저장 중…' : '저장'}
               </button>
-              <button type="button" className="pill-btn" onClick={closeProfileView} style={authSecondary}>
+              <button type="button" className="pill-btn" onClick={closeProfileView} style={authSecondaryButtonStyle}>
                 취소
               </button>
             </form>
@@ -747,7 +747,7 @@ export function AccountModal() {
                   setLocalWithdrawError(null)
                 }}
                 onInput={filterPasswordInput}
-                style={authInput}
+                style={authInputStyle}
               />
             </div>
             {withdrawErrorMessage && (
@@ -777,7 +777,7 @@ export function AccountModal() {
             >
               {withdraw.isPending ? '탈퇴 처리 중…' : '탈퇴하기'}
             </button>
-            <button type="button" className="pill-btn" onClick={cancelWithdraw} disabled={withdraw.isPending} style={authSecondary}>
+            <button type="button" className="pill-btn" onClick={cancelWithdraw} disabled={withdraw.isPending} style={authSecondaryButtonStyle}>
               취소
             </button>
           </form>

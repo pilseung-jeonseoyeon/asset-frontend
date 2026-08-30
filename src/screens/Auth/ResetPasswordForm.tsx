@@ -15,7 +15,7 @@ import { useAppState } from '../../state/AppStateContext'
 import { useGoAuthScreen, useMarkAuthCodeSent } from '../../state/selectors/auth'
 import { CodeInput } from './CodeInput'
 import { useResendCooldown } from './useResendCooldown'
-import { authInput, authPrimary, authPrimaryOff, filterEmailInput, filterPasswordInput, EMAIL_PATTERN } from './authFormStyles'
+import { authInputStyle, authPrimaryButtonStyle, authPrimaryButtonDisabledStyle, filterEmailInput, filterPasswordInput, EMAIL_PATTERN } from './authFormStyles'
 import { usePostPasswordResetCode, usePutPassword, PASSWORD_PATTERN, PASSWORD_RULE_TEXT } from '@/services/auth'
 
 export function ResetPasswordForm() {
@@ -83,7 +83,7 @@ export function ResetPasswordForm() {
         <div style={{ fontSize: 12.5, color: 'var(--text-weak)', lineHeight: 1.7, marginBottom: 24 }}>
           새 비밀번호로 다시 로그인해 주세요.
         </div>
-        <button type="button" className="pill-btn" onClick={() => goAuthScreen('login')} style={authPrimary}>
+        <button type="button" className="pill-btn" onClick={() => goAuthScreen('login')} style={authPrimaryButtonStyle}>
           로그인으로 돌아가기
         </button>
       </div>
@@ -117,7 +117,7 @@ export function ResetPasswordForm() {
               disabled={codeMutation.isPending}
               onInput={filterEmailInput}
               onChange={(e) => setState({ authEmail: e.target.value })}
-              style={authInput}
+              style={authInputStyle}
             />
           </div>
 
@@ -127,7 +127,7 @@ export function ResetPasswordForm() {
             </div>
           )}
 
-          <button type="submit" className="pill-btn" disabled={!emailValid || codeMutation.isPending} style={emailValid && !codeMutation.isPending ? authPrimary : authPrimaryOff}>
+          <button type="submit" className="pill-btn" disabled={!emailValid || codeMutation.isPending} style={emailValid && !codeMutation.isPending ? authPrimaryButtonStyle : authPrimaryButtonDisabledStyle}>
             {codeMutation.isPending ? '코드 보내는 중…' : '코드 받기'}
           </button>
           <button type="button" className="pill-btn" onClick={() => goAuthScreen('login')} style={{ marginTop: 8, width: '100%', height: 48, borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-mid)', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}>
@@ -183,7 +183,7 @@ export function ResetPasswordForm() {
               value={newPassword}
               onInput={filterPasswordInput}
               onChange={(e) => setNewPassword(e.target.value)}
-              style={authInput}
+              style={authInputStyle}
             />
             <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>{PASSWORD_RULE_TEXT}</div>
           </div>
@@ -200,7 +200,7 @@ export function ResetPasswordForm() {
               value={newPasswordConfirm}
               onInput={filterPasswordInput}
               onChange={(e) => setNewPasswordConfirm(e.target.value)}
-              style={authInput}
+              style={authInputStyle}
             />
           </div>
 
@@ -210,7 +210,7 @@ export function ResetPasswordForm() {
             </div>
           )}
 
-          <button type="submit" className="pill-btn" disabled={resetMutation.isPending} style={resetMutation.isPending ? authPrimaryOff : authPrimary}>
+          <button type="submit" className="pill-btn" disabled={resetMutation.isPending} style={resetMutation.isPending ? authPrimaryButtonDisabledStyle : authPrimaryButtonStyle}>
             {resetMutation.isPending ? '변경하는 중…' : '비밀번호 재설정'}
           </button>
         </form>

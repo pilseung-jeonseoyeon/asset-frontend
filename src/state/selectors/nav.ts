@@ -1,10 +1,10 @@
-// Source: secret/Asset Manager v14.dc.html L3551-3562 (navStyle/navHover) — transcribed verbatim.
+// Source: secret/Asset Manager v14.dc.html L3551-3562 (sidebarNavItemStyle/sidebarNavHoverStyle) — transcribed verbatim.
 // Plain functions (not memoized hooks): the source itself recomputes these as plain object literals
 // on every render() call, with no memoization — matching that exactly rather than inventing caching.
 
 import type { CSSProperties } from 'react'
 
-export function navStyle(active: boolean): CSSProperties {
+export function sidebarNavItemStyle(active: boolean): CSSProperties {
   return {
     width: '60px',
     height: '58px',
@@ -23,7 +23,7 @@ export function navStyle(active: boolean): CSSProperties {
   }
 }
 
-export function navHover(active: boolean): CSSProperties {
+export function sidebarNavHoverStyle(active: boolean): CSSProperties {
   return active
     ? { transform: 'translateY(-1px)' }
     : { background: 'var(--fill-subtle)', color: 'var(--text-strong)' }

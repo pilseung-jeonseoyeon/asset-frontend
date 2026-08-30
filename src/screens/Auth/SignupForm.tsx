@@ -30,15 +30,15 @@ import { AGREEMENT_CODE_BY_KEY, TERMS_DOCUMENTS, TERMS_VERSION } from './termsCo
 import type { TermsDocumentKey } from './termsContent'
 import { useResendCooldown } from './useResendCooldown'
 import {
-  agreeAllBtn,
-  agreementRow,
-  agreementToggleBtn,
-  authInput,
-  authInputPw,
-  authPrimary,
-  authPrimaryOff,
-  authSecondary,
-  checkBox,
+  agreeAllButtonStyle,
+  agreementRowStyle,
+  agreementToggleButtonStyle,
+  authInputStyle,
+  authPasswordInputStyle,
+  authPrimaryButtonStyle,
+  authPrimaryButtonDisabledStyle,
+  authSecondaryButtonStyle,
+  checkboxStyle,
   filterEmailInput,
   filterPasswordInput,
   EMAIL_PATTERN,
@@ -211,8 +211,8 @@ export function SignupForm() {
           <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', marginBottom: 6 }}>약관에 동의해 주세요</div>
           <div style={{ fontSize: 12.5, color: 'var(--text-weak)', marginBottom: 22 }}>1단계 · 총 3단계</div>
 
-          <button type="button" onClick={toggleAgreeAll} aria-pressed={allAgreed} style={agreeAllBtn}>
-            <span style={checkBox(allAgreed)}>
+          <button type="button" onClick={toggleAgreeAll} aria-pressed={allAgreed} style={agreeAllButtonStyle}>
+            <span style={checkboxStyle(allAgreed)}>
               <Icon name="check" size={14} />
             </span>
             <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>모두 동의합니다</span>
@@ -225,8 +225,8 @@ export function SignupForm() {
             {AGREEMENT_ITEMS.map((item) => {
               const checked = state.authAgreements[item.key]
               return (
-                <div key={item.key} style={agreementRow}>
-                  <button type="button" onClick={() => toggleAgreement(item.key)} aria-pressed={checked} style={agreementToggleBtn}>
+                <div key={item.key} style={agreementRowStyle}>
+                  <button type="button" onClick={() => toggleAgreement(item.key)} aria-pressed={checked} style={agreementToggleButtonStyle}>
                     <Icon name={checked ? 'check_circle' : 'radio_button_unchecked'} size={19} color={checked ? 'var(--accent)' : 'var(--text-weak)'} />
                     <span style={{ fontSize: 12.5, color: 'var(--text-mid)' }}>
                       <span style={{ fontWeight: 700, color: item.required ? 'var(--accent)' : 'var(--text-weak)' }}>{item.tag}</span> {item.label}
@@ -274,7 +274,7 @@ export function SignupForm() {
             className="pill-btn"
             disabled={!allRequiredAgreed}
             onClick={() => goStep({ authStep: 'form' })}
-            style={allRequiredAgreed ? authPrimary : authPrimaryOff}
+            style={allRequiredAgreed ? authPrimaryButtonStyle : authPrimaryButtonDisabledStyle}
           >
             다음
           </button>
@@ -314,7 +314,7 @@ export function SignupForm() {
               disabled={codeMutation.isPending}
               onInput={filterEmailInput}
               onChange={(e) => setState({ authEmail: e.target.value })}
-              style={authInput}
+              style={authInputStyle}
             />
           </div>
 
@@ -331,7 +331,7 @@ export function SignupForm() {
                 value={password}
                 onInput={filterPasswordInput}
                 onChange={(e) => setPassword(e.target.value)}
-                style={authInputPw}
+                style={authPasswordInputStyle}
               />
               <button
                 type="button"
@@ -358,7 +358,7 @@ export function SignupForm() {
                 value={passwordConfirm}
                 onInput={filterPasswordInput}
                 onChange={(e) => setPasswordConfirm(e.target.value)}
-                style={authInputPw}
+                style={authPasswordInputStyle}
               />
               <button
                 type="button"
@@ -383,7 +383,7 @@ export function SignupForm() {
               value={state.authName}
               maxLength={NAME_MAX}
               onChange={(e) => setState({ authName: e.target.value })}
-              style={authInput}
+              style={authInputStyle}
             />
             <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>기본 프로필 이미지는 이름의 첫 글자로 자동 생성됩니다.</div>
           </div>
@@ -398,14 +398,14 @@ export function SignupForm() {
             type="submit"
             className="pill-btn"
             disabled={!emailValid || codeMutation.isPending}
-            style={emailValid && !codeMutation.isPending ? authPrimary : authPrimaryOff}
+            style={emailValid && !codeMutation.isPending ? authPrimaryButtonStyle : authPrimaryButtonDisabledStyle}
           >
             {codeMutation.isPending ? '코드 보내는 중…' : '인증 메일 받기'}
           </button>
           {/* codeMutation이 진행 중일 때 1단계로 돌아가면, 응답이 도착한 시점에 markCodeSent가
               authStep을 무조건 'sent'로 덮어써 약관 화면을 보고 있던 사용자가 갑자기 3단계로
               튕긴다 — 요청이 끝날 때까지 "이전"을 눌러 화면을 벗어날 수 없게 막는다. */}
-          <button type="button" className="pill-btn" disabled={codeMutation.isPending} onClick={() => goStep({ authStep: 'terms' })} style={authSecondary}>
+          <button type="button" className="pill-btn" disabled={codeMutation.isPending} onClick={() => goStep({ authStep: 'terms' })} style={authSecondaryButtonStyle}>
             이전
           </button>
         </form>
@@ -453,14 +453,14 @@ export function SignupForm() {
             </div>
           )}
 
-          <button type="submit" className="pill-btn" disabled={signupMutation.isPending} style={signupMutation.isPending ? authPrimaryOff : authPrimary}>
+          <button type="submit" className="pill-btn" disabled={signupMutation.isPending} style={signupMutation.isPending ? authPrimaryButtonDisabledStyle : authPrimaryButtonStyle}>
             {signupMutation.isPending ? '가입하는 중…' : '인증 완료'}
           </button>
           <button
             type="button"
             className="pill-btn"
             onClick={() => goStep({ authStep: 'form', authCode: '', authCodeSentAt: null })}
-            style={authSecondary}
+            style={authSecondaryButtonStyle}
           >
             이메일 주소 수정
           </button>
@@ -509,7 +509,7 @@ export function SignupForm() {
             </div>
           )}
 
-          <button type="button" className="pill-btn" onClick={handleEnterApp} style={authPrimary}>
+          <button type="button" className="pill-btn" onClick={handleEnterApp} style={authPrimaryButtonStyle}>
             모닛 시작하기
           </button>
         </div>

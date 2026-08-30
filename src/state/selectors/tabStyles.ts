@@ -1,12 +1,12 @@
-// Source: secret/Asset Manager v14.dc.html L3563-3569 (tabStyle), L3643-3649 (segTab),
+// Source: secret/Asset Manager v14.dc.html L3563-3569 (dashboardTabStyle), L3643-3649 (segmentedTabStyle),
 // L4589-4590 (deep-card variant override pattern) — transcribed verbatim.
 // Plain functions, not memoized hooks — see nav.ts header comment for rationale.
 
 import type { CSSProperties } from 'react'
 
-/** Dashboard-only A/B/C tab style (s.dash), source name `tabStyle`. Note: no `transition` property —
- *  the source's tabStyle omits it (unlike segTab), this is not an oversight to "fix". */
-export function tabStyle(active: boolean): CSSProperties {
+/** Dashboard-only A/B/C tab style (s.dash), source name `dashboardTabStyle`. Note: no `transition` property —
+ *  the source's dashboardTabStyle omits it (unlike segmentedTabStyle), this is not an oversight to "fix". */
+export function dashboardTabStyle(active: boolean): CSSProperties {
   return {
     padding: '8px 15px',
     borderRadius: '10px',
@@ -22,7 +22,7 @@ export function tabStyle(active: boolean): CSSProperties {
 }
 
 /** General segmented-tab style used across Stock/Asset/Ledger/entry-type/recurring-type tabs. */
-export function segTab(active: boolean): CSSProperties {
+export function segmentedTabStyle(active: boolean): CSSProperties {
   return {
     padding: '8px 16px',
     borderRadius: '10px',
@@ -42,9 +42,9 @@ export function segTab(active: boolean): CSSProperties {
 /** Deep-card segmented-tab variant (e.g. ledgerPeriodTabMonthDark/YearDark, L4589-4590) — uses the
  *  --deep-seg-* tokens (ds_rules_v2_5.md has no entry for these; dc.html's own <style> block, L28/179,
  *  is the value source, see plan's "known gaps" section). */
-export function segTabDeep(active: boolean): CSSProperties {
+export function deepCardTabStyle(active: boolean): CSSProperties {
   return {
-    ...segTab(active),
+    ...segmentedTabStyle(active),
     background: active ? 'var(--deep-seg-active)' : 'transparent',
     color: active ? 'var(--deep-seg-active-fg)' : 'var(--deep-seg-inactive-fg)',
     boxShadow: 'none',

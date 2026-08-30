@@ -64,7 +64,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Icon } from '../Icon/Icon'
 import type { DatePickerState } from '../../../state/selectors/datePicker'
-import { DP_GRID_CELL_COUNT } from '../../../state/selectors/datePicker'
+import { DATE_PICKER_GRID_CELL_COUNT } from '../../../state/selectors/datePicker'
 import { stopPropagation } from '../../../state/selectors/modal'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { POPOVER_VIEWPORT_MARGIN, usePopoverAnchor } from '../usePopoverAnchor'
@@ -74,7 +74,7 @@ const DESKTOP_PANEL_WIDTH = 240
 const WEEKDAY_HEADERS = ['월', '화', '수', '목', '금', '토', '일']
 const DAY_CELL_SIZE = { desktop: 28, mobile: 40 }
 const DAY_CELL_GAP = 3
-const DAY_GRID_ROWS = DP_GRID_CELL_COUNT / 7
+const DAY_GRID_ROWS = DATE_PICKER_GRID_CELL_COUNT / 7
 // 요일 행 높이를 상수로 박아 둬야 아래 BODY_HEIGHT 계산이 실제 렌더와 어긋나지 않는다(lineHeight까지 고정).
 const WEEKDAY_ROW_HEIGHT = 14
 const WEEKDAY_ROW_MARGIN = 4

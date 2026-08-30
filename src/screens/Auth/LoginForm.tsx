@@ -12,7 +12,7 @@ import type { FormEvent } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
 import { useAppState } from '../../state/AppStateContext'
 import { useGoAuthScreen } from '../../state/selectors/auth'
-import { authInput, authInputPw, authPrimary, authPrimaryOff, checkBox, filterEmailInput, EMAIL_PATTERN } from './authFormStyles'
+import { authInputStyle, authPasswordInputStyle, authPrimaryButtonStyle, authPrimaryButtonDisabledStyle, checkboxStyle, filterEmailInput, EMAIL_PATTERN } from './authFormStyles'
 import { usePostLogin } from '@/services/auth'
 
 export function LoginForm() {
@@ -62,7 +62,7 @@ export function LoginForm() {
           value={state.authEmail}
           onInput={filterEmailInput}
           onChange={(e) => setState({ authEmail: e.target.value })}
-          style={authInput}
+          style={authInputStyle}
         />
       </div>
 
@@ -82,7 +82,7 @@ export function LoginForm() {
               target.value = target.value.replace(/[^\x21-\x7E]/g, '')
             }}
             onChange={(e) => setPassword(e.target.value)}
-            style={authInputPw}
+            style={authPasswordInputStyle}
           />
           <button
             type="button"
@@ -102,7 +102,7 @@ export function LoginForm() {
           aria-pressed={state.authKeepLogin}
           style={{ display: 'flex', alignItems: 'center', gap: 8, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', fontFamily: 'inherit' }}
         >
-          <span style={checkBox(state.authKeepLogin)}>
+          <span style={checkboxStyle(state.authKeepLogin)}>
             <Icon name="check" size={14} />
           </span>
           <span style={{ fontSize: 12, color: 'var(--text-mid)' }}>로그인 상태 유지</span>
@@ -122,7 +122,7 @@ export function LoginForm() {
         </div>
       )}
 
-      <button type="submit" className="pill-btn" disabled={!canSubmit} style={canSubmit ? authPrimary : authPrimaryOff}>
+      <button type="submit" className="pill-btn" disabled={!canSubmit} style={canSubmit ? authPrimaryButtonStyle : authPrimaryButtonDisabledStyle}>
         {loginMutation.isPending ? '로그인하는 중…' : '로그인'}
       </button>
 
