@@ -8,12 +8,12 @@
 // exposes a return figure per asset class.
 
 import type { TreemapBlock } from '../components/primitives/Treemap/Treemap'
-import { fmt } from '../utils/format'
+import { fmt, formatCurrencyAmount } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
 import { toPercentages } from './dashboardView'
 import type { LedgerTxRow } from './ledgerView'
 import type { TradeRowView } from './stocksView'
-import type { AccountResponse } from '@/services/account'
+import type { AccountDetailResponse, AccountResponse } from '@/services/account'
 import type { AssetClassGroup, LockedAccount } from '@/services/asset'
 import type { AccountType, AssetClass, InstitutionType } from '@/services/common.type'
 
@@ -388,6 +388,80 @@ export function formatBigAmountCaption(n: number): string | null {
   const eok = Math.floor(manTotal / 10_000)
   const man = manTotal % 10_000
   return man === 0 ? `약 ${eok}억 원` : `약 ${eok}억 ${man.toLocaleString('ko-KR')}만 원`
+}
+
+
+// ---------- 계좌 상세: 대표 금액과 그 구성(원화 예수금 · 달러 예수금 · 보유 종목) ----------
+//
+// 2026-08-30 사용자 요청 — "주식 계좌 볼 때 달러 예수금, 원화 예수금 총 원화로 보이게".
+//
+// 대표 금액은 balanceKrw(예수금만)가 아니라 **totalValueKrw**(예수금 + 보유 종목 평가액)다. 주식
+// 계좌에서 balanceKrw만 보여주면 종목 평가액이 통째로 빠져 실제보다 작게 보인다.
+//
+// 구성 줄은 **쪼갤 것이 있을 때만** 만든다. 원화 예수금밖에 없는 현금·예적금 계좌에서는 총액과
+// 구성 줄이 같은 숫자를 두 번 보여주게 되므로 아예 그리지 않는다.
+//
+// 달러의 원화 환산액은 서버가 준 cashUsdKrw를 그대로 쓴다 — cashUsd × usdKrwRate로 다시 계산하면
+// 서버 반올림과 어긋나 구성 줄의 합이 총액과 1원씩 안 맞을 수 있다(환율은 프론트가 다루지 않는다는
+// 계약이기도 하다). usdKrwRate는 "어떤 환율로 환산했는지" 알려주는 표기용으로만 쓴다.
+
+export interface AccountBalanceRow {
+  label: string
+  /** 통화 기호·단위까지 붙인 표시 문자열 — 호출부가 '원'이나 '$'를 덧붙이지 않는다. */
+  valueText: string
+  /** 달러 줄의 원화 환산액 같은 보조 표기. 없으면 null. */
+  note: string | null
+}
+
+export interface AccountBalanceView {
+  /** 대표 금액에 붙일 라벨. 쪼갤 것이 없으면 '현재 잔액', 있으면 '총 평가액'(아래 함수 주석 참고). */
+  totalLabel: string
+  /** 대표 금액(총 평가액). fmt와 같은 규칙으로 통화 기호를 포함하지 않는다 — '원'은 호출부 JSX가 붙인다. */
+  totalText: string
+  /** 1억 원 이상일 때만 붙는 축약 캡션(형식은 formatBigAmountCaption). */
+  totalCaption: string | null
+  /** 총액을 무엇으로 쪼갠 것인지 보여주는 줄들. 쪼갤 것이 없으면 빈 배열. */
+  rows: AccountBalanceRow[]
+  /** 달러 예수금이 있을 때만: 환산에 쓴 환율 안내. */
+  rateNote: string | null
+}
+
+export function buildAccountBalanceView(detail: AccountDetailResponse): AccountBalanceView {
+  const { account, holdingValueKrw, totalValueKrw } = detail
+  // 0달러는 "달러 예수금 없음"과 같게 취급한다 — "$0.00" 한 줄은 정보가 아니라 잡음이다.
+  const usdCash = account.cashUsd ?? 0
+  const hasUsdCash = usdCash !== 0
+  const hasHoldings = holdingValueKrw > 0
+
+  const rows: AccountBalanceRow[] = []
+  if (hasUsdCash || hasHoldings) {
+    rows.push({ label: '원화 예수금', valueText: `${fmt(account.cashKrw)}원`, note: null })
+    if (hasUsdCash) {
+      rows.push({
+        label: '달러 예수금',
+        valueText: `$${formatCurrencyAmount(usdCash, 'USD')}`,
+        note: account.cashUsdKrw != null ? `${fmt(account.cashUsdKrw)}원` : null,
+      })
+    }
+    if (hasHoldings) {
+      rows.push({ label: '보유 종목', valueText: `${fmt(holdingValueKrw)}원`, note: null })
+    }
+  }
+
+  return {
+    // 지갑·통장처럼 예수금 한 덩어리뿐인 계좌에서 "총 평가액"은 과한 말이다(합칠 것이 없으니 그냥
+    // 잔액이다). 쪼갠 줄이 있을 때만 "총 평가액"이라고 부른다.
+    totalLabel: rows.length > 0 ? '총 평가액' : '현재 잔액',
+    totalText: fmt(totalValueKrw),
+    totalCaption: formatBigAmountCaption(totalValueKrw),
+    rows,
+    // 환율은 소수점 둘째 자리까지 쓴다 — formatCurrencyAmount의 USD 분기가 정확히 그 형식이라
+    // 같은 규칙을 두 번 적지 않도록 그대로 빌려 쓴다(값 자체는 달러가 아니라 '달러당 원'이다).
+    rateNote:
+      hasUsdCash && account.usdKrwRate != null
+        ? `1달러 = ${formatCurrencyAmount(account.usdKrwRate, 'USD')}원 기준`
+        : null,
+  }
 }
 
 

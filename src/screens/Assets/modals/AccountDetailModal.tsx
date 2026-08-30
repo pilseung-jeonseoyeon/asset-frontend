@@ -4,9 +4,18 @@
 // Opened from AssetCategoryModal's account rows, which sit at z-index 80 (§7-1 1단 모달) — this is a
 // 2단 모달 (z-index 90), same as EditAccountModal/AddAccountModal opened from the same parent.
 //
-// Data: GET /accounts/{id}(계좌 정보·현재 잔액) + GET /transactions?accountId=(가계부 거래)
-// + GET /trades?accountId=(주식·가상자산 계좌의 매수·매도).
+// Data: GET /accounts/{id}(계좌 정보·통화별 예수금·보유 종목 평가액) + GET /transactions?accountId=
+// (가계부 거래) + GET /trades?accountId=(주식·가상자산 계좌의 매수·매도).
 // "원금 대비 +N%" 배지는 AccountResponse에 원금이 없어 제거했다.
+//
+// **대표 금액은 총 평가액(totalValueKrw)이다**(2026-08-30 계약 변경 + 사용자 요청 — "주식 계좌 볼 때
+// 달러 예수금, 원화 예수금 총 원화로 보이게"). 그 아래에 원화 예수금 · 달러 예수금 · 보유 종목으로
+// 쪼갠 줄을 붙인다(assetsView buildAccountBalanceView). 예전에는 balanceKrw(예수금만)를 "현재 잔액"
+// 으로 보여줬는데, 주식 계좌에서는 보유 종목 평가액이 통째로 빠져 실제보다 작게 보였다.
+//
+// **GET /accounts/{id}만 응답이 한 겹 감싸져 있다**(AccountDetailResponse) — accountQuery.data는 계좌
+// 자체가 아니라 { account, holdingValueKrw, totalValueKrw }다. 목록·생성·수정·잔액정정 API는 여전히
+// 계좌를 그대로 돌려주므로 여기서만 .account를 꺼낸다.
 //
 // **"최근 거래내역"은 두 리소스를 합친 목록이다**(2026-08-27, 사용자 요청 — "주식 매수 매도 한거
 // 보여줄 수 있나"). 서버에 둘을 함께 주는 API가 없어 프론트가 날짜순으로 병합한다(assetsView
@@ -28,8 +37,7 @@
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
-import { fmt } from '../../../utils/format'
-import { buildAccountActivity, buildAccountDetailHeader, formatBigAmountCaption } from '../../../data/assetsView'
+import { buildAccountActivity, buildAccountBalanceView, buildAccountDetailHeader } from '../../../data/assetsView'
 import { buildLedgerTx, describeQueryError } from '../../../data/ledgerView'
 import { buildTradeRows, marketsOfAccountType } from '../../../data/stocksView'
 import { useGetAccount, useGetAccounts } from '@/services/account'
@@ -49,7 +57,9 @@ export function AccountDetailModal() {
     { enabled: isOpen },
   )
   // 매매가 있을 수 있는 유형인지는 계좌 응답이 와야 알 수 있다 — 그전까지는 요청을 보내지 않는다.
-  const hasTrades = accountQuery.data ? marketsOfAccountType(accountQuery.data.type).length > 0 : false
+  const hasTrades = accountQuery.data
+    ? marketsOfAccountType(accountQuery.data.account.type).length > 0
+    : false
   const tradesQuery = useGetTrades(
     { accountId: accountId ?? undefined },
     { enabled: isOpen && hasTrades },
@@ -61,10 +71,11 @@ export function AccountDetailModal() {
 
   const closeAccount = () => setState({ accountDetail: null })
 
-  const account = accountQuery.data
+  const detail = accountQuery.data
+  const account = detail?.account
   const err = describeQueryError(accountQuery.error)
   const header = account ? buildAccountDetailHeader(account) : null
-  const bigAmountCaption = account ? formatBigAmountCaption(account.balanceKrw) : null
+  const balanceView = detail ? buildAccountBalanceView(detail) : null
   // 두 목록을 각자의 규칙으로 최신순으로 만든 뒤 날짜로 병합해 상위 RECENT_TX_SIZE건만 남긴다.
   // 매매는 여기서 limit을 걸지 않고(buildTradeRows 기본값 10건) 병합 후에 자른다 — 매매가 몰린
   // 날이 있으면 가계부 거래가 밀려날 수 있는데, 그건 "최근에 일어난 일"이라는 기준상 맞는 동작이다.
@@ -88,7 +99,7 @@ export function AccountDetailModal() {
           </div>
           <div aria-busy style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
         </>
-      ) : err || !account || !header ? (
+      ) : err || !account || !header || !balanceView ? (
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 6 }}>
             <button
@@ -126,10 +137,32 @@ export function AccountDetailModal() {
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: 'var(--text-weak)', marginBottom: 4 }}>현재 잔액</div>
-            <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.02em' }}>{fmt(account.balanceKrw)}원</div>
-            {bigAmountCaption && (
-              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 4 }}>{bigAmountCaption}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-weak)', marginBottom: 4 }}>{balanceView.totalLabel}</div>
+            <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.02em' }}>{balanceView.totalText}원</div>
+            {balanceView.totalCaption && (
+              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 4 }}>{balanceView.totalCaption}</div>
+            )}
+            {/* 총액을 무엇으로 쪼갠 것인지 — 쪼갤 것이 없는 계좌(원화 예수금뿐)에서는 rows가 비어 있어
+                이 블록 자체가 그려지지 않는다(같은 숫자를 두 번 보여주지 않기 위해, buildAccountBalanceView). */}
+            {balanceView.rows.length > 0 && (
+              <div style={{ marginTop: 14, borderTop: '0.5px solid var(--track)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 9 }}>
+                {balanceView.rows.map((row) => (
+                  <div key={row.label} style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-weak)', flex: 1, minWidth: 0 }}>{row.label}</div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-mid)' }}>{row.valueText}</div>
+                      {/* 달러 줄의 원화 환산액 — 서버가 준 cashUsdKrw 그대로다(프론트 환산 아님). */}
+                      {row.note && (
+                        <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 2 }}>{row.note}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {/* 환율 안내는 목록의 한 줄이 아니라 달러 줄에 대한 각주다 — 위 줄들과 살짝 띄워 구분한다. */}
+                {balanceView.rateNote && (
+                  <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 2 }}>{balanceView.rateNote}</div>
+                )}
+              </div>
             )}
           </div>
 
