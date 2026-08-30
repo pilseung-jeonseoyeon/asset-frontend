@@ -130,6 +130,16 @@ export interface AppState {
   addAccountReturnTo: string | null
   addGoalReturnTo: string | null
 
+  // 증권사·거래소 API 키 연동(BYOK). AddAccountModal 안에서 서브뷰로 전환된다.
+  //
+  // 발급받은 API 키 자체는 여기 두지 않는다 — 전역 상태에 담으면 모달을 닫아도 메모리에 남고
+  // 다른 화면에서도 읽을 수 있다. 비밀번호 폼과 같이 컴포넌트 로컬 state로 들고 있다가
+  // 모달을 닫을 때 지운다(AddAccountModal의 resetAndClose 참고).
+  /** 'none' | 'provider' | 'form' | 'result' */
+  connectView: string
+  /** 선택한 ConnectionProvider. connectView가 'form' 이상일 때만 의미가 있다. */
+  connectProvider: string | null
+
   // recurring expense
   recurringType: RecurringType
   /** 고정 지출·구독은 항상 EXPENSE 대분류 소분류라 major/sub 인덱스가 아니라 leaf id 하나로 추적한다. */

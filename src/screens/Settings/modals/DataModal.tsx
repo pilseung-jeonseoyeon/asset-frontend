@@ -15,7 +15,7 @@
 // 고쳐서 같은 이름으로 다시 올리는 흔한 흐름) onChange 뒤에 input.value를 비운다 — 안 비우면 같은
 // 경로 선택 시 change 이벤트가 안 난다.
 
-import { useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import type { CSSProperties, ChangeEvent } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
@@ -24,6 +24,7 @@ import { useCloseModal } from '../../../state/selectors/modal'
 import { useDownloadExportFile } from '@/services/export'
 import type { ExportKind } from '@/services/export'
 import { useDownloadImportTemplate, useUploadImportFile } from '@/services/import'
+import { ConnectionsSection } from './ConnectionsSection'
 
 interface ComingSoonAction {
   icon: string
@@ -73,6 +74,16 @@ const EXPORT_OPTIONS: { kind: ExportKind; label: string }[] = [
 // 무엇을 채워야 하는지 알 수 있게 적어둔다. 이름은 양식 2번 시트("등록된 이름")에 있는 것과 같아야 한다.
 const IMPORT_COLUMNS = '날짜 · 계좌 · 대분류 · 소분류 · 내용 · 금액 · 구분 · 메모 · 상대계좌'
 const IMPORT_REFERENCE_SHEET = '등록된 이름'
+
+/** 엑셀 양식의 계좌 두 칸(B열 '계좌' / I열 '상대계좌')이 각각 무엇인지. docs/excel-import.md와 같은 내용. */
+const IMPORT_ACCOUNT_GUIDE: { kind: string; account: string; counterparty: string }[] = [
+  { kind: '수입', account: '입금 계좌 (들어온 곳)', counterparty: '비움' },
+  { kind: '지출', account: '출금 계좌 (나간 곳)', counterparty: '비움' },
+  { kind: '저축', account: '출금 계좌', counterparty: '입금 계좌 (쌓이는 곳)' },
+  { kind: '이체', account: '출금 계좌', counterparty: '입금 계좌 (받는 곳)' },
+]
+
+const IMPORT_TABLE_HEAD_STYLE = { fontSize: 10.5, fontWeight: 700, color: 'var(--text-weak)' } as const
 
 function ComingSoonRow({ action }: { action: ComingSoonAction }) {
   return (
@@ -181,8 +192,29 @@ export function DataModal() {
             >
               <div style={{ fontSize: 11.5, color: 'var(--text-mid)', lineHeight: 1.6 }}>
                 양식을 내려받아 A열부터 <b style={{ color: 'var(--text-strong)' }}>{IMPORT_COLUMNS}</b> 순서로 채운 뒤 올려주세요.
-                계좌·분류는 양식의 &lsquo;{IMPORT_REFERENCE_SHEET}&rsquo; 시트에 있는 이름과 같아야 하고, 이체·저축은 상대계좌 칸을 채워야 해요.
+                계좌·분류는 양식의 &lsquo;{IMPORT_REFERENCE_SHEET}&rsquo; 시트에 있는 이름과 같아야 해요.
                 한 줄이라도 틀리면 전체가 등록되지 않으니 알려드리는 줄을 고쳐 다시 올려주세요.
+              </div>
+              {/* 계좌 칸이 두 개(B열 '계좌', I열 '상대계좌')라 어느 쪽이 나가는 돈이고 어느 쪽이 들어오는
+                  돈인지 매번 헷갈린다는 지적(2026-08-29). 표로 못박아 둔다 — 특히 수입만 예외라
+                  들어온 돈을 '상대계좌'가 아니라 '계좌'에 적는다는 점이 핵심이다(docs/excel-import.md). */}
+              <div style={{ fontSize: 11.5, color: 'var(--text-mid)', lineHeight: 1.6 }}>
+                <b style={{ color: 'var(--text-strong)' }}>&lsquo;상대계좌&rsquo;는 곧 입금 계좌예요</b> — 돈이 들어가는 쪽.
+                &lsquo;계좌&rsquo;는 돈이 나가는 쪽(출금)이고요.
+                <b style={{ color: 'var(--text-strong)' }}> 수입만 예외</b>로, 들어온 돈이 담기는 계좌를
+                &lsquo;상대계좌&rsquo;가 아니라 &lsquo;계좌&rsquo; 칸에 적습니다.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', gap: '6px 10px', fontSize: 11, lineHeight: 1.5 }}>
+                <span style={IMPORT_TABLE_HEAD_STYLE}>구분</span>
+                <span style={IMPORT_TABLE_HEAD_STYLE}>계좌</span>
+                <span style={IMPORT_TABLE_HEAD_STYLE}>상대계좌</span>
+                {IMPORT_ACCOUNT_GUIDE.map((r) => (
+                  <Fragment key={r.kind}>
+                    <span style={{ fontWeight: 700, color: 'var(--text-strong)' }}>{r.kind}</span>
+                    <span style={{ color: 'var(--text-mid)' }}>{r.account}</span>
+                    <span style={{ color: r.counterparty === '비움' ? 'var(--text-weak)' : 'var(--text-mid)' }}>{r.counterparty}</span>
+                  </Fragment>
+                ))}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
@@ -257,6 +289,11 @@ export function DataModal() {
             </div>
           )}
         </div>
+
+        {/* 증권사·거래소 연동 관리(2026-08-29). 엑셀 가져오기 바로 아래 — 둘 다 "외부에서 데이터를
+            끌어오는 수단"이라 같은 묶음으로 읽힌다. 새 연동 등록은 여기가 아니라 계좌 추가 모달에
+            있다(등록의 결과물이 계좌라서). 여기는 목록·재동기화·해제 전용이다. */}
+        <ConnectionsSection />
 
         <div style={{ position: 'relative' }}>
           <button

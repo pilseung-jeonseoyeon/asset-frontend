@@ -102,4 +102,8 @@ export const qk = {
     all: () => ['notification'] as const,
     list: (unreadOnly?: boolean) => ['notification', 'list', { unreadOnly }] as const,
   },
+  connection: {
+    all: () => ['connection'] as const,
+    list: () => ['connection', 'list'] as const,
+  },
 } as const

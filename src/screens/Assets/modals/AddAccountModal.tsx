@@ -92,6 +92,8 @@ import { ASSET_CLASS_META, ASSET_CLASS_ORDER, assetClassFormPreset, assetClassOf
 import { describeQueryError } from '../../../data/ledgerView'
 import { AccountHoldingsField } from './AccountHoldingsField'
 import type { DraftHolding } from './AccountHoldingsField'
+import { ConnectAccountView } from './ConnectAccountView'
+import { providerLabelsFor, providersFor } from '../../../data/connectionView'
 import { useGetInstitutions } from '@/services/institution'
 import { usePostAccount } from '@/services/account'
 import { isFxRateMissing } from '@/services/stock'
@@ -157,6 +159,15 @@ const TEXT_INPUT_STYLE: CSSProperties = {
 const RETRY_BTN_STYLE: CSSProperties = {
   border: 'none', background: 'transparent', padding: 0, fontSize: 12, fontWeight: 700,
   color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit',
+}
+// 연동 배너의 점선 톤. Dashboard.tsx의 DASHED_CTA_STYLE_DEEP과 같은 계열이지만 그쪽은 모듈 내부
+// 상수라 export되어 있지 않아 여기서 다시 정의한다 — 공용화는 세 번째 사용처가 생길 때 판단한다.
+// 액센트 채움 버튼으로 격상하지 않는 이유: 이 폼의 주 동선은 하단 "계좌 추가"(액센트)이고 연동은
+// 선택적 대체 경로다. 둘 다 채움 버튼이면 무엇이 기본인지 읽히지 않는다.
+const CONNECT_BANNER_STYLE: CSSProperties = {
+  width: '100%', textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: 11,
+  border: '1px dashed var(--border)', borderRadius: 12, padding: '14px 16px',
+  background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', minHeight: 44,
 }
 
 export function AddAccountModal() {
@@ -274,6 +285,10 @@ export function AddAccountModal() {
       dpPicked: { ...st.dpPicked, addAccountOpened: undefined, addAccountMaturity: undefined },
       dpNav: { ...st.dpNav, addAccountOpened: undefined, addAccountMaturity: undefined },
       openDropdown: null,
+      // 연동 서브뷰도 함께 접는다 — 남겨두면 다음에 "계좌 추가"를 열었을 때 계좌 폼이 아니라
+      // 지난번 연동 화면이 그대로 뜬다(이 모달은 닫아도 언마운트되지 않는다).
+      connectView: 'none',
+      connectProvider: null,
     }))
     // 이 모달은 AppShell에 항상 마운트되어 있어 닫아도 언마운트되지 않는다. 로컬 상태와 mutation
     // 에러를 직접 지우지 않으면 다음에 "계좌 추가"를 열었을 때 지난 실패 메시지가 그대로 보인다.
@@ -437,6 +452,24 @@ export function AddAccountModal() {
   // (AccountHoldingsField) 폼이 무한정 길어지지 않아, 굳이 이 모달만 다른 규격을 만들 이유가 없다.
   const footerStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 18 }
 
+  // 이 자산 유형에 연동 가능한 기관이 있는지. 주식·가상자산만 해당한다. 하드코딩하지 않고 기관
+  // 목록에서 역산하므로, 지원 기관이 늘거나 줄어도 이 조건을 따로 고칠 필요가 없다.
+  const connectProviders = providersFor(selectedAssetClass)
+  const openConnect = () => {
+    // 후보가 하나뿐이면(가상자산 = 업비트) 칩 하나짜리 선택 화면을 거치게 하지 않고 바로 키 입력으로.
+    if (connectProviders.length === 1) setState({ connectView: 'form', connectProvider: connectProviders[0] })
+    else setState({ connectView: 'provider', connectProvider: null })
+  }
+
+  // 연동 서브뷰는 계좌 폼을 대체한다(같은 패널, 새 모달 아님 — ConnectAccountView 상단 주석 참고).
+  if (state.connectView !== 'none') {
+    return (
+      <Modal onClose={resetAndClose} zIndex={90} width={480} panelStyle={{ maxHeight: '90vh', overflow: 'auto' }}>
+        <ConnectAccountView assetClass={selectedAssetClass} onDone={resetAndClose} />
+      </Modal>
+    )
+  }
+
   return (
     <Modal onClose={resetAndClose} zIndex={90} width={480} panelStyle={{ maxHeight: '90vh', overflow: 'auto' }}>
       {!!state.openDropdown && (
@@ -505,6 +538,26 @@ export function AddAccountModal() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* 연동 진입점. sticky 헤더가 아니라 본문 맨 위에 두는 이유: 헤더에 넣으면 모바일 바텀시트에서
+            스크롤 내내 화면을 차지한다. 여기라면 스크롤과 함께 자연스럽게 사라지고, 아직 아무 값도
+            입력하지 않은 시점이라 "적던 게 사라진다"는 손실감도 없다. 지원 기관이 없는 유형(현금·
+            예적금·연금)에서는 아예 렌더하지 않아 "내 은행은 없네"를 겪을 일이 없다. */}
+        {connectProviders.length > 0 && (
+          <button type="button" className="qbtn" onClick={openConnect} style={CONNECT_BANNER_STYLE}>
+            <Icon name="link" size={18} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 1 }} ariaHidden />
+            <span style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)' }}>
+                {providerLabelsFor(selectedAssetClass)}을 쓰시나요?
+              </span>
+              <span style={{ fontSize: 11.5, color: 'var(--text-mid)', lineHeight: 1.6 }}>
+                API 키를 등록하면 계좌와 {selectedAssetClass === 'CRYPTO' ? '거래' : '매매'} 내역이 자동으로 채워져요
+              </span>
+            </span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--accent)', flexShrink: 0, alignSelf: 'center' }}>
+              연동하기
+            </span>
+          </button>
+        )}
         <div>
           <div style={LABEL_STYLE}>계좌 이름</div>
           <input

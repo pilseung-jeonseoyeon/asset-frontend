@@ -71,6 +71,9 @@ export const initialState: AppState = {
   addAccountReturnTo: null,
   addGoalReturnTo: null,
 
+  connectView: 'none',
+  connectProvider: null,
+
   recurringType: 'fixed',
   recurSubcategoryId: null,
   recurAccountId: null,
