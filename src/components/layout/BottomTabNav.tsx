@@ -1,10 +1,10 @@
-// Source: docs/mobile.md §3 — fixed bottom tab bar rendered by AppShell instead of SidebarNav when
-// useIsMobile() is true. Reuses NAV_ITEMS from navItems.ts (shared with SidebarNav) so the item list
-// isn't duplicated. z-index 50 keeps it below the header dropdown scrim (55), dropdown menus (60), the
-// global openDropdown scrim (70) and modals (80+) per §3.
+// 모바일(useIsMobile()이 true)에서 SidebarNav 대신 AppShell이 렌더하는 고정 하단 탭 바
+// (docs/mobile.md §3). 항목 목록은 navItems.ts의 NAV_ITEMS를 SidebarNav와 공유한다.
+// z-index 50 — 헤더 드롭다운 스크림(55), 드롭다운 메뉴(60), 전역 openDropdown 스크림(70),
+// 모달(80+)보다 아래에 있어야 한다(§3).
 //
-// Tabs render as real <a> (react-router-dom's Link) — active state comes from useLocation() against
-// NAV_ITEMS' path, same reasoning as SidebarNav.
+// 탭은 진짜 <a>(react-router-dom의 Link)로 렌더한다 — 활성 상태는 useLocation()과 NAV_ITEMS의
+// path를 맞춰 판단한다(SidebarNav와 같은 이유).
 
 import { Link, useLocation } from 'react-router-dom'
 import type { NavItem } from './navItems'

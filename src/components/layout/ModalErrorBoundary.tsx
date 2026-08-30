@@ -4,7 +4,7 @@
 // ChunkErrorBoundary와의 역할 차이: ChunkErrorBoundary(AppShell.tsx)는 AuthenticatedApp 전체를
 // 감싸 원래 "lazy 청크 로드 실패"(import()의 reject)만 잡으려는 목적이지만, React 에러 경계는 원인을
 // 구분하지 않고 트리 안 어떤 렌더 예외든 잡으면 그 경계 아래를 통째로 대체한다. 경계가 AuthenticatedApp
-// 하나뿐이면 모달 컴포넌트 하나의 버그가 사이드바·헤더·현재 화면까지 함께 지워버린다(2026-08-20 실제
+// 하나뿐이면 모달 컴포넌트 하나의 버그가 사이드바·헤더·현재 화면까지 함께 지워버린다(실제
 // 장애 — EditAccountModal이 서버 응답 필드명 불일치로 던진 TypeError가 앱 전체를 "화면을 불러오지
 // 못했어요"로 대체함). 그래서 AuthenticatedApp이 렌더하는 모달마다 이 경계로 각각 감싸, "모달 하나의
 // 크래시"가 그 모달 자리로만 국한되게 한다. ChunkErrorBoundary는 원래 목적대로 그대로 두고, 이 경계가
@@ -18,20 +18,20 @@
 // 경계는 에러를 잡으면 서브트리를 언마운트하므로, hasError가 다시 false가 될 때 children은 완전히
 // 새로 마운트된다(내부 로컬 state도 전부 초기화) — "같은 인스턴스가 유지"되는 게 아니다. 그런데도
 // 크래시가 반복되지 않고 수렴하는 건, 이 컴포넌트가 감싸는 각 모달이 파생 계산보다 먼저
-// `if (!isOpen) return null`을 두는 관례를 지키고 있고(AssetCategoryModal도 2026-08-20부로 동일하게
+// `if (!isOpen) return null`을 두는 관례를 지키고 있고(AssetCategoryModal도 부로 동일하게
 // 맞췄다), onReset이 그 `isOpen`을 판단하는 AppState 필드를 꺼주기 때문이다 — 재마운트된 children이
 // 첫 렌더에서 바로 null을 반환해 크래시가 재현되지 않는다.
 //
 // 로깅 시 주의: error.message/componentStack에는 예외 발생 지점과 컴포넌트 이름 트리만 담기고, 계좌
-// 잔액 같은 실제 데이터 값은 실리지 않는다(보안 리뷰 지적 반영 — 값을 실어 던지는 커스텀 에러를 새로
+// 잔액 같은 실제 데이터 값은 실리지 않는다(값을 실어 던지는 커스텀 에러를 새로
 // 만들지 않는 한 안전하다).
 //
 // 이 안전망이 잡지 못하는 것(범위 밖, 의도적으로 고치지 않음):
 // - 폴백 UI 자신(아래 render의 Modal/Icon)이 렌더 중 던지면 이 경계는 자기 자신의 렌더 예외를 잡지
-//   못해 위쪽 ChunkErrorBoundary까지 전파되고, 결국 앱 전체가 "화면을 불러오지 못했어요"로 대체된다.
+// 못해 위쪽 ChunkErrorBoundary까지 전파되고, 결국 앱 전체가 "화면을 불러오지 못했어요"로 대체된다.
 // - 이벤트 핸들러·비동기 콜백(예: mutation의 onSuccess/onError 체인) 안에서 던지는 예외는 React
-//   에러 경계가 원천적으로 잡지 못한다. 이 저장소의 여러 모달이 모달 닫기를 `mutate(...).onSuccess`
-//   체인에 의존하므로, 그 안에서 던지면 이 경계는 아무 반응도 하지 않고 콘솔 에러만 남는다.
+// 에러 경계가 원천적으로 잡지 못한다. 이 저장소의 여러 모달이 모달 닫기를 `mutate(...).onSuccess`
+// 체인에 의존하므로, 그 안에서 던지면 이 경계는 아무 반응도 하지 않고 콘솔 에러만 남는다.
 
 import { Component } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
@@ -49,7 +49,7 @@ interface Props {
   onReset: () => void
   // 이 경계가 감싸는 모달 자신이 Modal에 넘기는 실제 zIndex와 반드시 같은 값. 이 앱에는 의도된 2단
   // 모달 겹침(§7-1: z80 AssetCategoryModal 위에 z90 AddAccountModal/EditAccountModal/
-  // AccountDetailModal이 뜬다)이 있어, 폴백을 아무 고정값(예전엔 95)에 띄우면 "아래층이 크래시했을
+  // AccountDetailModal이 뜬다)이 있어, 폴백을 아무 고정값에 띄우면 "아래층이 크래시했을
   // 때 위층에 떠 있던 멀쩡한 모달"을 가려버린다. 폴백은 항상 크래시한 그 모달이 있던 층에 뜨게 한다.
   zIndex: number
   // 사람이 읽는 모달 이름(해당 모달 헤더에 실제로 쓰이는 문구와 동일하게). "○○ 화면을 표시할 수

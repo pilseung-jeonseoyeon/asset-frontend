@@ -1,37 +1,30 @@
-// Source: secret/Asset Manager v14.dc.html L2307-2366 (계좌 상세 드릴다운 모달, hasSelectedAccount) —
-// layout transcribed verbatim, then wired to real data. Gated by `state.accountDetail !== null` (a
-// dedicated state field), NOT `state.modalOpen` — same non-modalXxx pattern as AssetCategoryModal.
-// Opened from AssetCategoryModal's account rows, which sit at z-index 80 (§7-1 1단 모달) — this is a
-// 2단 모달 (z-index 90), same as EditAccountModal/AddAccountModal opened from the same parent.
+// 계좌 상세 모달. `state.modalOpen`이 아니라 전용 필드 `state.accountDetail !== null`로 열림을
+// 판단한다(AssetCategoryModal과 같은 패턴). AssetCategoryModal의 계좌 행(z-index 80, §7-1 1단 모달)
+// 에서 열리므로 이 모달은 2단(z-index 90)이다 — 같은 부모에서 열리는
+// EditAccountModal/AddAccountModal과 같다.
 //
-// Data: GET /accounts/{id}(계좌 정보·통화별 예수금·보유 종목 평가액) + GET /transactions?accountId=
+// 데이터: GET /accounts/{id}(계좌 정보·통화별 예수금·보유 종목 평가액) + GET /transactions?accountId=
 // (가계부 거래) + GET /trades?accountId=(주식·가상자산 계좌의 매수·매도).
-// "원금 대비 +N%" 배지는 AccountResponse에 원금이 없어 제거했다.
+// '원금 대비 +N%' 배지는 AccountResponse에 원금이 없어 그리지 않는다.
 //
-// **대표 금액은 총 평가액(totalValueKrw)이다**(2026-08-30 계약 변경 + 사용자 요청 — "주식 계좌 볼 때
-// 달러 예수금, 원화 예수금 총 원화로 보이게"). 그 아래에 원화 예수금 · 달러 예수금 · 보유 종목으로
-// 쪼갠 줄을 붙인다(assetsView buildAccountBalanceView). 예전에는 balanceKrw(예수금만)를 "현재 잔액"
-// 으로 보여줬는데, 주식 계좌에서는 보유 종목 평가액이 통째로 빠져 실제보다 작게 보였다.
+// **대표 금액은 총 평가액(totalValueKrw)이다.** 그 아래에 원화 예수금 · 달러 예수금 · 보유 종목으로
+// 쪼갠 줄을 붙인다(assetsView의 buildAccountBalanceView). balanceKrw(예수금만)를 '현재 잔액'으로
+// 보여주면 주식 계좌에서 보유 종목 평가액이 통째로 빠져 실제보다 작게 보인다.
 //
 // **GET /accounts/{id}만 응답이 한 겹 감싸져 있다**(AccountDetailResponse) — accountQuery.data는 계좌
 // 자체가 아니라 { account, holdingValueKrw, totalValueKrw }다. 목록·생성·수정·잔액정정 API는 여전히
 // 계좌를 그대로 돌려주므로 여기서만 .account를 꺼낸다.
 //
-// **"최근 거래내역"은 두 리소스를 합친 목록이다**(2026-08-27, 사용자 요청 — "주식 매수 매도 한거
-// 보여줄 수 있나"). 서버에 둘을 함께 주는 API가 없어 프론트가 날짜순으로 병합한다(assetsView
-// buildAccountActivity). 매매는 가계부 거래를 따로 만들지 않으므로 같은 건이 두 번 뜨지 않는다.
-// GET /trades는 매매가 있을 수 있는 유형(주식·가상자산)에서만 부른다 — 현금 계좌까지 부르면
-// 언제나 빈 응답인 요청을 계좌를 열 때마다 한 번씩 더 보내게 된다.
+// **'최근 거래내역'은 두 리소스를 합친 목록이다.** 서버에 둘을 함께 주는 API가 없어 프론트가
+// 날짜순으로 병합한다(assetsView의 buildAccountActivity). 매매는 가계부 거래를 따로 만들지 않으므로
+// 같은 건이 두 번 뜨지 않는다. GET /trades는 매매가 있을 수 있는 유형(주식·가상자산)에서만 부른다 —
+// 현금 계좌까지 부르면 언제나 빈 응답인 요청을 계좌를 열 때마다 한 번씩 더 보내게 된다.
 //
-// **"최근 6개월 추이" 칸은 없다**(2026-08-27, 사용자 결정 — "상세에 추이 그래프 빼줘"). 채울 수 없는
-// 빈 상자가 잔액과 거래내역 사이를 가로막고 있을 이유가 없다.
-// 경위: 예전에는 GET /accounts/{id}/snapshots를 불렀는데 그 주소가 서버에서 사라졌고(2026-08-26 라이브
-// OpenAPI 대조: 문서 전체에 snapshot 0건), 404 응답에 서버 표준 에러 본문이 없어 "Request failed with
-// status code 404"라는 영문 원문이 그대로 카드에 노출됐다. 호출을 걷어내고 빈 상태로 뒀다가, 이번에
-// 칸 자체를 지웠다.
-// **GET /dashboard/trend?type=으로 되살리지 말 것**(2026-08-27 확인): 그 API에는 계좌를 지정하는
-// 파라미터가 없어 그 유형 계좌 **전부의 합계**를 돌려준다 — 증권 계좌가 8개면 8개 합계가 나오므로
-// 계좌 하나의 추이인 척 그리면 틀린 숫자가 된다. 자산군 단위 그래프는 AssetCategoryModal이 쓴다.
+// **'최근 6개월 추이' 칸은 없다**(사용자 결정). 채울 수 없는 빈 상자가 잔액과 거래내역 사이를
+// 가로막고 있을 이유가 없다.
+// **GET /dashboard/trend?type=으로 되살리지 말 것**: 그 API에는 계좌를 지정하는 파라미터가 없어 그
+// 유형 계좌 **전부의 합계**를 돌려준다 — 증권 계좌가 8개면 8개 합계가 나오므로 계좌 하나의 추이인
+// 척 그리면 틀린 숫자가 된다. 자산군 단위 그래프는 AssetCategoryModal이 쓴다.
 // 백엔드에 계좌별 추이(accountId 필터)가 생기면 그때 이 자리에 선 그래프를 만든다.
 
 import { Icon } from '../../../components/primitives/Icon/Icon'
@@ -64,7 +57,7 @@ export function AccountDetailModal() {
     { accountId: accountId ?? undefined },
     { enabled: isOpen && hasTrades },
   )
-  // TRANSFER 거래의 상대 계좌명 조인용(ledgerView.buildLedgerTx가 요구하는 인자) — API-SPEC 참고.
+  // TRANSFER 거래의 상대 계좌명 조인용(ledgerView.buildLedgerTx가 요구하는 인자).
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })
 
   if (!isOpen) return null

@@ -1,15 +1,13 @@
-// Source: secret/Asset Manager v14.dc.html L840-1038 (isDash block) — layout transcribed verbatim,
-// then wired to GET /dashboard/{summary,trend,allocation}, GET /goals, GET /assets/distribution?
-// groupBy=INSTITUTION + GET /institutions (previously hardcoded mock data — see git history for
-// src/data/mockDashboard.ts). View-model conversion lives in src/data/dashboardView.ts.
+// 대시보드 화면. GET /dashboard/{summary,trend,allocation}, GET /goals,
+// GET /assets/distribution?groupBy=INSTITUTION + GET /institutions에 연결돼 있다.
+// 뷰모델 변환은 src/data/dashboardView.ts.
 //
-// 총자산 추이의 x축은 항상 올해 1월~12월이고, 데이터가 있는 마지막 달 이후는 "예정 구간"으로만
-// 음영 처리한다(원본 dc.html의 표기 복원 — 2026-08-20). 음영은 어디까지나 "아직 값이 없는 구간"
-// 표시이고 예측선이 아니다 — 서버는 미래 예측값을 주지 않으므로 선을 연장하지 말 것.
-// 총자산 추이 y축 눈금 라벨(13억/11억/9억, dc.html L919-922)은 buildTrendYAxisTicks(dashboardView.ts)로
-// 복원했다(2026-08-17) — formatKoreanAbbrev 신설 전에는 계산 수단이 없어 생략돼 있었다.
+// 총자산 추이의 x축은 항상 올해 1월~12월이고, 데이터가 있는 마지막 달 이후는 '예정 구간'으로만
+// 음영 처리한다. 음영은 어디까지나 '아직 값이 없는 구간' 표시이고 예측선이 아니다 — 서버는 미래
+// 예측값을 주지 않으므로 선을 연장하지 말 것.
+// y축 눈금 라벨(13억/11억/9억)은 buildTrendYAxisTicks(dashboardView.ts)가 계산한다.
 // 신규 사용자를 위한 빈 상태는 카드 단위로 처리한다(자산은 있는데 목표만 없는 중간 상태 포함) —
-// Assets.tsx의 EmptyAccountsState / Stocks.tsx의 딥카드 빈 상태와 같은 패턴(로딩 "—", 에러
+// Assets.tsx의 EmptyAccountsState / Stocks.tsx의 딥카드 빈 상태와 같은 패턴(로딩 '—', 에러
 // var(--down), 빈 상태 안내문+버튼).
 
 import type { CSSProperties } from 'react'

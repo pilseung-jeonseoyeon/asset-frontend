@@ -1,10 +1,8 @@
-// Source: secret/Asset Manager v14.dc.html L3309-3399 (modalCustom) — transcribed verbatim.
-// z-index 80, width 540px, maxHeight 86vh.
-// ddMonthStart는 이제 AppState가 아니라 서버 사용자 설정(GET/PATCH /users/me/settings)을 읽고 쓴다.
-// 드롭다운 마크업 자체는 L3345-3357 그대로다.
+// 커스텀 설정 모달. z-index 80, 너비 540px, maxHeight 86vh.
+// 정산월 시작일 드롭다운은 AppState가 아니라 서버 사용자 설정(GET/PATCH /users/me/settings)을
+// 읽고 쓴다.
 // D-Day 알림 토글 규칙: Switch 프리미티브 + 독립 mutation 인스턴스 + 설정을 못 받아온 구간엔
-// 스위치 대신 '—' 플레이스홀더. (같은 규칙을 쓰던 GeneralModal.tsx의 "환율 자동 갱신" 행은
-// 2026-08-20에 제거됐다 — 지금은 이 토글이 그 규칙의 유일한 사례다.)
+// 스위치 대신 '—' 플레이스홀더. 지금 이 규칙을 쓰는 곳은 이 토글 하나뿐이다.
 
 import type { CSSProperties } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
@@ -14,7 +12,7 @@ import { useAppState } from '../../../state/AppStateContext'
 import { useCloseModal } from '../../../state/selectors/modal'
 import { useGetUserSettings, usePatchUserSettings } from '@/services/user'
 import { useGetGoal } from '@/services/goal'
-// 목표 진행률 행은 대시보드 위젯과 완전히 같은 계산식(API-SPEC §5.1 각주의 D-Day·초과 저축액)을
+// 목표 진행률 행은 대시보드 위젯과 완전히 같은 계산식(D-Day·초과 저축액)을
 // 쓴다. 두 벌로 두면 한쪽만 고쳤을 때 같은 화면의 두 자리에서 다른 숫자가 나오므로 공용 함수를 쓴다.
 import { buildAssetGoals } from '../../../data/dashboardView'
 
@@ -28,7 +26,7 @@ const VALUE_PILL_STYLE: CSSProperties = {
 }
 
 // 서버가 monthStartDay를 1~28로 검증한다(@Min(1)@Max(28)) — 29~31은 달마다 존재하지 않는 날이라
-// 선택지에서 제외한다. 원본 프로토타입은 31일까지 보여줬다.
+// 선택지에서 제외한다.
 const MONTH_START_DAYS = Array.from({ length: 28 }, (_, i) => i + 1)
 
 export function CustomModal() {
@@ -38,7 +36,7 @@ export function CustomModal() {
   const { settings, data: settingsData, error: settingsError } = useGetUserSettings({ enabled: isOpen })
   const patchSettings = usePatchUserSettings()
   // GeneralModal.tsx와 같은 이유로 독립 인스턴스를 쓴다 — 월 시작일 저장과 D-Day 토글을 겹쳐서
-  // 조작해도 서로의 에러/로딩을 가리지 않는다(리뷰 #3 패턴 재사용).
+  // 조작해도 서로의 에러/로딩을 가리지 않는다(같은 패턴 재사용).
   const patchDday = usePatchUserSettings()
   const {
     goal,
@@ -51,7 +49,7 @@ export function CustomModal() {
 
   // GeneralModal.tsx와 완전히 같은 이유: 이 모달도 AppShell에 항상 마운트되어 있어 닫아도
   // 언마운트되지 않는다. reset()이 없으면 저장이 실패한 뒤 모달을 닫았다 다시 열 때 지난 실패
-  // 메시지가 그대로 다시 나타난다(리뷰 #9).
+  // 메시지가 그대로 다시 나타난다.
   const closeAndReset = () => {
     patchSettings.reset()
     patchDday.reset()

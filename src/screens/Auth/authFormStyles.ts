@@ -1,8 +1,7 @@
-// Source: secret/Asset Manager v14.dc.html L3571-3589 ("인증 화면 공통 스타일" block) + L3622
-// (filterEmailInput) + L3636 (filterPasswordInput) — transcribed verbatim, camelCased into CSSProperties
-// objects. This is the canonical home for these constants: screens/Auth owns the real auth screens,
-// and src/components/layout/modals/AccountModal.tsx (its password-change subview reuses the same
-// input/button look) imports from here instead of keeping its own copy.
+// 인증 화면 공통 스타일과 입력 필터.
+// 여기가 이 상수들의 정본이다 — screens/Auth가 실제 인증 화면을 갖고 있고,
+// src/components/layout/modals/AccountModal.tsx의 비밀번호 변경 화면도 같은 입력·버튼 모양을
+// 쓰므로 자기 복사본을 두지 않고 여기서 가져다 쓴다.
 
 import type { CSSProperties, FormEvent } from 'react'
 
@@ -75,10 +74,9 @@ export function checkboxStyle(on: boolean, size = 18): CSSProperties {
   }
 }
 
-/** 이메일 입력 — 비-ASCII 문자 차단(한글 등 오입력 방지). 원본(L3622)은 범위를 `\x00-\x7F`로 잡아
- * 제어문자(0x00-0x1F)까지 "허용"에 포함시키지만, 이메일 입력창에 제어문자가 들어올 일이 없고
- * oxlint의 no-control-regex가 그 범위를 지적한다 — 인쇄 가능 ASCII만 허용하도록 `\x20-\x7E`로 좁혀
- * 의도(한글 등 비-ASCII 차단)는 그대로 두고 경고만 제거했다. */
+/** 이메일 입력 — 비-ASCII 문자 차단(한글 등 오입력 방지). 허용 범위를 `\x20-\x7E`(인쇄 가능 ASCII)로
+ * 좁게 잡은 이유: `\x00-\x7F`로 잡으면 제어문자(0x00-0x1F)까지 허용에 들어가는데 이메일 입력창에
+ * 제어문자가 들어올 일이 없고, oxlint의 no-control-regex도 그 범위를 지적한다. */
 export function filterEmailInput(e: FormEvent<HTMLInputElement>) {
   const target = e.target as HTMLInputElement
   target.value = target.value.replace(/[^\x20-\x7E]/g, '')

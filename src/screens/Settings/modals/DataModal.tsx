@@ -1,19 +1,17 @@
-// Source: secret/Asset Manager v14.dc.html L3251-3306 (modalData) — row markup/order transcribed
-// verbatim. 4개 행 중 실제 기능이 붙은 건 두 개다.
-//  - "엑셀로 가져오기"(2026-08-22): 모닛 양식 엑셀을 올려 거래를 일괄 등록한다(GET/POST
-//    /import/excel/transactions). 행을 누르면 바로 아래에 인라인 패널이 펼쳐지고(양식 내려받기 · 파일
-//    올리기 · 결과 요약), 서버가 파일을 해석한다. 서버는 한 행이라도 틀리면 아무것도 등록하지 않으므로
-//    결과는 "N건 등록" 또는 "틀린 행 목록 + 고쳐서 다시 올리기" 둘 중 하나다 — 계약은 docs/excel-import.md.
-//  - "전체 내역 내보내기"(GET /export/excel/transactions, GET /export/excel/trades): 눌러서 거래/매매 중
-//    하나를 고르는 인라인 드롭다운(CustomModal.tsx의 월 시작일 드롭다운과 동일한 수동 구현 패턴).
-// 나머지 2개(백업/복원·초기화)는 대응 API가 없어 GeneralModal.tsx의 "추후 업데이트" 배지로 왜 눌러도
-// 반응이 없는지 드러낸다(예전엔 onClick 없는 장식 버튼이라 구분이 안 됐다).
-// "최근 백업 2026.06.28"는 실제 백업 기능이 없는데 날짜만 하드코딩된 거짓 정보라 삭제했다.
+// 데이터 관리 및 백업 모달. 4개 행 중 실제 기능이 붙은 건 두 개다.
+// - '엑셀로 가져오기': 모닛 양식 엑셀을 올려 거래를 일괄 등록한다(GET/POST
+// /import/excel/transactions). 행을 누르면 바로 아래에 인라인 패널이 펼쳐진다(양식 내려받기 ·
+// 파일 올리기 · 결과 요약). 서버는 한 행이라도 틀리면 아무것도 등록하지 않으므로 결과는
+// 'N건 등록' 또는 '틀린 행 목록 + 고쳐서 다시 올리기' 둘 중 하나다 — 계약은 docs/excel-import.md.
+// - '전체 내역 내보내기'(GET /export/excel/transactions, GET /export/excel/trades): 눌러서 거래/매매
+// 중 하나를 고르는 인라인 드롭다운(CustomModal.tsx의 월 시작일 드롭다운과 같은 수동 구현 패턴).
+// 나머지 2개(백업/복원·초기화)는 대응 API가 없어 '추후 업데이트' 배지로 왜 눌러도 반응이 없는지
+// 드러낸다 — 배지 없는 장식 버튼으로 두면 고장으로 읽힌다.
 //
 // 가져오기 패널의 파일 선택은 숨긴 <input type="file">을 버튼으로 여는 방식이다 — 기본 파일 input은
 // 디자인 토큰으로 스타일할 수 없어서다. 같은 파일을 연달아 다시 고를 수 있도록(한 번 실패한 파일을
 // 고쳐서 같은 이름으로 다시 올리는 흔한 흐름) onChange 뒤에 input.value를 비운다 — 안 비우면 같은
-// 경로 선택 시 change 이벤트가 안 난다.
+// 경로를 다시 골랐을 때 change 이벤트가 나지 않는다.
 
 import { Fragment, useRef, useState } from 'react'
 import type { CSSProperties, ChangeEvent } from 'react'
@@ -196,7 +194,7 @@ export function DataModal() {
                 한 줄이라도 틀리면 전체가 등록되지 않으니 알려드리는 줄을 고쳐 다시 올려주세요.
               </div>
               {/* 계좌 칸이 두 개(B열 '계좌', I열 '상대계좌')라 어느 쪽이 나가는 돈이고 어느 쪽이 들어오는
-                  돈인지 매번 헷갈린다는 지적(2026-08-29). 표로 못박아 둔다 — 특히 수입만 예외라
+                  돈인지 매번 헷갈린다는 지적이 있었다. 표로 못박아 둔다 — 특히 수입만 예외라
                   들어온 돈을 '상대계좌'가 아니라 '계좌'에 적는다는 점이 핵심이다(docs/excel-import.md). */}
               <div style={{ fontSize: 11.5, color: 'var(--text-mid)', lineHeight: 1.6 }}>
                 <b style={{ color: 'var(--text-strong)' }}>&lsquo;상대계좌&rsquo;는 곧 입금 계좌예요</b> — 돈이 들어가는 쪽.
@@ -290,7 +288,7 @@ export function DataModal() {
           )}
         </div>
 
-        {/* 증권사·거래소 연동 관리(2026-08-29). 엑셀 가져오기 바로 아래 — 둘 다 "외부에서 데이터를
+        {/* 증권사·거래소 연동 관리. 엑셀 가져오기 바로 아래 — 둘 다 "외부에서 데이터를
             끌어오는 수단"이라 같은 묶음으로 읽힌다. 새 연동 등록은 여기가 아니라 계좌 추가 모달에
             있다(등록의 결과물이 계좌라서). 여기는 목록·재동기화·해제 전용이다. */}
         <ConnectionsSection />

@@ -21,7 +21,7 @@ export function useGetDashboardSummary(options?: QueryOptions) {
 }
 
 /** `type`을 주면 그 자산군만의 추이가 된다(dashboard.service.ts 주석 참고). queryKey에 반드시
- *  포함해야 자산군을 바꿔 열었을 때 앞 자산군의 그래프가 그대로 남지 않는다. */
+ * 포함해야 자산군을 바꿔 열었을 때 앞 자산군의 그래프가 그대로 남지 않는다. */
 export function useGetDashboardTrend(
   range: DateRange,
   unit: TrendUnit = 'DAY',

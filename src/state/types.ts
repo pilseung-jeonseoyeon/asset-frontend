@@ -1,9 +1,7 @@
-// Source: secret/Asset Manager v14.dc.html L3480-3522 (state = {...}) — field set mirrored 1:1.
-// Auth fields (below, "// auth") were added once the backend turned on JWT auth (see
-// src/screens/Auth/). They're a superset of the source's auth-only fields (authScreen, keepLogin,
-// agree, ...) reshaped around the real POST /auth/* contract instead of the source's UI-prototype-only
-// stub handlers. Password strings are deliberately NOT part of this shape — see screens/Auth/*Form.tsx
-// header comments for why they stay in local useState instead.
+// AppState의 형태.
+// 아래 '// auth' 블록은 백엔드가 JWT 인증을 요구하면서 더해진 것으로, 실제 POST /auth/* 계약에
+// 맞춰져 있다(src/screens/Auth/ 참고). 비밀번호 문자열은 의도적으로 이 형태에 넣지 않는다 —
+// 각 폼의 로컬 useState에 두는 이유는 screens/Auth/*Form.tsx 헤더 주석 참고.
 
 import type { AccountType, AssetClass, Currency } from '@/services/common.type'
 
@@ -36,12 +34,15 @@ export interface AccountForm {
   name: string
   type: AccountType
   currency: Currency
-  /** 신규 생성 시에만 전송 — 수정 시 서버가 거부(UpdateAccountRequest에 필드 자체가 없음). currency가
-   * KRW일 때 이 값을 그대로 initialBalanceKrw로 보낸다(POST /accounts 명세). */
+  /** 원화 예수금. 신규 생성 시에만 전송한다 — 수정 시 서버가 거부한다(UpdateAccountRequest에 필드
+   * 자체가 없음). POST /accounts의 initialBalanceKrw로 그대로 나간다. */
   initialBalanceKrw: number
-  /** currency === 'USD'일 때 쓰는 잔액 입력값(원시 입력 문자열, 소수점 2자리까지) — 저장 시 숫자로
-   * 바꿔 initialBalanceNative로 그대로 보낸다. 환율은 프론트가 다루지 않는다(2026-08-20 계약) —
-   * 서버가 등록 시점 환율로 원화 환산액을 확정한다. */
+  /** 달러 예수금 입력값(원시 입력 문자열, 소수점 2자리까지) — 저장 시 숫자로 바꿔 POST /accounts의
+   * **initialBalanceUsd**로 보낸다(initialBalanceNative가 아니다 — 그 이름은 서버 계약에 없고, 그대로
+   * 보내면 달러 예수금이 조용히 누락된다).
+   * 한 계좌가 원화·달러 예수금을 동시에 가질 수 있으므로 위 initialBalanceKrw와 함께 보낼 수 있다.
+   * 환율은 프론트가 다루지 않는다 — 서버가 두 원금을 입력값 그대로 보관하고 원화 환산은 조회 시점
+   * 환율로 매번 계산한다. */
   initialBalanceUsd: string
   interestRate: number | null
   openedAt: string | null
@@ -139,8 +140,7 @@ export interface AppState {
   /** 결제수단(계좌) — GET /accounts 목록의 accountId. */
   recurringAccountId: number | null
   /** "N일" 형식(예: '25일'). 제출 시 parseInt로 paymentDay(1~31)를 뽑는다.
-   * 답변서 C-8: 반복 주기는 매월 전용으로 드롭 확정(frequency 필드 추가 안 함) — recurFreq/
-   * recurYearMonth/recurYearDay 죽은 필드는 제거했다. */
+   * 반복 주기는 매월 전용이다 — 서버에 frequency 필드 자체가 없다. */
   recurringPaymentDay: string
   recurringName: string
   /** 정수 원화 금액. */
@@ -169,8 +169,7 @@ export interface AppState {
   /**
    * 가계부 입력 모달이 편집하지 않는 거래 필드. PUT이 전체 교체라 다시 보내지 않으면 사용자가
    * 금액만 고쳐 저장해도 외화 정보가 조용히 사라진다 — 수정 모달을 열 때 원본을 담아두고 저장 시
-   * 그대로 되돌려 보낸다. 신규 등록일 때는 null. memo는 이제 entryMemo로 직접 편집하므로 여기 없음
-   * (예전엔 이 객체가 memo도 들고 있었다 — Ledger 백엔드 요청서 4-13 참고).
+   * 그대로 되돌려 보낸다. 신규 등록일 때는 null. memo는 entryMemo로 직접 편집하므로 여기 없다.
    */
   entryPreserved: {
     nativeAmount: number | null
@@ -198,7 +197,7 @@ export interface AppState {
    */
   ledgerSearch: string
   /**
-   * 가계부 거래 입력 모달에서 저장하지 않고 닫았을 때 보관해 두는 초안(2026-08-29 사용자 요청).
+   * 가계부 거래 입력 모달에서 저장하지 않고 닫았을 때 보관해 두는 초안(사용자 요청).
    * 배경 클릭으로도 모달이 닫히게 되면서(primitives/Modal의 handleScrimPointerDown) 실수로 닫아도
    * 적던 내용이 사라지지 않도록 하기 위한 것이다. **새 거래 등록에서만 만들어진다** — 기존 거래 수정
    * 세션은 초안을 남기지 않는다(다시 열면 서버 값을 다시 채우는 게 맞다).
@@ -217,8 +216,8 @@ export interface AppState {
   datePickerPicked: Record<string, unknown>
   datePickerNav: Record<string, unknown>
 
-  // auth (login / signup / password-reset — src/screens/Auth) — only relevant while
-  // useAuthStore().status === 'anonymous'. Never holds a password (see file header comment).
+  // 인증(로그인 / 회원가입 / 비밀번호 재설정 — src/screens/Auth). useAuthStore().status가
+  // 'anonymous'일 때만 의미가 있다. 비밀번호는 절대 담지 않는다(파일 헤더 주석 참고).
   authScreen: AuthScreen
   authStep: AuthStep
   authEmail: string

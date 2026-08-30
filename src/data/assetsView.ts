@@ -1,11 +1,10 @@
-// View-model layer for the 자산(Assets) screen: adapts server responses (GET /assets/distribution,
-// GET /assets/liquidity) into the shapes the screen/modals render. `buildMapTiers` below is the same
-// merge/tier/ramp algorithm as the old src/data/mockAssets.ts `buildMapTiers` (5% "기타" merge, 15%/6%
-// tier thresholds, ramp color order, top-3 white text) — that part is a design-system rule (ds_rules_v2_5
-// §1-6) and is transcribed verbatim, not reinvented. What changed is the input: `pct` no longer comes
-// from the payload (the server doesn't send it) — it's derived here from totalValueKrw / sum(...) with a
-// divide-by-zero guard, and "performance" (perf/perfAmt) is dropped entirely because no API in this phase
-// exposes a return figure per asset class.
+// 자산 화면의 뷰모델 레이어 — 서버 응답(GET /assets/distribution, GET /assets/liquidity)을
+// 화면·모달이 그릴 형태로 바꾼다.
+//
+// 아래 buildMapTiers의 병합/티어/램프 규칙(5% '기타' 병합, 15%/6% 티어 경계, 램프 색 순서,
+// 상위 3개 흰 글자)은 디자인 시스템 규칙이다(ds_rules_v2_5 §1-6) — 임의로 바꾸지 말 것.
+// `pct`는 서버가 주지 않아 여기서 totalValueKrw / 합계로 계산하며 0으로 나누는 경우를 막는다.
+// 자산군별 수익률은 어떤 API도 주지 않으므로 다루지 않는다.
 
 import type { TreemapBlock } from '../components/primitives/Treemap/Treemap'
 import { formatNumber, formatCurrencyAmount } from '../utils/format'
@@ -22,7 +21,7 @@ import type { AccountType, AssetClass, InstitutionType } from '@/services/common
 // 백엔드 확정값이 아니라 이 화면(AddAccountModal/EditAccountModal/InstitutionsModal)에서 붙이는
 // 프론트 전용 표기이므로, 실제 서비스 오픈 전 백엔드와 라벨 문구를 맞춰야 한다.
 
-// AccountType이 자산군과 1:1로 통합되면서(2026-08-20, 2026-08-27) 계좌 유형 라벨은 자산군 라벨과
+// AccountType이 자산군과 1:1로 통합되면서() 계좌 유형 라벨은 자산군 라벨과
 // 같은 문구가 됐다(ASSET_CLASS_META 참고) — 두 목록이 갈라지지 않도록 라벨은 자산군 쪽을 정본으로
 // 삼고 여기서는 그대로 가져다 쓴다.
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
@@ -60,9 +59,9 @@ export const INSTITUTION_TYPE_ORDER: InstitutionType[] = [
 ]
 
 /**
- * 자산군(AssetClass) → 계좌 유형(AccountType). **두 enum이 1:1로 대응**한다(2026-08-20 통합,
- * 2026-08-27 주식 합침) — 예전처럼 여러 세부 타입이 하나의 자산군으로 접히는 구조가 아니므로,
- * "대표 타입을 고른다"는 개념도 "접힌 세부 타입"도 없다. 이름만 ETC ↔ PENSION_ETC로 다르다.
+ * 자산군(AssetClass) → 계좌 유형(AccountType). **두 enum이 1:1로 대응**한다 — 여러 세부 타입이
+ * 하나의 자산군으로 접히는 구조가 아니므로 "대표 타입을 고른다"는 개념도 "접힌 세부 타입"도 없다.
+ * 이름만 ETC ↔ PENSION_ETC로 다르다.
  */
 export const ASSET_CLASS_ACCOUNT_TYPE_PRESET: Record<AssetClass, AccountType> = {
   CASH: 'CASH',
@@ -73,23 +72,21 @@ export const ASSET_CLASS_ACCOUNT_TYPE_PRESET: Record<AssetClass, AccountType> = 
 }
 
 /**
- * 자산군 칩을 고를 때 함께 반영할 계좌 폼 필드 — 이제 계좌 유형 하나뿐이다.
+ * 자산군 칩을 고를 때 함께 반영할 계좌 폼 필드 — 계좌 유형 하나뿐이다.
  *
- * 2026-08-27까지는 해외주식 칩이 currency를 'USD'로, 국내주식 칩이 'KRW'로 함께 덮어썼다. 두 칩이
- * 하나로 합쳐지면서 그 특례를 없앴다: 증권계좌 하나가 원화 예수금과 달러 예수금을 **동시에** 갖고
- * (initialBalanceKrw / initialBalanceUsd 두 필드로 따로 전송한다), 서버 계약상 currency는 금액 필드의
- * 단위가 아니라 표기용이다(AccountRes.currency 설명). 칩이 통화를 강제할 근거가 사라졌으므로 폼
- * 기본값(BLANK_ACCOUNT_FORM.currency === 'KRW')을 그대로 둔다 — 이미 사용자가 골라둔 통화를 칩을
- * 눌렀다고 조용히 되돌리지 않는다는 기존 원칙도 그대로다.
+ * **칩은 통화(currency)를 건드리지 않는다.** 증권계좌 하나가 원화 예수금과 달러 예수금을
+ * **동시에** 갖고(initialBalanceKrw / initialBalanceUsd 두 필드로 따로 전송한다), 서버 계약상
+ * currency는 금액 필드의 단위가 아니라 표기용이기 때문이다(AccountRes.currency 설명). 폼 기본값
+ * (BLANK_ACCOUNT_FORM.currency === 'KRW')을 그대로 두므로, 사용자가 골라둔 통화를 칩을 눌렀다고
+ * 조용히 되돌리는 일도 없다.
  */
 export function assetClassFormPreset(assetClass: AssetClass): { type: AccountType } {
   return { type: ASSET_CLASS_ACCOUNT_TYPE_PRESET[assetClass] }
 }
 
 /**
- * AccountType → 자산군(칩) 역방향 판정. 위 프리셋의 정확한 역이다(1:1) — 예전에는 AccountType 10종을
- * 자산군으로 접으면서 증권계좌를 통화로 갈라야 했지만, 이제 서버가 계좌 유형 자체를 자산군과 같은
- * 5종으로 주므로 통화를 볼 필요가 없다.
+ * AccountType → 자산군(칩) 역방향 판정. 위 프리셋의 정확한 역이다(1:1) — 서버가 계좌 유형 자체를
+ * 자산군과 같은 5종으로 주므로 통화를 볼 필요가 없다.
  */
 export function assetClassOfAccountType(type: AccountType): AssetClass {
   switch (type) {
@@ -117,8 +114,7 @@ export function assetClassOfAccountType(type: AccountType): AssetClass {
 // ---------- 자산군(AssetClass) ↔ 아이콘/색 매핑 ----------
 // 라벨은 서버 assetClassName을 쓰지 않고 항상 이 프론트 고정 표기를 쓴다 — 서버 한글 라벨이
 // 제품 자산 분류 문구와 어긋나므로(docs/backend-requests.md #22) 화면 표기는 프론트가 소유한다.
-// icon 값은 구 mockAssets.ts natureBlocks/assetCatsRaw에서 카테고리별로 옮긴 것이고, color는
-// 모든 카테고리가 공유하던 'var(--accent)'를 그대로 유지한다(포인트 아이콘 배경 위 accent 색상 규칙).
+// color는 모든 자산군이 'var(--accent)'를 공유한다(포인트 아이콘 배경 위 accent 색상 규칙).
 
 interface AssetClassMeta {
   icon: string
@@ -333,7 +329,7 @@ export function buildLiquidityView(liquidAccounts: { balance: number }[], locked
 }
 
 /**
- * 즉시 현금화 가능 자산이 월 지출 기준 약 몇 개월치인지(원본 dc.html L1163). 월 지출이 0이거나
+ * 즉시 현금화 가능 자산이 월 지출 기준 약 몇 개월치인지. 월 지출이 0이거나
  * 아직 모르면(조회 실패·로딩) null — 호출부는 캡션의 이 절반을 렌더하지 말 것.
  */
 export function liquidityMonthsOfExpense(liquidAmt: number, monthlyExpense: number | null): number | null {
@@ -347,7 +343,7 @@ export function liquidityMonthsOfExpense(liquidAmt: number, monthlyExpense: numb
  */
 export function pickNearestMaturity(lockedAccounts: LockedAccount[]): LockedAccount | null {
   // lockedAccounts의 기준은 isLiquid=false이지 만기 유무가 아니라, 만기가 없는 계좌도 섞여 온다.
-  // 그때 서버는 dDay를 0으로 내려주므로(API-SPEC §3.2) 걸러내지 않으면 그 계좌가 "가장 임박한 만기"
+  // 그때 서버는 dDay를 0으로 내려주므로 걸러내지 않으면 그 계좌가 "가장 임박한 만기"
   // 1순위로 뽑혀 "만기까지 D−0"이라는 없는 사실을 표시하게 된다.
   const withMaturity = lockedAccounts.filter((a) => a.maturityDate !== null)
   if (withMaturity.length === 0) return null
@@ -393,7 +389,7 @@ export function formatBigAmountCaption(n: number): string | null {
 
 // ---------- 계좌 상세: 대표 금액과 그 구성(원화 예수금 · 달러 예수금 · 보유 종목) ----------
 //
-// 2026-08-30 사용자 요청 — "주식 계좌 볼 때 달러 예수금, 원화 예수금 총 원화로 보이게".
+// 사용자 요청 — "주식 계좌 볼 때 달러 예수금, 원화 예수금 총 원화로 보이게".
 //
 // 대표 금액은 balanceKrw(예수금만)가 아니라 **totalValueKrw**(예수금 + 보유 종목 평가액)다. 주식
 // 계좌에서 balanceKrw만 보여주면 종목 평가액이 통째로 빠져 실제보다 작게 보인다.
@@ -467,7 +463,7 @@ export function buildAccountBalanceView(detail: AccountDetailResponse): AccountB
 
 // ---------- 계좌 상세: 가계부 거래 + 매매 합친 활동 목록 ----------
 //
-// 계좌 상세 모달의 "최근 거래내역"은 두 서버 리소스를 합친 것이다(2026-08-27, 사용자 요청 —
+// 계좌 상세 모달의 "최근 거래내역"은 두 서버 리소스를 합친 것이다(사용자 요청 —
 // "주식 매수 매도 한거 보여줄 수 있나"): GET /transactions(가계부 거래)와 GET /trades(매매).
 // 서버에 둘을 함께 주는 API는 없고, 매매는 가계부 거래를 만들지도 않는다(등록 직후 계좌 잔액이
 // 예수금 그대로인 것으로 확인) — 그래서 같은 건이 두 번 뜰 일은 없고, 프론트가 날짜로 병합한다.
@@ -487,7 +483,7 @@ export interface AccountActivityRow {
   desc: string
   tag: string
   /** 통화 기호·단위까지 이미 붙은 최종 표기('700,000원' / '$1,101.75'). 호출부가 '원'을 덧붙이지 말 것 —
-   *  해외 종목 매매는 달러라 '원'을 붙이면 틀린 금액이 된다. */
+   * 해외 종목 매매는 달러라 '원'을 붙이면 틀린 금액이 된다. */
   amountText: string
   amountColor: string
 }

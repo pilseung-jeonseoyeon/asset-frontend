@@ -1,6 +1,6 @@
 import type { RecurringExpenseKind } from '../common.type'
 
-// API-SPEC §8. paymentDay마다 서버 배치가 거래를 자동 생성하므로 프론트에서 별도 거래를 만들지 않는다.
+// paymentDay마다 서버 배치가 거래를 자동 생성하므로 프론트에서 별도 거래를 만들지 않는다.
 
 export interface SubscriptionResponse {
   id: number

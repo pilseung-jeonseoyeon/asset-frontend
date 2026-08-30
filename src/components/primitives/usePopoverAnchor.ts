@@ -2,14 +2,14 @@
 // wrapper by default, which relies on every ancestor up to the modal panel leaving them unclipped. That
 // assumption doesn't hold in either direction:
 // - Mobile: the bottom sheet needs `overflow-y:auto` so it can scroll, and a caller's field can be much
-//   narrower than the popover's own content (e.g. two DatePickers side by side in a flex row) — an
-//   absolutely positioned popover can get clipped by the sheet's scroll box or pushed off the right edge
-//   of the screen.
+// narrower than the popover's own content (e.g. two DatePickers side by side in a flex row) — an
+// absolutely positioned popover can get clipped by the sheet's scroll box or pushed off the right edge
+// of the screen.
 // - Desktop: Modal.tsx's own default panel style is `overflow:visible`, but most callers override it via
-//   `panelStyle={{ maxHeight: '86vh'~'90vh', overflow: 'auto' }}` (see `grep -rn "panelStyle=" src/`) so
-//   the panel can scroll its own content — which clips an absolutely positioned popover the same way the
-//   mobile sheet does whenever the trigger sits low enough in the panel that the popover would spill past
-//   the panel's bottom edge.
+// `panelStyle={{ maxHeight: '86vh'~'90vh', overflow: 'auto' }}` (see `grep -rn "panelStyle=" src/`) so
+// the panel can scroll its own content — which clips an absolutely positioned popover the same way the
+// mobile sheet does whenever the trigger sits low enough in the panel that the popover would spill past
+// the panel's bottom edge.
 //
 // Both cases get the same fix: anchor the popover with `position:fixed` off the trigger's on-screen rect
 // instead of `position:absolute` under it. Fixed positioning is resolved against the viewport, so it
@@ -49,7 +49,7 @@ interface TriggerRect {
  * Android 모두 키보드가 올라와도 줄지 않으므로, 그 값으로 아래 여백을 계산하면 키보드가 차지한
  * 영역까지 "비어 있다"고 판정한다. 그러면 팝오버가 아래로 열리고 그 아래는 통째로 키보드다 —
  * 사용자 눈에는 검색을 해도 아무 일이 안 일어나는 것처럼 보인다(AccountHoldingsField의 종목 검색은
- * 키보드가 떠 있는 상태에서만 쓰는 유일한 팝오버라 이 문제가 여기서만 드러났다, 2026-08-20 수정).
+ * 키보드가 떠 있는 상태에서만 쓰는 유일한 팝오버라 이 문제가 여기서만 드러났다, 수정).
  *
  * `visualViewport.height`는 키보드가 가린 만큼 줄어든다. 트리거 rect는 레이아웃 뷰포트 좌표계라,
  * 키보드가 뜨면서 페이지가 밀려 올라간 만큼(`offsetTop`)을 더해 같은 좌표계로 맞춘다.
@@ -80,14 +80,14 @@ export interface PopoverAnchor {
 
 /**
  * @param preferredHeight The popover's own content height in px, when the caller can compute or measure
- *   it (DatePicker does — see its own comment). Below this much room, `openAbove` flips instead of
- *   opening below-but-clipped-to-`maxHeight`. Defaults to a fixed "comfortable" heuristic for a caller
- *   whose content height varies with data and isn't known up front (Dropdown). Passing a value smaller
- *   than the popover's *actual* rendered height reproduces the clipping bug this hook exists to fix —
- *   `position:fixed` only escapes the *ancestor's* overflow, it doesn't stop the popover's own
- *   `maxHeight`+`overflow-y:auto` from clipping its last row if it opens on the side that quietly doesn't
- *   have room after all (confirmed by rendering DatePicker in a real browser with a trigger positioned
- *   just past this threshold — a wrong `preferredHeight` here reproduces exactly that).
+ * it (DatePicker does — see its own comment). Below this much room, `openAbove` flips instead of
+ * opening below-but-clipped-to-`maxHeight`. Defaults to a fixed "comfortable" heuristic for a caller
+ * whose content height varies with data and isn't known up front (Dropdown). Passing a value smaller
+ * than the popover's *actual* rendered height reproduces the clipping bug this hook exists to fix —
+ * `position:fixed` only escapes the *ancestor's* overflow, it doesn't stop the popover's own
+ * `maxHeight`+`overflow-y:auto` from clipping its last row if it opens on the side that quietly doesn't
+ * have room after all (confirmed by rendering DatePicker in a real browser with a trigger positioned
+ * just past this threshold — a wrong `preferredHeight` here reproduces exactly that).
  */
 export function usePopoverAnchor(active: boolean, preferredHeight: number = DEFAULT_MIN_COMFORTABLE_SPACE): PopoverAnchor {
   const anchorRef = useRef<HTMLDivElement>(null)

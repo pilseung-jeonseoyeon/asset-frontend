@@ -1,20 +1,17 @@
-// Source: secret/Asset Manager v14.dc.html L1379-1396 (modalAddAccount — the confirmed instance this
-// shell is built from). Scrim (position:fixed;inset:0;background:var(--overlay-scrim)) + centered panel
-// (surface/radius10/shadow-modal) is consistent structure across the 14 modals, but width/padding/
-// maxHeight/overflow AND z-index are NOT uniform — modalAddAccount itself uses z-index:90, not the
-// §7-1 "1st-level modal = 80" default, so every caller must pass its own literal zIndex/width/panelStyle
-// read from that modal's own dc.html block. Nothing here is a safe-to-reuse default.
+// 공용 모달 껍데기. 스크림(position:fixed;inset:0;background:var(--overlay-scrim)) + 가운데 정렬
+// 패널(surface/radius 10/shadow-modal)까지는 모든 모달이 같지만, width/padding/maxHeight/overflow와
+// z-index는 제각각이다 — z-index도 §7-1의 '1단계 모달 = 80' 기본값을 따르지 않는 모달이 있으므로
+// 호출부가 자기 값을 직접 넘겨야 한다. 여기에 '그냥 써도 되는 기본값'은 없다.
 //
-// Mobile (<=767px, docs/mobile.md §4): the panel becomes a bottom sheet. `panelStyle` is still merged in
-// (so callers keep their padding/overflow tweaks), but width/borderRadius/maxHeight are re-applied AFTER
-// panelStyle so a caller's desktop-only values for those three (e.g. an explicit width or 90vh maxHeight)
-// can never win on mobile. zIndex is untouched — callers' §7-1 nesting order still applies.
+// 모바일(<=767px, docs/mobile.md §4): 패널이 바텀시트가 된다. `panelStyle`은 그대로 병합되지만
+// (호출부의 padding/overflow 조정은 유지) width/borderRadius/maxHeight는 panelStyle **뒤에**
+// 다시 적용해, 호출부의 데스크톱 전용 값(예: 명시적 width나 90vh maxHeight)이 모바일에서 이기지
+// 못하게 한다. zIndex는 건드리지 않는다 — §7-1 중첩 순서는 호출부 몫이다.
 //
-// 모바일 시트는 **아래로 스와이프해서 내릴 수 있다**(2026-08-28, 사용자 요청). 구현은
-// useSheetSwipeDown 참고.
+// 모바일 시트는 아래로 스와이프해서 내릴 수 있다(useSheetSwipeDown 참고).
 //
-// 스크림(배경)을 누르면 닫힌다(2026-08-29, 사용자 요청 — 2026-08-19에 막아둔 것을 되돌림).
-// 자세한 근거와 pointerdown을 쓰는 이유는 아래 handleScrimPointerDown 위 주석 참고.
+// 스크림(배경)을 누르면 닫힌다. 자세한 근거와 pointerdown을 쓰는 이유는 아래
+// handleScrimPointerDown 위 주석 참고.
 
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
@@ -52,11 +49,11 @@ function isTopmostModal(id: number): boolean {
 //
 // 회색 그래버 바가 원래는 장식이었는데, 눌러서 내리는 게 안 된다는 지적을 받아 실제 제스처를 붙였다.
 // 규칙:
-//   - 시트(또는 그 안의 스크롤 영역)를 이미 스크롤해 내려가 있으면 가로채지 않는다 — 먼저 맨 위까지
-//     올라와야 드래그가 시작된다. 안 그러면 내용을 훑어 읽다가 시트가 통째로 끌려 내려간다.
-//   - 세로로 ACTIVATE_PX 이상, 그리고 가로 이동보다 크게 움직여야 "닫기 제스처"로 확정한다
-//     (탭·가로 스크롤 칩 줄과 구분).
-//   - 손을 뗐을 때 임계값을 넘겼으면 닫고, 아니면 제자리로 되돌아간다.
+// - 시트(또는 그 안의 스크롤 영역)를 이미 스크롤해 내려가 있으면 가로채지 않는다 — 먼저 맨 위까지
+// 올라와야 드래그가 시작된다. 안 그러면 내용을 훑어 읽다가 시트가 통째로 끌려 내려간다.
+// - 세로로 ACTIVATE_PX 이상, 그리고 가로 이동보다 크게 움직여야 "닫기 제스처"로 확정한다
+// (탭·가로 스크롤 칩 줄과 구분).
+// - 손을 뗐을 때 임계값을 넘겼으면 닫고, 아니면 제자리로 되돌아간다.
 //
 // React의 onTouchMove는 루트에 passive로 붙어 preventDefault가 통하지 않는다. 배경 페이지 스크롤과
 // 크롬 모바일의 "당겨서 새로고침"을 막으려면 preventDefault가 꼭 필요하므로, 패널 엘리먼트에
@@ -256,23 +253,23 @@ export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalPro
       }
     : undefined
 
-  // 스크림(바깥 영역)을 누르면 닫는다(2026-08-29 사용자 요청으로 되돌림). 원래는 2026-08-19에
+  // 스크림(바깥 영역)을 누르면 닫는다(사용자 요청으로 되돌림). 원래는 에
   // "폼 작성 중 배경을 실수로 눌러 입력이 통째로 날아간다"는 이유로 막아뒀는데, 지금은 가계부 거래
   // 입력 모달이 닫힐 때 작성 중이던 내용을 기억했다가 다시 열 때 되살리므로(LedgerEntryModal의
   // entryDraft) 그 사고의 대가가 훨씬 가벼워졌다.
   // **다만 초안 복원이 있는 곳은 아직 가계부 거래 입력 모달뿐이다** — 계좌 등록·종목 추가처럼 긴 폼을
-  // 가진 다른 모달은 배경을 누르면 입력이 그대로 사라진다(2026-08-29 사용자 확인). 그 모달들에도
+  // 가진 다른 모달은 배경을 누르면 입력이 그대로 사라진다(사용자 확인). 그 모달들에도
   // 초안 복원을 넣자는 이야기가 나오면 같은 방식(닫기 직전 AppState에 초안 보관 → 열 때 복원)을 따른다.
   //
   // **pointerdown에서 기억해 두고 click에서 닫는다** — 두 단계로 나눈 이유가 각각 있다:
-  //  - pointerdown 시점에 바로 닫으면, 손을 떼는 순간 그 좌표에는 이미 모달이 없어 뒤에 드러난
-  //    헤더 버튼 등이 대신 눌린다("고스트 클릭"). 모바일 바텀시트는 스크림이 화면 위쪽이라 그 자리가
-  //    정확히 헤더의 알림·퀵추가 버튼이다.
-  //  - 반대로 click만 보면, 패널 안에서 글자를 드래그 선택하다 바깥에서 손을 뗐을 때 click의 대상이
-  //    공통 조상(=스크림)이 되어 의도치 않게 닫힌다. 그래서 "누르기도 스크림에서 시작했는가"를
-  //    pointerdown에서 함께 확인한다.
-  //  - 드롭다운·달력이 열려 있으면 그 팝오버용 투명 캐처(zIndex 94)가 화면을 덮고 있어 두 이벤트의
-  //    target이 스크림이 아니게 된다 → 바깥을 누르면 팝오버만 닫히고 모달은 남는다(Esc와 같은 층위).
+  // - pointerdown 시점에 바로 닫으면, 손을 떼는 순간 그 좌표에는 이미 모달이 없어 뒤에 드러난
+  // 헤더 버튼 등이 대신 눌린다("고스트 클릭"). 모바일 바텀시트는 스크림이 화면 위쪽이라 그 자리가
+  // 정확히 헤더의 알림·퀵추가 버튼이다.
+  // - 반대로 click만 보면, 패널 안에서 글자를 드래그 선택하다 바깥에서 손을 뗐을 때 click의 대상이
+  // 공통 조상(=스크림)이 되어 의도치 않게 닫힌다. 그래서 "누르기도 스크림에서 시작했는가"를
+  // pointerdown에서 함께 확인한다.
+  // - 드롭다운·달력이 열려 있으면 그 팝오버용 투명 캐처(zIndex 94)가 화면을 덮고 있어 두 이벤트의
+  // target이 스크림이 아니게 된다 → 바깥을 누르면 팝오버만 닫히고 모달은 남는다(Esc와 같은 층위).
   const scrimPressedRef = useRef(false)
   const handleScrimPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     scrimPressedRef.current = e.target === e.currentTarget
@@ -335,7 +332,7 @@ export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalPro
   )
 }
 
-// Source: dc.html L1387-1396 (modalAddAccount header) — icon-square + title + close button.
+// 모달 공용 헤더: 아이콘 사각형 + 제목 + 닫기 버튼.
 // Confirmed against one instance; diff against each modal's own header before reuse (extraction discipline).
 interface ModalHeaderProps {
   icon: string

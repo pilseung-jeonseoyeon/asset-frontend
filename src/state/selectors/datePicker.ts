@@ -1,26 +1,23 @@
-// Source: secret/Asset Manager v14.dc.html L3928-3969 (makeDatePicker factory) — transcribed verbatim,
-// ported to a hook over AppStateContext. Reuses existing `datePickerNav`/`datePickerPicked`/`openDropdown` AppState
-// fields. The `open` flag is namespaced with a `dp_` prefix (distinct from the plain dropdown-key
-// namespace `useDropdown` uses) — that prefix is the source's own scheme, not invented here.
+// 날짜 선택 팝오버의 계산 담당. AppState의 `datePickerNav`/`datePickerPicked`/`openDropdown`을 쓴다.
+// `open` 플래그는 `dp_` 접두어로 이름공간을 나눈다(useDropdown이 쓰는 평범한 드롭다운 키와 구분).
 //
-// 연도 그리드(yearCells, 2026-08-18 추가): 개설일·만기일처럼 오늘에서 수십 년 떨어진 날짜를 고를 때
-// chevron 한 달씩 이동으로는 사실상 못 쓴다는 지적으로 추가했다. 연도 목록·연도 셀 강조·연도 선택 시
-// nav 갱신은 전부 계산이라 이 파일(셀렉터)에 두고, "지금 어느 그리드를 보여줄지"라는 순수 UI 전환
-// 상태만 DatePicker.tsx가 로컬 useState로 갖는다(기존 "계산은 셀렉터, 렌더는 컴포넌트" 경계 유지).
-// 범위는 오늘 기준 -50년~+50년이고, maxISO가 있으면 그 연도를 상한으로 자른다(매매·환전일처럼 미래가
-// 성립하지 않는 폼). 강조는 실제로 고른 날짜(datePickerPicked)가 아니라 지금 보고 있는 달(datePickerNav.y) 기준이다
-// — 아직 날짜를 고르지 않았어도 지금 탐색 중인 연도가 어디인지는 알려줘야 한다.
+// 연도 그리드(yearCells): 개설일·만기일처럼 오늘에서 수십 년 떨어진 날짜를 chevron으로 한 달씩
+// 옮겨 고르는 건 사실상 불가능하다. 연도 목록·연도 셀 강조·연도 선택 시 nav 갱신은 전부 계산이라
+// 이 파일(셀렉터)에 두고, '지금 어느 그리드를 보여줄지'라는 순수 UI 전환 상태만 DatePicker.tsx가
+// 로컬 useState로 갖는다('계산은 셀렉터, 렌더는 컴포넌트' 경계 유지).
+// 범위는 오늘 기준 -50년~+50년이고, maxISO가 있으면 그 연도를 상한으로 자른다(매매·환전일처럼
+// 미래가 성립하지 않는 폼). 강조는 실제로 고른 날짜(datePickerPicked)가 아니라 지금 보고 있는 달
+// (datePickerNav.y) 기준이다 — 아직 날짜를 고르지 않았어도 지금 탐색 중인 연도는 알려줘야 한다.
 //
-// 월 그리드(monthCells, 2026-08-22 추가): 연도는 바로 고를 수 있는데 월은 chevron으로만 움직여야
-// 한다는 지적으로 추가했다. yearCells와 같은 패턴 — 12칸, 강조는 지금 보고 있는 달(datePickerNav.m) 기준,
-// maxISO가 속한 연도를 보고 있으면 그 이후 달은 날짜 셀의 future 처리와 같은 방식으로 비활성이다.
-// 헤더 라벨도 "2026년 8월" 하나가 아니라 yearLabel("2026년")·monthOnlyLabel("8월") 둘로 나눠 각각
-// 버튼이 되게 했다.
+// 월 그리드(monthCells): yearCells와 같은 패턴 — 12칸, 강조는 지금 보고 있는 달(datePickerNav.m)
+// 기준, maxISO가 속한 연도를 보고 있으면 그 이후 달은 날짜 셀의 future 처리와 같은 방식으로
+// 비활성이다. 헤더 라벨도 '2026년 8월' 하나가 아니라 yearLabel('2026년')·monthOnlyLabel('8월')
+// 둘로 나눠 각각 버튼이 된다.
 //
-// 날짜 셀(cells)은 항상 6주(42칸)다(2026-08-22): 달마다 4~6주로 칸 수가 달라지면 팝오버 패널 높이가
-// 달을 넘길 때마다 바뀌고, 그 높이로 위/아래 열림 방향을 다시 판정하는 usePopoverAnchor가 패널을
-// 위아래로 튀게 했다. 뒤쪽 남는 칸을 HIDDEN_CELL_STYLE로 채워 칸 수를 고정하면 DatePicker.tsx가
-// 본문 높이를 상수로 둘 수 있다.
+// 날짜 셀(cells)은 항상 6주(42칸)다: 달마다 4~6주로 칸 수가 달라지면 팝오버 패널 높이가 달을 넘길
+// 때마다 바뀌고, 그 높이로 위/아래 열림 방향을 다시 판정하는 usePopoverAnchor가 패널을 위아래로
+// 튀게 한다. 뒤쪽 남는 칸을 HIDDEN_CELL_STYLE로 채워 칸 수를 고정하면 DatePicker.tsx가 본문 높이를
+// 상수로 둘 수 있다.
 
 import type { CSSProperties } from 'react'
 import { useAppState } from '../AppStateContext'
@@ -40,7 +37,7 @@ interface DateCell {
 interface YearCell {
   y: number
   /** 지금 탐색 중인 연도(datePickerNav.y)와 같은가 — 실제로 고른 날짜(datePickerPicked)가 아니라 nav 기준이다(파일
-   *  상단 주석 참고). 강조 스타일뿐 아니라 연도 그리드를 열 때 스크롤 위치를 맞추는 기준으로도 쓴다. */
+   * 상단 주석 참고). 강조 스타일뿐 아니라 연도 그리드를 열 때 스크롤 위치를 맞추는 기준으로도 쓴다. */
   isNavYear: boolean
   cellStyle: CSSProperties
   pick: () => void
@@ -76,10 +73,10 @@ export interface DatePickerState {
   /** 1~12월 선택 그리드. yearCells처럼 팝오버가 닫혀 있으면 빈 배열이다. */
   monthCells: MonthCell[]
   /** 오늘 기준 -50년~+50년(maxISO가 있으면 그 연도가 상한) 연도 선택 그리드. 팝오버가 닫혀 있으면
-   *  계산 자체를 건너뛰고 빈 배열이다(아래 훅 본문 주석 참고). */
+   * 계산 자체를 건너뛰고 빈 배열이다(아래 훅 본문 주석 참고). */
   yearCells: YearCell[]
   /** 오늘이 속한 연/월로 nav를 되돌린다(maxISO가 있으면 그 상한을 넘지 않게 clamp). 연도 그리드에서
-   *  수십 년 전/후로 이동한 뒤 다시 오늘로 돌아오려고 100여 개 목록을 스크롤하지 않아도 되게 한다. */
+   * 수십 년 전/후로 이동한 뒤 다시 오늘로 돌아오려고 100여 개 목록을 스크롤하지 않아도 되게 한다. */
   goToday: () => void
 }
 
@@ -93,9 +90,8 @@ const HIDDEN_CELL_STYLE: CSSProperties = {
 }
 
 /**
- * 아직 고른 날짜가 없을 때 달력이 처음 펼쳐지는 달. 원본은 목업이라 `{ y: 2026, m: 7 }`이 상수로
- * 박혀 있었는데, 그대로 두면 시간이 지날수록 모든 달력이 2026년 7월에서 열린다(2026-08-20 확인 —
- * 계좌 등록의 개설일·만기일이 지난달에서 열렸다). 오늘이 속한 달에서 열도록 계산으로 바꿨다.
+ * 아직 고른 날짜가 없을 때 달력이 처음 펼쳐지는 달. **상수를 박지 말 것** — 고정하면 시간이
+ * 지날수록 모든 달력이 과거의 그 달에서 열린다. 항상 오늘이 속한 달을 계산해서 쓴다.
  */
 function currentNav(): DateNav {
   const now = new Date()
@@ -104,8 +100,8 @@ function currentNav(): DateNav {
 
 /**
  * @param maxISO 'YYYY-MM-DD' — 지정하면 이 날짜 이후는 선택할 수 없다(비활성 표시 + pick 없음),
- *   다음 달 이동도 그 달까지만 허용한다. 매매·환전처럼 미래 일자가 성립하지 않는 폼에서만 쓴다 —
- *   가계부 거래 날짜에는 적용하지 않는다(예정 지출을 미리 기록할 수 있어야 하는 제품 결정, 별도 확인 전까지 보류).
+ * 다음 달 이동도 그 달까지만 허용한다. 매매·환전처럼 미래 일자가 성립하지 않는 폼에서만 쓴다 —
+ * 가계부 거래 날짜에는 적용하지 않는다(예정 지출을 미리 기록할 수 있어야 하는 제품 결정, 별도 확인 전까지 보류).
  */
 export function useDatePicker(
   key: string,
@@ -205,7 +201,7 @@ export function useDatePicker(
   // 연도 그리드: 오늘 기준 -50/+50년, maxISO가 있으면 그 연도를 상한으로 자른다(nextDisabled와 같은
   // 근거 — 매매·환전일처럼 미래가 성립하지 않는 폼에서 그 이후 연도를 애초에 고를 수 없게 한다).
   //
-  // minYear도 maxY로 같이 눌러준다(리뷰 지적) — maxISO가 "오늘-50년"보다도 과거인 극단적인 경우(현재
+  // minYear도 maxY로 같이 눌러준다 — maxISO가 "오늘-50년"보다도 과거인 극단적인 경우(현재
   // 호출부에는 없지만), upperYear만 clamp하면 minYear(오늘-50년)가 오히려 maxY보다 미래라 그 해의
   // 날짜가 전부 비활성인 막다른 연도 하나만 남는다. minYear를 maxY와 함께 낮춰주면 두 값이 정확히
   // maxY로 수렴해 최소 하나는 고를 수 있는 연도(=maxISO가 속한 연도)가 남는다.
@@ -214,8 +210,8 @@ export function useDatePicker(
   const minYear = maxY !== null ? Math.min(todayY - 50, maxY) : todayY - 50
   const upperYear = maxY !== null ? Math.min(todayY + 50, maxY) : todayY + 50
   // 100여 개 연도 객체(+ 각각 style 객체)를 매 렌더 새로 만드는 비용을 막는다 — AppState는 단일
-  // reducer라 이 달력과 무관한 입력 한 글자만 바뀌어도 useDatePicker를 쓰는 모든 컴포넌트가 리렌더된다
-  // (리뷰 지적). 팝오버가 닫혀 있을 때는 화면에 쓰이지 않으니 계산 자체를 건너뛰고, 열리는 순간의
+  // reducer라 이 달력과 무관한 입력 한 글자만 바뀌어도 useDatePicker를 쓰는 모든 컴포넌트가
+  // 리렌더된다. 팝오버가 닫혀 있을 때는 화면에 쓰이지 않으니 계산 자체를 건너뛰고, 열리는 순간의
   // 렌더에서는 이미 open이 true이므로 그 즉시 채워져 필요한 시점엔 항상 값이 있다.
   const yearCells: YearCell[] = []
   if (open) {

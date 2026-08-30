@@ -1,17 +1,15 @@
-// Source: secret/Asset Manager v14.dc.html L1315-1376 (modalExchangeAdd) — layout transcribed verbatim,
-// then wired to GET /accounts / POST /exchanges (previously uncontrolled/no-op mock inputs — see git
-// history). z-index 80, width 440px, maxHeight 86vh.
+// 환전 등록 모달. GET /accounts + POST /exchanges에 연결돼 있다.
+// z-index 80, 너비 440px, maxHeight 86vh.
 //
-// Adapted vs. source:
-//  - side(원→외/외→원) 선택이 원본 UI에 없었다 — CreateExchangeRequest가 필수로 받는 필드라 추가했다.
-//  - exchangedAt(환전일) 선택이 원본 UI에 없었다 — 마찬가지로 필수 필드라 DatePicker를 추가했다
-//    (QuickStockModal과 동일한 패턴, 기본값 오늘).
-//  - krwAmount는 사용자가 직접 입력하지 않고 foreignAmount × rate로 자동 계산해 캡션으로 보여준다 —
-//    두 값을 각각 입력하게 하면 외화금액·환율·원화금액 세 숫자가 서로 어긋날 수 있다.
-//  - 드롭다운 키를 'exchangeAcct'로 분리했다 — 과거 QuickStockModal과 'stockAcct' 키를 공유해 계좌
-//    선택이 서로 새던 버그(CLAUDE.md/과제 지시)를 피하기 위함이다.
-//  - 계좌가 0개일 때 "등록된 계좌가 없어요"만 뜨고 계좌 추가 진입점이 없던 막다른 길을 고쳤다
-//    (docs/backend-request.md 5-8) — QuickStockModal과 같은 패턴으로 계좌 추가 버튼을 추가했다.
+// 입력 규칙:
+// - side(원→외/외→원)와 exchangedAt(환전일)은 CreateExchangeRequest의 필수 필드다.
+// 환전일은 DatePicker로 고르고 기본값은 오늘이다(QuickStockModal과 같은 패턴).
+// - krwAmount는 사용자가 직접 입력하지 않고 foreignAmount × rate로 자동 계산해 캡션으로 보여준다 —
+// 두 값을 각각 입력하게 하면 외화금액·환율·원화금액 세 숫자가 서로 어긋날 수 있다.
+// - 드롭다운 키는 'exchangeAcct'로 분리한다 — QuickStockModal과 'stockAcct' 키를 공유하면 계좌
+// 선택이 서로 샌다.
+// - 계좌가 0개일 때도 '등록된 계좌가 없어요'에서 막히지 않게 계좌 추가 버튼을 둔다
+// (QuickStockModal과 같은 패턴).
 
 import { useState } from 'react'
 import type { CSSProperties } from 'react'

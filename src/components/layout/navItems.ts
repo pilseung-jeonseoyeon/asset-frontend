@@ -1,6 +1,5 @@
-// Source: secret/Asset Manager v14.dc.html L704-758 (SIDEBAR nav definitions) — extracted out of
-// SidebarNav.tsx so both the desktop SidebarNav, the mobile BottomTabNav (docs/mobile.md §3) and the
-// route table (AuthenticatedApp.tsx) share one definition instead of duplicating the item list/paths.
+// 사이드바(SidebarNav)·모바일 하단탭(BottomTabNav)·라우트 표(AuthenticatedApp)가 한 정의를
+// 공유하도록 여기로 뺐다 — 세 곳에 항목 목록과 경로를 복붙하면 한 곳만 고쳐지는 사고가 난다.
 
 import type { Screen } from '../../state/types'
 

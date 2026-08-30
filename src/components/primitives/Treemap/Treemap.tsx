@@ -1,13 +1,10 @@
-// Source: secret/Asset Manager v14.dc.html L1079-1124 (자산 지도 treemap blocks) — transcribed verbatim.
-// .tmap-block hover scale/brightness lives in base.css.
+// 자산 지도(트리맵) 블록. hover scale/brightness는 .tmap-block(src/styles/base.css).
 //
-// 원본에 있던 hover 툴팁(mapTipHover, L4559)은 제거했다 — 블록에 이미 이름·비중·금액이 그대로 적혀
-// 있어 툴팁이 같은 정보를 한 번 더 보여줄 뿐이었고, 좁은 블록에서는 블록 폭에 갇혀 글자가 한 자씩
-// 세로로 접혀 읽을 수 없었다(실기 지적으로 삭제). 그래서 perf/perfAmt·subs도 화면에 쓰이지 않는다 —
-// 타입에는 남겨두었지만 렌더에는 관여하지 않는다.
+// hover 툴팁은 없다 — 블록에 이름·비중·금액이 이미 적혀 있어 같은 정보를 한 번 더 보여줄 뿐이었고,
+// 좁은 블록에서는 글자가 한 자씩 세로로 접혀 읽을 수 없었다. 그래서 perf/perfAmt·subs도 화면에
+// 쓰이지 않는다 — 타입에는 남아 있지만 렌더에는 관여하지 않는다.
 //
-// 렌더 티어도 함께 단순해졌다: 예전의 icon 티어(<6%)는 아이콘 하나만 띄워 무슨 자산인지 알 수 없었으므로,
-// 이제 모든 블록이 이름과 비중을 보여주고 금액만 넓은 블록(showHeader)에서 추가로 보여준다.
+// 모든 블록이 이름과 비중을 보여주고, 금액은 넓은 블록(showHeader)에서만 덧붙인다.
 
 import { useIsMobile } from '../../../utils/useMediaQuery'
 
@@ -37,8 +34,8 @@ function TreemapTile({ b }: { b: TreemapBlock }) {
       className="tmap-block"
       onClick={b.open}
       style={{
-        // minWidth는 가장 좁은 블록에도 자산군 이름(4~5글자)이 가로로 들어가는 최소치다. 예전 값(56px)은
-        // 이름이 들어갈 수 없어 아이콘만 띄웠는데, 그 아이콘만으로는 무슨 자산인지 알 수 없었다(실기 지적).
+        // minWidth는 가장 좁은 블록에도 자산군 이름(4~5글자)이 가로로 들어가는 최소치다. 이보다 좁으면
+        // 이름이 들어가지 못해 아이콘만 남는데, 아이콘만으로는 무슨 자산인지 알 수 없다.
         position: 'relative', flexGrow: b.widthPct, flexBasis: 0, minWidth: 92, borderRadius: 10,
         background: b.tint, padding: '12px 10px', display: 'flex', flexDirection: 'column', overflow: 'hidden', cursor: b.cursor,
       }}
@@ -63,7 +60,7 @@ function TreemapTile({ b }: { b: TreemapBlock }) {
 /** 데스크톱 블록 높이. */
 const TREEMAP_MIN_HEIGHT = 236
 /**
- * 모바일 블록 높이(2026-08-29 사용자 요청). 이 트리맵은 **가로 폭만 비중에 비례**하고 높이는 모든
+ * 모바일 블록 높이(사용자 요청). 이 트리맵은 **가로 폭만 비중에 비례**하고 높이는 모든
  * 블록이 똑같으므로, 높이를 줄여도 잃는 정보가 없다 — 좁은 화면에서 236px는 세로 공간만 크게
  * 잡아먹었다. 값은 블록 안 내용(이름 17 + 비중 14 + 간격 1 + 금액 17 + 위 여백 6 + 상하 padding 24
  * ≈ 79px)이 눌리지 않는 선에서 잡았다.

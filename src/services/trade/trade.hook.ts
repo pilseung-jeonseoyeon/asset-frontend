@@ -16,7 +16,7 @@ export function useGetTrades(params: TradeSearchParams = {}, options?: { enabled
 /**
  * 매매는 보유 종목·계좌 잔액·자산 분포를 모두 다시 계산하게 만든다.
  * 목표(goal)도 포함한다 — GoalResponse.annual이 실시간 총자산 기준 진행률이라 매수/매도 한 건에도
- * 값이 달라진다(account.hook.ts의 같은 자리 주석 참고, 2026-08-20 수정).
+ * 값이 달라진다(account.hook.ts의 같은 자리 주석 참고, 수정).
  */
 function useInvalidateTrade() {
   const queryClient = useQueryClient()
@@ -54,7 +54,7 @@ export interface BulkTradeResult {
    * `index`는 호출부가 넘긴 `bodies` 배열에서의 위치다. **stockId로 실패한 줄을 되짚으면 안 된다** —
    * 같은 종목을 평단가를 나눠 두 줄로 담을 수 있어서 stockId가 줄마다 유일하지 않고, 그러면 이미
    * 성공한 줄까지 "실패"로 판정해 화면에 남긴다. 사용자가 안내대로 다시 시도하면 그 줄이 두 번째
-   * BUY로 기록되는데 매매는 롤백 수단이 삭제뿐이다(2026-08-20 수정).
+   * BUY로 기록되는데 매매는 롤백 수단이 삭제뿐이다(수정).
    */
   failed: { index: number; body: CreateTradeRequest; message: string }[]
 }

@@ -1,5 +1,4 @@
-// Source: secret/Asset Manager v14.dc.html L4441 `closeModal` — shared by every modalXxx in the source
-// (not account-specific), so this lives here to be reused across all modal-owning screens/phases.
+// 모든 모달이 공유하는 닫기 동작. 특정 화면에 매이지 않도록 여기 둔다.
 
 import type { MouseEvent } from 'react'
 import { useAppState } from '../AppStateContext'

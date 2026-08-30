@@ -1,23 +1,22 @@
-// 주식 화면의 "보유 종목 추가" 진입점(2026-08-20 추가). dc.html 원본에 대응 블록이 없는 새 모달이다.
+// 주식 화면의 '보유 종목 추가' 모달.
 //
-// 왜 필요했나: 계좌를 새로 만들 때는 AddAccountModal이 CreateAccountRequest.holdings로 보유 종목을
-// 한 번에 담을 수 있는데, **이미 만들어 둔 계좌**에는 그 흐름이 없었다. 기존 계좌에 이미 갖고 있던
-// 종목 여러 개를 넣으려면 매수 모달(QuickStockModal)을 종목 수만큼 열고 닫아야 했다.
+// 왜 필요한가: 계좌를 새로 만들 때는 AddAccountModal이 CreateAccountRequest.holdings로 보유 종목을
+// 한 번에 담을 수 있지만, **이미 만들어 둔 계좌**에는 그 흐름이 없다. 이 모달이 없으면 기존 계좌에
+// 종목 여러 개를 넣으려고 매수 모달(QuickStockModal)을 종목 수만큼 열고 닫아야 한다.
 //
-// 서버 계약: "기존 계좌에 보유 종목 일괄 등록" 엔드포인트는 없다(GET /stocks/holdings는 조회 전용,
+// 서버 계약: '기존 계좌에 보유 종목 일괄 등록' 엔드포인트는 없다(GET /stocks/holdings는 조회 전용,
 // POST /accounts의 holdings는 계좌 생성 시에만). 그래서 여기서는 담은 줄 수만큼 POST /trades(BUY)를
 // 순차로 보낸다 — 순차인 이유와 부분 실패 처리는 usePostTradesBulk(trade.hook.ts) 주석 참고.
 //
 // 계좌를 먼저 고르는 순서인 이유: 계좌 유형이 담을 수 있는 시장 범위를 정하고, 그 범위가 종목 검색
 // 결과를 좁힌다(marketsOfAccountType). QuickStockModal은 반대로 시장 탭을 먼저 고르지만, 여기서는
-// "이 계좌에 담긴 것을 채워 넣는다"가 사용자의 머릿속 순서다.
-//
-// 2026-08-27 주식 통합 뒤로 증권 계좌 하나가 KR·US를 함께 담으므로, 계좌가 정하는 것은 "시장 하나"가
-// 아니라 **시장 목록**이다. 평균단가 통화와 수량 단위는 계좌가 아니라 고른 종목이 정한다.
+// '이 계좌에 담긴 것을 채워 넣는다'가 사용자의 머릿속 순서다.
+// 증권 계좌 하나가 KR·US를 함께 담으므로 계좌가 정하는 것은 '시장 하나'가 아니라 **시장 목록**이다.
+// 평균단가 통화와 수량 단위는 계좌가 아니라 고른 종목이 정한다.
 //
 // 입력 블록 자체는 AccountHoldingsField를 그대로 재사용한다(검색 팝오버·담은 목록·수량/평단가 인라인
 // 입력). 다른 점은 안내 문구뿐이다 — 계좌 등록 폼은 체결일이 무조건 오늘이지만 이 모달은 기준일을
-// 직접 고를 수 있어서, hint prop으로 문구를 갈아끼운다.
+// 직접 고를 수 있어서 hint prop으로 문구를 갈아끼운다.
 
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -71,7 +70,7 @@ export function AddHoldingsModal() {
     const nextMarketsKey = next ? marketsOfAccountType(next.type).join(',') : ''
     // 담은 종목은 시장에 종속돼 있다 — 증권 계좌에 담아둔 종목을 코인 지갑으로 그대로 옮길 수 없으므로
     // **담을 수 있는 시장 범위가 바뀌면** 비운다. 증권 계좌끼리 바꾸는 경우는 범위가 같으므로 비우지
-    // 않는다(2026-08-27 주식 통합 전에는 국내↔해외 계좌 변경이 여기 걸렸다). AddAccountModal은 유형
+    // 않는다(주식 통합 전에는 국내↔해외 계좌 변경이 여기 걸렸다). AddAccountModal은 유형
     // 칩을 바꿀 때 확인을 먼저 받지만, 여기서는 아직 아무것도 서버로 나가지 않은 로컬 입력이고
     // 되돌리는 비용도 "다시 검색해서 담기"뿐이라 곧바로 비우되, 비웠다는 사실을 문구로 알린다.
     if (marketsKey && nextMarketsKey !== marketsKey && holdings.length > 0) {

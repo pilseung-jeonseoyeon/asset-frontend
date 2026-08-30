@@ -1,6 +1,5 @@
-// Source: secret/Asset Manager v14.dc.html L858-868 (총 자산 hero card, first instance) + .deep-card
-// class (base.css, border: 0.5px solid var(--deep-border) — transparent in light, visible in dark per
-// ds_rules_v2_5.md §2-3). Only --deep-* tokens may be used inside (ds_rules §1-3).
+// 딥 카드 껍데기. 테두리 0.5px solid var(--deep-border)는 라이트에서 투명, 다크에서 보인다
+// (ds_rules_v2_5.md §2-3). 안쪽에서는 --deep-* 토큰만 쓸 것(§1-3).
 
 import type { CSSProperties, ReactNode } from 'react'
 

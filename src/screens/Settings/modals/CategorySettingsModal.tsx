@@ -1,10 +1,9 @@
-// Source: secret/Asset Manager v14.dc.html L3402-3470 (modalCategorySettings) — transcribed verbatim.
-// z-index 80, width 560px, maxHeight 86vh.
+// 분류 설정 모달. z-index 80, 너비 560px, maxHeight 86vh.
 //
-// 대분류는 서버 시드 고정이라 API로 추가/삭제할 수 없다(category.type.ts §7 주석) — 이 모달에는
-// 애초에 "대분류 추가" UI가 없어(구 소스도 소분류만 추가/삭제) 별도로 비활성화할 대상이 없다.
-// 소분류만 GET/POST/DELETE /categories로 교체했다. 삭제는 참조 무결성을 서버가 막지 않으므로
-// (category.service.ts 주석) 클릭 즉시 지우지 않고 인라인 확인을 한 번 거친다.
+// 대분류는 서버 시드 고정이라 API로 추가/삭제할 수 없다(category.type.ts 주석) — 이 모달에는
+// 애초에 '대분류 추가' UI가 없어 별도로 비활성화할 대상이 없다. 소분류만 GET/POST/DELETE
+// /categories로 다룬다. 삭제는 참조 무결성을 서버가 막지 않으므로(category.service.ts 주석)
+// 클릭 즉시 지우지 않고 인라인 확인을 한 번 거친다.
 
 import { useState } from 'react'
 import type { KeyboardEvent } from 'react'

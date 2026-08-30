@@ -13,7 +13,7 @@ import type {
 /**
  * 사용자 설정 조회가 로딩 중이거나 실패했을 때 화면이 죽지 않도록 쓰는 렌더 안전망 기본값.
  *
- * 가입 시 회원 생성과 함께 user_settings가 항상 만들어짐이 백엔드에서 보장되므로(2026-08-15
+ * 가입 시 회원 생성과 함께 user_settings가 항상 만들어짐이 백엔드에서 보장되므로(
  * 확정) "서버에 설정이 없는 상태"는 더 이상 없다. 그래도 최초 로딩 중이거나 네트워크 오류로
  * 요청이 실패한 짧은 구간에는 `settings`를 참조하는 화면이 undefined로 깨지지 않게 이 기본값을
  * 내려준다 — 실패 여부 자체는 `error`/`isError`로 별도 노출하므로 호출부가 함께 확인할 것.
@@ -38,9 +38,9 @@ export function useGetMe() {
 
 /**
  * 헤더·사이드바에 표시할 사용자 이름. 최초 로딩 중이거나 조회가 실패하면 빈 문자열을 돌려준다
- * (다른 사람의 이름을 잠깐이라도 잘못 보여주지 않기 위해 — 예전엔 '정다은' 하드코딩 폴백이 있었지만
- * 인증 도입 후 남의 이름이 뜨는 경로만 남아 제거했다). `Avatar`는 이름이 비면 이니셜 대신
- * person 아이콘을 그리도록 이미 지원한다(Avatar.tsx의 `getAvatarInitial` 참고).
+ * (다른 사람의 이름을 잠깐이라도 잘못 보여주지 않기 위해 하드코딩 폴백을 두지 않는다).
+ * `Avatar`는 이름이 비면 이니셜 대신 person 아이콘을 그리도록 이미 지원한다
+ * (Avatar.tsx의 `getAvatarInitial` 참고).
  */
 export function useProfileName(): string {
   const { data } = useGetMe()
@@ -122,7 +122,7 @@ function withRestoredFields<T extends object>(target: T, source: T, keys: (keyof
   return result as T
 }
 
-// 2차 리뷰 #4: mutationKey 없이 queryClient.isMutating()을 부르면 앱 전역 mutation(예: 가계부
+// mutationKey 없이 queryClient.isMutating()을 부르면 앱 전역 mutation(예: 가계부
 // 거래 저장)까지 세어, 이 화면과 무관한 요청 때문에 onSuccess의 setQueryData가 부당하게
 // 건너뛰어진다. GeneralModal의 두 usePatchUserSettings() 인스턴스가 이 키를 공유해야 서로를
 // "겹치는 설정 저장"으로 인식할 수 있으므로, 훅 밖 모듈 스코프 상수로 고정한다.
@@ -136,7 +136,7 @@ const SETTINGS_MUTATION_KEY = queryKeys.user.settings()
  *
  * 같은 필드 집합을 여러 mutation 인스턴스가 동시에 건드릴 수 있어(예: GeneralModal의 테마·환율
  * 자동 갱신이 각각 독립된 usePatchUserSettings() 인스턴스를 씀), onError/onSuccess 모두 "이
- * mutation이 실제로 보낸 필드"만 건드리고 서로 겹치는 나머지 필드는 건드리지 않는다(리뷰 #2).
+ * mutation이 실제로 보낸 필드"만 건드리고 서로 겹치는 나머지 필드는 건드리지 않는다.
  */
 export function usePatchUserSettings() {
   const queryClient = useQueryClient()
@@ -155,7 +155,7 @@ export function usePatchUserSettings() {
     onError: (_error, variables, context) => {
       // 스냅샷 전체가 아니라 "이 mutation이 실제로 보낸 필드"만 되돌린다. 서로 다른 필드를
       // 건드리는 두 mutation이 겹치면(예: 테마 저장 중 환율 토글), 전체를 되돌릴 경우 그 사이
-      // 다른 mutation이 이미 성공시켜 캐시에 반영된 필드까지 같이 사라진다(리뷰 #2).
+      // 다른 mutation이 이미 성공시켜 캐시에 반영된 필드까지 같이 사라진다.
       if (!context?.previous) return
       const previous = context.previous
       const touchedKeys = Object.keys(variables) as (keyof UserSettingsResponse)[]
@@ -167,10 +167,10 @@ export function usePatchUserSettings() {
       // PATCH 응답이 설정 전체이므로 낙관적 병합 대신 서버 응답을 그대로 채택하는 게 원칙이지만,
       // 겹치는 mutation이 있으면(자기 자신 포함 2개 이상 pending) 이 응답은 아직 그 다른
       // mutation이 보낸 필드를 반영하지 않은 스냅샷이다. 그대로 덮으면 다른 행이 방금 낙관적으로
-      // 반영한 값이 사라지므로, 겹치는 동안은 덮어쓰기를 건너뛰고 무효화로만 최종 수렴시킨다
-      // (리뷰 #2). onSuccess는 mutation 상태가 'success'로 바뀌기 전에 실행되므로 자기 자신도
+      // 반영한 값이 사라지므로, 겹치는 동안은 덮어쓰기를 건너뛰고 무효화로만 최종 수렴시킨다.
+      // onSuccess는 mutation 상태가 'success'로 바뀌기 전에 실행되므로 자기 자신도
       // isMutating()에 잡힌다 — 그래서 겹치는 요청이 없을 때 기준값은 1이다.
-      // 2차 리뷰 #4: mutationKey로 범위를 좁혀야 가계부 저장 등 무관한 mutation이 이 카운트에
+      // mutationKey로 범위를 좁혀야 가계부 저장 등 무관한 mutation이 이 카운트에
       // 섞여 setQueryData가 부당하게 건너뛰어지는 일이 없다.
       const applied = queryClient.isMutating({ mutationKey: SETTINGS_MUTATION_KEY }) <= 1
       if (applied) {
@@ -182,8 +182,8 @@ export function usePatchUserSettings() {
       if (variables.monthStartDay !== undefined) {
         void queryClient.invalidateQueries({
           // 방금 setQueryData로 서버 응답을 그대로 채운 설정 쿼리는 제외한다 — 같이 무효화하면
-          // 이미 최신인데도 강제 refetch되어 저장할 때마다 불필요한 GET이 한 번 더 나간다(2차
-          // 리뷰 #3). applied가 false면(겹치는 mutation 있음) 설정 쿼리도 그대로 무효화 대상에
+          // 이미 최신인데도 강제 refetch되어 저장할 때마다 불필요한 GET이 한 번 더 나간다.
+          // applied가 false면(겹치는 mutation 있음) 설정 쿼리도 그대로 무효화 대상에
           // 포함시켜 최종 수렴하게 둔다.
           predicate: (q) =>
             !(applied && q.queryKey[0] === 'user' && q.queryKey[1] === 'settings'),
@@ -192,7 +192,7 @@ export function usePatchUserSettings() {
       }
       // PATCH /users/me/settings는 GET /users/me(queryKeys.user.me())에 영향을 주지 않으므로 queryKeys.user.all()
       // 전체 무효화는 과하다 — 겹치는 mutation이 있어 setQueryData를 건너뛴 경우에만 설정 쿼리를
-      // 무효화해 최종 수렴시킨다(2차 리뷰 #3). applied면 이미 서버 값으로 캐시가 최신이라 무효화가
+      // 무효화해 최종 수렴시킨다. applied면 이미 서버 값으로 캐시가 최신이라 무효화가
       // 필요 없다.
       if (!applied) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.user.settings() })

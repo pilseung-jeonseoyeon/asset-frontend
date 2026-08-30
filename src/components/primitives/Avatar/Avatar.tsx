@@ -1,8 +1,7 @@
-// Source: ds_rules_v2_5.md §13-2/13-3/13-4/13-5 (avatar spec) + dc.html L3616-3621 (avatarInitial logic,
-// transcribed verbatim) + L751-756 (S/36px sidebar usage, ds_rules cross-checked).
-// Circle 999px, --deep-bg background, --deep-value letter (weight 700, letter-spacing -0.01em), border
-// 0.5px solid var(--deep-border) (transparent in light / visible in dark — token already encodes that,
-// no theme branching needed here). No shadow, no ball-terminal/logo motif (avatar != brand mark, §13-1).
+// 아바타 스펙: ds_rules_v2_5.md §13-2~13-5.
+// 원 999px, --deep-bg 배경, --deep-value 글자(weight 700, letter-spacing -0.01em), 테두리
+// 0.5px solid var(--deep-border) — 라이트에서 투명, 다크에서 보이는 것까지 토큰이 이미 담고
+// 있어 테마 분기가 필요 없다. 그림자도, 브랜드 모티프도 넣지 않는다(아바타는 로고가 아니다, §13-1).
 
 import { Icon } from '../Icon/Icon'
 

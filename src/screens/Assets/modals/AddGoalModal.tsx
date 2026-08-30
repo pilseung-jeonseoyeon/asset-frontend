@@ -1,13 +1,10 @@
-// Source: secret/Asset Manager v14.dc.html L1990-2069 (modalAddGoal) — layout transcribed verbatim,
-// then wired to GET/PUT /goals (previously uncontrolled/no-op — see git history). z-index 80,
-// width 440px, maxHeight 86vh. closeGoalModal returns to `addGoalReturnTo` (whatever
-// screen/modal opened it — Dashboard passes null, Settings' CustomModal passes 'custom'), same
-// return-to pattern as closeAddAccount.
+// 자산 목표 추가·수정 모달. GET/PUT /goals에 연결돼 있다. z-index 80, 너비 440px, maxHeight 86vh.
+// 닫으면 `addGoalReturnTo`로 돌아간다(이 모달을 연 화면/모달 — 대시보드는 null, 설정의 CustomModal은
+// 'custom'을 넘긴다). closeAddAccount와 같은 return-to 패턴이다.
 //
-// Adapted vs. source: 목표 자산 / 월평균 수입은 이제 로컬 폼 상태(useState) + formatNumber/parseAmount로 제어되는
-// 입력이다(원본의 defaultValue+onInput은 아무 값도 저장하지 않는 장식이었다). 월평균 수입의 초기
-// 제안값은 API-SPEC §5.2 각주대로 서버가 주지 않아 GET /transactions/summaries/monthly의 최근 3개월
-// incomeTotal 평균으로 프론트가 직접 계산한다 — 이미 저장된 목표가 있으면(isUnset === false) 저장된
+// 목표 자산 / 월평균 수입은 로컬 폼 상태(useState) + formatNumber/parseAmount로 제어되는 입력이다.
+// 월평균 수입의 초기 제안값은 서버가 주지 않아 GET /transactions/summaries/monthly의 최근 3개월
+// incomeTotal 평균으로 프론트가 계산한다 — 이미 저장된 목표가 있으면(isUnset === false) 저장된
 // monthlyIncome이 우선한다.
 
 import { useEffect, useState } from 'react'
@@ -130,7 +127,7 @@ export function AddGoalModal() {
     }
     // 오늘도 막는다(`<` 아님) — 목표 시점이 오늘이면 남은 기간이 0개월이 되어 "월 필요 저축액"
     // 계산(targetAmount / 남은 개월 수)이 성립하지 않는다. 문구("오늘 이후로")와 로직이 어긋나 있던
-    // 결함이라 사실에 맞게 로직 쪽을 고쳤다(리뷰 지적).
+    // 결함이라 사실에 맞게 로직 쪽을 고쳤다.
     if (targetDate <= todayISO) {
       setFormError('목표 시점은 오늘 이후로 선택해주세요')
       return

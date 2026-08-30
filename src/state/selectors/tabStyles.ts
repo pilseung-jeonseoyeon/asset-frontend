@@ -1,11 +1,12 @@
-// Source: secret/Asset Manager v14.dc.html L3563-3569 (dashboardTabStyle), L3643-3649 (segmentedTabStyle),
-// L4589-4590 (deep-card variant override pattern) — transcribed verbatim.
-// Plain functions, not memoized hooks — see nav.ts header comment for rationale.
+// 탭 스타일 팩토리. 메모이즈하지 않은 평범한 함수다(nav.ts 헤더 참고).
+// dashboardTabStyle — 대시보드 전용 A/B/C 탭(transition 없음)
+// segmentedTabStyle — 주식·자산·가계부 등에서 두루 쓰는 세그먼트 탭
+// deepCardTabStyle — 딥 카드 위에 올라가는 변형(--deep-seg-* 토큰)
 
 import type { CSSProperties } from 'react'
 
-/** Dashboard-only A/B/C tab style (s.dash), source name `dashboardTabStyle`. Note: no `transition` property —
- *  the source's dashboardTabStyle omits it (unlike segmentedTabStyle), this is not an oversight to "fix". */
+/** 대시보드 전용 탭 스타일. `transition` 속성이 없는 것은 의도된 것이다(segmentedTabStyle과 다른 점) —
+ * 빠뜨린 게 아니니 '고치지' 말 것. */
 export function dashboardTabStyle(active: boolean): CSSProperties {
   return {
     padding: '8px 15px',
@@ -21,7 +22,7 @@ export function dashboardTabStyle(active: boolean): CSSProperties {
   }
 }
 
-/** General segmented-tab style used across Stock/Asset/Ledger/entry-type/recurring-type tabs. */
+/** 주식·자산·가계부·거래유형·반복유형 탭이 두루 쓰는 기본 세그먼트 탭 스타일. */
 export function segmentedTabStyle(active: boolean): CSSProperties {
   return {
     padding: '8px 16px',
@@ -40,8 +41,8 @@ export function segmentedTabStyle(active: boolean): CSSProperties {
 }
 
 /** Deep-card segmented-tab variant (e.g. ledgerPeriodTabMonthDark/YearDark, L4589-4590) — uses the
- *  --deep-seg-* tokens (ds_rules_v2_5.md has no entry for these; dc.html's own <style> block, L28/179,
- *  is the value source, see plan's "known gaps" section). */
+ * --deep-seg-* 토큰을 쓴다(ds_rules_v2_5.md에는 이 토큰 항목이 없고, 값의 정본은
+ * src/styles/tokens.css다). */
 export function deepCardTabStyle(active: boolean): CSSProperties {
   return {
     ...segmentedTabStyle(active),

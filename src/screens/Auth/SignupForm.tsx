@@ -1,21 +1,17 @@
-// Source: secret/Asset Manager v14.dc.html L546-645 (authTerms/authSignup/authVerify sc-if blocks) +
-// L673-694 (authOnboard sc-if block, 온보딩 · 프로필 확인). Ported as the original 4 steps — 1/3 약관
-// 동의(authTerms, L546-580) → 2/3 정보 입력(authSignup, L582-620) → 3/3 이메일 인증(authVerify,
-// L622-645) → 온보딩(authOnboard, L673-694) — mapped onto the real POST /auth/signup/code +
-// POST /auth/signup contract: step 1 has no server call (client-only agreement state), step 2's
-// "인증 메일 받기" calls usePostSignupCode, step 3's "인증 완료" calls usePostSignup with the values
-// collected across steps 1-2, step 4 (onboard) just confirms the auto-generated avatar and calls
-// useCompleteSignupOnboarding to actually sign in (see auth.hook.ts header comment on usePostSignup for
-// why signIn is deferred to this step instead of happening inside usePostSignup's onSuccess). The
-// source's agreeItems (L564, sc-for hint-placeholder-count="4") is a placeholder with no real copy
-// behind it — the 4 items below (연령·이용약관·개인정보·마케팅) are this port's own copy, not
-// transcribed. The source's "보기 ›" link (L570) opens the terms document now that termsContent.ts has
-// real copy behind it (TermsDetailOverlay.tsx renders it) — which document is open is this component's
-// own local state, not AppState, since it's screen-local UI state. The onboard step has no progress bar
-// (3-step indicator) — the source doesn't show one there either (L673-694 has no dot bar), it's a
-// trailing confirmation, not one of the 3 numbered steps.
+// 회원가입 4단계: 1/3 약관 동의 → 2/3 정보 입력 → 3/3 이메일 인증 → 온보딩(프로필 확인).
+// 1단계 — 서버 호출 없음(동의 상태는 클라이언트에만 있다)
+// 2단계 — '인증 메일 받기'가 usePostSignupCode 호출
+// 3단계 — '인증 완료'가 1~2단계에서 모은 값으로 usePostSignup 호출
+// 4단계 — 자동 생성된 아바타를 확인하고 useCompleteSignupOnboarding으로 비로소 로그인 상태가
+// 된다(signIn을 usePostSignup의 onSuccess가 아니라 여기까지 미루는 이유는
+// auth.hook.ts의 usePostSignup 헤더 주석 참고)
 //
-// Password/passwordConfirm are local useState — see LoginForm.tsx header comment for why.
+// 동의 항목 4개(연령·이용약관·개인정보·마케팅)의 '보기 ›'는 약관 전문을 연다
+// (termsContent.ts의 문안을 TermsDetailOverlay.tsx가 렌더). 어떤 문서가 열려 있는지는 AppState가
+// 아니라 이 컴포넌트의 로컬 state다 — 화면 안에서만 의미 있는 UI 상태이기 때문이다.
+// 온보딩 단계에는 3단계 진행 표시(점 바)가 없다 — 번호가 붙은 3단계가 아니라 뒤따르는 확인 단계다.
+//
+// password/passwordConfirm은 로컬 useState다 — 이유는 LoginForm.tsx 헤더 주석 참고.
 
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'

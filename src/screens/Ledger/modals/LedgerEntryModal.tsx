@@ -1,32 +1,26 @@
-// Source: secret/Asset Manager v14.dc.html L1605-1771 (modalLedgerEntry) — layout transcribed verbatim,
-// then wired to POST/PUT/DELETE /transactions (contents were previously read-only — see git history).
-// z-index 80, width 480px, maxHeight 86vh (confirmed per-instance, NOT the 90vh some other modals use).
+// 가계부 거래 등록/수정 모달. POST/PUT/DELETE /transactions에 연결돼 있다.
+// z-index 80, 너비 480px, maxHeight 86vh(다른 모달이 쓰는 90vh가 아니다).
 //
-// 계좌 매핑(secret/API-SPEC.md §6): 서버는 계좌를 accountId 하나로만 다룬다("거래가 발생한 계좌") —
-// TRANSFER·SAVING만 예외로 transferAccountId(상대 계좌)를 추가로 받는다. 그래서
-//   - INCOME/EXPENSE: "계좌" 필드(entryAccountId) = accountId. 출금계좌 필드는 없다.
-//   - SAVING: "출금계좌"(entryWithdrawAccountId) = accountId, "저축계좌"(entryAccountId) = transferAccountId.
-//   - TRANSFER: "출금계좌"(entryWithdrawAccountId) = accountId, "입금계좌"(entryAccountId) = transferAccountId.
-// SAVING도 TRANSFER와 동일하게 출금 계좌(−amount)·상대 계좌(+amount) 두 계좌를 받는다 — 상대 계좌가
-// 없으면 출금만 반영되어 총자산이 줄어들기 때문에 서버가 필수로 요구한다.
+// **계좌 매핑**: 서버는 계좌를 accountId 하나로만 다룬다('거래가 발생한 계좌') — TRANSFER·SAVING만
+// 예외로 transferAccountId(상대 계좌)를 추가로 받는다. 그래서
+// - INCOME/EXPENSE: '계좌' 필드(entryAccountId) = accountId. 출금계좌 필드는 없다.
+// - SAVING: '출금계좌'(entryWithdrawAccountId) = accountId, '저축계좌'(entryAccountId) = transferAccountId.
+// - TRANSFER: '출금계좌'(entryWithdrawAccountId) = accountId, '입금계좌'(entryAccountId) = transferAccountId.
+// SAVING도 TRANSFER와 똑같이 두 계좌를 받는다 — 상대 계좌가 없으면 출금만 반영되어 총자산이 줄어들기
+// 때문에 서버가 필수로 요구한다.
 //
-// PUT의 accountId는 이제 수정 가능하다(UpdateTransactionRequest가 등록 요청과 동일한 필드 구성으로
-// 바뀜) — 편집 중에도 "이 거래가 발생한 계좌" 필드(출금계좌가 없는 유형이면 계좌, 있으면 출금계좌)를
-// 일반 드롭다운으로 그대로 보여준다. 다만 거래 유형(수입/지출/저축/이체) 탭은 여전히 편집 중 숨긴다 —
-// 유형이 바뀌면 소분류·상대 계좌의 필수/금지 규칙이 통째로 바뀌는데, 이 모달은 유형 전환에 맞춰
-// 소분류·상대 계좌 선택을 초기화하는 흐름을 갖고 있지 않기 때문이다(등록 시 setEntryType의 리셋 로직
-// 참고 — 편집 중 그대로 재사용하면 이전 유형의 선택값이 남는다).
+// PUT의 accountId는 수정 가능하다 — 편집 중에도 '이 거래가 발생한 계좌' 필드(출금계좌가 없는 유형이면
+// 계좌, 있으면 출금계좌)를 일반 드롭다운으로 보여준다. 다만 거래 유형(수입/지출/저축/이체) 탭은
+// 편집 중 숨긴다 — 유형이 바뀌면 소분류·상대 계좌의 필수/금지 규칙이 통째로 바뀌는데, 이 모달은
+// 유형 전환에 맞춰 소분류·상대 계좌 선택을 초기화하는 흐름을 갖고 있지 않다(등록 시 setEntryType의
+// 리셋 로직을 편집 중 그대로 재사용하면 이전 유형의 선택값이 남는다).
 //
-// 하드코딩 "투자 수익/원금 회수" 블록(구 showInvestBreakdown)은 대응 API가 없어 제거했다(주석 없이
-// 지우면 히스토리 추적이 어려워 여기 남긴다 — ds_rules 10-4의 "투자 실현 수익" 분리 기록은 매도
-// 체결(트레이드) 쪽에서 다룰 몫이라 이 모달의 범위가 아니다).
-//
-// 최근 내역 추천(2026-08-23): 신규 등록 중 "내용"을 2글자 이상 치면 최근 6개월 거래에서 비슷한 제목을
-// 찾아 칩 최대 3개를 입력칸 아래에 보여준다. 칩을 누르면 제목·금액·소분류·계좌(저축·이체는 출금/상대
-// 계좌)를 한 번에 채운다. 자동으로 채우지는 않는다. 목록은 모달이 열릴 때 한 번 받고(React Query 캐시,
-// 거래 등록 시 transaction 키가 무효화되어 다음에 열면 새로 반영), 제목 비교는 ledgerView의
-// buildEntrySuggestions가 한다 — 서버에 제목 검색이 없어서다. 수정 모드에서는 보여주지 않는다(이미
-// 값이 다 차 있고, 엉뚱한 칩을 눌러 기존 거래가 덮어써지는 사고를 막는다).
+// 최근 내역 추천: 신규 등록 중 '내용'을 2글자 이상 치면 최근 6개월 거래에서 비슷한 제목을 찾아 칩을
+// 최대 3개까지 입력칸 아래에 보여준다. 칩을 누르면 제목·금액·소분류·계좌(저축·이체는 출금/상대 계좌)를
+// 한 번에 채운다 — 자동으로 채우지는 않는다. 목록은 모달이 열릴 때 한 번 받고(React Query 캐시, 거래를
+// 등록하면 transaction 키가 무효화되어 다음에 열 때 반영), 제목 비교는 ledgerView의
+// buildEntrySuggestions가 한다(서버에 제목 검색이 없다). 수정 모드에서는 보여주지 않는다 — 이미 값이
+// 다 차 있고, 엉뚱한 칩을 눌러 기존 거래가 덮어써지는 사고를 막는다.
 
 import { useState, useRef } from 'react'
 import type { CSSProperties } from 'react'
@@ -165,7 +159,7 @@ export function LedgerEntryModal() {
   // 없는 id를 넣으면 드롭다운은 첫 항목을 보여주는데 제출값은 사라진 id가 되어 SUBCATEGORY_NOT_FOUND가 난다).
   const applySuggestion = (s: EntrySuggestion) => {
     const hasAccount = (id: number | null) => id !== null && accounts.some((a) => a.id === id)
-    // 금액은 채우지 않는다(2026-08-29 사용자 요청). 같은 이름의 거래라도 금액은 매번 다른데
+    // 금액은 채우지 않는다(사용자 요청). 같은 이름의 거래라도 금액은 매번 다른데
     // 지난 금액이 미리 들어가 있으면 그대로 저장돼 틀린 금액이 기록되는 사고가 난다.
     // 매번 다시 고르기 번거로운 카테고리·계좌만 채우고, 금액은 사용자가 직접 입력하게 둔다.
     const patch: Partial<AppState> = { entryDescription: s.description }
@@ -239,7 +233,7 @@ export function LedgerEntryModal() {
   }
 
   const setEntryType = (t: EntryType) => {
-    // 거래유형을 바꾸면 보관 중이던 초안은 버린다(2026-08-29 사용자 결정) — 지금 폼에 남아 있는
+    // 거래유형을 바꾸면 보관 중이던 초안은 버린다(사용자 결정) — 지금 폼에 남아 있는
     // 내용이 곧 새 유형의 내용이 되므로, 다른 유형의 옛 초안이 되살아나면 안 된다.
     setState({ entryType: t, entrySubcategoryId: null, entryWithdrawAccountId: null, entryDraft: null, entryDraftRestored: false })
     setSameAccountInvalid(false)
@@ -248,10 +242,10 @@ export function LedgerEntryModal() {
   /**
    * 모달을 닫는다.
    * @param keepDraft 저장하지 않고 닫는 경우(X·Esc·배경 클릭·아래로 스와이프) true — 적던 내용을
-   *   초안으로 보관했다가 다음에 같은 거래유형으로 열 때 되살린다(state/selectors/entryDraft.ts).
-   *   저장·삭제에 성공해서 닫는 경우에는 false — 이미 서버에 반영됐으니 초안이 남으면 안 된다.
-   *   **수정 세션(editingTxId)은 keepDraft여도 초안을 남기지 않는다** — 다시 열 때 서버 값을
-   *   새로 채우는 게 맞고, 남기면 다음 "새 거래"에 남의 거래 내용이 튀어나온다.
+   * 초안으로 보관했다가 다음에 같은 거래유형으로 열 때 되살린다(state/selectors/entryDraft.ts).
+   * 저장·삭제에 성공해서 닫는 경우에는 false — 이미 서버에 반영됐으니 초안이 남으면 안 된다.
+   * **수정 세션(editingTxId)은 keepDraft여도 초안을 남기지 않는다** — 다시 열 때 서버 값을
+   * 새로 채우는 게 맞고, 남기면 다음 "새 거래"에 남의 거래 내용이 튀어나온다.
    */
   const closeModal = (keepDraft: boolean) => {
     setState((prev) => ({
@@ -333,7 +327,7 @@ export function LedgerEntryModal() {
       // 두 계좌가 같으면 출금과 입금이 같은 계좌에 겹쳐 기록돼 아무것도 바뀌지 않는 거래가 남는다.
       // 두 드롭다운 모두 값이 없으면 accounts[0]으로 채워지므로, 계좌가 하나뿐이거나 아직 아무것도
       // 고르지 않은 상태에서 그대로 저장하면 실제로 이 조합이 만들어진다. 서버에는 이를 막는 에러
-      // 코드가 없어(API-SPEC §6.2 에러 표) 조용히 통과하므로 여기서 막는다.
+      // 코드가 없어(에러 표) 조용히 통과하므로 여기서 막는다.
       if (accountId === transferAccountId) {
         setSameAccountInvalid(true)
         return
@@ -432,7 +426,7 @@ export function LedgerEntryModal() {
       {transactionNotFoundMessage && <div style={{ ...ERROR_STYLE, marginBottom: 14, marginTop: -8 }}>{transactionNotFoundMessage}</div>}
 
       {/* 초안에서 되살아난 폼이라는 안내. 이게 없으면 며칠 전 실수로 닫아둔 초안의 금액·내용이
-          채워진 채 열린 것을 새 거래인 줄 알고 그대로 저장하게 된다(2026-08-29 리뷰 지적).
+          채워진 채 열린 것을 새 거래인 줄 알고 그대로 저장하게 된다.
           "새로 작성"은 초안을 버리고 빈 폼으로 돌린다. */}
       {state.entryDraftRestored && !isEditing && (
         <div

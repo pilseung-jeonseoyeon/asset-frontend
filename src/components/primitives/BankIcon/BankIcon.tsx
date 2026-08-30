@@ -1,8 +1,8 @@
-// Source: ds_rules_v2_5.md §1-7 (icon tile spec) + §12-2 (25 archetype SVG spec) — tile 28-44px square,
-// radius 8px (§5 "small elements"), 24x24 viewBox stroke-only SVG, stroke-width 1.8 (2.0 for KB/Kakao
-// "yellow exception" families, §1-7), symbol size = 58% of tile side. Colors from --bank-{key}-bg/-fg
-// (src/styles/bank-tokens.css); undefined key falls back to --fill-subtle/--text-mid + pillar archetype
-// (§12-3 "미지정 · 기타" row).
+// 기관 아이콘 타일 스펙: ds_rules_v2_5.md §1-7 + §12-2(공용 archetype SVG 25종).
+// 타일 28~44px 정사각, radius 8px(§5), 24x24 viewBox에 stroke만 쓰는 SVG, stroke-width 1.8
+// (KB·카카오 등 노란 브랜드는 2.0, §1-7), 심볼 크기는 타일 한 변의 58%.
+// 색은 --bank-{key}-bg/-fg(src/styles/bank-tokens.css)에서 오고, 없는 키는
+// --fill-subtle/--text-mid + pillar archetype으로 폴백한다(§12-3 '미지정 · 기타' 행).
 
 import { BANK_ARCHETYPE_PATHS } from '../../../design/bank-archetypes'
 import { BANK_YELLOW_STROKE_EXCEPTIONS, findBankInstitution } from '../../../design/bank-institutions'

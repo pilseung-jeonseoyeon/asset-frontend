@@ -1,8 +1,7 @@
-// Source: secret/Asset Manager v14.dc.html L870-872 (dk-accent chip, "이번 달 증감액") — the only
-// confirmed instance following ds_rules_v2_5.md §10-1 rule B (chip/badge = Material Symbols
-// arrow_drop_up/arrow_drop_down + value). bg/color are NOT hardcoded here — a plain-text badge variant
-// with different padding/radius and no icon also exists (L2335-2336, Assets account-detail, Phase 10) —
-// this component only covers the icon+chip shape; screens pass their own confirmed bg/color per instance.
+// 아이콘 + 값 형태의 증감 칩(ds_rules_v2_5.md §10-1 규칙 B —
+// Material Symbols arrow_drop_up/arrow_drop_down + 값).
+// bg/color는 여기서 하드코딩하지 않는다 — 아이콘 없이 padding·radius가 다른 평문 배지 변형도
+// 따로 있어서, 이 컴포넌트는 아이콘+칩 모양만 맡고 색은 화면이 넘긴다.
 
 import { Icon } from '../Icon/Icon'
 

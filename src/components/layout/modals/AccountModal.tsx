@@ -1,17 +1,14 @@
-// Source: secret/Asset Manager v14.dc.html L3013-3137 (modalAccount) — transcribed verbatim. Opened
-// globally from the sidebar avatar (openAccountProfile, L751), not owned by any single screen — see the
-// plan's Phase 5 note on why this is NOT built as a Ledger-owned modal despite its line range sitting
-// near the Ledger section of the source file.
-// authInputStyle/authPrimaryButtonStyle/authSecondaryButtonStyle (source L3572-3589) and filterPasswordInput (L3636) live in
-// screens/Auth/authFormStyles.ts (the real auth screens' canonical home for these constants) and are
-// reused here verbatim for the password-change subview instead of keeping a second copy.
+// 계정 모달. 사이드바 아바타에서 전역으로 열리며 특정 화면에 속하지 않는다.
+// authInputStyle/authPrimaryButtonStyle/authSecondaryButtonStyle과 filterPasswordInput은
+// screens/Auth/authFormStyles.ts에 있는 것을 비밀번호 변경 화면에서 그대로 가져다 쓴다 —
+// 복사본을 두 벌 만들지 않는다.
 // 로그아웃 버튼은 usePostLogout()에 연결되어 있다 — 실패해도 클라이언트 세션은 끊는다
 // (auth.hook.ts의 usePostLogout onSettled 주석 참고), 되돌리기 쉬운 동작이라 확인 모달은 두지 않는다.
 //
-// Mobile (<=767px, docs/mobile.md §4): this modal doesn't use the shared primitives/Modal component
-// (it's the one documented exception, alongside ReportOverlay), so the bottom-sheet conversion is
-// re-implemented locally here — same shape as Modal.tsx: flex-end scrim, 10px 10px 0 0 radius, 88vh
-// max height, safe-area bottom padding, top grabber, sheet-up slide-in.
+// 모바일(<=767px, docs/mobile.md §4): 이 모달은 공용 primitives/Modal을 쓰지 않는
+// 예외라(ReportOverlay와 함께 둘뿐) 바텀시트 전환을 여기서 다시 구현한다 — 모양은 Modal.tsx와
+// 같다: flex-end 스크림, radius 10px 10px 0 0, 최대 높이 88vh, 하단 세이프 에어리어 여백,
+// 위쪽 그래버, 아래에서 올라오는 슬라이드.
 
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
@@ -36,7 +33,7 @@ const ROW_STYLE: CSSProperties = {
 
 const LABEL_STYLE: CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 7 }
 
-/** UserProfileRes.passwordChangedAt(Instant, 'Z' suffix)을 "YYYY.MM.DD"로 — 원본 문구 복원용. */
+/** UserProfileRes.passwordChangedAt(Instant, 'Z' suffix)을 "YYYY.MM.DD"로. */
 function formatChangedAtDate(iso: string): string {
   const d = new Date(iso)
   const y = d.getFullYear()
@@ -244,11 +241,11 @@ export function AccountModal() {
         ? '이미 탈퇴 처리된 계정이에요.'
         : (withdraw.error?.message ?? null))
 
-  // 스크림(배경)을 누르면 닫는다(2026-08-29, primitives/Modal과 같은 시점에 같은 이유로 되돌림).
+  // 스크림(배경)을 누르면 닫는다(primitives/Modal과 같은 시점에 같은 이유로 되돌림).
   // 누른 지점이 스크림 자신일 때만 닫는 이유(드래그 선택·팝오버 층위)는 Modal.tsx의
   // handleScrimPointerDown 주석 참고. 여기서는 서브뷰(프로필/비밀번호/탈퇴)로 들어가 있어도
   // Esc와 달리 곧바로 전체를 닫는다 — 배경을 누르는 건 "이 창을 그만 보겠다"는 뜻이기 때문이다.
-  // 프로필·비밀번호 폼은 초안을 기억하지 않으므로 작성 중이던 값은 사라진다(2026-08-29 사용자 확인).
+  // 프로필·비밀번호 폼은 초안을 기억하지 않으므로 작성 중이던 값은 사라진다(사용자 확인).
   const handleScrimPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     scrimPressedRef.current = e.target === e.currentTarget
   }
@@ -417,8 +414,8 @@ export function AccountModal() {
               <div style={ROW_STYLE}>
                 <div>
                   <div style={{ fontSize: 13.5, fontWeight: 600 }}>비밀번호 변경</div>
-                  {/* passwordChangedAt이 null이면(가입 후 한 번도 안 바꿈) 원본의 날짜 문구 대신
-                      규칙 안내를 보여준다 — 값이 있으면 원본 문구("마지막 변경 YYYY.MM.DD")를 그대로 복원한다. */}
+                  {/* passwordChangedAt이 null이면(가입 후 한 번도 안 바꿈) 날짜 대신 규칙 안내를
+                      보여주고, 값이 있으면 "마지막 변경 YYYY.MM.DD"로 보여준다. */}
                   <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>
                     {me?.passwordChangedAt ? `마지막 변경 ${formatChangedAtDate(me.passwordChangedAt)}` : PASSWORD_RULE_TEXT}
                   </div>
@@ -729,7 +726,7 @@ export function AccountModal() {
             </span>
             <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', marginBottom: 8 }}>정말 탈퇴하시겠어요?</div>
             <div style={{ fontSize: 12.5, color: 'var(--text-weak)', lineHeight: 1.7, marginBottom: 18 }}>
-              {/* 답변서 D-1: soft delete 30일 유예로 확정 — 즉시 삭제가 아니라 유예 기간 후 영구 삭제됨을 안내한다. */}
+              {/* 계정 삭제는 즉시가 아니라 30일 유예(soft delete) 후 영구 삭제다 — 그 사실을 안내한다. */}
               탈퇴 후 30일 뒤 영구 삭제됩니다. 유예 기간에는 로그인과 같은 이메일 재가입이 불가합니다.
             </div>
             <div style={{ marginBottom: withdrawErrorMessage ? 10 : 20 }}>

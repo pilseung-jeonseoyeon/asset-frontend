@@ -1,19 +1,18 @@
-// Source: no dc.html equivalent — 원본 프로토타입에는 환전 내역 화면 자체가 없었다. GET/PUT/DELETE
-// /exchanges 훅(src/services/exchange)은 이미 구현돼 있었는데 호출부가 0건이라(docs/backend-request.md
-// 4-4), 환전을 등록해도(POST /exchanges는 201로 성공한다 — 실측 0-4-6) 화면 어디에도 나타나지 않고
-// 되돌릴 방법도 없었다. InstitutionsModal의 "목록 ↔ 폼을 한 모달 안에서 토글" 패턴을 그대로 옮겨왔다:
-// state.editingExchangeId가 null이면 목록, 값이 있으면 그 id의 수정 폼. z-index 80, width 440px
-// (ExchangeAddModal과 같은 톤), maxHeight 86vh.
+// 환전 내역 목록/수정 모달. GET/PUT/DELETE /exchanges에 연결돼 있다.
+// 이 모달이 없으면 환전을 등록해도 화면 어디에도 나타나지 않고 되돌릴 방법도 없다.
+// InstitutionsModal과 같은 '목록 ↔ 폼을 한 모달 안에서 토글' 패턴이다:
+// state.editingExchangeId가 null이면 목록, 값이 있으면 그 id의 수정 폼.
+// z-index 80, 너비 440px(ExchangeAddModal과 같은 톤), maxHeight 86vh.
 //
-// GET /exchanges는 currency가 선택이라(exchange.service.ts) 전 통화를 함께 조회한다 — 저장 시
-// currency는 여전히 'USD'로 고정하는데, 이 앱이 다루는 유일한 외화가 USD이기 때문이다.
+// GET /exchanges는 currency가 선택이라 전 통화를 함께 조회한다 — 저장 시 currency는 'USD'로 고정하는데,
+// 이 앱이 다루는 유일한 외화가 USD이기 때문이다.
 //
-// "외화 자산 & 가중 평균 환율" 카드는 GET /exchanges/summary가 422(FX_RATE_NOT_FOUND)면 본문 전체가
-// 빈 상태로 막힌다(실측 0-2-1). 이 모달은 summary가 아니라 GET /exchanges(목록)만 쓰므로 summary가
+// 주식 화면의 '외화 자산 & 가중 평균 환율' 카드는 GET /exchanges/summary가 422(FX_RATE_NOT_FOUND)면
+// 본문 전체가 빈 상태로 막힌다. 이 모달은 summary가 아니라 GET /exchanges(목록)만 쓰므로 summary가
 // 실패해도 항상 열리고, 등록해 둔 환전을 최소한 확인·삭제할 수 있다.
 //
-// UpdateExchangeRequest는 accountId를 받지 않는다(exchange.type.ts) — LedgerEntryModal/TradeEditModal과
-// 같은 이유로 계좌를 읽기 전용으로 보여준다.
+// UpdateExchangeRequest는 accountId를 받지 않으므로 계좌는 읽기 전용으로 보여준다
+// (LedgerEntryModal/TradeEditModal과 같은 이유).
 
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -210,7 +209,7 @@ export function ExchangeHistoryModal() {
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '0.5px solid var(--border)', borderRadius: 10, padding: '13px 16px', cursor: 'pointer' }}
                 >
                   {/* 달러를 산 행(원 → 달러)은 라벨·달러 금액을 액센트로 칠해 판 행(달러 → 원)과 한눈에
-                      구분한다(2026-08-22 사용자 지적 — 두 방향이 같은 색이라 헷갈렸다). 디자인 규칙상
+                      구분한다(두 방향이 같은 색이면 헷갈린다). 디자인 규칙상
                       "파랑"으로 허용된 유채색은 액센트 인디고뿐이라 새 색을 만들지 않고 --accent를 쓴다.
                       이 구분색은 이 목록 안에서만 쓴다 — 주식 화면의 "총 보유 USD"까지 칠했다가 "내역에서만"
                       이라는 지적으로 되돌렸다(같은 날). */}

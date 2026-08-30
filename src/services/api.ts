@@ -25,11 +25,11 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  // 리프레시 토큰이 httpOnly 쿠키로 오간다(API-SPEC §16 — refresh_token, HttpOnly,
+  // 리프레시 토큰이 httpOnly 쿠키로 오간다(refresh_token, HttpOnly,
   // Path=/api/v1/auth). 쿠키를 실어 보내려면 반드시 켜져 있어야 한다.
   withCredentials: true,
   // 배열 파라미터를 sort=a&sort=b로 반복 직렬화한다. axios 기본값은 sort[]=a&sort[]=b라
-  // Spring Data의 Pageable이 정렬 조건을 하나도 읽지 못한다(API-SPEC §6.1).
+  // Spring Data의 Pageable이 정렬 조건을 하나도 읽지 못한다.
   paramsSerializer: { indexes: null },
 })
 
@@ -91,7 +91,7 @@ export async function refreshAccessToken(): Promise<string> {
       .catch((error: unknown) => {
         // refreshClient에는 응답 인터셉터가 없어 raw AxiosError가 그대로 온다. 호출부가
         // 재사용 감지(REFRESH_TOKEN_REUSED — 전 세션 강제 종료)와 단순 만료를 구분할 수
-        // 있도록 여기서 한 번만 ApiError로 정규화한다(API-SPEC §16.4).
+        // 있도록 여기서 한 번만 ApiError로 정규화한다.
         if (error instanceof ApiError) throw error
         if (isAxiosError<ApiErrorPayload>(error)) {
           const payload = error.response?.data
@@ -168,7 +168,7 @@ api.interceptors.response.use(
       return api.request(config)
     }
 
-    // 엑셀 내보내기(API-SPEC §14)처럼 responseType:'blob'인 요청은 실패 시에도 body가 Blob이라
+    // 엑셀 내보내기처럼 responseType:'blob'인 요청은 실패 시에도 body가 Blob이라
     // 여기서 code/message를 읽을 수 없다. 해당 기능은 이 인스턴스를 쓰지 말고 별도 처리할 것.
     const payload = error.response?.data
     return Promise.reject(

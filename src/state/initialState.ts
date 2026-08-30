@@ -1,6 +1,4 @@
-// Source: secret/Asset Manager v14.dc.html L3480-3522 — default values transcribed verbatim.
-// The `// auth` block at the bottom has no source equivalent (see types.ts header comment) — its
-// defaults are this port's own, not transcribed from dc.html.
+// AppState의 기본값 — 앱을 처음 열었을 때의 상태.
 
 import { mondayOf, todayYearMonth, toISODate } from '../utils/date'
 import { readStoredTheme } from '../utils/theme'
@@ -108,8 +106,7 @@ export const initialState: AppState = {
   authEmail: '',
   authName: '',
   authCode: '',
-  // 답변서 D-4: rememberMe 생략 시 서버 기본값이 true이고 원본 프로토타입도 기본 체크였다.
-  // 기본 해제는 서버 기본값과의 불일치였으므로 기본 체크로 되돌린다.
+  // rememberMe를 생략하면 서버 기본값이 true다 — 화면 기본값도 체크로 맞춘다.
   authKeepLogin: true,
   authAgreements: { service: false, privacy: false, marketing: false },
   authCodeSentAt: null,

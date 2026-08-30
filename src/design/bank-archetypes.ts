@@ -1,6 +1,7 @@
-// Source: secret/ds_rules_v2_5.md L528-559 (§12-2, 25 symbol archetypes) — transcribed verbatim
-// Shared SVG spec (§12-2): viewBox 0 0 24 24, fill=none, stroke=currentColor, stroke-width 1.8 (2.0 for
-// yellow-brand exceptions, see BANK_YELLOW_STROKE_EXCEPTIONS in bank-institutions.ts), stroke-linecap/linejoin round.
+// 공용 심볼 archetype 25종(ds_rules_v2_5.md §12-2).
+// 공통 SVG 스펙: viewBox 0 0 24 24, fill=none, stroke=currentColor, stroke-width 1.8
+// (노란 브랜드 예외는 2.0 — bank-institutions.ts의 BANK_YELLOW_STROKE_EXCEPTIONS 참고),
+// stroke-linecap/linejoin round.
 
 export type BankArchetype =
   | 'star4' | 'swoosh' | 'ring2' | 'circledot' | 'chevron2' | 'arrowbox' | 'arcband' | 'arcpair'

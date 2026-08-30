@@ -1,16 +1,14 @@
-// Source: secret/Asset Manager v14.dc.html L2112-2143 (modalInstitutions) + L3976-3983
-// (institutionsAll) — read-only list transcribed verbatim. width 440px, maxHeight 86vh. Uses the
-// BankIcon primitive (tokenKey lookup) instead of duplicating each glyph's raw SVG path.
+// 금융기관 목록(읽기 전용) 모달. 너비 440px, maxHeight 86vh.
+// 아이콘은 BankIcon 프리미티브(tokenKey 조회)를 쓴다 — 기관마다 SVG 경로를 복붙하지 않는다.
 //
-// 기관 추가/수정/삭제는 사용자에게 노출할 기능이 아니라는 결정으로 되돌려졌다 — 원본 프로토타입도
-// 읽기 전용 목록이었다. API 레이어(src/services/institution)의 CRUD 훅은 그대로 남아 있다.
+// 기관 추가/수정/삭제는 사용자에게 노출하지 않기로 한 기능이라 이 화면은 목록만 보여준다.
 //
 // 목록은 GET /assets/distribution?groupBy=INSTITUTION(금액 기준 그룹)을 기준으로 순회하고,
 // GET /institutions(아이콘 키)는 institutionId로 보조 조인만 한다 — institutions를 기준으로 순회하면
-// 기관 미연결 버킷(institutionId: null, "미지정")이 영원히 빠진다(대시보드 카드와 같은 이유,
-// buildDashboardInstitutions의 주석 참고). 이 화면의 목적이 "내 자산이 어디에 있나"이므로 보유액이
-// 0원인 항목은 제외한다(buildDashboardInstitutions가 이미 필터링).
-// 대시보드 "주요 자산 보관처" 카드와 조인 규칙이 완전히 같아(limit만 다름) buildDashboardInstitutions를
+// 기관 미연결 버킷(institutionId: null, '미지정')이 영원히 빠진다(buildDashboardInstitutions의 주석
+// 참고). 이 화면의 목적이 '내 자산이 어디에 있나'이므로 보유액이 0원인 항목은 제외한다
+// (buildDashboardInstitutions가 이미 필터링).
+// 대시보드 '주요 자산 보관처' 카드와 조인 규칙이 완전히 같아(limit만 다름) buildDashboardInstitutions를
 // 그대로 재사용한다 — 같은 규칙을 두 곳에 따로 구현하지 않기 위해서다.
 
 import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'

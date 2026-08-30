@@ -1,8 +1,11 @@
-// Source: secret/Asset Manager v14.dc.html L2145-2305 (월간 리포트 카드, reportOpen) — transcribed
-// verbatim. z-index 90. 원본(L2147-2148)에는 스크림 클릭 닫기가 없었지만, 2026-08-29 사용자 요청으로
-// 앱의 모든 모달과 같이 배경을 누르면 닫히게 했다(입력 폼이 없는 읽기 전용 오버레이라 잃을 것도 없다).
-// X 버튼도 그대로 남아 있다. ds_rules_v2_5.md §6-2 documents the
-// one shadow exception used here: `0 60px 100px -40px rgba(0,0,0,.6)`, allowed only in this context.
+// 월간 리포트 오버레이. z-index 90.
+// 앱의 다른 모달과 마찬가지로 배경을 눌러도 닫히고 X 버튼도 있다(입력 폼이 없는 읽기 전용
+// 오버레이라 잃을 것이 없다).
+// 여기 쓰인 그림자 `0 60px 100px -40px rgba(0,0,0,.6)`는 ds_rules_v2_5.md §6-2가 이 자리에만
+// 허용한 예외다.
+//
+// ⚠️ 아직 목업이다 — 화면의 숫자가 서버에서 오지 않는다. 이 앱에서 서버에 연결되지 않은 곳은
+// 여기 하나뿐이다.
 
 import { useRef } from 'react'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'

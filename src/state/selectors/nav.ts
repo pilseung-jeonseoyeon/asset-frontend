@@ -1,6 +1,5 @@
-// Source: secret/Asset Manager v14.dc.html L3551-3562 (sidebarNavItemStyle/sidebarNavHoverStyle) — transcribed verbatim.
-// Plain functions (not memoized hooks): the source itself recomputes these as plain object literals
-// on every render() call, with no memoization — matching that exactly rather than inventing caching.
+// 사이드바 항목 스타일. 메모이즈하지 않은 평범한 함수다 — 렌더마다 객체 리터럴을 다시 만드는
+// 비용이 캐싱을 들일 만큼 크지 않다.
 
 import type { CSSProperties } from 'react'
 

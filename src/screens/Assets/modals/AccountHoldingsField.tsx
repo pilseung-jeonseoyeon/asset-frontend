@@ -1,13 +1,13 @@
 // 계좌 추가 모달(AddAccountModal)의 "보유 종목/코인" 반복 입력 블록. 주식·가상자산 두 유형에서만 쓴다.
 //
-// **한 계좌에 국내·해외 종목을 섞어 담는다**(2026-08-27, 서버가 DOMESTIC_STOCK/FOREIGN_STOCK을
+// **한 계좌에 국내·해외 종목을 섞어 담는다**(서버가 DOMESTIC_STOCK/FOREIGN_STOCK을
 // STOCK 하나로 합친 데 맞춤): 시장은 계좌가 아니라 **고른 종목**이 정하므로, prop은 Market 하나가
 // 아니라 "이 계좌가 담을 수 있는 시장 목록"(markets)이고 담긴 줄마다 자기 market을 들고 있다.
 // 그래서 수량 단위(주/개)와 평단가 통화(₩/$)도 블록 전체가 아니라 줄 단위로 갈린다 — 삼성전자 줄은
 // ₩, 애플 줄은 $로 같은 리스트 안에 나란히 있을 수 있다.
 //
 // 여기 담은 값은 부모(AddAccountModal)가 CreateAccountRequest.holdings로 계좌와 **한 요청에** 실어
-// 보낸다(2026-08-20 백엔드 계약 추가). 서버가 각 줄을 등록일 체결 BUY 매매로 기록하므로 등록 직후
+// 보낸다(백엔드 계약 추가). 서버가 각 줄을 등록일 체결 BUY 매매로 기록하므로 등록 직후
 // 주식 화면에 그대로 나타난다. 최대 100건(OpenAPI maxItems).
 //
 // 평균단가의 단위는 **원화가 아니라 종목 표시 통화**다 — US는 달러, KR과 CRYPTO는 원화. 서버가
@@ -16,7 +16,7 @@
 // 식으로 되돌리지 말 것 — 그 순간 애플 평단가가 원화로 저장된다.
 //
 // 검색 자체는 QuickStockModal.tsx L332-380의 흐름을 그대로 따른다(GET /stocks?keyword= → 결과를
-// market으로 거름). 다만 **결과 목록은 인라인 블록이 아니라 팝오버로 띄운다**(2026-08-20, 사용자 지적
+// market으로 거름). 다만 **결과 목록은 인라인 블록이 아니라 팝오버로 띄운다**(사용자 지적
 // — "select box는 한 5개로 하고, 모달이 늘어나는 게 아니라 저게 스크롤되게, 레이어 밖으로"): 인라인으로
 // 펼치면 검색 결과 수만큼 모달 자체가 길어져 모달에 스크롤이 걸리고, 결과를 보려면 모달을 스크롤해야
 // 한다. Dropdown/DatePicker가 이미 쓰는 usePopoverAnchor로 트리거의 화면 좌표에 position:fixed로
@@ -29,7 +29,7 @@
 // 필요하지만, 계좌 등록 폼 한가운데서 종목 마스터를 만드는 흐름은 별도 확인 후에 붙인다.
 //
 // CRYPTO 평단가를 달러로 받으면 안 된다 — 서버 시세 수집이 업비트 원화 마켓에 고정돼 있어 환율이
-// 이중으로 곱해진다(src/data/stocksView.ts marketToCurrency 주석, 2026-08-15 백엔드 확정).
+// 이중으로 곱해진다(src/data/stocksView.ts marketToCurrency 주석, 백엔드 확정).
 
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
@@ -47,7 +47,7 @@ export interface DraftHolding {
    * 이 줄만의 로컬 식별자. **stockId로 줄을 구분하면 안 된다** — 같은 종목을 평단가를 나눠 두 줄로
    * 담는 것을 일부러 허용하기 때문에(아래 검색 결과의 '담음' 배지 주석 참고) stockId는 줄마다
    * 유일하지 않다. 예전에 리스트 key와 삭제 필터가 stockId 기준이라, 한 줄을 지우면 같은 종목의
-   * 다른 줄까지 함께 사라졌다(2026-08-20 수정). 서버로는 나가지 않는 화면 전용 값이다.
+   * 다른 줄까지 함께 사라졌다(수정). 서버로는 나가지 않는 화면 전용 값이다.
    */
   uid: string
   stockId: number
@@ -120,7 +120,7 @@ interface Props {
   items: DraftHolding[]
   onChange: (items: DraftHolding[]) => void
   /** 리스트 아래 안내 문구. 생략하면 계좌 등록 기준 문구("오늘 산 것으로 기록돼요")를 쓴다 —
-   *  체결일을 직접 고르는 호출부(AddHoldingsModal)는 그 문구가 사실과 달라 직접 넘긴다. */
+   * 체결일을 직접 고르는 호출부(AddHoldingsModal)는 그 문구가 사실과 달라 직접 넘긴다. */
   hint?: ReactNode
 }
 

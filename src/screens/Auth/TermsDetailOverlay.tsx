@@ -1,17 +1,14 @@
-// 회원가입 1단계(약관 동의)의 "보기 ›"로 열리는 약관 전문 오버레이.
-//
-// 원본 프로토타입(secret/Asset Manager v14.dc.html L570)의 "보기 ›" 링크는 열릴 문서가 없어 React
-// 이식 때 뺐었다(SignupForm.tsx 헤더 주석 참고) — termsContent.ts에 문안이 갖춰지며 되살린다.
+// 회원가입 1단계(약관 동의)의 '보기 ›'로 열리는 약관 전문 오버레이.
 //
 // 컴포넌트 primitives/Modal은 스크림 + 가운데 정렬 카드 + 모바일 바텀시트 전환 + Esc 닫기를 그대로
 // 재사용할 수 있어 그 위에 얹는다(바깥 클릭으로는 닫히지 않으므로 닫기는 X 버튼과 Esc뿐이다). 다만
-// Modal은 createPortal을 쓰지 않고 트리 제자리에
-// 렌더되므로, DOM 순서상 이 오버레이 뒤에 오는 배경 요소(SignupForm의 "다음" 버튼 등)가 Tab으로
-// 여전히 도달 가능하다 — 포커스 가능 요소가 닫기 버튼 하나뿐이라도 Tab/Shift+Tab이 그 버튼 안에서
-// 순환하도록 이 컴포넌트가 직접 트랩한다(포커스 이동/복귀는 Modal이 제공하지 않아 함께 처리한다 —
-// 이 저장소의 다른 모달도 아직 이걸 하는 곳이 없다).
+// Modal은 createPortal을 쓰지 않고 트리 제자리에 렌더되므로, DOM 순서상 이 오버레이 뒤에 오는
+// 배경 요소(SignupForm의 '다음' 버튼 등)가 Tab으로 여전히 도달 가능하다 — 포커스 가능 요소가
+// 닫기 버튼 하나뿐이라도 Tab/Shift+Tab이 그 버튼 안에서 순환하도록 이 컴포넌트가 직접 트랩한다
+// (포커스 이동/복귀는 Modal이 제공하지 않아 함께 처리한다 — 이 저장소의 다른 모달도 아직 이걸
+// 하는 곳이 없다).
 // AppState의 modalOpen에는 묶지 않는다 — 회원가입 화면을 벗어나면 함께 사라져야 하는 화면 전용
-// UI 상태라서 SignupForm의 로컬 useState로 관리한다(작업 지시 참고).
+// UI 상태라서 SignupForm의 로컬 useState로 관리한다.
 
 import { useEffect, useId, useRef } from 'react'
 import type { RefObject } from 'react'

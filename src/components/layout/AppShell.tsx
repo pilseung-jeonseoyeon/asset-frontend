@@ -1,22 +1,18 @@
-// Auth gating (source's isAuthed, dc.html L701) is real now that the backend requires a JWT — see
-// src/stores/auth.ts. Four branches:
-//   'unknown', never seen a session on this browser (stores/auth.ts hasSeenSession()) — render the
-//                     login screen immediately instead of waiting on the silent refresh. A visitor
-//                     who has never logged in here has nothing to gain from waiting on a refresh
-//                     that's virtually guaranteed to 401; useRestoreSession keeps that refresh going
-//                     in the background and flips status to 'authenticated' if it somehow succeeds
-//                     (e.g. a session created in another tab).
-//   'unknown', has seen a session before — show BootScreen (not a blank `—`) while the silent
-//                     refresh resolves, so a returning, already-logged-in user doesn't see the login
-//                     screen flash before it comes back.
-//   'anonymous'     — render ONLY screens/Auth/Auth.tsx. Deliberately skip SidebarNav/Header/every
-//                     modalXxx here — several of them fire queries on mount (useGetMe, category lists,
-//                     etc.), and mounting them while anonymous would fire a burst of 401s against
-//                     endpoints that now require a token.
-//   'authenticated' — the original nav/screens/modals tree, split into its own lazy chunk
-//                     (AuthenticatedApp) so a login-only visitor never downloads it. Wrapped in
-//                     ChunkErrorBoundary because a chunk fetch can *reject* (a redeploy removes the
-//                     old hashed URL from under a long-open tab), which Suspense does not handle.
+// 인증 게이팅 — 백엔드가 JWT를 요구하므로 실제로 동작한다(src/stores/auth.ts 참고). 네 갈래:
+// 'unknown', 이 브라우저에서 세션을 본 적이 없음(stores/auth.ts hasSeenSession()) —
+// 조용한 refresh를 기다리지 않고 곧바로 로그인 화면을 그린다. 한 번도 로그인한
+// 적 없는 방문자는 사실상 401이 확정인 refresh를 기다려봐야 얻을 게 없다.
+// useRestoreSession은 그 refresh를 백그라운드에서 계속 진행하고, 어쩌다
+// 성공하면(예: 다른 탭에서 만든 세션) status를 'authenticated'로 바꾼다.
+// 'unknown', 세션을 본 적이 있음 — 조용한 refresh가 끝날 때까지 빈 '—'가 아니라 BootScreen을
+// 보여준다. 이미 로그인한 채 돌아온 사용자에게 로그인 화면이 번쩍이지 않게.
+// 'anonymous' — screens/Auth/Auth.tsx만 그린다. SidebarNav/Header/모든 모달은 일부러
+// 건너뛴다 — 여럿이 마운트되자마자 쿼리를 쏘는데(useGetMe, 분류 목록 등),
+// 익명 상태로 마운트하면 토큰이 필요한 엔드포인트에 401이 무더기로 나간다.
+// 'authenticated' — 내비/화면/모달 트리 전체. 별도 lazy 청크(AuthenticatedApp)로 갈라 로그인만
+// 하고 가는 방문자가 내려받지 않게 한다. 청크 요청은 *reject*될 수 있어
+// (재배포로 예전 해시 URL이 사라진 채 오래 열려 있던 탭) Suspense가 처리하지
+// 못하므로 ChunkErrorBoundary로 감싼다.
 
 import { lazy, Suspense, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'

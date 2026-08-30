@@ -1,9 +1,8 @@
-// Source: secret/Asset Manager v14.dc.html L457-509 (brand aside), L695-699 (footer + outer shell).
-// The per-screen sc-if blocks (L513-693) are split into LoginForm/SignupForm/ResetPasswordForm so each
-// mutation/validation lives next to its own markup instead of one giant switch — this file only owns
-// the two-pane shell and the login/signup/resetPassword router.
-// Logo SVG mirrors components/layout/MonitLogo.tsx (same light/dark swap via CSS class, see
-// base.css .monit-logo-light/-dark) at the source's 44px auth size instead of the sidebar's 40px.
+// 인증 화면의 두 단 껍데기 + 로그인/회원가입/비밀번호 재설정 라우터.
+// 화면별 폼은 LoginForm/SignupForm/ResetPasswordForm으로 나눠, 각 요청·검증이 자기 마크업 옆에
+// 있게 했다.
+// 로고 SVG는 components/layout/MonitLogo.tsx와 같은 심볼이고(라이트/다크 전환도 base.css의
+// .monit-logo-light/-dark로 동일) 크기만 인증 화면용 44px이다.
 // 도형은 secret/monit-symbol-spec.md §3-1/§3-2 규격 그대로이고, 그라데이션·clipPath id는
 // useId()로 인스턴스마다 고유하게 만든다(규격 §4 — id가 겹치면 그라데이션이 깨진다).
 

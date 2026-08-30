@@ -1,10 +1,8 @@
-// Source: secret/Asset Manager v14.dc.html L952-966 (Dashboard 자산 구성 비율 donut) — transcribed
-// verbatim (size 126px, viewBox 0 0 42 42, r=15.915, stroke-width 7). ds_rules_v2_5.md §3-4 caps donuts
-// at exactly 2 locations app-wide (Dashboard asset composition, Stocks sector composition) — do not add
-// a 3rd usage of this component anywhere else in the app.
-// stroke-dasharray/-dashoffset are derived mechanically from each segment's percentage (this is how the
-// single confirmed instance already encodes rank 1-6: 23/22/19/18/11/7 → dasharray "{pct} {100-pct}",
-// cumulative negative dashoffset) — not an invented visual behavior, just parametrizing the one instance.
+// 도넛 차트(126px, viewBox 0 0 42 42, r=15.915, stroke-width 7).
+// ds_rules_v2_5.md §3-4가 앱 전체에서 도넛을 정확히 두 곳으로 제한한다(대시보드 자산 구성 비율,
+// 주식 섹터 구성) — 세 번째 사용처를 만들지 말 것.
+// stroke-dasharray/-dashoffset은 조각별 비중에서 기계적으로 계산한다
+// (dasharray는 '{비중} {100-비중}', dashoffset은 앞 조각들의 누적값을 음수로).
 
 interface DonutSegment {
   pct: number

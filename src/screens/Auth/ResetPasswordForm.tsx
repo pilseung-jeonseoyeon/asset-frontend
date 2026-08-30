@@ -1,12 +1,8 @@
-// Source: secret/Asset Manager v14.dc.html L647-671 (authForgot sc-if block, resetSent toggling
-// between "이메일 입력" and "메일을 보냈습니다" panels). The source's flow only ever sends a reset
-// *link* by email — there's no code/new-password step because the prototype has no PUT /auth/password
-// to call. The real contract is code-based (POST /auth/password/code → PUT /auth/password with
-// {email, code, newPassword}), so this port adds a middle "code + new password" step between the
-// source's two panels: email → 코드 받기 → 코드+새 비밀번호 → 완료. The completion panel's copy/button
-// ("로그인으로 돌아가기") is transcribed from the source's resetSent panel almost verbatim.
+// 비밀번호 재설정: 이메일 → 코드 받기 → 코드 + 새 비밀번호 → 완료.
+// 서버 계약이 링크가 아니라 코드 방식이다(POST /auth/password/code → PUT /auth/password에
+// {email, code, newPassword}).
 //
-// newPassword/newPasswordConfirm are local useState — see LoginForm.tsx header comment for why.
+// newPassword/newPasswordConfirm은 로컬 useState다 — 이유는 LoginForm.tsx 헤더 주석 참고.
 
 import { useState } from 'react'
 import type { FormEvent } from 'react'

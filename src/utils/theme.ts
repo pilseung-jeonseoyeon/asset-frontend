@@ -1,8 +1,5 @@
-// Source: secret/Asset Manager v14.dc.html L3524-3546 (componentDidMount/componentDidUpdate/applyTheme) —
-// logic transcribed verbatim, ported from class lifecycle methods to a useEffect-based hook.
-//
-// 아래 localStorage 유틸(THEME_STORAGE_KEY 이하)과 서버 enum 변환 함수는 원본에 없는, 설정 화면
-// 서버 연동을 위해 이번에 추가된 부분이다 — dc.html에는 테마를 저장하는 로직 자체가 없었다.
+// 테마를 <html>에 적용하는 훅과, 서버 enum(ThemeType) ↔ 화면 상태(ThemeSetting) 변환.
+// localStorage 캐시는 부팅 첫 페인트용 힌트이고 정본은 서버 설정이다(THEME_STORAGE_KEY 주석 참고).
 
 import { useEffect } from 'react'
 import type { ThemeType } from '../services/common.type'
@@ -49,7 +46,7 @@ export function storeTheme(theme: ThemeSetting): void {
  * 서버가 `ThemeType`에 없는 값을 보내면(스펙 밖 값, 응답 손상 등) switch가 아무 case에도
  * 안 걸려 `undefined`를 반환했었다 — 그 값이 그대로 `storeTheme(undefined)`(localStorage에
  * 문자열 `"undefined"` 저장) → `setState({ theme: undefined })`(AppState 타입 계약 위반)로
- * 이어져 렌더가 깨졌다(리뷰 #8). `readStoredTheme`이 화이트리스트 검증으로 항상 유효한
+ * 이어져 렌더가 깨졌다. `readStoredTheme`이 화이트리스트 검증으로 항상 유효한
  * `ThemeSetting`을 반환하는 것과 대칭이 되도록 기본값 `'light'`로 방어한다.
  */
 export function toThemeSetting(theme: ThemeType): ThemeSetting {

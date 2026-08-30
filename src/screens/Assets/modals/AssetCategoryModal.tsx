@@ -1,7 +1,5 @@
-// Source: secret/Asset Manager v14.dc.html L1517-1556 (자산 카테고리 계좌 목록 모달) — transcribed
-// verbatim. Gated by `state.assetClassDetail !== null` (a dedicated state field), NOT `state.modalOpen` like
-// the other 13 modalXxx — matches source's own `hasAssetCat`/`closeAssetCat` pattern (L4491-4492).
-// z-index 80, width 500px, maxHeight 86vh.
+// 자산군별 계좌 목록 모달. 다른 모달과 달리 `state.modalOpen`이 아니라 전용 필드
+// `state.assetClassDetail !== null`로 열림을 판단한다. z-index 80, 너비 500px, maxHeight 86vh.
 //
 // 계좌 목록은 GET /assets/distribution?groupBy=CLASS의 byClass[].accounts에서 온다. 이 응답에는
 // 기관명이 없어 GET /accounts 결과와 accountId로 조인한다(src/data/assetsView.ts buildAssetCats) —
@@ -9,11 +7,10 @@
 //
 // 계좌 행을 탭하면 AccountDetailModal(z-index 90, §7-1 2단 모달)이 이 모달 위에 열린다
 // (`accountDetail: accountId`). 행 컨테이너는 상호작용 요소가 아닌 일반 div이고, 그 안에
-// 계좌 정보 버튼과 "계좌 수정" 버튼을 형제로 둔다(중첩 상호작용 요소 회피, WAI-ARIA).
+// 계좌 정보 버튼과 '계좌 수정' 버튼을 형제로 둔다(중첩 상호작용 요소 회피, WAI-ARIA).
 //
-// **"최근 6개월 추이" 칸은 없다**(2026-08-28, 사용자 결정 — "상세에 6개월 추이 그래프 없애줘").
-// 2026-08-27에 GET /dashboard/trend?type={AccountType}로 한 번 넣었다가 걷어냈다. 다시 넣자는
-// 이야기가 나오면 사용자에게 먼저 확인할 것 — API는 그대로 있으니 되살리는 건 어렵지 않다.
+// **'최근 6개월 추이' 칸은 없다**(사용자 결정). 다시 넣자는 이야기가 나오면 사용자에게 먼저 확인할
+// 것 — GET /dashboard/trend?type={AccountType} API는 그대로 있으니 되살리는 건 어렵지 않다.
 
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
@@ -114,7 +111,7 @@ export function AssetCategoryModal() {
               addAccountReturnTo: null,
               // 어느 자산군 칸에서 열었는지 폼에 반영해야 한다 — 안 하면 기본값(BLANK_ACCOUNT_FORM.type
               // === 'CASH')이 항상 선택되어 주식 칸에서 만든 계좌가 현금으로 저장되는 사고가 난다.
-              // 통화(currency)는 여기서 건드리지 않는다 — 자산군과 통화의 연결은 2026-08-27 주식 통합
+              // 통화(currency)는 여기서 건드리지 않는다 — 자산군과 통화의 연결은 주식 통합
               // 때 사라졌다(assetClassFormPreset 주석 참고).
               accountForm: { ...BLANK_ACCOUNT_FORM, ...assetClassFormPreset(selectedAssetClass.id) },
             })

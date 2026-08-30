@@ -7,7 +7,7 @@ export type Currency = 'KRW' | 'USD'
 export type PeriodUnit = 'DAY' | 'MONTH' | 'YEAR'
 
 /**
- * 계좌 유형. 2026-08-27 라이브 OpenAPI 대조로 **5종**임을 확인했다 — 직전 6종에서
+ * 계좌 유형. 라이브 OpenAPI 대조로 **5종**임을 확인했다 — 직전 6종에서
  * DOMESTIC_STOCK/FOREIGN_STOCK이 STOCK 하나로 합쳐졌다(실제 증권계좌 하나가 원화·달러 예수금과
  * 국내·해외 종목을 함께 담기 때문). AssetClass와 여전히 1:1이며 이름만 ETC↔PENSION_ETC로 다르다.
  * 없어진 값을 보내면 400이 아니라 500이 나므로 이 목록 밖의 값을 만들지 말 것.
@@ -32,7 +32,7 @@ export type InstitutionType =
   | 'OTHER'
 
 /**
- * 자산군 5분류. 2026-08-27 라이브 OpenAPI 대조로 DOMESTIC_STOCK/FOREIGN_STOCK이 STOCK 하나로
+ * 자산군 5분류. 라이브 OpenAPI 대조로 DOMESTIC_STOCK/FOREIGN_STOCK이 STOCK 하나로
  * 합쳐진 것을 확인했다(AccountType 주석 참고).
  *
  * **화면의 '부동산' 칸은 여기 없다** — 서버에 부동산 자산군이 아직 없어서 등록도 조회도 되지 않고,
@@ -96,7 +96,7 @@ export interface TransactionSearchParams {
   subcategoryId?: number
   accountId?: number
   /**
-   * 검색 키워드 — 내용·메모 부분일치(대소문자 무시), 생략하면 전체(2026-08-29 라이브 OpenAPI 원문).
+   * 검색 키워드 — 내용·메모 부분일치(대소문자 무시), 생략하면 전체(라이브 OpenAPI 원문).
    * 날짜 조건(year·month / from·to)을 모두 생략하면 전체 기간에서 찾는다.
    */
   keyword?: string
@@ -105,7 +105,7 @@ export interface TransactionSearchParams {
   size?: number
   /**
    * `'필드명,asc|desc'` 형태를 여러 개 넘길 수 있다(반복 파라미터로 직렬화됨).
-   * 엔티티 필드명만 쓸 수 있고, 없는 필드를 보내면 400이 아니라 500이 난다(API-SPEC §6.1).
+   * 엔티티 필드명만 쓸 수 있고, 없는 필드를 보내면 400이 아니라 500이 난다.
    */
   sort?: string[]
 }

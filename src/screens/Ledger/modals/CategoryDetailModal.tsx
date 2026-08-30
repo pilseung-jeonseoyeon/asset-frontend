@@ -1,7 +1,6 @@
-// Source: secret/Asset Manager v14.dc.html L2072-2109 (분류별 지출 상세 모달, catDetailModal) —
-// transcribed verbatim. z-index 80, width 460px, maxHeight 86vh. Opened from Ledger's 전월 대비 분류별
-// 지출 rows. Data source swapped from the mock's deterministic pseudo-random generator (seeded from
-// name lengths) to GET /transactions/categories/{categoryId}/detail.
+// 분류별 지출 상세 모달. z-index 80, 너비 460px, maxHeight 86vh.
+// 가계부의 '전월 대비 분류별 지출' 줄에서 열린다.
+// 데이터는 GET /transactions/categories/{categoryId}/detail.
 
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'

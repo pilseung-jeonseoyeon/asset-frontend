@@ -1,31 +1,25 @@
-// View-model layer for the 주식(Stocks) screen: adapts server responses (GET /indices, GET /stocks,
-// GET /stocks/holdings, GET /stocks/holdings/groups, GET /stocks/holdings/closed, GET /exchanges/summary,
-// GET /trades) into the shapes the screen and its modals (QuickStockModal/ExchangeAddModal/
-// TradeEditModal) render. Ported from the old src/data/mockStocks.ts — the pct/sign/color formula
-// (`(pct>=0?'+':'−')+Math.abs(pct).toFixed(1)+'%'`, U+2212, var(--up)/var(--down), ds_rules_v2_5.md
-// §10-1) and the ramp color order (§1-6) are transcribed verbatim. What changed is the input: values
-// now come from real aggregates instead of hardcoded literals, so every division here has an explicit
-// 0-guard (unlike the mock, a real portfolio can legitimately have 0 holdings, 0 total value, or 0 cost
-// basis).
+// 주식 화면의 뷰모델 레이어 — 서버 응답(GET /indices, GET /stocks, GET /stocks/holdings,
+// GET /stocks/holdings/groups, GET /stocks/holdings/closed, GET /exchanges/summary, GET /trades)을
+// 화면과 모달(QuickStockModal/ExchangeAddModal/TradeEditModal)이 그릴 형태로 바꾼다.
 //
-// 2026-08-17 추가: filterTradeAccounts(매매 계좌를 증권/가상자산 타입으로 좁힘), buildTradeRows(매매
-// 내역 섹션 뷰모델, 투자 거래를 §10-4의 "이체"로 렌더). buildMarketIndexViews의 valueFmt도 자릿수를
-// 항상 2자리로 고정하도록 고쳤다(서버가 지수마다 소수점 자릿수를 다르게 내려보내 KOSPI/S&P는 2자리인데
-// NASDAQ만 3자리로 온 적이 있음, 실행 화면 확인).
+// 증감 표기 규칙(`(pct>=0?'+':'−')+Math.abs(pct).toFixed(1)+'%'`, 빼기 기호는 U+2212,
+// var(--up)/var(--down), ds_rules_v2_5.md §10-1)과 램프 색 순서(§1-6)는 디자인 시스템 규칙이다 —
+// 임의로 바꾸지 말 것. 값이 전부 서버 집계에서 오므로 나눗셈마다 0 방어가 붙어 있다(실제 포트폴리오는
+// 보유 종목 0개, 총 평가액 0, 원가 0이 정상적으로 나올 수 있다).
 //
-// 2026-08-17 재수정(docs/frontend-todo.md A-7 · B-5): HoldingRes.valuationKrw·unrealizedPnlKrw·
-// returnRatePercent·currentPrice·previousClosePrice·dayChangePercent·priceAsOf가 nullable로
-// 확인됐다(시세 미확보 시 전부 null, 0이 아님). buildHoldingCards/buildPortfolioSummary가 null을
-// 명시적으로 걸러내도록 다시 썼고, 원가 역산(valuationKrw − unrealizedPnlKrw)은 서버가 주는
-// totalCostKrw로 교체했다. ticker·currentPrice·dayChangePercent가 이제 HoldingRes/ClosedHoldingRes에
-// 직접 포함돼 있어(과거엔 없었다) GET /stocks 전체 목록 조인이 더 이상 필요 없다.
+// **시세 미확보 처리가 이 파일의 핵심 함정이다.** HoldingRes의 valuationKrw·unrealizedPnlKrw·
+// returnRatePercent·currentPrice·previousClosePrice·dayChangePercent·priceAsOf는 전부 nullable이고,
+// 시세를 못 받으면 0이 아니라 null로 온다 — 0으로 접지 말 것. buildHoldingCards/buildPortfolioSummary는
+// null을 명시적으로 걸러낸다. 원가는 valuationKrw − unrealizedPnlKrw로 역산하지 말고 서버가 주는
+// totalCostKrw를 쓴다.
 //
-// 2026-08-17 리뷰 반영: buildPortfolioSummary의 총 매수금액·총 평가금액·평가손익·평가수익률
-// 네 지표를 같은 모수(시세 확보 종목)로 통일했고(사유는 함수 docstring), totalValueFmt도
-// pnlFmt/returnRateFmt와 같은 null 폴백 패턴을 따르게 했다. buildHoldingCards의 gainFmt는 손익
-// 금액과 수익률 표시를 분리해, 원가가 0이라 수익률만 계산 불가(returnRatePercent === null)여도
-// 실제 손익 금액(unrealizedPnlKrw)은 계속 보여준다. currentPriceFmt/buildTradeRows.amountFmt는
-// 통화별 소수 자릿수를 고정하는 utils/format.ts의 formatCurrencyAmount로 교체했다.
+// buildPortfolioSummary의 총 매수금액·총 평가금액·평가손익·평가수익률 네 지표는 같은 모수
+// (시세 확보 종목)로 통일돼 있다(사유는 함수 docstring). buildHoldingCards의 gainFmt는 손익 금액과
+// 수익률 표시를 분리해, 원가가 0이라 수익률만 계산 불가(returnRatePercent === null)여도 실제 손익
+// 금액(unrealizedPnlKrw)은 계속 보여준다.
+// 금액 표기는 통화별 소수 자릿수를 고정하는 utils/format.ts의 formatCurrencyAmount를 쓴다.
+// buildMarketIndexViews의 valueFmt도 자릿수를 항상 2자리로 고정한다 — 서버가 지수마다 소수점
+// 자릿수를 다르게 내려보낸다(KOSPI/S&P는 2자리인데 NASDAQ만 3자리로 온 적이 있음).
 
 import { formatNumber, formatKrw, formatCurrencyAmount } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
@@ -53,14 +47,14 @@ const INDEX_SYMBOL_LABELS: Record<string, string> = {
 }
 
 /**
- * 시장 지표 카드 표시 순서(dc.html 마크업 순서: KOSPI → S&P 500 → NASDAQ → USD/KRW). 일부 심볼
+ * 시장 지표 카드 표시 순서(KOSPI → S&P 500 → NASDAQ → USD/KRW). 일부 심볼
  * 조회가 실패하면 배열에서 통째로 빠질 수 있으므로(marketIndex.type.ts) 이 목록에 없는 심볼은
  * 버리지 않고 뒤에 붙인다.
  */
 const MARKET_INDEX_ORDER = ['KOSPI', 'SPX', 'IXIC', 'USDKRW']
 
 /** 로딩 중 스켈레톤을 몇 칸 그릴지 — 실제로 도착할 지표 개수와 같은 칸 수라야 레이아웃이 튀지 않는다.
- *  (일부 심볼 조회가 실패하면 실제 칸 수가 줄어들 수는 있다.) */
+ * (일부 심볼 조회가 실패하면 실제 칸 수가 줄어들 수는 있다.) */
 export const MARKET_INDEX_COUNT = MARKET_INDEX_ORDER.length
 
 function marketIndexOrderIndex(symbol: string): number {
@@ -84,7 +78,7 @@ export function buyMarketToMarket(stockBuyMarket: string): Market {
  * 신규 종목 등록 시 market에 따른 기본 통화. 이 화면은 KR/US만 다루므로 CRYPTO는 대상이 아니다.
  *
  * CRYPTO 종목은 서버 시세 수집이 업비트 KRW 마켓에 고정되어 있어, 등록 시 currency를 반드시
- * KRW로 넣어야 한다(USD로 등록하면 환율이 이중으로 곱해진다 — 2026-08-15 백엔드 확정). 이후
+ * KRW로 넣어야 한다(USD로 등록하면 환율이 이중으로 곱해진다 — 백엔드 확정). 이후
  * CRYPTO 등록 UI를 만들 때는 통화를 선택하게 하지 말고 KRW로 고정해서 구현할 것.
  */
 export function marketToCurrency(market: Market): Currency {
@@ -120,7 +114,7 @@ export function buildMarketIndexViews(indices: MarketIndexResponse[]): MarketInd
         symbol: idx.symbol,
         label: INDEX_SYMBOL_LABELS[idx.symbol] ?? idx.symbol,
         // 소수점 자릿수를 지수마다 서버가 다르게 내려준다(NASDAQ만 3자리로 온 적 있음, 실행 화면
-        // 확인) — formatNumber()는 자릿수를 고정하지 않으므로, 원본대로 항상 2자리로 고정한다.
+        // 확인) — formatNumber()는 자릿수를 고정하지 않으므로 여기서 항상 2자리로 고정한다.
         valueFmt: idx.currentValue.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         changePctFmt: changePercent !== null ? (positive ? '+' : '−') + Math.abs(changePercent).toFixed(2) + '%' : null,
         positive,
@@ -141,7 +135,7 @@ export interface GroupReturnView {
 /**
  * by='sector'면 groupKey가 이미 한글 섹터명(또는 '기타')이고, by='market'이면 'KR' 같은 enum 코드다.
  *
- * 원가(평가액 − 손익)가 0인 그룹은 서버가 returnRatePercent를 null로 준다(API-SPEC §10.5).
+ * 원가(평가액 − 손익)가 0인 그룹은 서버가 returnRatePercent를 null로 준다.
  * null을 그대로 계산에 넣으면 `null >= 0`이 true라 `+0.0%`가 찍혀, 실제로는 "계산 불가"인 그룹이
  * "손익 0"인 것처럼 보인다 — 조용히 틀린 값을 보여주게 되므로 반드시 걸러낸다.
  */
@@ -237,8 +231,8 @@ function currencySymbolOf(currency: HoldingResponse['currency']): string {
   return currency === 'USD' ? '$' : ''
 }
 
-/** 수익률 높은 순으로 정렬한다(구 mockStocks.ts 데이터 순서와 동일한 기준). ticker·현재가·전
- * 영업일 대비는 이제 HoldingResponse에 직접 포함돼 있다(2026-08-17, stock.type.ts 참고 —
+/** 수익률 높은 순으로 정렬한다. ticker·현재가·전
+ * 영업일 대비는 이제 HoldingResponse에 직접 포함돼 있다(stock.type.ts 참고 —
  * 과거엔 없어 별도 조인이 필요했다). */
 export function buildHoldingCards(holdings: HoldingResponse[]): HoldingCardView[] {
   return sortHoldingsByReturn(holdings).map((h) => {
@@ -312,11 +306,11 @@ export interface PortfolioSummaryView {
  * 전용 요약 API가 없어 보유 종목 배열을 합산해 파생한다.
  *
  * 총 매수금액·총 평가금액·평가손익·평가수익률 네 지표는 모두 시세 확보 종목(priced)만으로
- * 합산해 같은 모수를 쓴다. 예전에는 총 매수금액만 전체 보유종목(totalCostKrw 전량)의 합이라
- * 시세 확보분만 더한 평가금액·손익과 모수가 달랐다 — 예를 들어 A(원가 100만, 시세 미확보) +
+ * 합산해 같은 모수를 쓴다. 총 매수금액만 전체 보유종목(totalCostKrw 전량)의 합으로 잡으면
+ * 시세 확보분만 더한 평가금액·손익과 모수가 달라진다 — 예를 들어 A(원가 100만, 시세 미확보) +
  * B(원가 200만, 평가 250만)면 "평가금액 250만 / 매수금액 300만인데 손익은 +50만"으로 보여
- * 사용자가 250만−300만=−50만로 암산한 값과 어긋났다(리뷰 지적). 네 숫자를 모두 시세 확보분
- * 기준으로 통일해 "평가금액 − 매수금액 = 손익"이 화면에서도 항상 맞게 했다. 그 대가로 시세
+ * 사용자가 250만−300만=−50만으로 암산한 값과 어긋난다. 네 숫자를 모두 시세 확보분 기준으로
+ * 통일해야 "평가금액 − 매수금액 = 손익"이 화면에서도 항상 맞는다. 그 대가로 시세
  * 미확보 종목이 있으면 총 매수금액이 실제 투입액보다 작게 보일 수 있는데, 이는
  * hasMissingPrice 캡션(Stocks.tsx)이 "총 매수금액·평가금액·손익"을 함께 언급해 안내한다.
  *
@@ -396,7 +390,7 @@ export function buildClosedHoldingCards(closedHoldings: ClosedHoldingResponse[])
  * 시장별로 매매에 쓸 수 있는 계좌 타입. 서버가 계좌 타입을 검증하지 않아 현금 계좌로도 매매가 그대로
  * 등록되던 문제를 프론트에서 좁혀 막는다.
  *
- * 2026-08-27 계약 변경으로 DOMESTIC_STOCK/FOREIGN_STOCK이 STOCK 하나가 되면서 **KR과 US가 같은
+ * 계약 변경으로 DOMESTIC_STOCK/FOREIGN_STOCK이 STOCK 하나가 되면서 **KR과 US가 같은
  * 계좌 타입을 본다** — 실제 증권계좌 하나가 삼성전자와 애플을 함께 담기 때문이다. 잠깐 유지됐던
  * "국내 종목은 국내주식 계좌만" 규칙은 서버에서 사라졌으니 되살리지 말 것. 그래도 이 표가 남아 있는
  * 이유는 그대로다: 현금·예적금·연금 계좌로 매매가 잡히는 것은 계속 막는다.
@@ -421,7 +415,7 @@ export function filterTradeAccounts(accounts: AccountResponse[], market: Market)
  * 계좌 유형 → 그 계좌가 담을 수 있는 시장 **목록**. 위 TRADE_ACCOUNT_TYPES_BY_MARKET의 역방향이며,
  * 매매 대상이 아닌 유형(현금·예적금·연금기타)은 빈 배열이다.
  *
- * 2026-08-27 이전에는 계좌 유형과 시장이 1:1이라 Market 하나를 돌려줬지만, STOCK 계좌가 KR과 US를
+ * 이전에는 계좌 유형과 시장이 1:1이라 Market 하나를 돌려줬지만, STOCK 계좌가 KR과 US를
  * 함께 담게 되면서 배열이 됐다 — 이 계좌에 담긴 종목의 시장은 계좌가 아니라 **고른 종목**이 정한다
  * (AccountHoldingsField가 줄마다 StockRes.market을 들고 있다).
  *
@@ -446,7 +440,7 @@ export interface AccountInstitutionMeta {
 
 /**
  * QuickStockModal 계좌 드롭다운에 "이 계좌가 어느 기관 것인지"를 함께 보여주기 위한 조인
- * (2026-08-18 추가). AccountResponse.institutionId로 GET /institutions 응답을 찾아 그 기관의
+ * (추가). AccountResponse.institutionId로 GET /institutions 응답을 찾아 그 기관의
  * icon(tokenKey)이 BANK_INSTITUTIONS 마스터(design/bank-institutions.ts)에 실제로 등록된 값일 때만
  * 매칭으로 본다 — institutionName은 있는데 기관에 아이콘을 아직 안 골랐거나(icon: null) BankIcon이
  * 모르는 값이면, 어설프게 기본 아이콘(pillar)으로 채우지 않고 계좌명만 보여준다(호출부 결정). null을

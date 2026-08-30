@@ -1,6 +1,6 @@
 import type { Currency, Market } from '../common.type'
 
-// API-SPEC §10. 구 /holdings는 폐기되고 /stocks/holdings로 통합됐다.
+// 구 /holdings는 폐기되고 /stocks/holdings로 통합됐다.
 
 export interface StockResponse {
   id: number
@@ -24,7 +24,7 @@ export interface CreateStockRequest {
  * 보유 수량 0 초과인 종목만.
  *
  * valuationKrw·unrealizedPnlKrw·returnRatePercent·currentPrice·previousClosePrice·dayChangePercent·
- * priceAsOf는 전부 시세 미확보(priceAsOf === null) 시 함께 null이다 — 0으로 접지 말 것(2026-08-17,
+ * priceAsOf는 전부 시세 미확보(priceAsOf === null) 시 함께 null이다 — 0으로 접지 말 것(,
  * docs/frontend-todo.md A-7). totalCostKrw·avgCostPriceKrw·realizedPnlKrw는 원장 계산이라 시세와
  * 무관하게 항상 채워진다.
  */

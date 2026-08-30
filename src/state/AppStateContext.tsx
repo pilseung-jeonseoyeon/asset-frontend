@@ -3,7 +3,7 @@ import type { AppState } from './types'
 import { initialState } from './initialState'
 import { appReducer } from './reducer'
 
-// setState mirrors dc.html's `this.setState(partial | updaterFn)` (see actions.ts header comment).
+// setState는 부분 객체 또는 갱신 함수를 받는다(actions.ts 헤더 주석 참고).
 type SetAppState = (patch: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void
 
 interface AppStateContextValue {

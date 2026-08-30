@@ -10,7 +10,7 @@ interface QueryOptions {
 
 /**
  * 목표 조회. `isUnset`은 "아직 목표를 등록하지 않음" — 서버가 이 상태를 에러가 아니라
- * targetDate: null로 표현하기 때문에(API-SPEC §5.1) 화면에서 등록 유도 UI를 띄울 때 쓴다.
+ * targetDate: null로 표현하기 때문에 화면에서 등록 유도 UI를 띄울 때 쓴다.
  *
  * **응답이 도착한 뒤에만 true가 된다.** `data?.targetDate == null`로 두면 로딩 중에도 true라,
  * 목표가 멀쩡히 있는 사용자에게 모달을 열 때마다(그리고 목표를 저장해 쿼리가 무효화된 직후마다)

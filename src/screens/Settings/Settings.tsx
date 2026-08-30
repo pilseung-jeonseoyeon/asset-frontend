@@ -1,6 +1,6 @@
-// Source: secret/Asset Manager v14.dc.html L3138-3184 (isSet block, 3-card grid) — transcribed verbatim.
-// The 4 modals (modalGeneral/modalData/modalCustom/modalCategorySettings) mount at AppShell level, same
-// as every other modalXxx (see AppShell.tsx comment on why modals aren't nested inside their screen).
+// 설정 화면(카드 3개 그리드).
+// 모달 4개(modalGeneral/modalData/modalCustom/modalCategorySettings)는 다른 모달과 마찬가지로
+// AppShell 레벨에 마운트된다(모달을 화면 안에 중첩하지 않는 이유는 AppShell.tsx 주석 참고).
 
 import { Icon } from '../../components/primitives/Icon/Icon'
 import { useAppState } from '../../state/AppStateContext'

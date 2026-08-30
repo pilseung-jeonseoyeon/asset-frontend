@@ -32,7 +32,7 @@ export function downloadImportTemplate(kind: ImportKind): Promise<BlobFileResult
  * Content-Type을 여기서 `multipart/form-data`로 **반드시 덮어쓴다**. 공용 `api` 인스턴스의 기본 헤더가
  * application/json인데, axios 1.x는 "body가 FormData이고 Content-Type이 JSON이면" FormData를 JSON 객체로
  * 직렬화해 보낸다(lib/defaults transformRequest의 `hasJSONContentType ? JSON.stringify(formDataToJSON(data))`).
- * 그래서 2026-08-22 첫 업로드가 서버에서 `Content-Type 'application/json' is not supported`(415)로 거절됐다.
+ * 그래서 첫 업로드가 서버에서 `Content-Type 'application/json' is not supported`(415)로 거절됐다.
  * multipart로 지정하면 브라우저 어댑터가 그 값을 지우고 boundary가 붙은 실제 multipart 헤더를 브라우저가 붙인다
  * — 여기서 직접 boundary를 만들지 않는다.
  * 응답은 전체 성공(errors 빈 배열) 또는 전체 롤백(importedCount 0 + errors) 둘 중 하나다(import.type.ts 참고).

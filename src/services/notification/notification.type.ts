@@ -1,4 +1,3 @@
-// API-SPEC §9.
 //
 // 실시간 스트림(GET /notifications/stream, SSE)은 아직 붙이지 않았다 — 브라우저 기본
 // EventSource는 Authorization 헤더를 실을 수 없어 fetch 기반 클라이언트가 따로 필요하다.

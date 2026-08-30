@@ -1,6 +1,6 @@
 import type { AssetClass } from '../common.type'
 
-// API-SPEC §3. 자산 분포/유동성 분석.
+// 자산 분포/유동성 분석.
 
 export interface DistributionAccount {
   accountId: number

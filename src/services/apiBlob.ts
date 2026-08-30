@@ -6,7 +6,7 @@
 // 공유하지 않고, 여기서 Blob을 텍스트로 직접 읽어 서버가 준 실제 에러 메시지를 복원한다. 401 재발급은
 // `api.ts`의 단일 비행 큐(`refreshAccessToken`)를 그대로 재사용해 이중 구현을 피한다.
 //
-// 원래 export.service.ts 안에 있던 것을 2026-08-22 가계부 엑셀 가져오기(양식 내려받기)가 생기면서
+// 원래 export.service.ts 안에 있던 것을 가계부 엑셀 가져오기(양식 내려받기)가 생기면서
 // 공용으로 끌어올렸다 — 도메인 폴더끼리는 서로 import하지 않는다는 규칙(docs/api-conventions.md)
 // 때문에 export → import 방향으로 가져다 쓰지 않고 api.ts 옆에 둔다.
 

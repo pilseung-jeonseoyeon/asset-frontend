@@ -1,6 +1,5 @@
-// Source: secret/ds_rules_v2_5.md L566-745 (§12-3, 125-institution master table) — transcribed verbatim.
-// bg/fg CSS values are declared as --bank-{tokenKey}-bg/-fg in src/styles/bank-tokens.css (source of the
-// literal values there is dc.html L33-166/184-317, which matches this table's 라이트/다크 columns 1:1).
+// 국내 금융기관 125개 마스터 표(ds_rules_v2_5.md §12-3).
+// bg/fg 실제 색값은 src/styles/bank-tokens.css의 --bank-{tokenKey}-bg/-fg에 선언돼 있다.
 
 import type { BankArchetype } from './bank-archetypes'
 

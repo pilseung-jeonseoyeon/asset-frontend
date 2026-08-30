@@ -1,7 +1,5 @@
-// Source: secret/Asset Manager v14.dc.html L2637-3011 (isLedger block) — layout/structure transcribed
-// verbatim, data source swapped from src/data/mockLedger.ts (deleted) to the transaction/subscription/
-// account services + src/data/ledgerView.ts. See ledgerView.ts header for which formulas are
-// design-system rules (kept verbatim) vs. new server-input plumbing.
+// 가계부 화면. 거래·구독·계좌 서비스에서 데이터를 읽고 src/data/ledgerView.ts로 화면 형태를 만든다.
+// 어떤 계산이 디자인 시스템 규칙인지는 ledgerView.ts 헤더 참고.
 
 import { useEffect, useRef } from 'react'
 import type { KeyboardEvent } from 'react'
@@ -93,7 +91,7 @@ function ErrorLine({ message, muted }: { message: string; muted: boolean }) {
 }
 
 /** 달력의 이체 줄을 만들기 위해 한 번에 받아오는 이체 거래 수. 한 달치 이체가 이 수를 넘으면
- *  넘친 만큼은 달력에 그려지지 않고 캡션으로 안내한다(transferTruncated). */
+ * 넘친 만큼은 달력에 그려지지 않고 캡션으로 안내한다(transferTruncated). */
 const CALENDAR_TRANSFER_SIZE = 200
 
 /**
@@ -116,7 +114,7 @@ const CALENDAR_DOT_LEGEND: { label: string; color: string }[] = [
  * 주/달 전체가 얼마인지 알 수 없었다 — 특히 모바일은 칸에서 금액 배지를 걷어내고 색 점만 남겼기
  * 때문에(CalendarCellView 주석) 달력만 봐서는 규모를 전혀 알 수 없었다.
  *
- * 저축·이체는 넣지 않는다(2026-08-29 사용자 결정). 색만으로 수입/지출을 가르지 않도록 라벨과
+ * 저축·이체는 넣지 않는다(사용자 결정). 색만으로 수입/지출을 가르지 않도록 라벨과
  * +/− 부호를 함께 둔다. 0원인 기간은 "+0 / −0"이 어색하므로 부호 없이 회색 0으로 조용히 구분한다.
  */
 function CalendarTotalsRow({ periodLabel, income, expense }: { periodLabel: string; income: number; expense: number }) {
@@ -176,7 +174,7 @@ function CalendarCellView({
   // 늘려 캘린더 전체가 뷰포트 밖으로 밀려난다. minWidth:0으로 그리드 트랙이 실제 배정된 몫만큼만
   // 차지하게 하고, 배지는 그 안에서 넘치면 말줄임표로 자른다.
   //
-  // 모바일은 아예 금액 배지를 그리지 않는다(2026-08-20). 칸 폭을 64px로 고정하고 가로 스크롤로
+  // 모바일은 아예 금액 배지를 그리지 않는다. 칸 폭을 64px로 고정하고 가로 스크롤로
   // 넘기던 방식은 7칸(496px)이 어떤 폰 화면에도 들어가지 않아, 열자마자 한 열이 잘린 채로 보이고
   // "달력이 넘어갔다"로 읽혔다. 7칸을 화면 폭에 균등 분배(minmax(0,1fr))하는 대신 칸 안에는
   // 날짜와 거래 종류별 색 점만 남기고, 금액은 바로 아래 "전체 내역" 목록에서 본다 — 가로 스크롤이
@@ -315,7 +313,7 @@ function CalendarCellView({
 
 /**
  * 수입·지출·저축·이체 빠른 입력 버튼. 원래 '내역' 탭 툴바에만 있었는데, 가계부에 들어오면 항상
- * '개요' 탭이 먼저 떠서 지출 하나 적는 데 탭 전환이 한 번씩 더 들었다(2026-08-29 사용자 요청).
+ * '개요' 탭이 먼저 떠서 지출 하나 적는 데 탭 전환이 한 번씩 더 들었다(사용자 요청).
  * 두 탭이 공유하도록 화면 최상단 세그탭 옆으로 올렸다.
  */
 function EntryQuickButtons() {
@@ -419,7 +417,7 @@ function LedgerOverview() {
   const bars = buildSavingsBars(monthly.summaries, today.month)
   const recentAvg = computeRecentAvgSavingsRate(bars)
 
-  // 서버에 단일 구독 조회가 없어(secret/API-SPEC.md §8), 이미 이 화면이 받아둔 목록 행(SubscriptionRow)의
+  // 서버에 단일 구독 조회가 없어, 이미 이 화면이 받아둔 목록 행(SubscriptionRow)의
   // 값을 그대로 폼에 채운다 — sub가 null이면 신규 추가.
   const openRecur = (recurringType: 'fixed' | 'subscription', sub: SubscriptionRow | null) =>
     setState({
@@ -519,7 +517,7 @@ function LedgerOverview() {
                   >
                     {/* 네 칸의 고정 폭 합(56+92+40+64)에 간격 36을 더하면 288px이라, 좁은 폰
                         (아이폰 SE·미니 등 375px 이하)에서는 카드 안쪽 폭을 넘어 줄이 화면 밖으로
-                        밀려났다(2026-08-29 실기 확인, 306px에서 337px까지 넘침).
+                        밀려났다(실기 확인 — 306px에서 337px까지 넘쳤다).
                         flex:'none'을 '0 1 auto'로 바꿔 **자리가 모자랄 때만** 줄어들게 한다 — 데스크톱처럼
                         여유가 있으면 flex-basis(=width)가 그대로라 지금 보이는 정렬이 유지되고, 좁아지면
                         각 칸이 비례해 줄면서 넘치는 글자는 말줄임으로 잘린다. */}
@@ -913,7 +911,7 @@ function LedgerHistory() {
     }
   }
   // 주간/월간 토글: 상대 뷰가 보던 위치를 최대한 이어받는다. 월간 → 주간은 지금 커서 달이 실제
-  // 이번 달이면 오늘이 포함된 주, 아니면 그 달의 첫 주를 기본으로 보여준다(dc.html L4642-4643과
+  // 이번 달이면 오늘이 포함된 주, 아니면 그 달의 첫 주를 기본으로 보여준다(원래 화면과
   // 같은 취지 — 탭을 바꿔도 페이지는 1로 리셋). "그 달의 첫 주"는 반드시 라벨/목록 제목/
   // switchToMonth와 같은 기준(weekOwnerYearMonth, 목요일 소속 달)으로 골라야 한다 — 달력 격자
   // 1행 월요일(firstMondayOfMonthGrid)을 쓰면 그 달이 금·토·일에 시작할 때 소속 달이 전달로
@@ -995,7 +993,7 @@ function LedgerHistory() {
 
       {/* 캘린더뷰 */}
       <Card style={{ padding: 26 }} aria-busy={dailyPending}>
-        {/* 검색 중에도 달력은 그대로 둔다(2026-08-29 사용자 결정 — 검색하면 달력이 사라지는 게 어색하다).
+        {/* 검색 중에도 달력은 그대로 둔다(사용자 결정 — 검색하면 달력이 사라지는 게 어색하다).
             검색은 기간·선택 날짜를 무시하므로 달력이 "죽은 화면"이 되지 않도록, 검색 중에 날짜 칸을
             누르면 검색을 풀고 그 날짜로 옮겨간다(selectDay 참고). */}
         {dailyPending ? (

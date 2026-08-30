@@ -1,8 +1,6 @@
-// No source equivalent — dc.html's code screen (L640) hardcodes a static "04:32 남음" caption with no
-// working timer. Real resend spam-guard needed once the button calls a real endpoint (postSignupCode /
-// postPasswordResetCode), so this is new. 30s is a judgment call (not specified by the task or the
-// design doc) — long enough to discourage double-clicking a real mail send, short enough that a user
-// who genuinely didn't get the code isn't stuck waiting.
+// 인증 코드 재발송 쿨다운. 버튼이 실제 엔드포인트(postSignupCode / postPasswordResetCode)를
+// 부르므로 연타를 막아야 한다. 30초는 판단으로 정한 값이다 — 실제 메일 발송을 두 번 누르는 걸
+// 막을 만큼 길고, 코드를 정말 못 받은 사람이 답답하지 않을 만큼 짧게.
 
 import { useEffect, useState } from 'react'
 

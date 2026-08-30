@@ -1,13 +1,11 @@
-// Source: secret/Asset Manager v14.dc.html L763-837 (header, quick-add dropdown, notification dropdown)
-// — transcribed verbatim, incl. the close-dropdown behavior per handler, WITH ONE DELIBERATE DEVIATION:
-// the source's openStockSell (L4465) does NOT close quickAddOpen unlike its siblings, leaving the
-// quick-add dropdown open after picking "주식 매도" — real-use testing confirmed this reads as broken
-// (docs/backend-request.md item 9), so this handler closes it like every other quick-add action.
+// 헤더 + 퀵 추가 드롭다운 + 알림 드롭다운.
+// 퀵 추가 메뉴는 어떤 항목을 고르든 드롭다운을 닫는다 — '주식 매도'만 열린 채로 남으면 고장난
+// 것처럼 읽힌다(실사용 확인, docs/backend-request.md 9번).
 //
-// Mobile (<=767px, docs/mobile.md §3): the profile avatar that lives at the bottom of SidebarNav on
-// desktop is rendered here instead, since SidebarNav isn't mounted at all below the breakpoint. Style/
-// click behavior mirrors SidebarNav's avatar exactly (Avatar 's' = 36px, opens modalAccount). The
-// notification dropdown width also clamps to the viewport so it doesn't overflow narrow screens.
+// 모바일(<=767px, docs/mobile.md §3): 데스크톱에서 SidebarNav 맨 아래에 있는 프로필 아바타를
+// 여기서 대신 렌더한다 — 브레이크포인트 아래에서는 SidebarNav가 아예 마운트되지 않기 때문이다.
+// 스타일·클릭 동작은 SidebarNav의 아바타와 똑같다(Avatar 's' = 36px, modalAccount를 연다).
+// 알림 드롭다운 너비도 뷰포트에 맞춰 좁혀 좁은 화면에서 넘치지 않게 한다.
 
 import type { MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -22,8 +20,7 @@ import type { NotificationResponse, NotificationType } from '@/services/notifica
 import { useGetNotifications, usePatchAllNotificationsRead, usePatchNotificationRead } from '@/services/notification'
 import { useProfileName } from '@/services/user'
 
-// 서버는 알림 종류만 내려주고 아이콘은 내려주지 않는다 — 배경/글자색은 두 타입 모두 동일했던
-// mockNotifications의 값을 그대로 유지하고(secret/API-SPEC.md §9는 색상을 규정하지 않음),
+// 서버는 알림 종류만 내려주고 아이콘도 색도 내려주지 않는다 — 배경/글자색은 두 타입이 같고
 // 타입별로 다른 건 아이콘 하나뿐이다.
 const NOTIF_TYPE_ICON: Record<NotificationType, string> = {
   MATURITY: 'savings',
@@ -131,7 +128,7 @@ export function Header() {
   return (
     <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 26, gap: 24 }}>
       <div>
-        {/* 모바일(<=767px)에서는 글자 대신 로고 마크를 쓴다(2026-08-20 요청). 데스크톱은 사이드바가
+        {/* 모바일(<=767px)에서는 글자 대신 로고 마크를 쓴다(요청). 데스크톱은 사이드바가
             이미 같은 마크를 달고 있어 상단바까지 로고를 두면 같은 마크가 두 번 나오므로 글자로 둔다.
             h1은 두 경우 모두 유지하고, 로고일 때는 화면에서만 감춘 텍스트로 제목을 남긴다 — 스크린리더가
             읽을 페이지 제목이 사라지면 안 된다. */}

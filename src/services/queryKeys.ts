@@ -22,10 +22,10 @@ import type {
 // 어느 방향으로도 의존하지 않는다.
 //
 // 규칙
-//  1) 배열 첫 요소 = 도메인 이름(src/services 폴더명과 동일)
-//  2) 파라미터는 반드시 "마지막 하나의 객체"로 — prefix 부분 무효화(queryKeys.account.all())를 유지하기 위함
-//  3) 정산월에 의존하는 쿼리는 { year, month }를 키에 반드시 포함(monthStartDay가 바뀌면 값이 달라짐)
-//  4) 화면 컴포넌트는 이 파일을 직접 import하지 않는다 — 훅 안에 캡슐화한다
+// 1) 배열 첫 요소 = 도메인 이름(src/services 폴더명과 동일)
+// 2) 파라미터는 반드시 "마지막 하나의 객체"로 — prefix 부분 무효화(queryKeys.account.all())를 유지하기 위함
+// 3) 정산월에 의존하는 쿼리는 { year, month }를 키에 반드시 포함(monthStartDay가 바뀌면 값이 달라짐)
+// 4) 화면 컴포넌트는 이 파일을 직접 import하지 않는다 — 훅 안에 캡슐화한다
 
 export const queryKeys = {
   user: {

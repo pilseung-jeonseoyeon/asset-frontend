@@ -1,23 +1,14 @@
-// Source: secret/Asset Manager v14.dc.html L454-456 (root hasOpenSelect scrim, z-index 70),
-// L701-761 (outer flex shell: sidebar + main), L840 onward (per-screen sc-if routing, isDash/isAsset/
-// isStock/isLedger/isSet).
+// 인증된 사용자만 쓰는 것 전부 — 내비, 헤더, 화면 5개, 항상 마운트되는 모달 전부.
+// AppShell.tsx에서 떼어내 lazy 청크로 갈랐다(AppShell.tsx 헤더 참고) — 처음 오거나 로그아웃한
+// 방문자는 이 파일을 내려받지 않는다.
 //
-// Split out of AppShell.tsx as its own lazy-loaded chunk (see AppShell.tsx) — everything that only
-// an authenticated visitor ever needs (nav, header, all 5 screens, all 19 always-mounted modals).
-// A first-time or logged-out visitor never downloads this file.
+// 모바일 껍데기(<=767px, docs/mobile.md §2): SidebarNav 대신 고정 BottomTabNav를 쓰고
+// `main`의 padding을 줄여 자리를 만든다.
 //
-// TradeEditModal/ExchangeHistoryModal (added 2026-08-17) have no dc.html source — the original
-// prototype never had a trades/exchanges history screen. They exist because GET/PUT/DELETE
-// /trades and /exchanges were already implemented server-side and had unused React Query hooks
-// (docs/backend-request.md 4-1, 4-4) with no UI entry point at all.
-//
-// Mobile shell (<=767px, docs/mobile.md §2): SidebarNav is swapped for the fixed BottomTabNav and
-// `main` padding drops to leave room for it.
-//
-// Routing: the 5 menu screens are real URLs (see docs/architecture.md "라우팅"). NAV_ITEMS
-// (navItems.ts) is the single source of paths shared with SidebarNav/BottomTabNav; SCREEN_COMPONENTS
-// below just maps each item's `screen` key to the component it renders. `/` and any unknown path
-// redirect (replace, so no history junk) to the first NAV_ITEMS entry (dashboard).
+// 라우팅: 메뉴 5개는 실제 URL이다(docs/architecture.md '라우팅'). 경로의 정본은 NAV_ITEMS
+// (navItems.ts)이고 SidebarNav/BottomTabNav와 공유한다. 아래 SCREEN_COMPONENTS는 각 항목의
+// `screen` 키를 렌더할 컴포넌트에 이어줄 뿐이다. `/`와 알 수 없는 경로는 NAV_ITEMS의 첫 항목
+// (대시보드)으로 리다이렉트한다(replace — 히스토리에 쓰레기를 남기지 않는다).
 
 import type { ComponentType } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
@@ -110,7 +101,7 @@ export function AuthenticatedApp() {
         </main>
       </div>
       {isMobile && <BottomTabNav />}
-      {/* All 14 modalXxx blocks in dc.html are top-level siblings gated only by s.modalOpen — NOT
+      {/* 모든 modalXxx는 s.modalOpen만 보고 열리는 최상위 형제다 —
           nested inside their "owning" screen's sc-if block (confirmed: modalLedgerEntry's markup sits
           inside the Assets line-range, L1605, yet opens from the Header on any screen). So every modal
           mounts here regardless of the current route, same as AccountModal.

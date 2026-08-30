@@ -1,7 +1,6 @@
-// No direct source equivalent — dc.html's auth screens (L454-700) were UI-prototype stubs with no
-// real navigation helper to mirror. This groups the "switch auth screen" / "code just sent" state
-// transitions so every screens/Auth/*Form.tsx resets the same fields the same way (same discipline as
-// selectors/modal.ts's useCloseModal resetting shared modal state on close).
+// '인증 화면 전환'·'코드 방금 보냄' 같은 상태 전이를 모아 둔 곳. screens/Auth/*Form.tsx가 전부
+// 같은 필드를 같은 방식으로 리셋하도록 하기 위함이다(selectors/modal.ts의 useCloseModal이 모달
+// 공용 상태를 닫을 때 리셋하는 것과 같은 원칙).
 
 import { useAppState } from '../AppStateContext'
 import type { AuthScreen } from '../types'

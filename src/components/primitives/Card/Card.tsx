@@ -1,6 +1,5 @@
-// Source: secret/Asset Manager v14.dc.html L394-400 (.card-hov, hover shadow) + the common card shell
-// seen at every card call site (e.g. L878-880): surface/border/radius/shadow/padding are the fixed
-// part; layout (flex/grid, gap) and padding overrides are per-instance, passed via `style`.
+// 카드 껍데기. surface/border/radius/shadow/padding은 고정이고, 레이아웃(flex/grid, gap)과
+// padding 덮어쓰기는 인스턴스마다 `style`로 넘긴다. hover 그림자는 .card-hov(src/styles/base.css).
 
 import type { CSSProperties, ReactNode } from 'react'
 

@@ -1,11 +1,9 @@
-// Source: secret/Asset Manager v14.dc.html L512-544 (authLogin sc-if block) — layout/copy transcribed,
-// wired to the real POST /auth/login instead of the source's no-op onClick stubs.
+// 로그인 폼. POST /auth/login에 연결돼 있다.
 //
-// Password is intentionally local useState, not AppState: AppState lives in a React Context that (a)
-// every screen/modal reads via useAppState() and (b) persists for the life of the tab, so a plaintext
-// password sitting there is one extra place it could leak from (devtools, an accidental console.log of
-// state, a future "log state on error" helper). A local variable dies with this component/submit and
-// never needs to be threaded through the reducer at all.
+// 비밀번호는 의도적으로 AppState가 아니라 로컬 useState에 둔다: AppState는 (a) 모든 화면·모달이
+// useAppState()로 읽고 (b) 탭이 살아 있는 동안 계속 남는 React Context라, 평문 비밀번호가 거기
+// 있으면 새어나갈 통로가 하나 더 생긴다(devtools, 실수로 찍은 console.log, 나중에 누가 만들
+// '에러 시 상태 덤프' 헬퍼). 로컬 변수는 이 컴포넌트와 함께 사라지고 리듀서를 거칠 일도 없다.
 
 import { useState } from 'react'
 import type { FormEvent } from 'react'

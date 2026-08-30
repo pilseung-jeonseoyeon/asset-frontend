@@ -1,38 +1,30 @@
-// Source: secret/Asset Manager v14.dc.html L1172-1310 (modalQuickStock) — layout transcribed verbatim,
-// then wired to GET /stocks(검색)/POST /stocks(신규 등록)/GET /stocks/holdings(매도 대상)/GET /accounts/
-// POST /trades (previously uncontrolled/no-op mock inputs — see git history). z-index 80, width 480px,
-// maxHeight 86vh (unchanged from source).
+// 주식·코인 매매(매수/매도) 등록 모달. GET /stocks(검색) / POST /stocks(신규 등록) /
+// GET /stocks/holdings(매도 대상) / GET /accounts / POST /trades에 연결돼 있다.
+// z-index 80, 너비 480px, maxHeight 86vh.
 //
-// Adapted vs. source:
-//  - "종목" 검색 input은 이제 실제 검색(GET /stocks?keyword=)이다. 결과가 없으면 "새 종목으로 등록"
-//    흐름을 열어 POST /stocks로 먼저 만든 뒤 자동으로 매매 대상으로 선택한다(STOCK_DUPLICATE 409는
-//    이 등록 폼 옆에 인라인으로 뜬다).
-//  - "섹터" 칩은 CreateTradeRequest에 필드가 없다(섹터는 종목 속성이지 매매 속성이 아니다) — 신규 종목
-//    등록 시에만 보이도록 옮겼다.
-//  - 두 번째 금액 필드를 "수수료 포함 총 지불액"(총액)에서 "매수/매도 단가"(단가)로 바꿨다 —
-//    CreateTradeRequest가 price(단가)를 받지 총액을 받지 않아서다. 참고용으로 수량×단가 예상 총액을
-//    캡션으로 보여준다. 수수료는 선택 입력으로 별도로 받는다(API가 지원하는 필드라 노출).
-//  - 하드코딩된 "실현 수익 $600/920,000원" 블록은 대응 API가 없어 제거했다.
-//  - stockAcct 드롭다운 키는 ExchangeAddModal의 exchangeAcct와 분리했다 — 두 모달이 같은 키를 쓰면
-//    dropdownValues 상태를 공유해 한쪽에서 고른 계좌가 다른 쪽으로 새는 버그가 된다(과거 useDropdown 기반 구현의
-//    실제 버그였음. 지금은 계좌 선택을 로컬 상태로 들고 있어 값 자체는 새지 않지만, 두 모달이 동시에
-//    같은 openDropdown 키를 다투지 않도록 키는 여전히 분리한다).
-//  - 계좌 드롭다운은 GET /accounts 전체가 아니라 filterTradeAccounts(선택된 시장에 맞는 타입만 — KR·US는
-//    STOCK, CRYPTO는 CRYPTO)로 좁혔다 — 서버가 계좌 타입을 검증하지
-//    않아(docs/backend-request.md B-1-3) 현금 계좌는 물론, 증권 계좌 없이 가상자산 지갑만 있는 사용자가
-//    KR/US 종목을 지갑 계좌로 등록하는 것까지 막는다. 적합한 계좌가 0개면 빈 드롭다운 대신 "증권계좌를
-//    먼저 추가해주세요" + 계좌 추가 버튼으로 보낸다.
-//  - state.stockSector는 더 이상 기본값을 갖지 않는다(빈 문자열 = 미선택). 과거 '반도체' 하드코딩
-//    초기값이 모달을 닫아도 리셋되지 않아 사용자가 섹터를 한 번도 고르지 않아도 모든 신규 종목이
-//    반도체로 등록되던 데이터 오염 버그였다(같은 문서 5-1) — 이제 모달을 닫거나 종목 등록에 성공하면
-//    매번 비운다.
-//  - 매도 모드에서 선택한 종목의 보유 수량을 "보유 N주"로 보여주고, 수량 입력이 그 값을 넘지 못하게
-//    타이핑 중에 잘라낸다(사전 검증). 서버 409(INSUFFICIENT_HOLDING)는 경합 등에 대비한 최종 방어선으로
-//    그대로 유지한다.
-//  - 계좌 드롭다운(ddAccount, 2026-08-18 추가)은 계좌 이름만으로는 어느 은행/증권사인지 알 수 없다는
-//    지적으로 소속 기관을 함께 보여준다 — 옵션 목록은 BankIcon + 계좌명 + 보조줄 기관명(accountInstitutionMeta로
-//    GET /accounts의 institutionId를 GET /institutions와 조인), 트리거는 "계좌명 · 기관명" 한 줄로
-//    표기해 트리거 높이를 다른 필드와 맞췄다. 기관을 못 찾거나 기관에 아이콘이 없으면 계좌명만 보여준다.
+// 입력 규칙과 주의점:
+// - '종목' 검색은 실제 검색(GET /stocks?keyword=)이다. 결과가 없으면 '새 종목으로 등록' 흐름을 열어
+// POST /stocks로 먼저 만든 뒤 자동으로 매매 대상으로 선택한다(STOCK_DUPLICATE 409는 등록 폼 옆에
+// 인라인으로 뜬다).
+// - '섹터' 칩은 신규 종목 등록 시에만 보인다 — 섹터는 종목 속성이지 매매 속성이 아니라서
+// CreateTradeRequest에 필드가 없다.
+// - 두 번째 금액 필드는 총액이 아니라 **단가**다(CreateTradeRequest가 price를 받는다). 참고용으로
+// 수량×단가 예상 총액을 캡션으로 보여준다. 수수료는 선택 입력으로 별도로 받는다.
+// - stockAcct 드롭다운 키는 ExchangeAddModal의 exchangeAcct와 분리한다 — 같은 키를 쓰면 두 모달이
+// 같은 openDropdown 키를 다툰다.
+// - 계좌 드롭다운은 GET /accounts 전체가 아니라 filterTradeAccounts(선택된 시장에 맞는 타입만 —
+// KR·US는 STOCK, CRYPTO는 CRYPTO)로 좁힌다 — 서버가 계좌 타입을 검증하지 않아서, 현금 계좌는 물론
+// 증권 계좌 없이 가상자산 지갑만 있는 사용자가 KR/US 종목을 지갑 계좌로 등록하는 것까지 막는다.
+// 적합한 계좌가 0개면 빈 드롭다운 대신 '증권계좌를 먼저 추가해주세요' + 계좌 추가 버튼으로 보낸다.
+// - state.stockSector는 기본값을 갖지 않는다(빈 문자열 = 미선택). 기본값을 채우면 사용자가 섹터를
+// 한 번도 고르지 않아도 그 값이 조용히 전송돼 신규 종목이 전부 그 섹터로 오염된다 — 모달을 닫거나
+// 종목 등록에 성공하면 매번 비운다.
+// - 매도 모드에서는 선택한 종목의 보유 수량을 '보유 N주'로 보여주고, 수량 입력이 그 값을 넘지 못하게
+// 타이핑 중에 잘라낸다. 서버 409(INSUFFICIENT_HOLDING)는 경합에 대비한 최종 방어선으로 유지한다.
+// - 계좌 드롭다운은 계좌 이름만으로는 어느 은행/증권사인지 알 수 없어 소속 기관을 함께 보여준다 —
+// 옵션은 BankIcon + 계좌명 + 보조줄 기관명(accountInstitutionMeta가 GET /accounts의 institutionId를
+// GET /institutions와 조인), 트리거는 '계좌명 · 기관명' 한 줄이라 높이가 다른 필드와 같다.
+// 기관을 못 찾거나 기관에 아이콘이 없으면 계좌명만 보여준다.
 
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -150,7 +142,7 @@ export function QuickStockModal() {
   // Dropdown.tsx의 트리거(텍스트 한 줄 + expand_more 아이콘) 구조를 이 호출부만을 위해 바꿔야 해서,
   // 트리거 높이를 다른 필드와 맞춘 채로 기관을 알리는 더 단순한 방법을 택했다. 계좌명을 앞에 두는 이유:
   // ellipsis는 뒤쪽부터 잘리므로 "기관명 · 계좌명" 순서면 폭이 좁을 때 정작 계좌를 구분하는 이름이
-  // 잘린다(리뷰 지적) — 옵션 목록에서 이미 계좌명이 주 정보(굵은 1줄)·기관명이 보조(작은 2줄)인 것과
+  // 잘린다 — 옵션 목록에서 이미 계좌명이 주 정보(굵은 1줄)·기관명이 보조(작은 2줄)인 것과
   // 같은 우선순위를 트리거에도 맞춘다.
   const selectedAccount = accountId !== null ? accounts.find((a) => a.id === accountId) : undefined
   const selectedAccountMeta = selectedAccount ? accountInstitutionMeta(selectedAccount, institutions) : null
@@ -504,7 +496,7 @@ export function QuickStockModal() {
         <div style={fieldRowStyle}>
           {/* minWidth:0 — 이 열의 계좌 드롭다운 트리거가 "기관명 · 계좌명"으로 길어질 수 있는데,
               flex:1인 이 wrapper에 minWidth:0이 없으면 기본 min-width:auto 때문에 내용 크기 밑으로
-              줄어들지 않아 옆 매수일 열을 밀어내며 트리거가 두 줄로 꺾인다(리뷰 지적, Dropdown.tsx의
+              줄어들지 않아 옆 매수일 열을 밀어내며 트리거가 두 줄로 꺾인다(Dropdown.tsx의
               트리거 ellipsis가 실제로 발동하려면 이 체인이 끝까지 열려 있어야 한다). */}
           <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
             <div style={LABEL_STYLE}>계좌</div>

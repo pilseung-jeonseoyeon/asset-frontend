@@ -1,13 +1,11 @@
-// View-model layer for the 대시보드(Dashboard) screen: adapts GET /dashboard/{summary,trend,
-// allocation}, GET /goals, GET /assets/distribution?groupBy=INSTITUTION into the shapes the
-// screen renders (API-SPEC §4 · §5 · §3.1). Dashboard.tsx consumes these directly.
+// 대시보드 화면의 뷰모델 레이어 — GET /dashboard/{summary,trend,allocation}, GET /goals,
+// GET /assets/distribution?groupBy=INSTITUTION을 화면이 그릴 형태로 바꾼다. Dashboard.tsx가 직접 쓴다.
 //
 // 여기 없는 것과 그 이유:
-//   - 억/만 축약 캡션(예: "약 12억 8,450만 원")은 src/utils/format.ts의 formatKoreanAbbrev가 맡는다 —
-//     formatNumber()와 마찬가지로 통화 기호 없는 범용 포맷터라 화면 레이어가 아니라 utils에 둔다.
-//   - "7월 이후는 예정 구간" 같은 미래 구간 표기: 서버가 예측값을 주지 않는다.
-// 추이 차트의 y축 눈금 라벨(13억/11억/9억, dc.html L919-922)은 buildTrendYAxisTicks가 formatKoreanAbbrev로
-// 계산한다(2026-08-17 복원 — formatKoreanAbbrev 신설 전에는 계산 수단이 없어 생략돼 있었다).
+// - 억/만 축약 캡션(예: "약 12억 8,450만 원")은 src/utils/format.ts의 formatKoreanAbbrev가 맡는다 —
+// formatNumber()와 마찬가지로 통화 기호 없는 범용 포맷터라 화면 레이어가 아니라 utils에 둔다.
+// - "7월 이후는 예정 구간" 같은 미래 구간 표기: 서버가 예측값을 주지 않는다.
+// 추이 차트의 y축 눈금 라벨(13억/11억/9억)은 buildTrendYAxisTicks가 formatKoreanAbbrev로 계산한다.
 
 import { formatNumber, formatKoreanAbbrev } from '../utils/format'
 import { assetClassMetaOf } from './assetsView'
@@ -99,7 +97,7 @@ export function sumAllocationKrw(allocation: AllocationResponse[]): number {
 export interface TrendChartView {
   /** SVG path의 d 속성. 점이 2개 미만이면 null(선을 그릴 수 없음). */
   path: string | null
-  /** 마지막 점의 좌표 — 원본 마크업이 여기에 강조용 원을 찍는다. */
+  /** 마지막 점의 좌표 — 여기에 강조용 원을 찍는다. */
   lastPoint: { x: number; y: number } | null
   /**
    * 아직 데이터가 없는 "예정 구간"(마지막 지점 ~ 12월) 음영의 시작 x좌표.
@@ -116,10 +114,10 @@ export interface TrendChartView {
  * x축은 **데이터 개수가 아니라 올해 1월~12월 달력**이다(x = width * (월 - 1) / 11). 데이터를
  * 등간격으로 펼치면 8월까지밖에 없는 값이 12월 자리까지 늘어나 "올해 추이"를 오독하게 된다 —
  * 데이터가 있는 달까지만 선을 그리고, 그 뒤는 화면에서 `futureFromX`부터 예정 구간으로 음영
- * 처리한다(원본 dc.html L919-940의 "N월 이후는 예정 구간" 복원).
+ * 처리한다("N월 이후는 예정 구간").
  *
  * 주의: `unit=MONTH`로 받은 응답의 `date`는 그 달의 말일이 아니라 **데이터가 있는 마지막
- * 날짜**다(API-SPEC §4.2). 이 함수는 날짜의 "일"은 무시하고 월 자리에만 찍으므로 화면에서
+ * 날짜**다. 이 함수는 날짜의 "일"은 무시하고 월 자리에만 찍으므로 화면에서
  * "월말 값"이라고 라벨링하지 말 것.
  */
 export function buildTrendChart(
@@ -128,7 +126,7 @@ export function buildTrendChart(
   height = 92,
   padding = 6,
 ): TrendChartView {
-  // API-SPEC §4.2는 예시만 오름차순이고 정렬을 보장하지 않는다. x좌표를 월로 매기므로 순서가
+  // 서버 계약은 예시만 오름차순이고 정렬을 보장하지 않는다. x좌표를 월로 매기므로 순서가
   // 어긋나면 선이 앞뒤로 튄다 — 그래서 방어적으로 한 번 더 정렬한다.
   const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date))
   // 한 달에 지점이 여럿이면(unit=DAY로 받은 경우) x가 겹쳐 세로선이 생긴다 — 그 달의 마지막
@@ -164,7 +162,7 @@ export function buildTrendChart(
 }
 
 /**
- * 추이 차트 왼쪽의 y축 눈금 라벨 3개(원본 dc.html L919-922, 위→아래 = 최댓값→최솟값). 그리드선
+ * 추이 차트 왼쪽의 y축 눈금 라벨 3개(위→아래 = 최댓값→최솟값). 그리드선
  * y좌표(6/46/86, buildTrendChart와 동일한 viewBox 92)와 짝을 맞춰 값을 등간격(최대/중간/최소)으로
  * 배치한다. `formatKoreanAbbrev`가 억 단위 미만은 "0"을 돌려주므로(만 원 단위 반올림), 세 값이 전부
  * 그렇게 뭉개지는 소액 구간에서는 원 단위 그대로(`formatNumber`)로 대체해 "0/0/0"이 찍히지 않게 한다.
@@ -223,9 +221,8 @@ export function toPercentages(values: number[]): number[] {
  * 도넛 세그먼트. 라벨은 서버 값을 쓰지 않고 항상 `ASSET_CLASS_META`의 프론트 고정 표기를 쓴다
  * (assetsView.ts 참고 — 화면 표기는 프론트가 소유).
  *
- * `showLegend`: 원본 마크업이 6개 조각 중 최하위 1개에만 범례 행을 두지 않았다
- * (mockDashboard.ts의 전사 주석 참고 — ds_rules §1-5 "receded value"). 조각이 6개 이상일 때만
- * 그 규칙을 적용하고, 그보다 적으면 전부 범례를 노출한다.
+ * `showLegend`: 조각이 6개 이상이면 최하위 1개에는 범례 행을 두지 않는다
+ * (ds_rules §1-5 "receded value"). 그보다 적으면 전부 범례를 노출한다.
  */
 export function buildAllocationSegments(allocation: AllocationResponse[]): DonutLegendItem[] {
   const sorted = [...allocation]

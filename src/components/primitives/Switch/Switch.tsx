@@ -23,7 +23,7 @@ interface SwitchProps {
 const TRACK_STYLE: CSSProperties = {
   // <span>은 기본 display가 inline이라 width/height가 무시된다 — 트랙 42×24가 그려지려면
   // block(또는 inline-flex 등 크기를 갖는 display)이 필요하다. StatBadge.tsx의 <span>이
-  // inline-flex를 명시하는 것과 같은 이유(리뷰 #1).
+  // inline-flex를 명시하는 것과 같은 이유.
   display: 'block',
   position: 'relative',
   width: 42,

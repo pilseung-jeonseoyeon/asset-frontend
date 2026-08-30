@@ -1,13 +1,11 @@
-// View-model layer for the 가계부(Ledger) screen: adapts server responses (GET /transactions,
-// /transactions/summary, /transactions/summaries/*, /transactions/rankings, /subscriptions,
-// /categories) into the shapes the screen/modals render. Replaces src/data/mockLedger.ts.
+// 가계부 화면의 뷰모델 레이어 — 서버 응답(GET /transactions, /transactions/summary,
+// /transactions/summaries/*, /transactions/rankings, /subscriptions, /categories)을 화면·모달이
+// 그릴 형태로 바꾼다.
 //
-// The bar/ranking/ring calculations below (barPct, changePct, changeSign, ramp color order,
-// savings-rate ring, savings-rate bar) are the same formulas as the old mockLedger.ts — those are
-// design-system rules (ds_rules_v2_5.md §1-6/§3-1/§3-2), transcribed verbatim, not reinvented. What
-// changed is the input: mockLedger.ts hardcoded literals; here every number comes from a server
-// response, so each formula gets a divide-by-zero / "previous is 0" guard the mock never needed
-// (a brand-new category has expenseTotalPrevious: 0, which would otherwise produce Infinity%).
+// 아래 막대·순위·링 계산(barPct, changePct, changeSign, 램프 색 순서, 저축률 링·막대)은 디자인
+// 시스템 규칙이다(ds_rules_v2_5.md §1-6/§3-1/§3-2) — 임의로 바꾸지 말 것.
+// 모든 숫자가 서버에서 오므로 각 식에는 0으로 나누기·"이전 값이 0" 방어가 붙어 있다
+// (갓 만든 분류는 expenseTotalPrevious가 0이라 그대로 두면 Infinity%가 된다).
 
 import { formatNumber } from '../utils/format'
 import { makeDeltaBadge, type DeltaBadge } from '../utils/deltaBadge'
@@ -58,7 +56,7 @@ export const CATEGORY_KIND_LABELS: Record<CategoryKind, string> = {
 
 export const CATEGORY_KIND_ORDER: CategoryKind[] = ['INCOME', 'SAVING', 'EXPENSE']
 
-/** 이체(transfer)는 카테고리가 없다(API-SPEC §6 — TRANSFER는 subcategoryId 지정 불가) — 매핑에 없음. */
+/** 이체(transfer)는 카테고리가 없다(TRANSFER는 subcategoryId 지정 불가) — 매핑에 없음. */
 export const ENTRY_TYPE_TO_CATEGORY_KIND: Record<'income' | 'saving' | 'expense', CategoryKind> = {
   income: 'INCOME',
   saving: 'SAVING',
@@ -104,7 +102,7 @@ function periodDeltaLabel(period: LedgerPeriod): string {
 
 /**
  * 딥 카드 증감 배지. hexToRgba/makeDeltaBadge가 요구하는 고정 다크 hex(#7FE0B6/#F5A29B/#B9B2F4)는
- * src/utils/deltaBadge.ts 헤더 주석대로 라이트/다크 무관하게 그대로 쓴다(원본 동작 유지).
+ * src/utils/deltaBadge.ts 헤더 주석대로 라이트/다크 무관하게 그대로 쓴다.
  * current===previous(둘 다 0인 "데이터 없음" 포함)면 의미 있는 배지가 없으므로 null.
  */
 function buildAmountDelta(
@@ -168,7 +166,7 @@ export interface SavingsRingView {
 
 /**
  * 저축률이 계산 불가한 기간은 링 게이지 대상에서 제외한다(빈 상태로 치환).
- * 서버는 수입이 0이면 savingsRatePercent를 0이 아니라 null로 내려준다(API-SPEC §6.6) —
+ * 서버는 수입이 0이면 savingsRatePercent를 0이 아니라 null로 내려준다 —
  * null을 그대로 Math.round에 넘기면 0%로 그려져 "저축을 하나도 안 한 달"처럼 보인다.
  */
 export function buildSavingsRing(summary: PeriodSummaryResponse): SavingsRingView | null {
@@ -298,7 +296,7 @@ function subscriptionIconOf(icon: string | null): string {
 }
 
 export function buildSubscriptionRows(subscriptions: SubscriptionResponse[], accounts: AccountResponse[]): SubscriptionRow[] {
-  // 결제일 오름차순(dc.html subscriptionsAll: 10일 → 15일 → 20일) — 금액순이 아니다.
+  // 결제일 오름차순(10일 → 15일 → 20일) — 금액순이 아니다.
   return [...subscriptions]
     .sort((a, b) => a.paymentDay - b.paymentDay)
     .map((s) => ({
@@ -359,7 +357,7 @@ function shortDateLabel(isoDate: string): string {
 }
 
 /**
- * TRANSFER는 subcategoryName이 없고(API-SPEC §6) 상대 계좌명도 응답에 없어(transaction.type.ts 주석)
+ * TRANSFER는 subcategoryName이 없고 상대 계좌명도 응답에 없어(transaction.type.ts 주석)
  * 계좌 목록과 transferAccountId로 조인한다. 조인 실패 시 "계좌 이체"로 폴백.
  */
 export function buildLedgerTx(transactions: TransactionResponse[], accounts: AccountResponse[]): LedgerTxRow[] {
@@ -393,10 +391,10 @@ export function buildLedgerTx(transactions: TransactionResponse[], accounts: Acc
 // ---------- 입력 모달: 최근 내역 기반 추천 ----------
 //
 // 서버 GET /transactions에는 제목(description) 검색이 없어(조건은 정산월·날짜 구간·유형·소분류·계좌뿐),
-// 입력 모달이 최근 N개월치를 한 번 받아 두고 브라우저에서 제목을 비교한다(2026-08-23). "거의 같은 제목"은
+// 입력 모달이 최근 N개월치를 한 번 받아 두고 브라우저에서 제목을 비교한다. "거의 같은 제목"은
 // 공백·대소문자를 무시한 포함 일치로 잡고, 앞부분이 일치하는 것을 먼저 보여준다. 같은 제목은 가장 최근
 // 거래 하나로 합친다(금액은 그 최근 값). 사용자가 칩을 눌렀을 때만 채우고, 자동으로 채우지는 않는다 —
-// 엉뚱한 값이 들어가면 지우는 쪽이 더 번거롭다(2026-08-23 사용자 결정).
+// 엉뚱한 값이 들어가면 지우는 쪽이 더 번거롭다(사용자 결정).
 
 export interface EntrySuggestion {
   key: string
@@ -633,7 +631,7 @@ export interface CalendarTotals {
  * 달력 우측 상단에 띄우는 기간(주/월) 수입·지출 합계. **달력에 실제로 그려진 칸만** 더한다 —
  * 그래야 칸을 눈으로 다 더한 값과 상단 합계가 항상 일치한다(월간은 정산월 경계 때문에 격자에
  * 넣지 못한 날짜가 있을 수 있고, 그 사실은 hasOutOfGridData 캡션이 따로 안내한다).
- * 저축·이체는 제외한다(2026-08-29 사용자 결정) — 달력 칸에는 그대로 4종이 모두 그려진다.
+ * 저축·이체는 제외한다(사용자 결정) — 달력 칸에는 그대로 4종이 모두 그려진다.
  * 빈 칸(null)은 건너뛴다.
  */
 export function sumCalendarTotals(cells: (CalendarCell | null)[]): CalendarTotals {

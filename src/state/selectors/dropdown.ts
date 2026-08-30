@@ -1,13 +1,10 @@
-// Source: secret/Asset Manager v14.dc.html L4203-4211 (makeDD factory) — transcribed verbatim, ported
-// from a per-render closure over `this.state`/`this.setState` to a hook over our AppStateContext.
-// Reuses the existing `dd`/`openDropdown` AppState fields (state/types.ts) that already mirror `s.dd`/
-// `s.openDropdown` 1:1.
+// 드롭다운의 열림 상태와 선택값을 AppState(dropdownValues / openDropdown)에 얹는 훅.
 //
-// id/meta/leading(2026-08-18 추가): 계좌처럼 이름이 겹칠 수 있는 목록에서 React key로 o.name을 쓰면
-// 충돌한다 — id를 안정적인 키로 함께 실어보낸다(useDropdown은 표시값=저장값이라 옵션 문자열 자체를,
-// useEntityDropdown은 getId(item)을 쓴다). meta/leading은 옵션 한 줄 아래 보조 정보(예: 계좌의
-// 소속 기관명)·앞에 붙는 아이콘(예: BankIcon)을 옵션별로 실어보내기 위한 선택 필드다 — 기존 호출부는
-// 아무것도 넘기지 않으므로 항상 undefined로 비고, Dropdown.tsx는 그 경우 지금과 동일하게 렌더한다.
+// 옵션의 id/meta/leading: 계좌처럼 이름이 겹칠 수 있는 목록에서 React key로 o.name을 쓰면
+// 충돌한다 — id를 안정적인 키로 함께 실어보낸다(useDropdown은 표시값=저장값이라 옵션 문자열
+// 자체를, useEntityDropdown은 getId(item)을 쓴다). meta/leading은 옵션 한 줄 아래 보조 정보
+// (예: 계좌의 소속 기관명)·앞에 붙는 아이콘(예: BankIcon)을 옵션별로 넘기기 위한 선택 필드다 —
+// 넘기지 않으면 undefined로 비고 Dropdown.tsx는 이름만 렌더한다.
 
 import type { ReactNode } from 'react'
 import { useAppState } from '../AppStateContext'
@@ -63,7 +60,7 @@ export function useEntityDropdown<T>(
   selectedId: number | null,
   onPick: (id: number) => void,
   /** 옵션 한 줄 아래 보조 정보(예: 계좌의 소속 기관명). 항목에 해당 정보가 없으면 undefined를
-   *  돌려주면 그 줄은 생략된다. 생략 가능 — 넘기지 않으면 기존 호출부와 동일하게 이름만 렌더한다. */
+   * 돌려주면 그 줄은 생략된다. 생략 가능 — 넘기지 않으면 기존 호출부와 동일하게 이름만 렌더한다. */
   getMeta?: (item: T) => string | undefined,
   /** 옵션 앞에 붙는 아이콘 등(예: BankIcon). 생략 가능. */
   getLeading?: (item: T) => ReactNode,

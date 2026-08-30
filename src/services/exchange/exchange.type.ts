@@ -1,7 +1,7 @@
 import type { Currency, ForeignExchangeSide } from '../common.type'
 
-// API-SPEC §12. 조회에 currency가 필수라 "전 통화 환전 내역" 화면은 만들 수 없다(통화별 호출 필요).
-// GET /exchanges/summary의 응답 스키마명은 FxSummaryRes다(2026-08-17, 라이브 OpenAPI 대조,
+// 조회에 currency가 필수라 "전 통화 환전 내역" 화면은 만들 수 없다(통화별 호출 필요).
+// GET /exchanges/summary의 응답 스키마명은 FxSummaryRes다(라이브 OpenAPI 대조,
 // docs/frontend-todo.md A-7 · docs/backend-request.md 2-1 확인 완료 — 고시 기준일 필드명은
 // rateAsOf).
 

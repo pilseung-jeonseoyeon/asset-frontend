@@ -1,11 +1,8 @@
-// Source: secret/Asset Manager v14.dc.html L1040-1169 (isAsset block) — transcribed verbatim.
-// Note: assetTab (개요/계좌/목표 sub-tabs) and mapSort (자산 지도 정렬) are computed in the source script
-// but never referenced by any markup in this block (confirmed dead code via grep) — this screen is a
-// single flat view, not tabbed, and the treemap always sorts by nature. Not invented simplifications.
+// 자산 화면. 탭 없이 한 화면에 쭉 흐르는 구조이고, 트리맵은 항상 자산군 기준으로 정렬한다.
 //
-// Data: GET /assets/distribution?groupBy=CLASS (자산 구성 카드 + 트리맵), GET /assets/liquidity
-// (유동성 뷰), GET /transactions/summary?period=MONTH (유동성 캡션의 "월 지출 기준 약 N개월치" 절반,
-// dc.html L1163 — 2026-08-17 복원). 파생 로직은 src/data/assetsView.ts.
+// 데이터: GET /assets/distribution?groupBy=CLASS(자산 구성 카드 + 트리맵),
+// GET /assets/liquidity(유동성 뷰), GET /transactions/summary?period=MONTH
+// (유동성 캡션의 "월 지출 기준 약 N개월치" 계산). 파생 로직은 src/data/assetsView.ts.
 
 import type { CSSProperties } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
@@ -59,7 +56,7 @@ export function Assets() {
   const hasLiquidityData =
     !!liquidityData && (liquidityData.liquidAccounts.length > 0 || liquidityData.lockedAccounts.length > 0)
 
-  // "월 지출 기준 약 N개월치" 캡션 절반(dc.html L1163). 월 지출이 0이거나 조회 실패면 이 절반을
+  // "월 지출 기준 약 N개월치" 캡션 절반. 월 지출이 0이거나 조회 실패면 이 절반을
   // 렌더하지 않는다 — 옆의 "만기까지 D−N" 절반과 달리 이건 없어도 캡션 전체가 의미를 잃지 않는다.
   const periodSummaryQuery = useGetPeriodSummary('MONTH')
   const liquidityMonths = liquidityView

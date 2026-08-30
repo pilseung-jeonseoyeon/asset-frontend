@@ -1,16 +1,13 @@
-// Source: secret/Asset Manager v14.dc.html L636-639 (sc-for codeCells, 6 single-char boxes) +
-// L3637-3641 (advanceCodeInput — auto-focus the next box on input). The source only auto-advances
-// forward; backspace-to-previous, paste support and multi-char autofill are this port's own additions
-// since dc.html has no keydown/paste handler and a 6-box code field is painful to fill without them.
-// Shared by SignupForm and ResetPasswordForm (both need the same 6-digit code entry) — kept local to
-// screens/Auth rather than components/primitives since nothing outside the auth flow uses it.
+// 인증 코드 6자리 입력 상자. 입력하면 다음 칸으로 자동 이동하고, 백스페이스로 이전 칸,
+// 붙여넣기와 자동완성(여러 글자가 한꺼번에 들어오는 경우)도 받는다.
+// SignupForm과 ResetPasswordForm이 함께 쓴다 — 인증 흐름 밖에서는 쓰지 않으므로
+// components/primitives가 아니라 screens/Auth에 둔다.
 //
-// The value is kept as a fixed-length 6-char string with spaces standing in for empty boxes (trimmed
-// only at the trailing end before it's handed to the parent) so that clearing a middle box doesn't
-// shift later digits forward: `commit` below pads every still-empty slot with ' ' before joining, and
-// only strips the *trailing* run of spaces — an empty slot in the middle survives as a literal ' ' in
-// the string (renders as a blank box, same as ''). Because of this, callers must treat an incomplete
-// code as anything that doesn't match /^\d{6}$/, not `.length !== 6`.
+// 값은 길이 6 고정 문자열로 들고, 빈 칸은 공백 ' '으로 채운다(부모에 넘기기 직전에 끝쪽 공백만
+// 잘라낸다). 가운데 칸을 비웠을 때 뒤 숫자가 앞으로 당겨지지 않게 하기 위함이다 — 아래 `commit`이
+// 아직 빈 칸을 전부 ' '로 채워 이어 붙이고 **끝쪽** 공백만 걷어내므로, 가운데 빈 칸은 문자열에
+// 공백 한 칸으로 남는다(화면에는 빈 상자로 보인다). 그래서 호출부는 '미완성 코드'를
+// `.length !== 6`이 아니라 /^\d{6}$/에 안 맞는 것으로 판단해야 한다.
 
 import { useRef } from 'react'
 import type { ClipboardEvent, KeyboardEvent } from 'react'

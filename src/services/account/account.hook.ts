@@ -45,7 +45,7 @@ export function useGetAccount(accountId: number | null) {
  *
  * 목표(goal)도 포함한다: GoalResponse.annual은 "실시간 총자산 기준" 진행률이라(goal.type.ts) 계좌
  * 하나만 추가해도 값이 달라진다. 이게 빠져 있어서 총자산 히어로·도넛은 즉시 갱신되는데 대시보드
- * 목표 카드만 옛 진행률로 남아 있었다(2026-08-20 수정).
+ * 목표 카드만 옛 진행률로 남아 있었다(수정).
  */
 function useInvalidateAccount() {
   const queryClient = useQueryClient()

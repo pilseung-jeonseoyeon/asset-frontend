@@ -1,66 +1,57 @@
-// Source: secret/Asset Manager v14.dc.html L1455-1515 (modalEditAccount) — layout transcribed verbatim,
-// then wired to GET/PATCH/DELETE /accounts/{id} (previously uncontrolled/no-op — see git history).
-// z-index 90, width 480px, maxHeight 90vh, padding "42px 30px" (NOT the default 30px — confirmed
-// per-instance).
+// 계좌 수정 모달. GET/PATCH/DELETE /accounts/{id}에 연결돼 있다.
+// z-index 90, 너비 480px, maxHeight 90vh, padding '42px 30px'(기본 30px이 아니다).
 //
-// interestRate/openedAt은 GET /accounts/{id}(AccountRes) 응답에 없어 이 폼에서는 노출하지 않는다
-// (현재 값을 모르는 채로 덮어쓰게 하는 건 사고 위험이 크다 — 백엔드에 GET 응답 보강이 필요한 항목).
+// interestRate/openedAt은 GET /accounts/{id} 응답에 없어 이 폼에서는 노출하지 않는다 — 현재 값을
+// 모르는 채로 덮어쓰게 하는 건 사고 위험이 크다(백엔드에 GET 응답 보강이 필요한 항목).
 //
-// 금융기관도 이 모달에서 읽기 전용이다(2026-08-19, 제품 결정 — "계좌 번호가 이미 정해져 있는데 기관이
-// 달라질 일이 없다"). 그래서 서버가 내려준 institutionName을 그대로 보여주기만 하고 PATCH body에는
-// institutionId를 싣지 않는다. 기관을 고를 일이 없어졌으므로 이 모달은 GET /institutions를 아예
-// 호출하지 않는다 — 예전에는 응답에 institutionId가 없던 시절의 잔재로 기관 목록을 받아 이름으로
-// 조인해 역추적했지만, 지금은 AccountRes.institutionId가 그대로 내려온다(무기관 계좌는 null).
-// 기관을 잘못 고른 계좌는 해지 후 다시 등록하는 것이 제품 흐름이다.
+// 금융기관도 이 모달에서 읽기 전용이다(제품 결정 — 계좌 번호가 이미 정해져 있는데 기관이 달라질 일이
+// 없다). 서버가 내려준 institutionName을 보여주기만 하고 PATCH body에는 institutionId를 싣지 않는다.
+// 기관을 고를 일이 없으므로 이 모달은 GET /institutions를 아예 호출하지 않는다 —
+// AccountRes.institutionId가 그대로 내려온다(무기관 계좌는 null). 기관을 잘못 고른 계좌는 해지 후
+// 다시 등록하는 것이 제품 흐름이다.
 //
-// 자산 유형과 통화는 이 모달에서 읽기 전용이다(2026-08-19 제품 결정 + 서버 제약). 이미 만들어진 계좌의
-// 성격을 수정 화면에서 갈아끼우는 건 사용자 기대와 어긋나고, 통화는 애초에 바꿀 수단이 없다 —
-// UpdateAccountRequest에 currency도 등록 원금 필드도 없다(통화를 바꾸려면 해지 후 재등록이다).
-// 그래서 선택 UI 대신 현재 값만 보여준다. 라벨은 자산 화면 카드와 같은 5분류(assetClassMetaOf)를 쓰고,
-// 달러 계좌면 그 옆에 '달러'를 덧붙인다. 계좌 유형이 6종으로 통합된 뒤로는 6분류가 접고 있던 세부 타입
-// (파킹통장·정기예금 등)이 아예 없어져서, 유형을 바꿔도 뭉개질 값 자체가 사라졌다.
-// 계좌를 만들 때는 여전히 유형을 골라야 하므로 AddAccountModal의 칩은 그대로 둔다.
+// 자산 유형과 통화도 읽기 전용이다(제품 결정 + 서버 제약). 이미 만들어진 계좌의 성격을 수정 화면에서
+// 갈아끼우는 건 사용자 기대와 어긋나고, 통화는 애초에 바꿀 수단이 없다 — UpdateAccountRequest에
+// currency도 등록 원금 필드도 없다(통화를 바꾸려면 해지 후 재등록이다). 그래서 선택 UI 대신 현재 값만
+// 보여준다. 라벨은 자산 화면 카드와 같은 5분류(assetClassMetaOf)를 쓰고, 달러 계좌면 옆에 '달러'를
+// 덧붙인다. 계좌를 만들 때는 유형을 골라야 하므로 AddAccountModal의 칩은 그대로 둔다.
 //
-// 저장 중 닫기 잠금(2026-08-17, 리뷰 반영): handleSave는 계좌 정보 PATCH → 성공 시 잔액 PATCH를
-// per-call onSuccess로 체이닝한다. TanStack Query v5의 MutationObserver.reset()은 진행 중인 mutation
-// 으로부터 옵저버를 즉시 떼어내고(`#currentMutation?.removeObserver(this)`), 그러면 응답이 도착해도
-// mutate()에 넘긴 per-call onSuccess가 더 이상 호출되지 않는다. resetAndClose가 그 reset()들을
-// 부르므로, 저장이 끝나기 전에 X나 배경 클릭으로 닫으면 이름은 저장되고 잔액 정정 체인만 에러 없이
-// 조용히 사라진다. 그래서 resetAndClose 맨 앞에서 isBusy를 확인해 진행 중이면 아무것도 하지 않는다 —
-// X 버튼과 Modal의 배경 클릭 모두 이 함수 하나를 거치므로 두 경로가 함께 막힌다.
+// **저장 중에는 닫히지 않는다.** handleSave는 계좌 정보 PATCH → 성공 시 잔액 PATCH를 per-call
+// onSuccess로 체이닝한다. TanStack Query v5의 MutationObserver.reset()은 진행 중인 mutation에서
+// 옵저버를 즉시 떼어내(`#currentMutation?.removeObserver(this)`) 응답이 도착해도 per-call onSuccess가
+// 호출되지 않는다. resetAndClose가 그 reset()들을 부르므로, 저장이 끝나기 전에 X나 배경 클릭으로
+// 닫으면 이름은 저장되고 잔액 정정 체인만 에러 없이 조용히 사라진다. 그래서 resetAndClose 맨 앞에서
+// isBusy를 확인해 진행 중이면 아무것도 하지 않는다 — X 버튼과 Modal의 배경 클릭 모두 이 함수 하나를
+// 거치므로 두 경로가 함께 막힌다.
 //
-// 잔액 입력(balanceKrwInput)은 number | null이다. null은 "입력칸을 비워둔 채(아직 값을 안 씀)"를
-// 뜻한다 — 문자열 없이 숫자 하나로만 관리하면 사용자가 값을 고치려 칸을 전체 지우는 순간 빈
-// 문자열이 0으로 해석되어, 다시 채우기 전에 저장을 누르면 잔액이 실수로 0원 정정된다. 자릿수가 너무
-// 커 안전 정수 범위를 벗어나는 값도 같은 자리에서 막는다(AddAccountModal의 달러 환산 오버플로 방어와
-// 같은 톤).
+// 잔액 입력(balanceKrwInput)은 number | null이다. null은 '입력칸을 비워둔 채(아직 값을 안 씀)'를
+// 뜻한다 — 숫자 하나로만 관리하면 사용자가 값을 고치려 칸을 전체 지우는 순간 빈 문자열이 0으로
+// 해석되어, 다시 채우기 전에 저장을 누르면 잔액이 실수로 0원 정정된다. 안전 정수 범위를 벗어나는
+// 값도 같은 자리에서 막는다.
 //
-// **GET /accounts/{id}만 응답이 한 겹 감싸져 있다**(2026-08-30 계약, AccountDetailResponse) —
-// accountQuery.data는 계좌 자체가 아니라 { account, holdingValueKrw, totalValueKrw }다. 이 모달은
-// 계좌 정보만 다루므로 .account만 꺼내 쓴다(보유 종목 평가액은 계좌 상세 모달이 쓴다).
+// **GET /accounts/{id}만 응답이 한 겹 감싸져 있다**(AccountDetailResponse) — accountQuery.data는
+// 계좌 자체가 아니라 { account, holdingValueKrw, totalValueKrw }다. 이 모달은 계좌 정보만 다루므로
+// .account만 꺼내 쓴다(보유 종목 평가액은 계좌 상세 모달이 쓴다).
 //
-// **달러 예수금이 있는 계좌는 잔액 정정을 지원하지 않는다**(백엔드 계약 — PATCH .../balance가
-// 400 BALANCE_ADJUSTMENT_NOT_SUPPORTED_FOR_FX로 거절한다). 외화분은 원금만 환율을 타는데 조정 거래는
+// **달러 예수금이 있는 계좌는 잔액 정정을 지원하지 않는다**(PATCH .../balance가 400
+// BALANCE_ADJUSTMENT_NOT_SUPPORTED_FOR_FX로 거절한다). 외화분은 원금만 환율을 타는데 조정 거래는
 // 원화로 굳어, 정정해도 다음 날 잔액이 다시 어긋나기 때문이다. 그래서 그런 계좌에서는 잔액 칸을
 // 읽기 전용으로 두고 현재 예수금만 보여준다 — 금액을 맞추려면 가계부에 거래를 기록해야 한다.
 //
-// **판별 기준은 통화(currency)가 아니라 달러 예수금 유무(initialBalanceUsd != null)다**(2026-08-30
-// 수정). 예전에는 currency === 'USD'로 판단했는데, 이 앱은 계좌를 **항상 currency:'KRW'로 등록**하므로
-// (CLAUDE.md '계좌 통화') 달러 예수금이 있는 주식 계좌도 통화는 KRW다 — 그 결과 정정 칸이 열려 있다가
-// 저장을 눌러야 400을 맞았다. 반대로 통화만 USD이고 아직 환전 전이라 달러 예수금이 없는 계좌는 서버가
-// 정정을 허용하므로, 이제 칸이 정상적으로 열린다. 서버 문구와 판별식을 같은 것으로 맞춘 것이다.
+// **판별 기준은 통화(currency)가 아니라 달러 예수금 유무(initialBalanceUsd != null)다.**
+// 이 앱은 계좌를 **항상 currency:'KRW'로 등록**하므로(CLAUDE.md '계좌 통화') 달러 예수금이 있는 주식
+// 계좌도 통화는 KRW다 — currency === 'USD'로 판단하면 정정 칸을 열어줬다가 저장 시점에 400을 맞는다.
+// 반대로 통화만 USD이고 아직 환전 전이라 달러 예수금이 없는 계좌는 서버가 정정을 허용한다.
 //
-// 달러·원화 예수금은 함께 보여준다(2026-08-20, 사용자 요청 — "달러, 원화 둘 다 보여줘야 한다").
-// **표시에 쓰는 값은 등록 시점(initialBalance~)이 아니라 현재 예수금(cashUsd/cashKrw)이다**
-// (2026-08-30 계약 — 서버가 통화별 현재 예수금을 내려주기 시작했고 OpenAPI가 "표시에는 cash~를 쓰라"고
-// 명시한다). 예전에는 서버가 현재 달러 잔액을 주지 않아 등록 시점 원금을 보여줄 수밖에 없었다 —
-// balanceKrw ÷ 환율로 역산하지 않는다는 원칙은 그대로다(환율은 프론트가 다루지 않는다).
-// balanceKrw는 두 예수금을 합친 값이라 "예수금 합계 (원화)"로 따로 보여준다 — **보유 종목 평가액은
-// 포함하지 않으므로 "평가액"이라고 부르지 않는다**(그 값은 계좌 상세 모달의 총 평가액이다).
-// balanceKrw - initialBalanceKrw를 "환차익/환차손"으로 보여주던 것은 제거했다(2026-08-20) —
-// initialBalanceKrw는 원화 예수금 원금만이고 balanceKrw에는 외화 환산액과 원장 증감이 섞여 있어
-// 이 뺄셈이 더 이상 순수한 환율 변동분이 아니기 때문이다. 서버 응답만으로 순수 환차익을 만들 수
-// 없으므로 CLAUDE.md 원칙("서버 응답에 없는 값은 화면에 그리지 않는다")에 따라 그리지 않는다.
+// 달러·원화 예수금은 함께 보여준다. **표시에 쓰는 값은 등록 시점(initialBalance~)이 아니라 현재
+// 예수금(cashUsd/cashKrw)이다**(OpenAPI가 '표시에는 cash~를 쓰라'고 명시). balanceKrw ÷ 환율로
+// 역산하지 않는다 — 환율은 프론트가 다루지 않는다.
+// balanceKrw는 두 예수금을 합친 값이라 '예수금 합계 (원화)'로 따로 보여준다 — **보유 종목 평가액은
+// 포함하지 않으므로 '평가액'이라고 부르지 않는다**(그 값은 계좌 상세 모달의 총 평가액이다).
+// balanceKrw - initialBalanceKrw를 '환차익/환차손'으로 보여주지 않는다 — initialBalanceKrw는 원화
+// 예수금 원금만이고 balanceKrw에는 외화 환산액과 원장 증감이 섞여 있어 이 뺄셈이 순수한 환율 변동분이
+// 아니다. 서버 응답만으로 순수 환차익을 만들 수 없으므로 '서버 응답에 없는 값은 그리지 않는다'는
+// 원칙에 따라 그리지 않는다.
 
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -105,8 +96,8 @@ export function EditAccountModal() {
   const patchAccountBalance = usePatchAccountBalance()
   const deleteAccount = useDeleteAccount()
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
-  // 이름 필드도 AddAccountModal의 nameInvalid와 같은 패턴으로 검증한다 — 예전에는 이름을 비운 채
-  // 저장을 누르면 handleSave가 조용히 return해 아무 반응이 없었다(리뷰 지적).
+  // 이름 필드도 AddAccountModal의 nameInvalid와 같은 패턴으로 검증한다 — 이름을 비운 채
+  // 저장을 누르면 handleSave가 조용히 return해 아무 반응이 없었다.
   const [nameInvalid, setNameInvalid] = useState(false)
   // 잔액은 accountForm이 아니라 별도 로컬 상태로 둔다 — PATCH /accounts/{id}가 아니라 전용 잔액 정정
   // API(PATCH /accounts/{id}/balance)로 나가는 별개의 요청이라 accountForm의 필드가 아니다.
@@ -134,7 +125,7 @@ export function EditAccountModal() {
   // 시점에 같은 값이 들어오지만, 잔액을 다룰 수 있는지는 저장된 계좌의 성격이라 서버 응답이 근거다).
   const hasFxDeposit = account?.initialBalanceUsd != null
   // "현재 원화 예수금"은 값이 있을 때만 보여준다 — 달러만 넣고 만든 해외주식 계좌(가장 흔한 경우)는
-  // cashKrw가 0이라, 상시 노출하면 "₩0"과 안내 문구가 항상 뜬다(리뷰 지적). OpenAPI 상 cashKrw는
+  // cashKrw가 0이라, 상시 노출하면 "₩0"과 안내 문구가 항상 뜬다. OpenAPI 상 cashKrw는
   // required·non-null이지만, 바로 이 파일이 "타입 선언을 믿었다가 런타임에 터진" 사고
   // (initialBalanceUsd의 undefined 크래시)를 겪었으므로 null/undefined도 함께 걸러 방어한다.
   const hasKrwDeposit = hasFxDeposit && !!account?.cashKrw
@@ -260,7 +251,7 @@ export function EditAccountModal() {
       isLiquid: form.isLiquid,
       // type은 보내지 않는다 — 자산 유형은 읽기 전용이라 바뀔 경로가 없고(파일 상단 주석), PATCH는
       // 생략한 필드를 건드리지 않으므로 파킹통장/정기예금 같은 세부 타입이 그대로 유지된다.
-      // maturityDate는 이 모달에서 더 이상 입력받지 않으므로 보내지 않는다(2026-08-19, 폼 축소) —
+      // maturityDate는 이 모달에서 더 이상 입력받지 않으므로 보내지 않는다(폼 축소) —
       // PATCH는 생략한 필드를 건드리지 않으니 서버에 이미 저장된 만기일은 그대로 유지된다.
     }
 
@@ -409,7 +400,7 @@ export function EditAccountModal() {
                     onChange={(e) => {
                       // 빈 문자열은 0이 아니라 "아직 값을 안 씀"으로 남긴다 — 파일 상단 주석 참고. 칸을
                       // 전체 지운 순간 parseAmount('')가 0을 돌려주면, 다시 채우기 전에 저장을 눌렀을 때
-                      // 잔액이 실수로 0원 정정되는 사고로 이어진다(리뷰 지적).
+                      // 잔액이 실수로 0원 정정되는 사고로 이어진다.
                       const digits = e.target.value.replace(/[^0-9]/g, '')
                       setBalanceKrwInput(digits ? Number(digits) : null)
                       if (balanceEmptyError) setBalanceEmptyError(false)
@@ -420,12 +411,12 @@ export function EditAccountModal() {
               )}
               {/* 잔액을 실제 값과 다르게 정정하면 서버가 차액만큼 가계부에 조정 거래를 자동으로 남긴다
                   (사용자가 놀라지 않도록 저장 전에 미리 알려준다). 값을 실제로 바꿨을 때는 색을 한 단계
-                  올려(--text-weak → --text-mid) 훑고 지나치기 쉬운 문제를 줄인다(리뷰 지적) — 확인
+                  올려(--text-weak → --text-mid) 훑고 지나치기 쉬운 문제를 줄인다 — 확인
                   모달까지는 단순 수정이 번거로워지므로 과하다고 판단해 별도로 만들지 않았다. */}
               {hasFxDeposit ? (
                 <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>
                   {/* balanceKrw(예수금 합계)는 달러 예수금과 원화 예수금을 합쳐 환산한 값이라(파일 상단
-                      주석), 원화 예수금이 있는 계좌에서는 "합쳐서" 계산된다는 점을 짚어준다(리뷰 지적).
+                      주석), 원화 예수금이 있는 계좌에서는 "합쳐서" 계산된다는 점을 짚어준다.
                       원화 예수금이 0이라 아래 블록이 숨겨진 계좌(가장 흔한 경우)에서는 합산 대상이 없어
                       혼란스러우니 더 단순한 문장으로 보여준다. */}
                   {hasKrwDeposit

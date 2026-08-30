@@ -1,6 +1,6 @@
 import type { CategoryKind } from '../common.type'
 
-// API-SPEC §7. 대분류는 서버 시드 고정이라 API로 생성/삭제할 수 없고, 소분류만 추가·삭제 가능하다.
+// 대분류는 서버 시드 고정이라 API로 생성/삭제할 수 없고, 소분류만 추가·삭제 가능하다.
 
 export interface SubcategoryResponse {
   id: number

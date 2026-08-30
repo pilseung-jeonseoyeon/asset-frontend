@@ -6,9 +6,9 @@ import { create } from 'zustand'
 // 않는다), 새로고침 후에는 부팅 시 refresh를 한 번 호출해 액세스 토큰을 다시 받는다.
 //
 // status
-//   'unknown'       — 부팅 직후. 아직 refresh를 시도하지 않아 로그인 상태를 모른다.
-//   'authenticated' — 유효한 액세스 토큰이 있다.
-//   'anonymous'     — 로그인하지 않았거나 세션이 끝났다.
+// 'unknown' — 부팅 직후. 아직 refresh를 시도하지 않아 로그인 상태를 모른다.
+// 'authenticated' — 유효한 액세스 토큰이 있다.
+// 'anonymous' — 로그인하지 않았거나 세션이 끝났다.
 export type AuthStatus = 'unknown' | 'authenticated' | 'anonymous'
 
 // "이 브라우저에서 로그인한 적이 있는가"만 기억하는 불리언 힌트. 토큰이 아니라 민감정보가
@@ -74,8 +74,8 @@ interface AuthStore {
   /**
    * 부팅 시 refresh로 세션을 되찾지 못했을 때.
    * @param sessionInvalid 서버가 세션 무효(401/403)라고 **명확히 답한** 경우에만 true.
-   *   타임아웃·네트워크 오류·5xx는 "모름"이므로 false여야 한다 — 그때 힌트를 지워버리면
-   *   지하철처럼 잠깐 느린 곳에서 앱을 연 것만으로 멀쩡한 세션의 힌트가 날아간다.
+   * 타임아웃·네트워크 오류·5xx는 "모름"이므로 false여야 한다 — 그때 힌트를 지워버리면
+   * 지하철처럼 잠깐 느린 곳에서 앱을 연 것만으로 멀쩡한 세션의 힌트가 날아간다.
    */
   markAnonymous: (options?: { sessionInvalid?: boolean }) => void
 }

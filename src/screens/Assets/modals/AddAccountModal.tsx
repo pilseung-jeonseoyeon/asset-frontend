@@ -1,79 +1,69 @@
-// Source: secret/Asset Manager v14.dc.html L1379-1452 (modalAddAccount) — layout transcribed verbatim,
-// then wired to POST /accounts (contents were previously uncontrolled/no-op — see git history). z-index
-// 90 (NOT 80 — confirmed per-instance, this modal can be opened from within another modal via
-// openAddAccountFrom{Entry,Stock,Recur}, hence the higher stacking). closeAddAccount returns to
-// `addAccountReturnTo` (whatever modal opened this one) instead of just closing (L4513).
+// 계좌 추가 모달. POST /accounts에 연결돼 있다. z-index는 80이 아니라 **90**이다 — 다른 모달 안에서
+// (openAddAccountFrom{Entry,Stock,Recur}) 열릴 수 있어 한 단 위에 쌓여야 한다. 닫으면 그냥 닫히지
+// 않고 `addAccountReturnTo`(이 모달을 연 모달)로 돌아간다.
 //
-// 자산 유형 칩은 서버 AccountType이 아니라 자산 화면 카드의 6분류(src/data/assetsView.ts
-// ASSET_CLASS_META/ASSET_CLASS_ORDER)를 쓴다(2026-08-17, 제품 결정). 칩을 고르면 그 자산군의 대표
-// AccountType이 `form.type`에 저장돼 서버로는 AccountType 그대로 나간다. 계좌 유형이 6종으로 통합된
-// 뒤로는 자산군과 1:1이라 뭉개지는 정보가 없다(ASSET_CLASS_ACCOUNT_TYPE_PRESET 주석 참고). 어느 자산군
-// 칸에서 열었는지에 따른 기본 칩 선택은 AssetCategoryModal이 accountForm에 미리 넣어준다.
+// 자산 유형 칩은 서버 AccountType이 아니라 자산 화면 카드의 분류(src/data/assetsView.ts
+// ASSET_CLASS_META/ASSET_CLASS_ORDER)를 쓴다. 칩을 고르면 그 자산군의 AccountType이 `form.type`에
+// 저장돼 서버로는 AccountType 그대로 나간다 — 둘이 1:1이라 뭉개지는 정보가 없다
+// (ASSET_CLASS_ACCOUNT_TYPE_PRESET 주석 참고). 어느 자산군 칸에서 열었는지에 따른 기본 칩 선택은
+// AssetCategoryModal이 accountForm에 미리 넣어준다.
 //
-// **유형별 폼 분기**(2026-08-20, 사용자 요청): 유형마다 필요한 입력이 다르므로 한 폼을 돌려쓰지 않고
-// FORM_FIELDS 표 하나로 "이 유형이 어떤 필드를 쓰는가"를 정의하고 JSX와 검증이 그 표만 본다. 조건문을
-// JSX 여기저기 흩뿌리면 "예적금만 만기일 필수" 같은 규칙이 화면과 검증 사이에서 갈라진다.
-//   현금      현재 잔액(금융기관은 모든 유형 공통 — 입출금 통장은 기관을, 지갑 현금은 '없음'을 고른다)
-//   예적금    현재 잔액 + 이율(선택) + 개설일(선택) + 만기일(필수)
-//   주식      현재 원화 잔액 + 현재 달러 잔액 + 보유 종목(KR·US 혼합)
-//   가상자산  현재 잔액 + 보유 코인(CRYPTO)
-//   연금·기타 현재 잔액
-// 이율·개설일·만기일은 2026-08-19 폼 축소 때 지웠다가 이번에 되살린 것이다(커밋 0747fe4^) — DatePicker
-// 팝오버가 잘리지 않게 단독 전체 폭 행으로 두는 배치와, resetAndClose에서 datePickerPicked/datePickerNav 키를 지우는
-// 처리는 그때 이미 해결해둔 것이라 그대로 가져왔다. 이 둘을 빼먹으면 각각 달력이 잘리고, 모달을 다시
-// 열었을 때 지난 날짜가 남는다(이 모달은 AppShell에 항상 마운트돼 있어 닫아도 언마운트되지 않는다).
+// **유형별 폼 분기**: 유형마다 필요한 입력이 다르므로 한 폼을 돌려쓰지 않고 FORM_FIELDS 표 하나로
+// '이 유형이 어떤 필드를 쓰는가'를 정의하고 JSX와 검증이 그 표만 본다. 조건문을 JSX 여기저기
+// 흩뿌리면 '예적금만 만기일 필수' 같은 규칙이 화면과 검증 사이에서 갈라진다.
+// 현금 현재 잔액(금융기관은 모든 유형 공통 — 입출금 통장은 기관을, 지갑 현금은 '없음'을 고른다)
+// 예적금 현재 잔액 + 이율(선택) + 개설일(선택) + 만기일(필수)
+// 주식 현재 원화 잔액 + 현재 달러 잔액 + 보유 종목(KR·US 혼합)
+// 가상자산 현재 잔액 + 보유 코인(CRYPTO)
+// 연금·기타 현재 잔액
+// 이율·개설일·만기일 행은 DatePicker 팝오버가 잘리지 않도록 단독 전체 폭 행에 둔다. 그리고
+// resetAndClose에서 datePickerPicked/datePickerNav 키를 지운다 — 이 모달은 AppShell에 항상 마운트돼
+// 있어 닫아도 언마운트되지 않으므로, 안 지우면 다시 열었을 때 지난 날짜가 남는다.
 //
-// 보유 종목은 CreateAccountRequest.holdings로 **계좌와 한 번에** 전송한다(2026-08-20 백엔드 계약 추가).
-// 서버가 각 줄을 등록일(KST) 체결 BUY 매매로 기록하므로 등록 직후 주식 화면의 보유 종목·매매 내역에
-// 그대로 나타난다. 프론트가 계좌를 만든 뒤 POST /trades를 여러 번 부르는 방식이 아니라 한 요청이므로,
-// 중간에 실패해 "계좌만 만들어진" 어중간한 상태가 생기지 않는다(유형이 안 맞으면 400
-// INVALID_ACCOUNT_TYPE이고 계좌도 만들어지지 않는다 — OpenAPI 명시).
+// 보유 종목은 CreateAccountRequest.holdings로 **계좌와 한 번에** 전송한다. 서버가 각 줄을 등록일(KST)
+// 체결 BUY 매매로 기록하므로 등록 직후 주식 화면의 보유 종목·매매 내역에 그대로 나타난다. 계좌를
+// 만든 뒤 POST /trades를 여러 번 부르는 방식이 아니라 한 요청이므로 중간에 실패해 '계좌만 만들어진'
+// 어중간한 상태가 생기지 않는다(유형이 안 맞으면 400 INVALID_ACCOUNT_TYPE이고 계좌도 만들어지지 않는다).
 // 평단가 통화는 원화가 아니라 **종목 표시 통화**다: 해외 종목은 달러, 국내 종목·가상자산은 원화.
 // 주식 계좌 하나에 국내·해외를 섞어 담을 수 있으므로 이 단위는 계좌가 아니라 **줄마다** 갈린다
 // (AccountHoldingsField가 줄에 붙여둔 market을 그대로 따른다).
 //
-// 모달 구조는 2스텝 마법사가 아니라 한 화면 스크롤이다(2026-08-20, UX 검토): 이 모달은 대부분
-// AssetCategoryModal이 유형을 프리셋해서 열기 때문에, 스텝을 나누면 가장 흔한 경로에서 이미 정해진
-// 유형을 한 번 더 확인 탭하게 만들 뿐이다. 대신 주식·코인 유형에서 폼이 길어질 때 생기는 마찰을 줄이려
-// 헤더(닫기 버튼 + 유형 칩)를 패널 위쪽에 sticky로 고정한다 — 종목을 몇 개 담은 뒤 "이거 국내주식이
-// 아니라 해외주식이었네" 하고 유형을 바꾸려 맨 위로 되돌아갈 필요가 없다. 칩만 고정하지 않고 헤더를
-// 통째로 고정하는 게 중요하다: 이 앱의 모달은 스크림 클릭으로 닫히지 않아(docs/mobile.md §4) X 버튼이
-// 스크롤 밖으로 나가면 모바일에서 닫을 수단이 사라진다. 하단(저장 버튼)은 고정하지 않는다 — 이유는
-// 아래 footerStyle 주석 참고.
+// 모달 구조는 2스텝 마법사가 아니라 한 화면 스크롤이다: 이 모달은 대부분 AssetCategoryModal이 유형을
+// 프리셋해서 열기 때문에, 스텝을 나누면 가장 흔한 경로에서 이미 정해진 유형을 한 번 더 확인 탭하게
+// 만들 뿐이다. 대신 주식·코인 유형에서 폼이 길어질 때의 마찰을 줄이려 헤더(닫기 버튼 + 유형 칩)를
+// 패널 위쪽에 sticky로 고정한다 — 종목을 몇 개 담은 뒤 유형을 바꾸려 맨 위로 되돌아갈 필요가 없다.
+// 칩만이 아니라 헤더를 통째로 고정하는 게 중요하다: X 버튼이 스크롤 밖으로 나가면 모바일에서 닫을
+// 수단이 줄어든다. 하단(저장 버튼)은 고정하지 않는다 — 이유는 아래 footerStyle 주석 참고.
 //
 // 통화 선택 UI는 없다 — 저장 시 보내는 currency는 항상 'KRW'다. 서버 계약상 currency는 금액 필드의
 // 단위가 아니라 **표기용**이고(AccountRes.currency 설명), 달러 예수금은 통화와 무관하게
-// initialBalanceUsd라는 별도 필드로 나가기 때문이다. 2026-08-27 주식 통합 전에는 해외주식 칩만
-// 'USD'를 보냈지만, 그 칩이 국내주식과 합쳐지면서 "이 계좌는 달러 계좌"라고 단정할 근거가 사라졌다 —
-// 국내 종목만 담은 증권계좌까지 USD 표기가 될 수는 없다.
+// initialBalanceUsd라는 별도 필드로 나간다. 주식 칩 하나가 국내·해외를 함께 담으므로 '이 계좌는 달러
+// 계좌'라고 단정할 근거도 없다.
 //
 // 잔액 입력은 자산 유형에 따라 갈린다. 주식 칩은 실제 증권사 계좌처럼 **달러 예수금과 원화 예수금이
-// 동시에** 있을 수 있다(2026-08-20, 사용자 결정 — "환전 안 한 원화도 따로 있다") — 그래서 이 칩만
-// 입력칸이 두 개고 둘 다 선택 입력이다. 두 칸은 환산 관계가 아니라 서로 다른 돈이므로 하나를 고치면
-// 다른 쪽이 바뀌는 로직을 넣지 않는다. 저장 시 두 값을 initialBalanceUsd(달러)/initialBalanceKrw(원화)로
-// 함께 싣는다 — **필드명이 initialBalanceNative가 아니다**(그 이름은 서버 계약에 존재한 적이 없고,
-// 그대로 보내면 달러 예수금이 조용히 누락된다. account.type.ts 주석 참고).
-// initialBalanceUsd를 보낼 수 있는 계좌는 "외화 표시 계좌 **또는 주식·가상자산 계좌**"라 원화 표기
-// 주식 계좌도 해당한다(2026-08-27 라이브 OpenAPI 설명). 다만 그 밖의 원화 계좌가 보내면 400
-// INITIAL_BALANCE_CURRENCY_MISMATCH이므로, **실제로 달러를 입력했을 때만** 싣는다 — 0을 굳이 보내
-// 서버 검증을 건드릴 이유가 없다.
+// 동시에** 있을 수 있어(환전 전 원화) 이 칩만 입력칸이 두 개고 둘 다 선택 입력이다. 두 칸은 환산
+// 관계가 아니라 서로 다른 돈이므로 하나를 고치면 다른 쪽이 바뀌는 로직을 넣지 않는다. 저장 시 두 값을
+// initialBalanceUsd(달러)/initialBalanceKrw(원화)로 함께 싣는다 — **필드명이 initialBalanceNative가
+// 아니다**(그 이름은 서버 계약에 존재한 적이 없고, 그대로 보내면 달러 예수금이 조용히 누락된다.
+// account.type.ts 주석 참고).
+// initialBalanceUsd를 보낼 수 있는 계좌는 '외화 표시 계좌 **또는 주식·가상자산 계좌**'라 원화 표기
+// 주식 계좌도 해당한다. 다만 그 밖의 원화 계좌가 보내면 400 INITIAL_BALANCE_CURRENCY_MISMATCH이므로
+// **실제로 달러를 입력했을 때만** 싣는다 — 0을 굳이 보내 서버 검증을 건드릴 이유가 없다.
 //
-// 환율은 프론트가 다루지 않는다(2026-08-20 백엔드 계약 변경). 서버가 외화 원금을 그대로 보관하고 원화
-// 평가액은 기준일 환율로 매번 환산한다 — 프론트가 환율을 곱하면 이중 환산이 된다. 그래서 환율 입력칸도,
-// 환산 미리보기도 없다.
+// 환율은 프론트가 다루지 않는다. 서버가 외화 원금을 그대로 보관하고 원화 평가액은 기준일 환율로 매번
+// 환산한다 — 프론트가 환율을 곱하면 이중 환산이 된다. 그래서 환율 입력칸도, 환산 미리보기도 없다.
 //
-// 금융기관은 반드시 "고르는" 항목이다 — 계좌 이름과 같은 인라인 오류 패턴(필드 아래 var(--down) 문구)
-// 으로 미선택 저장을 막는다. 단, 고를 수 있는 값에는 목록 맨 아래의 **'없음'**이 포함된다(2026-08-19,
-// 사용자 요청). 서버도 무기관 계좌를 정식 지원한다(CreateAccountReq.institutionId: "금융기관 ID —
-// 현금 등 무기관 자산은 생략한다"). 그래서 "아직 아무것도 안 고름"과 "없음을 골랐음"을 반드시 구분해야
-// 한다 — 둘 다 institutionId는 null이므로 로컬 상태 institutionNone으로 후자를 표시한다. 저장 시
-// institutionId는 아예 싣지 않는다. 현금 유형도 이 필드를 똑같이 보여준다(2026-08-22, 사용자 결정 —
-// 입출금 통장처럼 기관이 있는 현금이 흔하다; 2026-08-20에 "현금은 기관이 없는 게 정상"이라며 감췄던
-// 것을 되돌렸다). 지갑 속 현금처럼 기관이 없으면 '없음'을 고르면 된다.
+// 금융기관은 반드시 '고르는' 항목이다 — 계좌 이름과 같은 인라인 오류 패턴(필드 아래 var(--down) 문구)
+// 으로 미선택 저장을 막는다. 단, 고를 수 있는 값에는 목록 맨 아래의 **'없음'**이 포함된다. 서버도
+// 무기관 계좌를 정식 지원한다(CreateAccountReq.institutionId: '금융기관 ID — 현금 등 무기관 자산은
+// 생략한다'). 그래서 '아직 아무것도 안 고름'과 '없음을 골랐음'을 반드시 구분해야 한다 — 둘 다
+// institutionId는 null이므로 로컬 상태 institutionNone으로 후자를 표시하고, 저장 시 institutionId는
+// 아예 싣지 않는다. 현금 유형도 이 필드를 똑같이 보여준다(입출금 통장처럼 기관이 있는 현금이 흔하다).
+// 지갑 속 현금처럼 기관이 없으면 '없음'을 고르면 된다.
 //
-// 기관 추가 진입점은 두지 않는다(2026-08-19, 사용자 결정): POST/DELETE /institutions API는 있지만
-// 제품상 프론트에 기관 추가·삭제 기능은 필요 없다고 정리됐다 — 되살리지 말 것. 목록 조회 실패(isError)는
-// 빈 목록과 구분해 "불러오지 못했어요" + 다시 시도로 보여준다(describeQueryError).
+// 기관 추가 진입점은 두지 않는다 — 제품상 프론트에 기관 추가·삭제 기능은 필요 없다고 정리됐으니
+// 되살리지 말 것. 목록 조회 실패(isError)는 빈 목록과 구분해 '불러오지 못했어요' + 다시 시도로
+// 보여준다(describeQueryError).
 
 import { useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -106,7 +96,7 @@ import type { AssetClass, Currency, Market } from '@/services/common.type'
  */
 interface FormFields {
   /** 원화 금액 칸의 라벨. 6개 유형 모두 '현재 잔액'이고, 달러 칸이 함께 있는 해외주식만 '현재 원화
-   *  잔액'으로 구분한다(2026-08-22, 사용자 요청 — '예수금'·'평가액' 같은 용어가 유형마다 달라 헷갈렸다). */
+   * 잔액'으로 구분한다(사용자 요청 — '예수금'·'평가액' 같은 용어가 유형마다 달라 헷갈렸다). */
   amountLabel: string
   /** 달러 잔액 칸(해외주식 전용). */
   usdBalance: boolean
@@ -120,7 +110,7 @@ const FORM_FIELDS: Record<AssetClass, FormFields> = {
   CASH: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarkets: [] },
   DEPOSIT: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: true, holdingMarkets: [] },
   // 국내주식·해외주식이 합쳐진 칸이라 예전 해외주식 폼(원화+달러 두 칸)이 기본이 된다 — 증권계좌
-  // 하나가 환전 전 원화와 환전한 달러를 함께 갖기 때문(2026-08-27, 사용자 결정).
+  // 하나가 환전 전 원화와 환전한 달러를 함께 갖기 때문(사용자 결정).
   STOCK: { amountLabel: '현재 원화 잔액', usdBalance: true, savingsFields: false, holdingMarkets: ['KR', 'US'] },
   CRYPTO: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarkets: ['CRYPTO'] },
   ETC: { amountLabel: '현재 잔액', usdBalance: false, savingsFields: false, holdingMarkets: [] },
@@ -193,12 +183,12 @@ export function AddAccountModal() {
   const [pendingAssetClass, setPendingAssetClass] = useState<AssetClass | null>(null)
   // 이자율은 AppState에 숫자(interestRate)로 보관하지만, 입력칸이 보여주는 값은 이 문자열이다.
   // 숫자를 그대로 되비추면 "2." 상태가 Number()→String()을 지나며 "2"로 접혀 소수점을 아예 못 찍는다
-  // (2026-08-20 확인 — 2.1을 입력하면 21이 됐다). 달러 예수금(initialBalanceUsd)이 문자열인 것과 같은 이유다.
+  // (확인 — 2.1을 입력하면 21이 됐다). 달러 예수금(initialBalanceUsd)이 문자열인 것과 같은 이유다.
   const [interestRateStr, setInterestRateStr] = useState('')
 
   // 검증에 걸린 첫 필드로 화면을 옮기기 위한 참조. 이 폼은 종목을 몇 개만 담아도 화면 몇 배 길이가
   // 되는데, 예전에는 저장을 눌러도 그 필드 옆에만 빨간 문구가 뜨고 스크롤도 포커스도 움직이지 않았다
-  // — 화면 밖에서 실패하면 사용자 눈에는 버튼이 죽은 것처럼 보여 연타하게 된다(2026-08-20 수정).
+  // — 화면 밖에서 실패하면 사용자 눈에는 버튼이 죽은 것처럼 보여 연타하게 된다(수정).
   const nameRef = useRef<HTMLInputElement>(null)
   const institutionRef = useRef<HTMLDivElement>(null)
   const maturityRef = useRef<HTMLDivElement>(null)
@@ -637,7 +627,7 @@ export function AddAccountModal() {
           // applyAssetClass가 비우지만, **고르는 중이던 종목**은 이 컴포넌트 내부 상태(pending)라
           // 부모가 손댈 수 없다 — key가 없으면 주식에서 '삼성전자'를 고른 상태로 가상자산으로
           // 바꿨을 때 그 줄이 그대로 남고, 그대로 추가하면 코인 계좌에 주식이 등록된다(서버는 계좌
-          // 유형과 종목 시장을 검증하지 않는다). 2026-08-20 수정.
+          // 유형과 종목 시장을 검증하지 않는다). 수정.
           <AccountHoldingsField
             key={fields.holdingMarkets.join(',')}
             markets={fields.holdingMarkets}

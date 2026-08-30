@@ -1,13 +1,12 @@
-// Source: no dc.html equivalent — 원본 프로토타입에는 매매 내역 화면 자체가 없었다. GET/PUT/DELETE
-// /trades 훅(src/services/trade)은 이미 구현돼 있었는데 호출부가 0건이라(docs/backend-request.md
-// 4-1) 매수·매도를 잘못 입력하면 수정도 삭제도 못 했다 — 이 모달이 그 진입점이다. 가계부
-// LedgerEntryModal의 "수정 + 인라인 삭제 확인" 패턴을 그대로 옮겨왔다. z-index 80, width 440px,
-// maxHeight 86vh(LedgerEntryModal/ExchangeAddModal과 같은 톤).
+// 매매(매수·매도) 내역 수정/삭제 모달. GET/PUT/DELETE /trades에 연결돼 있다.
+// 이 모달이 없으면 매수·매도를 잘못 입력했을 때 수정도 삭제도 할 수 없다.
+// 가계부 LedgerEntryModal의 '수정 + 인라인 삭제 확인' 패턴을 그대로 쓴다.
+// z-index 80, 너비 440px, maxHeight 86vh.
 //
-// UpdateTradeRequest는 accountId/stockId를 받지 않는다(trade.type.ts) — LedgerEntryModal의
-// LockedAccountField와 같은 이유로 종목·계좌를 읽기 전용으로 보여준다. side(매수/매도)는 API상으로는
-// 수정 가능한 필드지만, 매수↔매도 전환은 이 거래가 나타내는 경제적 사건 자체를 바꾸는 것이라(보유
-// 수량·평단가 계산에 미치는 영향이 크다) 이 모달의 편집 범위(수량·단가·수수료·일자)에서 일부러 뺐다.
+// UpdateTradeRequest는 accountId/stockId를 받지 않으므로 종목·계좌는 읽기 전용으로 보여준다
+// (LedgerEntryModal의 LockedAccountField와 같은 이유). side(매수/매도)는 API상 수정 가능한 필드지만,
+// 매수↔매도 전환은 이 거래가 나타내는 경제적 사건 자체를 바꾸는 것이라(보유 수량·평단가 계산에
+// 미치는 영향이 크다) 편집 범위(수량·단가·수수료·일자)에서 일부러 뺐다.
 //
 // GET /trades/{id} 단건 조회가 없어(가계부와 같은 제약), Stocks.tsx의 매매 내역 섹션이 쓰는 것과
 // 같은 캐시(queryKeys.trade.list({}))에서 editingTradeId로 찾는다 — 별도 네트워크 요청이 없다.

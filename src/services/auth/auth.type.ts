@@ -1,6 +1,5 @@
-// 백엔드가 작업 도중 인증을 도입했다(JWT Bearer). 스키마는 서버의 OpenAPI 문서
-// (GET http://localhost:8080/v3/api-docs)에서 확인한 것이며, secret/API-SPEC.md는 아직 인증이
-// 없던 시점의 문서라 이 부분이 반영되어 있지 않다.
+// 인증은 JWT Bearer다. 스키마의 정본은 실행 중인 서버의 OpenAPI 문서
+// (GET http://localhost:8080/v3/api-docs)다.
 
 export interface TokenResponse {
   accessToken: string

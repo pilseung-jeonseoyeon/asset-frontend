@@ -1,24 +1,19 @@
-// Source: secret/Asset Manager v14.dc.html L2371-2632 (Stock screen literal markup) — layout
-// transcribed verbatim, then wired to GET /indices, GET /stocks, GET /stocks/holdings,
-// GET /stocks/holdings/groups, GET /stocks/holdings/closed, GET /exchanges/summary, GET /exchanges,
-// GET /trades, GET /dashboard/summary (previously hardcoded mock data — see git history for
-// src/data/mockStocks.ts). This screen owns the 2nd (and last allowed) DonutChart usage app-wide —
-// ds_rules_v2_5.md §3-4 caps donuts at exactly 2 locations (Dashboard asset composition + this
-// 섹터 비중 chart).
+// 주식 화면. GET /indices, GET /stocks, GET /stocks/holdings, GET /stocks/holdings/groups,
+// GET /stocks/holdings/closed, GET /exchanges/summary, GET /exchanges, GET /trades,
+// GET /dashboard/summary에 연결돼 있다. 뷰모델 변환은 src/data/stocksView.ts.
 //
-// 2026-08-17 추가: "총 평가금액" 아래 억/만 축약 캡션을 복원했다 — CLAUDE.md의 "범용 축약 헬퍼 발명
-// 금지"는 이미 Dashboard가 formatKoreanAbbrev()를 쓰면서 낡은 근거가 됐다(그 헬퍼를 그대로 재사용).
-// "매매 내역"(청산 종목 근처) 섹션과 "외화 자산" 카드의 "내역" 진입점도 이때 추가됐다 —
-// GET/PUT/DELETE /trades·/exchanges 훅은 이미 있었는데 호출부가 없어(docs/backend-request.md 4-1,
-// 4-4) 오입력·등록한 환전을 되돌릴 방법이 아예 없던 문제를 고쳤다.
+// 이 화면의 섹터 비중 도넛이 앱 전체에서 허용된 두 번째이자 마지막 DonutChart 사용처다 —
+// ds_rules_v2_5.md §3-4가 도넛을 정확히 두 곳(대시보드 자산 구성 + 여기)으로 제한한다.
 //
-// 2026-08-17 재수정(docs/frontend-todo.md A-7 · B-5): HoldingRes의 평가 계열(valuationKrw·
-// unrealizedPnlKrw·returnRatePercent·currentPrice·previousClosePrice·dayChangePercent·priceAsOf)이
-// nullable로 확인돼 formatNumber(null) 크래시가 났다 — 시세 미확보 종목은 카드에 "시세를 아직 확보하지
-// 못했어요"로 대체하고, 포트폴리오 요약 reduce 합산에서는 해당 종목을 제외한 뒤 캡션으로 안내한다.
-// 원가 역산(valuationKrw − unrealizedPnlKrw) 대신 totalCostKrw를 쓰도록 바뀌면서, ticker·현재가·전
-// 영업일 대비도 함께 복원됐다(더 이상 GET /stocks 전체 조회로 ticker를 조인하지 않는다). 외화 카드도
-// GET /indices의 USDKRW로 근사하던 원화 환산액을 서버의 heldKrwValuation으로 교체했다.
+// **시세 미확보 처리가 이 화면의 핵심 함정이다.** HoldingRes의 평가 계열(valuationKrw·
+// unrealizedPnlKrw·returnRatePercent·currentPrice·previousClosePrice·dayChangePercent·priceAsOf)은
+// 전부 nullable이라 formatNumber(null)로 넘기면 크래시한다 — 시세를 못 받은 종목은 카드에
+// '시세를 아직 확보하지 못했어요'로 대체하고, 포트폴리오 요약 합산에서는 그 종목을 제외한 뒤
+// 캡션으로 안내한다. 원가는 valuationKrw − unrealizedPnlKrw로 역산하지 말고 totalCostKrw를 쓴다.
+// 외화 카드의 원화 환산액도 GET /indices의 USDKRW로 근사하지 말고 서버의 heldKrwValuation을 쓴다.
+//
+// '매매 내역' 섹션과 '외화 자산' 카드의 '내역' 진입점이 있어야 오입력한 매매·환전을 되돌릴 수 있다 —
+// 지우지 말 것.
 
 import type { CSSProperties } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
@@ -86,7 +81,7 @@ export function Stocks() {
 
   const openBuy = () => setState({ modalOpen: 'quickStock', stockTradeMode: 'buy' })
   const openSell = () => setState({ modalOpen: 'quickStock', stockTradeMode: 'sell' })
-  // 이미 갖고 있던 종목을 기존 계좌에 한 번에 넣는 진입점(2026-08-20 추가) — 매수 모달을 종목 수만큼
+  // 이미 갖고 있던 종목을 기존 계좌에 한 번에 넣는 진입점(추가) — 매수 모달을 종목 수만큼
   // 여닫지 않아도 되게 한다. AddHoldingsModal 헤더 주석 참고.
   const openAddHoldings = () => setState({ modalOpen: 'addHoldings' })
 
@@ -131,7 +126,7 @@ export function Stocks() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* 실시간 시장 지표 — Yahoo Finance를 매 요청 실시간 조회해 느릴 수 있다. 그래서 로딩 중에는
           '—' 한 줄이 아니라 실제 카드와 같은 자리·같은 높이의 스켈레톤을 깔아, 값이 도착해도 아래
-          블록들이 밀려 내려가지 않게 한다(2026-08-19, 사용자 요청). */}
+          블록들이 밀려 내려가지 않게 한다. */}
       <Card style={{ padding: '16px 20px' }} aria-busy={indicesQuery.isPending}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -358,8 +353,7 @@ export function Stocks() {
       {/* 보유 종목 */}
       <Card style={{ padding: 26 }} aria-busy={holdingsQuery.isPending}>
         {/* 좁은 폭에서는 탭 묶음과 버튼 묶음이 줄바꿈으로 위아래로 나뉜다 — 한 줄에 6개(탭 3 + 버튼 3)를
-            욱여넣으면 아이폰 폭에서 라벨이 글자 단위로 꺾여 "매/수"처럼 세로로 쪼개진다(2026-08-20,
-            "보유 종목 추가" 버튼을 늘리면서 확인). 각 버튼에 nowrap을 줘서 꺾이는 대신 줄을 넘기게 한다. */}
+            욱여넣으면 아이폰 폭에서 라벨이 글자 단위로 꺾여 "매/수"처럼 세로로 쪼개진다. 각 버튼에 nowrap을 줘서 꺾이는 대신 줄을 넘기게 한다. */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <button onClick={setStAll} style={{ ...stockLightTabStyle(stockTab === '전체'), whiteSpace: 'nowrap' }}>전체</button>

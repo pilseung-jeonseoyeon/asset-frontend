@@ -1,11 +1,11 @@
-// Source: secret/Asset Manager v14.dc.html L704-758 (SIDEBAR) — transcribed verbatim.
-// Vertical sidebar: outer aside 96px, inner surface box 64px, logo (light/dark SVG swap via CSS class,
-// L710-731 fixed hex — see plan §"Monit 로고 색상" decision: kept literal, not tokenized), 5 nav buttons
-// (sidebarNavItemStyle/sidebarNavHoverStyle from state/selectors/nav.ts), avatar (36px, opens modalAccount).
+// 세로 사이드바: 바깥 aside 96px, 안쪽 surface 박스 64px, 로고(라이트/다크 SVG를 CSS 클래스로
+// 교체 — 색은 리터럴 hex 그대로 두고 토큰화하지 않는다), 내비 버튼 5개
+// (state/selectors/nav.ts의 sidebarNavItemStyle/sidebarNavHoverStyle),
+// 아바타(36px, modalAccount를 연다).
 //
-// Nav items render as real <a> (react-router-dom's Link) rather than <button> so open-in-new-tab and
-// copy-link work — active state is derived from useLocation() against NAV_ITEMS' path, not AppState
-// (the URL is the single source of truth for the current screen, see docs/architecture.md).
+// 내비 항목은 <button>이 아니라 진짜 <a>(react-router-dom의 Link)로 렌더해 새 탭으로 열기·링크
+// 복사가 동작하게 한다 — 활성 상태는 AppState가 아니라 useLocation()과 NAV_ITEMS의 path로
+// 판단한다(현재 화면의 정본은 URL이다, docs/architecture.md).
 
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'

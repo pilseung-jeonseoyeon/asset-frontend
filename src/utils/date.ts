@@ -1,5 +1,3 @@
-// Source: secret/Asset Manager v14.dc.html L3925-3927 — transcribed verbatim.
-
 import type { DateRange } from '@/services/common.type'
 
 export const DATE_PICKER_MONTH_NAMES = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
@@ -17,7 +15,7 @@ export function firstWeekday(y: number, m: number): number {
 // 대부분의 서버 API가 year/month를 파라미터로 받고, 실제 기간 경계는 서버가 사용자 설정
 // monthStartDay로 계산한다. 프론트는 "어느 정산월을 보고 있는지"만 들고 있으면 된다.
 //
-// 정산월 라벨링 규칙(답변서 2장 확정): 정산월은 "시작일이 속한 달"로 이름 붙는다.
+// 정산월 라벨링 규칙(백엔드 확정): 정산월은 "시작일이 속한 달"로 이름 붙는다.
 // monthStartDay=15면 6/28도 7/1도 7/14도 전부 정산 6월이다(정산 6월 = 6/15~7/14). 이건 새로 정한
 // 게 아니라 기존 서버 동작(가계부·대시보드·목표)과 일치하는 확정 규칙이다.
 //
@@ -139,7 +137,7 @@ export function firstMondayOfMonthGrid(year: number, month: number): string {
  *
  * 달력 격자 1행(firstMondayOfMonthGrid)은 그 달이 금·토·일에 시작하면 목요일이 전달에 걸려
  * "소속 달"이 실제로는 전달이 되어버린다(예: 2026-02는 일요일 시작 → 격자 1행 월요일은
- * 2026-01-26이고, 그 주 목요일 2026-01-29는 1월 소속). switchToWeek(월간→주간 전환 시 기본 주
+ * 이고, 그 주 목요일 는 1월 소속). switchToWeek(월간→주간 전환 시 기본 주
  * 선택)이 이 격자-1행 기준을 쓰면, 라벨/목록 제목/switchToMonth가 공통으로 쓰는 소속 달 기준
  * (weekOwnerYearMonth)과 서로 다른 답을 내 "2월 보다가 주간 전환 → 1월로 표시 → 다시 월간 전환
  * → 1월로 이동"하는 왕복 불일치가 생긴다.

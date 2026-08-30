@@ -7,7 +7,7 @@
 // 주의: 앱 시크릿은 서버가 암호화해 보관하고 응답에 절대 내려오지 않는다. 즉 등록 후에는 화면에서
 // 시크릿을 다시 볼 방법이 없고 수정 API도 없다 — 바꾸려면 삭제 후 재등록이다.
 
-/** 연동 가능한 기관. 2026-08-29 라이브 OpenAPI 기준 4종. */
+/** 연동 가능한 기관. 라이브 OpenAPI 기준 4종. */
 export type ConnectionProvider = 'UPBIT' | 'TOSS_INVEST' | 'KB_SECURITIES' | 'KIWOOM'
 
 export interface CreateConnectionRequest {

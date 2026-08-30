@@ -1,8 +1,7 @@
-// Source: secret/Asset Manager v14.dc.html L4116-4125 (hexToRgba/makeDeltaBadge) — transcribed verbatim.
-// Used by the Ledger deep-card income/expense/saving delta chips. Note: callers pass fixed dark-theme
-// hex values (#7FE0B6/#F5A29B/#B9B2F4, the dark-mode --deep-up/--deep-down/--deep-saving values)
-// regardless of the current theme — that is the source's own behavior (it does not switch with
-// light/dark mode here, unlike the rest of the deep-card), not a bug to "fix" in this port.
+// 가계부 딥 카드의 수입/지출/저축 증감 칩.
+// 호출부는 현재 테마와 무관하게 고정 다크 hex(#7FE0B6/#F5A29B/#B9B2F4 — 다크 모드의
+// --deep-up/--deep-down/--deep-saving 값)를 넘긴다. 딥 카드의 나머지와 달리 이 칩만 라이트/다크로
+// 바뀌지 않는 것은 의도된 동작이니 '고치지' 말 것.
 
 export function hexToRgba(hex: string, a: number): string {
   const n = parseInt(hex.slice(1), 16)
