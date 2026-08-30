@@ -21,7 +21,7 @@ import type { AccountType, AssetClass, InstitutionType } from '@/services/common
 // 백엔드 확정값이 아니라 이 화면(AddAccountModal/EditAccountModal/InstitutionsModal)에서 붙이는
 // 프론트 전용 표기이므로, 실제 서비스 오픈 전 백엔드와 라벨 문구를 맞춰야 한다.
 
-// AccountType이 자산군과 1:1로 통합되면서() 계좌 유형 라벨은 자산군 라벨과
+// AccountType이 자산군과 1:1로 통합되면서 계좌 유형 라벨은 자산군 라벨과
 // 같은 문구가 됐다(ASSET_CLASS_META 참고) — 두 목록이 갈라지지 않도록 라벨은 자산군 쪽을 정본으로
 // 삼고 여기서는 그대로 가져다 쓴다.
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {

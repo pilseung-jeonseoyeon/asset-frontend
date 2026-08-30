@@ -4,7 +4,7 @@
 // ChunkErrorBoundary와의 역할 차이: ChunkErrorBoundary(AppShell.tsx)는 AuthenticatedApp 전체를
 // 감싸 원래 "lazy 청크 로드 실패"(import()의 reject)만 잡으려는 목적이지만, React 에러 경계는 원인을
 // 구분하지 않고 트리 안 어떤 렌더 예외든 잡으면 그 경계 아래를 통째로 대체한다. 경계가 AuthenticatedApp
-// 하나뿐이면 모달 컴포넌트 하나의 버그가 사이드바·헤더·현재 화면까지 함께 지워버린다(실제
+// 하나뿐이면 모달 컴포넌트 하나의 버그가 사이드바·헤더·현재 화면까지 함께 지워버린다(실제 겪은
 // 장애 — EditAccountModal이 서버 응답 필드명 불일치로 던진 TypeError가 앱 전체를 "화면을 불러오지
 // 못했어요"로 대체함). 그래서 AuthenticatedApp이 렌더하는 모달마다 이 경계로 각각 감싸, "모달 하나의
 // 크래시"가 그 모달 자리로만 국한되게 한다. ChunkErrorBoundary는 원래 목적대로 그대로 두고, 이 경계가
@@ -18,8 +18,8 @@
 // 경계는 에러를 잡으면 서브트리를 언마운트하므로, hasError가 다시 false가 될 때 children은 완전히
 // 새로 마운트된다(내부 로컬 state도 전부 초기화) — "같은 인스턴스가 유지"되는 게 아니다. 그런데도
 // 크래시가 반복되지 않고 수렴하는 건, 이 컴포넌트가 감싸는 각 모달이 파생 계산보다 먼저
-// `if (!isOpen) return null`을 두는 관례를 지키고 있고(AssetCategoryModal도 부로 동일하게
-// 맞췄다), onReset이 그 `isOpen`을 판단하는 AppState 필드를 꺼주기 때문이다 — 재마운트된 children이
+// `if (!isOpen) return null`을 두는 관례를 지키고 있고(AssetCategoryModal도 같은 관례를
+// 따른다), onReset이 그 `isOpen`을 판단하는 AppState 필드를 꺼주기 때문이다 — 재마운트된 children이
 // 첫 렌더에서 바로 null을 반환해 크래시가 재현되지 않는다.
 //
 // 로깅 시 주의: error.message/componentStack에는 예외 발생 지점과 컴포넌트 이름 트리만 담기고, 계좌

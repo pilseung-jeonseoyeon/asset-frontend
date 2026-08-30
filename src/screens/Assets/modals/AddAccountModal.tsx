@@ -187,8 +187,8 @@ export function AddAccountModal() {
   const [interestRateStr, setInterestRateStr] = useState('')
 
   // 검증에 걸린 첫 필드로 화면을 옮기기 위한 참조. 이 폼은 종목을 몇 개만 담아도 화면 몇 배 길이가
-  // 되는데, 예전에는 저장을 눌러도 그 필드 옆에만 빨간 문구가 뜨고 스크롤도 포커스도 움직이지 않았다
-  // — 화면 밖에서 실패하면 사용자 눈에는 버튼이 죽은 것처럼 보여 연타하게 된다(수정).
+  // 되는데, 저장을 눌러도 그 필드 옆에만 빨간 문구가 뜨고 스크롤도 포커스도 움직이지 않으면
+  // — 화면 밖에서 실패하면 사용자 눈에는 버튼이 죽은 것처럼 보여 연타하게 된다.
   const nameRef = useRef<HTMLInputElement>(null)
   const institutionRef = useRef<HTMLDivElement>(null)
   const maturityRef = useRef<HTMLDivElement>(null)
@@ -627,7 +627,7 @@ export function AddAccountModal() {
           // applyAssetClass가 비우지만, **고르는 중이던 종목**은 이 컴포넌트 내부 상태(pending)라
           // 부모가 손댈 수 없다 — key가 없으면 주식에서 '삼성전자'를 고른 상태로 가상자산으로
           // 바꿨을 때 그 줄이 그대로 남고, 그대로 추가하면 코인 계좌에 주식이 등록된다(서버는 계좌
-          // 유형과 종목 시장을 검증하지 않는다). 수정.
+          // 유형과 종목 시장을 검증하지 않는다).
           <AccountHoldingsField
             key={fields.holdingMarkets.join(',')}
             markets={fields.holdingMarkets}

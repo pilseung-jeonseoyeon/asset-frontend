@@ -327,7 +327,7 @@ export function LedgerEntryModal() {
       // 두 계좌가 같으면 출금과 입금이 같은 계좌에 겹쳐 기록돼 아무것도 바뀌지 않는 거래가 남는다.
       // 두 드롭다운 모두 값이 없으면 accounts[0]으로 채워지므로, 계좌가 하나뿐이거나 아직 아무것도
       // 고르지 않은 상태에서 그대로 저장하면 실제로 이 조합이 만들어진다. 서버에는 이를 막는 에러
-      // 코드가 없어(에러 표) 조용히 통과하므로 여기서 막는다.
+      // 코드가 없어 조용히 통과하므로 여기서 막는다.
       if (accountId === transferAccountId) {
         setSameAccountInvalid(true)
         return

@@ -81,7 +81,7 @@ export function Stocks() {
 
   const openBuy = () => setState({ modalOpen: 'quickStock', stockTradeMode: 'buy' })
   const openSell = () => setState({ modalOpen: 'quickStock', stockTradeMode: 'sell' })
-  // 이미 갖고 있던 종목을 기존 계좌에 한 번에 넣는 진입점(추가) — 매수 모달을 종목 수만큼
+  // 이미 갖고 있던 종목을 기존 계좌에 한 번에 넣는 진입점 — 매수 모달을 종목 수만큼
   // 여닫지 않아도 되게 한다. AddHoldingsModal 헤더 주석 참고.
   const openAddHoldings = () => setState({ modalOpen: 'addHoldings' })
 

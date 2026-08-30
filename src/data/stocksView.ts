@@ -439,8 +439,8 @@ export interface AccountInstitutionMeta {
 }
 
 /**
- * QuickStockModal 계좌 드롭다운에 "이 계좌가 어느 기관 것인지"를 함께 보여주기 위한 조인
- * (추가). AccountResponse.institutionId로 GET /institutions 응답을 찾아 그 기관의
+ * QuickStockModal 계좌 드롭다운에 "이 계좌가 어느 기관 것인지"를 함께 보여주기 위한 조인.
+ * AccountResponse.institutionId로 GET /institutions 응답을 찾아 그 기관의
  * icon(tokenKey)이 BANK_INSTITUTIONS 마스터(design/bank-institutions.ts)에 실제로 등록된 값일 때만
  * 매칭으로 본다 — institutionName은 있는데 기관에 아이콘을 아직 안 골랐거나(icon: null) BankIcon이
  * 모르는 값이면, 어설프게 기본 아이콘(pillar)으로 채우지 않고 계좌명만 보여준다(호출부 결정). null을

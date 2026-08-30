@@ -24,8 +24,8 @@ export interface CreateStockRequest {
  * 보유 수량 0 초과인 종목만.
  *
  * valuationKrw·unrealizedPnlKrw·returnRatePercent·currentPrice·previousClosePrice·dayChangePercent·
- * priceAsOf는 전부 시세 미확보(priceAsOf === null) 시 함께 null이다 — 0으로 접지 말 것(,
- * docs/frontend-todo.md A-7). totalCostKrw·avgCostPriceKrw·realizedPnlKrw는 원장 계산이라 시세와
+ * priceAsOf는 전부 시세 미확보(priceAsOf === null) 시 함께 null이다 — 0으로 접지 말 것.
+ * totalCostKrw·avgCostPriceKrw·realizedPnlKrw는 원장 계산이라 시세와
  * 무관하게 항상 채워진다.
  */
 export interface HoldingResponse {

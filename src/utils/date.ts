@@ -136,8 +136,8 @@ export function firstMondayOfMonthGrid(year: number, month: number): string {
  * (year, month)를 "소속 달"(weekOwnerYearMonth, 목요일 기준)로 갖는 가장 이른 주의 월요일.
  *
  * 달력 격자 1행(firstMondayOfMonthGrid)은 그 달이 금·토·일에 시작하면 목요일이 전달에 걸려
- * "소속 달"이 실제로는 전달이 되어버린다(예: 2026-02는 일요일 시작 → 격자 1행 월요일은
- * 이고, 그 주 목요일 는 1월 소속). switchToWeek(월간→주간 전환 시 기본 주
+ * "소속 달"이 실제로는 전달이 되어버린다(예: 2026년 2월은 일요일 시작 → 격자 1행 월요일은
+ * 1월 26일이고, 그 주 목요일인 1월 29일은 1월 소속). switchToWeek(월간→주간 전환 시 기본 주
  * 선택)이 이 격자-1행 기준을 쓰면, 라벨/목록 제목/switchToMonth가 공통으로 쓰는 소속 달 기준
  * (weekOwnerYearMonth)과 서로 다른 답을 내 "2월 보다가 주간 전환 → 1월로 표시 → 다시 월간 전환
  * → 1월로 이동"하는 왕복 불일치가 생긴다.

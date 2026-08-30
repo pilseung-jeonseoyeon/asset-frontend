@@ -73,7 +73,7 @@ export interface AccountResponse {
 }
 
 /**
- * GET /accounts/{accountId} 전용 응답(계약). 계좌 정보와 예수금은 `account` 안에 들어가고,
+ * GET /accounts/{accountId} 전용 응답. 계좌 정보와 예수금은 `account` 안에 들어가고,
  * 보유 종목까지 얹은 계좌 평가액이 바깥에 붙는다 — **이 엔드포인트만** 이 모양이다.
  *
  * `totalValueKrw = account.balanceKrw + holdingValueKrw`이고, 자산 구성·유동성 화면이 쓰는 계좌
@@ -113,7 +113,7 @@ export interface CreateAccountRequest {
   /** 계좌 표시 통화. */
   currency: Currency
   /** 등록 시점 원화 예수금 원금(원) — KRW 계좌는 원금 전체, 외화 계좌는 아직 환전하지 않은 원화
-   * 예수금(둘 다 있을 수 있는 실제 증권사 해외주식 계좌를 반영한 것, 계약).
+   * 예수금(둘 다 있을 수 있는 실제 증권사 해외주식 계좌를 반영한 것).
    * 생략하면 0. 0 이상 정수(음수는 400 INVALID_INPUT). */
   initialBalanceKrw?: number
   /** 등록 시점 외화 예수금 원금(달러, 소수점 둘째 자리까지). 보낼 수 있는 계좌는 **외화 표시 계좌

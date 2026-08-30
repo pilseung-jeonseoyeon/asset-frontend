@@ -128,7 +128,7 @@ export function Header() {
   return (
     <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 26, gap: 24 }}>
       <div>
-        {/* 모바일(<=767px)에서는 글자 대신 로고 마크를 쓴다(요청). 데스크톱은 사이드바가
+        {/* 모바일(<=767px)에서는 글자 대신 로고 마크를 쓴다. 데스크톱은 사이드바가
             이미 같은 마크를 달고 있어 상단바까지 로고를 두면 같은 마크가 두 번 나오므로 글자로 둔다.
             h1은 두 경우 모두 유지하고, 로고일 때는 화면에서만 감춘 텍스트로 제목을 남긴다 — 스크린리더가
             읽을 페이지 제목이 사라지면 안 된다. */}

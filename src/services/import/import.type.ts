@@ -1,9 +1,9 @@
-// 가계부 엑셀 가져오기(신설). 정본은 서버 OpenAPI(`GET /import/excel/transactions/template`,
+// 가계부 엑셀 가져오기. 정본은 서버 OpenAPI(`GET /import/excel/transactions/template`,
 // `POST /import/excel/transactions`)다 — 아래 타입은 백엔드 소스(`TransactionImportRes` /
 // `TransactionImportErrorRes`)와 대조해 맞춘 것이고, 실행 중인 서버 문서에 반영되면 다시 한 번 대조한다.
 // 전체 계약(엑셀 열 순서·에러 코드·전체 롤백 규칙)은 docs/excel-import.md 참고.
 //
-// 결정 사항(사용자):
+// 결정 사항:
 // - 엑셀 해석은 서버가 한다. 프론트는 파일을 multipart로 그대로 올리고, 양식(템플릿)도 서버에서 받는다
 // → 프론트에 xlsx 라이브러리를 넣지 않는다(번들 +400KB 회피). 계좌·카테고리 "이름 → id" 매칭도 서버.
 // - 미리보기 단계 없이 바로 등록하고 결과 요약만 받는다.
