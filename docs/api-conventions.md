@@ -21,10 +21,9 @@
 - `src/services/api.types.ts` — `ApiResponse<T>` / `ApiErrorPayload` 공통 봉투 타입
 - `src/services/common.type.ts` — 여러 도메인이 함께 쓰는 enum(`Currency`, `AccountType`,
   `AssetClass`, `TransactionType`, `Market` 등), 목록 조회 파라미터, Spring `Page<T>` 타입
-- `src/services/queryKeys.ts` — React Query 키 중앙 레지스트리(`qk`)
+- `src/services/queryKeys.ts` — React Query 키 중앙 레지스트리(`queryKeys`)
 - `src/services/queryClient.ts` — React Query `QueryClient`, `src/main.tsx`에서
   `QueryClientProvider`로 `AppStateProvider` 바깥을 감싸는 중
-- `src/stores/ui.ts` — 전역 로딩 카운터 zustand 스토어(`useUiStore`)
 - `VITE_API_BASE_URL` 환경변수로 baseURL 주입 (`.env`에 설정 — `.env`는 git에 커밋되지 않음.
   `import.meta.env` 타입은 `src/vite-env.d.ts`에 선언). **경로 버전 `/api/v1`을 baseURL에
   포함**시키므로 서비스 함수에서는 `/accounts`처럼 버전 없이 씁니다.
@@ -63,7 +62,7 @@ export const api = axios.create({
   원본 규칙의 `/api/v1/{domain}/{action}` 하드코딩은 baseURL과 경로에 버전이 중복될 수 있어
   baseURL 쪽으로 옮겼습니다.
 - **[조정]** 서비스 함수 이름은 원본의 `POST_login` 스타일(언더스코어 + 대문자 접두)이 아니라
-  이 코드베이스의 camelCase 컨벤션(`fmt`, `mkDelta`, `useApplyTheme` 등)을 따라
+  이 코드베이스의 camelCase 컨벤션(`formatNumber`, `makeDeltaBadge`, `useApplyTheme` 등)을 따라
   `postLogin`, `getCourses`처럼 씁니다.
 - React Query 훅은 `use{HttpMethod}{Domain}{Action}` 형태를 유지합니다: `usePostLogin`,
   `useGetCourses`, `usePostPurchaseCreate`.
@@ -207,26 +206,12 @@ api.interceptors.response.use(
 
 ## 로딩 상태 관리
 
-- 개별 요청의 로딩 상태는 React Query의 `isPending`/`isFetching`을 그대로 씁니다 — 별도 상태를
-  만들지 마세요.
-- 화면 전체를 덮는 전역 로딩 표시가 필요할 때만 `src/stores/ui.ts`의 `useUiStore`를
-  `onMutate`/`onSettled`에 연결합니다:
-
-  ```ts
-  const { startLoading, stopLoading } = useUiStore()
-
-  useMutation({
-    mutationFn: postLogin,
-    onMutate: startLoading,
-    onSettled: stopLoading,
-  })
-  ```
-
-- `pendingRequests` 카운터 방식이라 동시에 여러 요청이 떠 있어도 마지막 요청이 끝나야
-  `isLoading`이 꺼집니다.
-- **[조정]** 원본의 `tw-animate-css` 스피너는 이 프로젝트에 Tailwind가 없으므로(CSS 프레임워크
-  미사용) 적용하지 않습니다. 로딩 인디케이터 컴포넌트가 필요하면 기존
-  `src/components/primitives` 컨벤션에 맞춰 새로 만들고, 이 문서에서 참조를 추가하세요.
+- 로딩 상태는 React Query의 `isPending`/`isFetching`을 그대로 씁니다 — 별도 상태를 만들지 마세요.
+- **화면 전체를 덮는 전역 로딩 오버레이는 없습니다.** 로딩은 카드·모달 단위로 그 자리에서
+  표시합니다(`Skeleton` 프리미티브, `aria-busy`, 값 자리의 `—`). 전역 로딩 카운터 스토어를
+  다시 만들지 마세요 — 한 번 있었지만 어디서도 쓰지 않아 걷어냈습니다.
+- 로딩 인디케이터 컴포넌트가 더 필요하면 `src/components/primitives` 컨벤션에 맞춰 새로 만들고,
+  이 문서에 참조를 추가하세요.
 
 ## 서비스 폴더 구조
 
@@ -241,7 +226,7 @@ src/services/
   api.ts                 axios 인스턴스 + 인터셉터 + ApiError + unwrap
   api.types.ts           ApiResponse<T> / ApiErrorPayload 공통 봉투 타입
   common.type.ts         도메인 공용 enum · 목록 파라미터 · Page<T>
-  queryKeys.ts           React Query 키 중앙 레지스트리(qk)
+  queryKeys.ts           React Query 키 중앙 레지스트리(queryKeys)
   queryClient.ts         React Query QueryClient
   {domain}/
     {domain}.service.ts    api 인스턴스를 직접 사용하는 순수 함수 (getAccounts 등)
@@ -283,12 +268,12 @@ export async function getAccounts(params?: AccountListParams) {
 
 // src/services/account/account.hook.ts
 import { useQuery } from '@tanstack/react-query'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import type { AccountListParams } from '../common.type'
 import { getAccounts } from './account.service'
 
 export function useGetAccounts(params: AccountListParams = {}) {
-  return useQuery({ queryKey: qk.account.list(params), queryFn: () => getAccounts(params) })
+  return useQuery({ queryKey: queryKeys.account.list(params), queryFn: () => getAccounts(params) })
 }
 
 // src/services/account/index.ts
@@ -305,16 +290,16 @@ import { useGetAccounts } from '@/services/account'
 
 ## queryKey 규칙
 
-키는 배열 리터럴로 흩뿌리지 말고 `src/services/queryKeys.ts`의 중앙 레지스트리 `qk`만 씁니다.
+키는 배열 리터럴로 흩뿌리지 말고 `src/services/queryKeys.ts`의 중앙 레지스트리 `queryKeys`만 씁니다.
 
 - 도메인별 팩토리로 쪼개지 않은 이유: 이 백엔드는 잔액·평단·손익을 매 요청마다 원장에서
   재계산합니다. 그래서 거래 1건 등록이 `transaction`·`account`·`asset`·`dashboard`·`goal`을
   동시에 무효화합니다. 도메인별로 나누면 mutation마다 여러 도메인을 cross-import해야 합니다.
 - 배열 첫 요소는 도메인 이름(폴더명과 동일), 파라미터는 **마지막 하나의 객체**로 둡니다 —
-  prefix 부분 무효화(`invalidateQueries({ queryKey: qk.account.all() })`)를 유지하기 위함입니다.
+  prefix 부분 무효화(`invalidateQueries({ queryKey: queryKeys.account.all() })`)를 유지하기 위함입니다.
 - **정산월에 의존하는 쿼리는 `{ year, month }`를 키에 반드시 포함**합니다. 이 앱의 "월"은 사용자
   설정 `monthStartDay`(1~28) 기준 정산월이라 달력 1일과 다를 수 있습니다.
-- 화면 컴포넌트는 `qk`를 직접 import하지 않습니다 — 훅 안에 캡슐화합니다.
+- 화면 컴포넌트는 `queryKeys`를 직접 import하지 않습니다 — 훅 안에 캡슐화합니다.
 - `staleTime`은 도메인별로 오버라이드합니다: 시장 지표 30초(외부 실시간 조회라 느림),
   카테고리·금융기관 5분(마스터성), 나머지는 `queryClient.ts`의 기본값 30초.
 
@@ -324,9 +309,8 @@ import { useGetAccounts } from '@/services/account'
 |---|---|
 | axios 인스턴스, `ApiError` 정규화, `unwrap` | 구현됨 (`src/services/api.ts`) |
 | 공통 봉투 타입 / 도메인 공용 enum | 구현됨 (`api.types.ts`, `common.type.ts`) |
-| queryKey 중앙 레지스트리 `qk` | 구현됨 (`src/services/queryKeys.ts`) |
+| queryKey 중앙 레지스트리 `queryKeys` | 구현됨 (`src/services/queryKeys.ts`) |
 | React Query `QueryClient` + Provider 연결 | 구현됨 (`src/services/queryClient.ts`, `src/main.tsx`) |
-| 전역 로딩 zustand 스토어 | 구현됨 (`src/stores/ui.ts`) |
 | `@/` 경로 별칭 | 구현됨 (`tsconfig.app.json`, `vite.config.ts`) |
 | 인증 헤더 부착 / refresh token 큐 | 구현됨 (`src/services/api.ts`, `src/stores/auth.ts`) |
 | 도메인 서비스 폴더(`{domain}.service/hook/type.ts`) | 구현됨 — 16개 도메인(`auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification` `export`) |

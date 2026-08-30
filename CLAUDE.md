@@ -65,24 +65,24 @@
 src/
   state/                 앱 전역 상태(AppState) — "모델" 레이어
     types.ts               AppState 형태 + 모든 union 타입(Screen, EntryType 등)
-    initialState.ts        소스에서 그대로 옮긴 기본값
-    actions.ts              PATCH / PATCH_FN 액션 타입(dc.html의 setState를 미러링)
+    initialState.ts        AppState 기본값
+    actions.ts              PATCH(부분 병합) / PATCH_FN(이전 상태를 받는 갱신 함수) 액션 타입
     reducer.ts               단순 병합 리듀서
     AppStateContext.tsx       Provider + useAppState() 훅
-    selectors/                기능별 순수 헬퍼 함수(auth, datePicker, dropdown, modal, nav,
-                              segTab, stocks) — 메모이즈하지 않은 일반 함수. 소스가
-                              렌더마다 재계산하는 방식을 그대로 따른 것
+    selectors/                기능별 순수 헬퍼 함수(auth, datePicker, dropdown, entryDraft,
+                              modal, nav, tabStyles, stockTabStyles) — 메모이즈하지 않은
+                              일반 함수. 렌더마다 다시 계산해도 될 만큼 가볍다
   services/              API 통신 레이어. api.ts(axios + ApiError + unwrap), api.types.ts,
-                         common.type.ts(도메인 공용 enum), queryKeys.ts(qk 레지스트리),
+                         common.type.ts(도메인 공용 enum), queryKeys.ts(queryKeys 레지스트리),
                          queryClient.ts, 그리고 {domain}/{domain}.service|hook|type.ts
-  stores/                Zustand. ui.ts(전역 로딩 카운터), auth.ts(액세스 토큰 — 메모리 전용)
+  stores/                Zustand. auth.ts(액세스 토큰 — 메모리 전용) 하나뿐
   data/                  {screen}View.ts — 서버 응답 → 화면용 뷰모델 변환(순수 함수).
                          색상·아이콘·포맷 문자열 등 디자인 시스템 규칙이 여기 산다.
                          mock*.ts는 모두 제거됨 — 화면이 쓰는 데이터는 전부 서버에서 온다
   design/                bank-institutions.ts(125개 기관 마스터 테이블),
                          bank-archetypes.ts(공용 SVG 아이콘 경로 25종) — BankIcon에 사용
   components/
-    primitives/            원자 단위 UI 컴포넌트(Card, Button, Icon, DonutChart, Treemap,
+    primitives/            원자 단위 UI 컴포넌트(Card, Icon, DonutChart, Treemap,
                            BankIcon, DatePicker, Modal, Dropdown, SegmentedTab, StatBadge,
                            DeepCard, Avatar, Switch, Skeleton) + usePopoverAnchor.ts
                            (드롭다운/달력 팝오버를 모달 밖으로 띄우는 공용 훅)
@@ -95,8 +95,10 @@ src/
   styles/                fonts.css(웹폰트), tokens.css(디자인 토큰, 라이트/다크),
                          bank-tokens.css(기관별 색상),
                          base.css(리셋 + 지정된 hover/media 클래스만)
-  utils/                 format.ts(fmt, formatKoreanAbbrev), deltaBadge.ts(mkDelta/hexToRgba),
-                         theme.ts(useApplyTheme), date.ts, useMediaQuery.ts(useIsMobile),
+  utils/                 format.ts(formatNumber, formatKrw, formatCurrencyAmount,
+                         formatKoreanAbbrev), deltaBadge.ts(makeDeltaBadge/hexToRgba),
+                         theme.ts(useApplyTheme), date.ts, download.ts,
+                         useMediaQuery.ts(useIsMobile), useDebouncedValue.ts,
                          notificationTime.ts
 ```
 
@@ -137,9 +139,9 @@ pnpm preview       # 프로덕션 빌드 미리보기
 
   **`GET /accounts/{accountId}`만 응답이 한 겹 감싸져 있습니다**(`AccountDetailResponse`): `{ account, holdingValueKrw, totalValueKrw }`이고 `totalValueKrw = account.balanceKrw + holdingValueKrw`입니다. 목록·생성·수정·잔액정정 네 엔드포인트는 여전히 계좌를 그대로 돌려주므로, 상세를 부르는 곳에서만 `.account`를 꺼내야 합니다. 계좌 상세 화면의 대표 금액은 `balanceKrw`(예수금만)가 아니라 **`totalValueKrw`**입니다 — 주식 계좌에서 `balanceKrw`만 보여주면 보유 종목 평가액이 통째로 빠집니다.
 - **계좌 등록 시 보유 종목 동시 등록**: `POST /accounts`의 `holdings` 배열로 계좌와 보유 종목을 **한 요청에** 만들 수 있습니다(최대 100건). 각 항목은 `stockId` + `quantity`(0 초과) + `price`(0 이상)이고, 서버가 등록일(KST) 체결 **BUY 매매**로 기록하므로 등록 직후 매매 내역·보유 종목 조회에 그대로 나타납니다. **주식(`STOCK`)과 가상자산(`CRYPTO`) 계좌에만 보낼 수 있고, 그 외 유형에 보내면 400 `INVALID_ACCOUNT_TYPE`이며 계좌도 만들어지지 않습니다.** `price`는 **원화가 아니라 종목 표시 통화 기준**입니다 — 해외 종목은 달러, 국내와 가상자산은 원화(코인은 KRW 마켓 등록이 전제). 주식 계좌 하나에 국내·해외 종목을 섞어 담을 수 있으므로 **이 단위는 계좌가 아니라 줄마다 갈립니다**(`AccountHoldingsField`가 줄에 `market`을 붙여 둡니다).
-  서버는 `type`과 `currency` 조합을 검증하지 않습니다. 트리맵("맵") 뷰는 비중에 따라 3단계 렌더 티어로 분류합니다: `full`(15% 이상), `medium`(6% 이상), `icon`(그 미만). 5% 미만 항목은 합쳐서 `기타` 블록으로 만듭니다. `mapSort`(자연/기관별 정렬 토글)는 상태에는 존재하지만 소스에서도 어떤 UI에도 연결되지 않은 죽은 토글입니다 — 명시적 요청 없이 "완성"시키지 마세요.
+  서버는 `type`과 `currency` 조합을 검증하지 않습니다. 트리맵("맵") 뷰는 비중에 따라 3단계 렌더 티어로 분류합니다: `full`(15% 이상), `medium`(6% 이상), `icon`(그 미만). 5% 미만 항목은 합쳐서 `기타` 블록으로 만듭니다. 트리맵 정렬은 항상 자산군 기준 하나뿐입니다(정렬 토글은 없습니다).
 - **금융기관**: `src/design/bank-institutions.ts`는 9개 카테고리(`bank`/`securities`/`card`/`lifeInsurance`/`fireInsurance`/`savingsBank`/`crypto`/`fintech`/`pension`)에 걸친 국내 금융기관 125개의 마스터 목록입니다. 각 기관은 `tokenKey`(해당 `--bank-{tokenKey}-bg/-fg` 색상을 결정)와 `archetype`(공용 SVG 아이콘 모양 25종 중 하나)을 가집니다. KB 계열과 카카오 계열은 노란색 브랜드 컬러의 대비 확보를 위해 아이콘 stroke가 더 두껍습니다(기본 1.8 대비 2.0) — `BANK_YELLOW_STROKE_EXCEPTIONS` 참고.
-- **포맷팅**: `fmt(n)`은 `n.toLocaleString('ko-KR')`이며 통화 기호를 포함하지 않습니다 — `원`은 소스가 그렇게 하는 위치마다 JSX에 리터럴 문자열로 붙입니다(`fmt` 내부가 아님). "약 12억 8,450만 원" 같은 조/억/만 축약 표기는 원래 목업마다 하드코딩된 리터럴이었으나, 대시보드가 서버 데이터로 전환되면서 `src/utils/format.ts`의 **`formatKoreanAbbrev(n)`** 로 계산합니다(2026-08-13 신설). 단위 사이 공백 1칸, 각 단위에 천 단위 콤마, 값이 0인 단위는 생략, 통화 기호 없음 — `원`은 `fmt`와 마찬가지로 호출부 JSX에서 붙입니다. **축약 헬퍼는 이것 하나로 유지하세요** — 화면마다 비슷한 함수를 새로 만들면 표기가 갈라집니다.
+- **포맷팅**: `formatNumber(n)`은 `n.toLocaleString('ko-KR')`이며 통화 기호를 포함하지 않습니다 — `원`은 필요한 위치마다 JSX에 리터럴 문자열로 붙입니다(`formatNumber` 내부가 아님). 원화 정수 표기는 `formatKrw(n)`(소수부 버림), 통화별 고정 자릿수는 `formatCurrencyAmount(n, currency)`입니다. "약 12억 8,450만 원" 같은 조/억/만 축약 표기는 `src/utils/format.ts`의 **`formatKoreanAbbrev(n)`** 로 계산합니다 — 단위 사이 공백 1칸, 각 단위에 천 단위 콤마, 값이 0인 단위는 생략, 통화 기호 없음. **축약 헬퍼는 이것 하나로 유지하세요** — 화면마다 비슷한 함수를 새로 만들면 표기가 갈라집니다.
 - **데이터 흐름**: 화면은 `@/services/{domain}`의 훅으로 서버 데이터를 읽고(React Query 캐시에 그대로 두며 AppState로 복사하지 않습니다), `src/data/{screen}View.ts`가 그 응답을 화면이 그릴 형태로 바꿉니다. 인터랙션 상태(탭·모달·폼 입력)만 `useAppState()`로 읽고 씁니다.
 - **"월"의 기준**: 이 앱의 이번 달은 달력 1일이 아니라 사용자 설정 `monthStartDay`(1~28) 기준의 **정산월**입니다. 가계부·목표·대시보드 전역에 적용되며, 대부분의 API가 `year`/`month`를 파라미터로 받고 실제 기간 경계는 서버가 계산합니다. 정산월에 의존하는 쿼리는 queryKey에 `{ year, month }`를 반드시 포함하세요.
 - **서버 응답에 없는 값은 화면에 그리지 않습니다.** 주식 현재가, 계좌 이자율처럼 API가 주지 않는 값은 하드코딩이나 추정값으로 채우지 말고 비워 두고, 사용자에게 알려 백엔드 요청 항목으로 남기세요.

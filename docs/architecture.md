@@ -52,23 +52,23 @@ src/
     actions.ts              PATCH/PATCH_FN 액션 타입
     reducer.ts               병합 리듀서
     AppStateContext.tsx       Provider + useAppState()
-    selectors/                기능별 순수 헬퍼(auth, datePicker, dropdown, modal, nav, segTab, stocks)
+    selectors/                기능별 순수 헬퍼(auth, datePicker, dropdown, entryDraft, modal,
+                              nav, tabStyles, stockTabStyles)
 
   services/              axios + React Query 기반 API 레이어
     api.ts                  axios 인스턴스 + ApiError + unwrap + Bearer 부착 + 401 재발급 큐
     api.types.ts             공용 봉투 타입(ApiResponse<T> / ApiErrorPayload)
     common.type.ts            도메인 공용 enum · 목록 파라미터 · Spring Page<T>
-    queryKeys.ts              queryKey 중앙 레지스트리(qk)
+    queryKeys.ts              queryKey 중앙 레지스트리(queryKeys)
     queryClient.ts            React Query QueryClient
     {domain}/                 {domain}.service.ts / .hook.ts / .type.ts / index.ts
                               auth, user, institution, account, asset, category, transaction,
                               subscription, stock, trade, exchange, marketIndex, goal,
-                              dashboard, notification, export
+                              dashboard, notification, export, import, connection
                               (export만 blob 응답 때문에 공용 api 인스턴스를 쓰지 않는다 —
                                api-conventions.md 인터셉터 절 참고)
 
   stores/                화면 트리와 무관한 전역 상태만 두는 Zustand store
-    ui.ts                   전역 로딩 카운터(useUiStore)
     auth.ts                 액세스 토큰 + 로그인 상태(useAuthStore) — 메모리 전용, 저장소 미사용
 
   data/                  서버 응답 → 화면용 뷰모델 변환 계층(순수 함수). 색상·아이콘·포맷 문자열
@@ -81,7 +81,7 @@ src/
                          bank-archetypes.ts(공용 SVG 아이콘) — BankIcon에 사용
 
   components/
-    primitives/            Avatar, BankIcon, Button, Card, DatePicker, DeepCard, DonutChart,
+    primitives/            Avatar, BankIcon, Card, DatePicker, DeepCard, DonutChart,
                            Dropdown, Icon, Modal, SegmentedTab, Skeleton, StatBadge, Switch,
                            Treemap + usePopoverAnchor.ts(팝오버를 모달 밖으로 띄우는 공용 훅)
     layout/                AppShell(인증 게이팅), AuthenticatedApp(<Routes>), Header,
@@ -99,8 +99,10 @@ src/
                          base.css(리셋 + 지정된 hover/media 클래스만)
                          — index.css에서 이 순서 그대로 import한다
 
-  utils/                 format.ts(fmt, formatKoreanAbbrev), deltaBadge.ts(mkDelta/hexToRgba),
-                         theme.ts(useApplyTheme), date.ts, useMediaQuery.ts(useIsMobile),
+  utils/                 format.ts(formatNumber, formatKrw, formatCurrencyAmount,
+                         formatKoreanAbbrev), deltaBadge.ts(makeDeltaBadge/hexToRgba),
+                         theme.ts(useApplyTheme), date.ts, download.ts,
+                         useMediaQuery.ts(useIsMobile), useDebouncedValue.ts,
                          notificationTime.ts
 ```
 
@@ -113,7 +115,8 @@ src/
   디자인 시스템 규칙은 `data/{screen}View.ts`에 둡니다. 반대로 `data/`는 페칭하지 않습니다.
 - **모달은 `AuthenticatedApp`에 항상 마운트**되어 있고(현재 라우트와 무관하게 전부 마운트된다)
   닫아도 언마운트되지 않습니다. 그래서 모달을 닫을
-  때 로컬 `useState`, mutation의 `.reset()`, `openDropdown`, 해당 `dpPicked`/`dpNav` 키를 직접
+  때 로컬 `useState`, mutation의 `.reset()`, `openDropdown`, 해당 `datePickerPicked`/`datePickerNav`
+  키를 직접
   초기화해야 합니다 — 안 하면 이전 세션의 확인창·에러가 다음에 열 때 그대로 남습니다.
   같은 이유로 열려 있지 않은 모달이 요청을 쏘지 않도록 fetch 훅에 `enabled` 가드를 겁니다.
 - 새 화면/모달을 추가할 땐 기존 화면과 같은 패턴(폴더 하나, 전용 모달은 `modals/` 하위)을

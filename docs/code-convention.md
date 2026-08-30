@@ -6,7 +6,7 @@
 
 ## 명명 규칙
 
-- 컴포넌트: `PascalCase` (`Button`, `DonutChart`, `LedgerEntryModal`)
+- 컴포넌트: `PascalCase` (`Card`, `DonutChart`, `LedgerEntryModal`)
 - 훅: `useXxx` (`useAppState`, `useDropdown`, `useCloseModal`)
 - 상태 필드 / 이벤트 핸들러: `camelCase`
 - 상수: `UPPER_SNAKE_CASE` (예: `HOLDING_STOCKS`, `RECUR_FREQ_LABELS`, `WEEKDAY_HEADERS`)
@@ -38,12 +38,12 @@ CSS는 컴포넌트 파일에서 개별 import하지 않습니다 — `src/index
 
 ```tsx
 // 컴포넌트
-export function Button({ variant, className, style, children, ...rest }: ButtonProps) {
+export function Card({ className, style, children, ...rest }: CardProps) {
   /* ... */
 }
 
 // 유틸 함수
-export function fmt(n: number): string {
+export function formatNumber(n: number): string {
   return n.toLocaleString('ko-KR')
 }
 ```
@@ -56,8 +56,8 @@ export function fmt(n: number): string {
 Props는 `interface XxxProps`로 정의합니다.
 
 ```tsx
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant: ButtonVariant
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
+  hoverable?: boolean
 }
 ```
 
@@ -66,16 +66,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 ## 컴포넌트 개발
 
-- **변형(variant) 처리** — variant를 리터럴 유니언 타입으로 선언하고, 클래스명을 문자열로 직접
-  조합합니다(`Button.tsx` 참고):
-
-  ```tsx
-  type ButtonVariant = 'qbtn' | 'pill-btn'
-  className={className ? `${variant} ${className}` : variant}
-  ```
+- **변형(variant) 처리** — variant는 리터럴 유니언 타입으로 선언하고, 클래스명을 문자열로 직접
+  조합합니다(`SegmentedTab.tsx` 참고).
 
   padding/색상처럼 인스턴스별로 달라지는 값은 클래스가 아니라 호출부에서 `style` prop으로
-  직접 전달합니다 — 공용 size/padding 스펙을 임의로 만들지 않습니다(`Button.tsx` 헤더 주석 참고).
+  직접 전달합니다 — 공용 size/padding 스펙을 임의로 만들지 않습니다.
 - **반복 UI 분리** — 여러 화면이 공유하는 원자 컴포넌트는 `src/components/primitives/{Name}/`,
   레이아웃/전역 오버레이는 `src/components/layout/`에 둡니다. 특정 화면에서만 쓰는 모달 등은
   그 화면 폴더 하위(`src/screens/{Screen}/modals/`)에 둡니다.
@@ -88,7 +83,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 - 버튼/링크에 텍스트 레이블을 제공하고, 보조 설명이 필요하면 `aria-label`/`aria-describedby`를
   씁니다.
-- 로딩 상태를 나타낼 때는 `aria-busy` 속성을 씁니다 — 예: `useUiStore().isLoading`을 컨테이너의
+- 로딩 상태를 나타낼 때는 `aria-busy` 속성을 씁니다 — 예: 쿼리의 `isPending`을 컨테이너의
   `aria-busy`에 연결.
 - 컬러는 CSS 변수(`tokens.css`)를 씁니다: `--accent`/`--accent-hover`,
   `--text-strong`/`--text-mid`/`--text-weak`, `--up`/`--down`, `--inc-*`/`--exp-*`/`--sav-*` 등.

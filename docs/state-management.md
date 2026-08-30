@@ -12,7 +12,7 @@
 | 화면 내 인터랙션 / 폼 입력값 | `AppState` (reducer + Context, `useAppState()`) | `modalOpen`, `openDropdown`, 각종 탭/입력 필드 |
 | 5개 메뉴 화면 간 최상위 네비게이션 | URL (`react-router-dom`, `docs/architecture.md` 참고) | `/dashboard` `/assets` `/stocks` `/ledger` `/settings` |
 | 서버에서 받아온 데이터의 캐시·로딩·에러 | React Query (`useQuery`/`useMutation`) | API 연동 시 목록/상세 조회 결과 |
-| 여러 화면·여러 쿼리에 걸쳐 공유되는 전역 UI 상태 | Zustand (`src/stores/`) | 전역 로딩 오버레이(`useUiStore`) |
+| 화면 트리와 무관하게 여러 곳이 동시에 읽고 써야 하는 전역 상태 | Zustand (`src/stores/`) | 인증 토큰·로그인 상태(`useAuthStore`) |
 
 ### AppState가 기본값입니다
 
@@ -27,10 +27,9 @@
 ### Zustand는 좁은 예외입니다
 
 Zustand는 `AppState`로 표현하기 어려운, **화면 트리와 무관하게 여러 곳에서 동시에 읽고 써야
-하는 전역 상태**에만 씁니다. 지금 존재하는 건 `src/stores/ui.ts`의 `useUiStore`(여러 API
-요청이 동시에 떠 있어도 정확히 추적해야 하는 전역 로딩 카운터)와 `src/stores/auth.ts`의
-`useAuthStore`(아래) 둘뿐입니다. 새 도메인 store(`user` 등)를 만들기 전에, 정말 `AppState`나
-React Query 캐시로 표현할 수 없는지부터 확인하세요.
+하는 전역 상태**에만 씁니다. 지금 존재하는 건 `src/stores/auth.ts`의 `useAuthStore`(아래)
+하나뿐입니다. 새 도메인 store(`user` 등)를 만들기 전에, 정말 `AppState`나 React Query 캐시로
+표현할 수 없는지부터 확인하세요.
 
 - **인증 store가 있습니다: `src/stores/auth.ts`의 `useAuthStore`.** 백엔드가 JWT 인증을 요구하게
   되면서 추가했습니다. 화면 트리 전체(`AppShell`의 게이팅 자체, 모든 API 요청의 인터셉터)가 동시에
@@ -53,14 +52,14 @@ React Query 캐시로 표현할 수 없는지부터 확인하세요.
     인터랙션이라 `AppState`(비밀번호 제외, `src/screens/Auth/*`) 몫입니다. 이 store는 오직
     "지금 인증되어 있는가"와 토큰 값만 다룹니다.
 - store를 새로 추가할 땐 `src/stores/{domain}.ts`에 하나씩 분리하고, `set`으로 액션을 명시적으로
-  이름 붙여 노출합니다(`useUiStore`의 `startLoading`/`stopLoading` 참고). 컴포넌트에서 스토어
-  전체 객체를 구조분해하지 말고 필요한 필드/액션만 selector로 가져오세요.
+  이름 붙여 노출합니다(`useAuthStore`의 `signIn`/`signOut` 참고). 컴포넌트에서 스토어 전체 객체를
+  구조분해하지 말고 필요한 필드/액션만 selector로 가져오세요.
 
 ### React Query는 서버 상태 전용입니다
 
 API로 받아온 데이터는 `AppState`나 Zustand에 복사해 넣지 않고 React Query 캐시에 그대로
-둡니다. 로딩/에러는 훅이 돌려주는 `isPending`/`isFetching`/`error`를 그대로 쓰고, 전역 로딩
-오버레이가 필요할 때만 `onMutate`/`onSettled`로 `useUiStore`에 연결합니다(자세한 예시는
+둡니다. 로딩/에러는 훅이 돌려주는 `isPending`/`isFetching`/`error`를 그대로 쓰고, 표시는 카드·모달
+단위로 그 자리에서 합니다 — 화면 전체를 덮는 전역 로딩 오버레이는 두지 않습니다(자세한 내용은
 `api-conventions.md`의 "로딩 상태 관리" 참고).
 
 목록 페이지네이션처럼 다음 페이지를 불러오는 동안 이전 데이터를 화면에 유지하고 싶으면
