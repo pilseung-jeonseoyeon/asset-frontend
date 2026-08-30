@@ -126,6 +126,18 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent) !importa
   }
 }
 
+/* 그리드 칸(1fr)은 기본값 min-width:auto 때문에 "내용물의 최소 폭"보다 작아지지 않는다. 자산 화면의
+   '자산 분포' 카드 안에는 최소 92px짜리 트리맵 블록이 5개(합 492px) 들어 있어서, 아이폰 폭(440px)에서
+   카드가 칸을 뚫고 485px까지 늘어나 화면 전체가 가로로 밀렸다(2026-08-29 실기 확인).
+   min-width:0을 주면 카드가 칸에 맞춰지고, 넘치는 트리맵은 카드 안쪽의 overflow-x:auto 래퍼가
+   가로 스크롤로 받아준다 — 원래 의도했던 동작이다. 다른 다단 그리드도 같은 함정이 있어 함께 막는다. */
+.asset-2col > *,
+.rgrid-outer > *,
+.rgrid-cards > *,
+.rgrid-institutions > * {
+  min-width: 0
+}
+
 .dkblk-hov {
   transition: transform .15s ease, background-color .15s ease, border-color .15s ease
 }

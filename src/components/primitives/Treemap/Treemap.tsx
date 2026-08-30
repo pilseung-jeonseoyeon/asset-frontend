@@ -9,6 +9,8 @@
 // 렌더 티어도 함께 단순해졌다: 예전의 icon 티어(<6%)는 아이콘 하나만 띄워 무슨 자산인지 알 수 없었으므로,
 // 이제 모든 블록이 이름과 비중을 보여주고 금액만 넓은 블록(showHeader)에서 추가로 보여준다.
 
+import { useIsMobile } from '../../../utils/useMediaQuery'
+
 export interface TreemapBlock {
   id: string
   label: string
@@ -58,9 +60,21 @@ function TreemapTile({ b }: { b: TreemapBlock }) {
   )
 }
 
+/** 데스크톱 블록 높이. */
+const TREEMAP_MIN_HEIGHT = 236
+/**
+ * 모바일 블록 높이(2026-08-29 사용자 요청). 이 트리맵은 **가로 폭만 비중에 비례**하고 높이는 모든
+ * 블록이 똑같으므로, 높이를 줄여도 잃는 정보가 없다 — 좁은 화면에서 236px는 세로 공간만 크게
+ * 잡아먹었다. 값은 블록 안 내용(이름 17 + 비중 14 + 간격 1 + 금액 17 + 위 여백 6 + 상하 padding 24
+ * ≈ 79px)이 눌리지 않는 선에서 잡았다.
+ */
+const TREEMAP_MIN_HEIGHT_MOBILE = 140
+
 export function Treemap({ blocks }: { blocks: TreemapBlock[] }) {
+  const isMobile = useIsMobile()
+
   return (
-    <div style={{ display: 'flex', gap: 8, flex: 1, minHeight: 236 }}>
+    <div style={{ display: 'flex', gap: 8, flex: 1, minHeight: isMobile ? TREEMAP_MIN_HEIGHT_MOBILE : TREEMAP_MIN_HEIGHT }}>
       {blocks.map((b) => (
         <TreemapTile key={b.id} b={b} />
       ))}
