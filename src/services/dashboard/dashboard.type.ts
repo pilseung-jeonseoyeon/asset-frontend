@@ -26,18 +26,5 @@ export interface AllocationResponse {
   totalValueKrw: number
 }
 
-export interface MonthlyReportResponse {
-  /** 음수 가능 */
-  totalAssetChangeKrw: number
-  /** 증가한 계좌가 없으면 null (금액도 함께 null) */
-  topGainingAccountName: string | null
-  topGainingAmountKrw: number | null
-  /** 지출이 없으면 null (금액도 함께 null) */
-  topExpenseCategoryName: string | null
-  topExpenseAmountKrw: number | null
-  /** 해당 기간 수입이 0이면 0이 아니라 null (§6.6과 같은 계산식) */
-  savingsRatePercent: number | null
-}
-
 /** 대시보드 추이는 DAY/MONTH만 의미가 있다 — YEAR는 서버에 별도 처리가 없어 DAY와 같게 동작한다. */
 export type TrendUnit = 'DAY' | 'MONTH'

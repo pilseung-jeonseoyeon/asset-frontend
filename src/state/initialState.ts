@@ -34,9 +34,6 @@ export const initialState: AppState = {
   ledgerPeriod: 'month',
   ledgerView: 'calendar',
   ledgerRange: 'month',
-  trendPeriod: 'month',
-  mapSort: 'nature',
-  dash: null,
 
   modalOpen: null,
   accountDetail: null,
@@ -83,7 +80,6 @@ export const initialState: AppState = {
   editingRecurId: null,
 
   entryType: 'income',
-  rowMenuOpen: null,
   editingTxId: null,
   catDetailCategoryId: null,
   entryTabsVisible: false,
@@ -103,10 +99,6 @@ export const initialState: AppState = {
   ledgerSearch: '',
   entryDraft: null,
   entryDraftRestored: false,
-
-  expenseCatSel: '식비',
-  incomeTypeSel: '급여',
-  savingAcctSel: '신한은행 정기예금',
 
   dpPicked: {},
   dpNav: {},

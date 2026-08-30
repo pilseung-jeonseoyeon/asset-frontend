@@ -20,12 +20,6 @@ export interface CreateStockRequest {
   currency: Currency
 }
 
-/** PUT. ticker/market/currency는 수정 불가. */
-export interface UpdateStockRequest {
-  name: string
-  sector?: string
-}
-
 /**
  * 보유 수량 0 초과인 종목만.
  *

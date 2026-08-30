@@ -7,7 +7,6 @@ import type {
   HoldingGroupResponse,
   HoldingResponse,
   StockResponse,
-  UpdateStockRequest,
 } from './stock.type'
 
 export async function getStocks(keyword?: string) {
@@ -16,10 +15,6 @@ export async function getStocks(keyword?: string) {
 
 export async function postStock(body: CreateStockRequest) {
   return unwrap(await api.post<ApiResponse<StockResponse>>('/stocks', body))
-}
-
-export async function putStock(stockId: number, body: UpdateStockRequest) {
-  return unwrap(await api.put<ApiResponse<StockResponse>>(`/stocks/${stockId}`, body))
 }
 
 /** 해외 종목 보유 시 환율이 없으면 422 FX_RATE_NOT_FOUND — 에러가 아니라 미준비 상태로 다룰 것. */

@@ -96,7 +96,6 @@ export const qk = {
     trend: (range: DateRange, unit: 'DAY' | 'MONTH', type?: AccountType) =>
       ['dashboard', 'trend', { ...range, unit, type }] as const,
     allocation: () => ['dashboard', 'allocation'] as const,
-    reports: (period: Partial<YearMonth>) => ['dashboard', 'reports', period] as const,
   },
   notification: {
     all: () => ['notification'] as const,

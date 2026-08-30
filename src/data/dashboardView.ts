@@ -1,5 +1,5 @@
 // View-model layer for the 대시보드(Dashboard) screen: adapts GET /dashboard/{summary,trend,
-// allocation,reports}, GET /goals, GET /assets/distribution?groupBy=INSTITUTION into the shapes the
+// allocation}, GET /goals, GET /assets/distribution?groupBy=INSTITUTION into the shapes the
 // screen renders (API-SPEC §4 · §5 · §3.1). Dashboard.tsx consumes these directly.
 //
 // 여기 없는 것과 그 이유:
@@ -14,7 +14,6 @@ import { assetClassMetaOf } from './assetsView'
 import type {
   AllocationResponse,
   DashboardSummaryResponse,
-  MonthlyReportResponse,
   TrendPointResponse,
 } from '@/services/dashboard'
 import type { AssetInstitutionGroup } from '@/services/asset'
@@ -408,33 +407,4 @@ export function buildAssetGoals(goal: GoalResponse, today: Date = new Date()): A
                 : `${fmt(Math.abs(surplus))}원 부족`,
     },
   ]
-}
-
-// ---------- 월간 리포트 ----------
-
-export interface MonthlyReportView {
-  totalAssetChangeKrw: number
-  totalAssetChangeFmt: string
-  /** 증가한 계좌가 없으면 null — 그 줄을 그리지 말 것. */
-  topGaining: { name: string; amountFmt: string } | null
-  /** 지출이 없으면 null. */
-  topExpense: { name: string; amountFmt: string } | null
-  /** 수입이 0이면 서버가 0이 아니라 null을 준다 — '—'로 폴백할 것. */
-  savingsRatePercent: number | null
-}
-
-export function buildMonthlyReport(report: MonthlyReportResponse): MonthlyReportView {
-  return {
-    totalAssetChangeKrw: report.totalAssetChangeKrw,
-    totalAssetChangeFmt: signedFmt(report.totalAssetChangeKrw),
-    topGaining:
-      report.topGainingAccountName !== null && report.topGainingAmountKrw !== null
-        ? { name: report.topGainingAccountName, amountFmt: fmt(report.topGainingAmountKrw) }
-        : null,
-    topExpense:
-      report.topExpenseCategoryName !== null && report.topExpenseAmountKrw !== null
-        ? { name: report.topExpenseCategoryName, amountFmt: fmt(report.topExpenseAmountKrw) }
-        : null,
-    savingsRatePercent: report.savingsRatePercent,
-  }
 }

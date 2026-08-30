@@ -1,6 +1,6 @@
 import type { InstitutionType } from '../common.type'
 
-// API-SPEC §2. 필터·페이지네이션 없이 전체 목록을 돌려준다.
+// 필터·페이지네이션 없이 전체 목록을 돌려준다.
 
 export interface InstitutionResponse {
   id: number
@@ -14,13 +14,3 @@ export interface InstitutionResponse {
   /** '#FFCD00' 형태로 보이지만 서버 포맷 검증 여부는 미확인. */
   color: string | null
 }
-
-export interface CreateInstitutionRequest {
-  name: string
-  type: InstitutionType
-  icon?: string
-  color?: string
-}
-
-/** PATCH — 전 필드 선택. 스펙에 요청 필드 표가 없어 생성 요청과 같은 형태로 가정한다. */
-export type UpdateInstitutionRequest = Partial<CreateInstitutionRequest>

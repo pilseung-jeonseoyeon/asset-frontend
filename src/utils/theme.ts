@@ -13,7 +13,7 @@ export type ThemeSetting = 'light' | 'dark' | 'system'
 // 첫 페인트 전(로그인 화면 포함, 인증 전이라 서버 설정을 못 부르는 구간)에만 쓰는 힌트다.
 // 로그인 후에는 useSyncUserTheme이 서버 값으로 덮어쓴다.
 // `src/stores/auth.ts:18`의 SEEN_SESSION_KEY와 같은 명명 규칙(`monit.` 접두어).
-export const THEME_STORAGE_KEY = 'monit.theme'
+const THEME_STORAGE_KEY = 'monit.theme'
 
 const VALID_THEME_SETTINGS: readonly ThemeSetting[] = ['light', 'dark', 'system']
 
@@ -79,11 +79,11 @@ export function toThemeType(theme: ThemeSetting): ThemeType {
   }
 }
 
-export function isDarkTheme(theme: ThemeSetting): boolean {
+function isDarkTheme(theme: ThemeSetting): boolean {
   return theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 }
 
-export function applyTheme(theme: ThemeSetting): void {
+function applyTheme(theme: ThemeSetting): void {
   document.documentElement.classList.toggle('theme-dark', isDarkTheme(theme))
 }
 

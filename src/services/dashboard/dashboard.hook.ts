@@ -1,9 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { qk } from '../queryKeys'
-import type { AccountType, DateRange, YearMonth } from '../common.type'
+import type { AccountType, DateRange } from '../common.type'
 import {
   getDashboardAllocation,
-  getDashboardReports,
   getDashboardSummary,
   getDashboardTrend,
 } from './dashboard.service'
@@ -43,12 +42,4 @@ export function useGetDashboardAllocation(options?: QueryOptions) {
     enabled: options?.enabled,
   })
   return { ...query, allocation: query.data ?? [] }
-}
-
-export function useGetDashboardReports(period: Partial<YearMonth> = {}, options?: QueryOptions) {
-  return useQuery({
-    queryKey: qk.dashboard.reports(period),
-    queryFn: () => getDashboardReports(period),
-    enabled: options?.enabled,
-  })
 }

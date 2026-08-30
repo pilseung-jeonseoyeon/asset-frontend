@@ -8,9 +8,8 @@ import {
   getHoldings,
   getStocks,
   postStock,
-  putStock,
 } from './stock.service'
-import type { CreateStockRequest, UpdateStockRequest } from './stock.type'
+import type { CreateStockRequest } from './stock.type'
 
 interface QueryOptions {
   enabled?: boolean
@@ -79,14 +78,6 @@ export function usePostStock() {
   const invalidate = useInvalidateStock()
   return useMutation({
     mutationFn: (body: CreateStockRequest) => postStock(body),
-    onSuccess: invalidate,
-  })
-}
-
-export function usePutStock() {
-  const invalidate = useInvalidateStock()
-  return useMutation({
-    mutationFn: ({ id, body }: { id: number; body: UpdateStockRequest }) => putStock(id, body),
     onSuccess: invalidate,
   })
 }

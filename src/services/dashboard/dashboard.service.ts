@@ -1,10 +1,9 @@
 import { api, unwrap } from '../api'
 import type { ApiResponse } from '../api.types'
-import type { AccountType, DateRange, YearMonth } from '../common.type'
+import type { AccountType, DateRange } from '../common.type'
 import type {
   AllocationResponse,
   DashboardSummaryResponse,
-  MonthlyReportResponse,
   TrendPointResponse,
   TrendUnit,
 } from './dashboard.type'
@@ -36,11 +35,4 @@ export async function getDashboardTrend(
 
 export async function getDashboardAllocation() {
   return unwrap(await api.get<ApiResponse<AllocationResponse[]>>('/dashboard/allocation'))
-}
-
-/** year·month를 둘 다 넘겨야 그 월 기준이고, 하나라도 빠지면 현재 정산월 기준이 된다. */
-export async function getDashboardReports(period: Partial<YearMonth> = {}) {
-  return unwrap(
-    await api.get<ApiResponse<MonthlyReportResponse>>('/dashboard/reports', { params: period }),
-  )
 }

@@ -1,7 +1,4 @@
 // Source: secret/Asset Manager v14.dc.html L3480-3522 (state = {...}) — field set mirrored 1:1.
-// `dash` (L4416-4418) is used by the source but never declared in the initial state object, so it
-// starts as `null` here rather than an invented default.
-//
 // Auth fields (below, "// auth") were added once the backend turned on JWT auth (see
 // src/screens/Auth/). They're a superset of the source's auth-only fields (authScreen, keepLogin,
 // agree, ...) reshaped around the real POST /auth/* contract instead of the source's UI-prototype-only
@@ -15,11 +12,9 @@ export type AssetTab = 'overview' | 'accounts' | 'goals'
 export type LedgerTab = 'overview' | 'history'
 export type LedgerPeriod = 'month' | 'year'
 export type LedgerRange = 'month' | 'week'
-export type MapSort = 'nature' | 'institution'
 export type StockGroupTab = 'sector' | 'country'
 export type RecurringType = 'fixed' | 'subscription'
 export type EntryType = 'income' | 'expense' | 'saving' | 'transfer'
-export type DashTab = 'A' | 'B' | 'C' | null
 export type AuthScreen = 'login' | 'signup' | 'resetPassword'
 /** 'terms'는 signup 전용(1/3 약관 동의). 'form' → 이메일 등 정보 입력 단계(signup 2/3, resetPassword
  * 1/2). 'sent' → 인증 코드 발송 완료, 코드 입력 단계 노출(signup 3/3, resetPassword 2/2).
@@ -79,9 +74,6 @@ export interface AppState {
   ledgerPeriod: LedgerPeriod
   ledgerView: string // initial 'calendar'; other values unverified — confirm during Phase 8
   ledgerRange: LedgerRange
-  trendPeriod: string // initial 'month'
-  mapSort: MapSort
-  dash: DashTab
 
   // modal / overlay state
   modalOpen: string | null
@@ -158,7 +150,6 @@ export interface AppState {
 
   // ledger entry / rows
   entryType: EntryType
-  rowMenuOpen: string | null
   /** 수정 대상 transactionId(서버 id, LedgerTxRow.id). null이면 신규 등록. */
   editingTxId: number | null
   /** 분류별 지출 상세 모달 대상 categoryId. */
@@ -221,11 +212,6 @@ export interface AppState {
    */
   entryDraftRestored: boolean
   // monthStartDay(정산월 시작일)는 서버 사용자 설정에 있다 — services/user의 useGetUserSettings 참고
-
-  // selection defaults for entry form
-  expenseCatSel: string
-  incomeTypeSel: string
-  savingAcctSel: string
 
   // date-picker widget state
   dpPicked: Record<string, unknown>
