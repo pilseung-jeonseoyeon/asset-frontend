@@ -23,9 +23,9 @@ export function ReportOverlay() {
   const isFirstReportSlide = reportSlide === 0
   const isLastReportSlide = reportSlide === 4
   const closeReport = () => setState({ reportOpen: false })
-  const toggleAmountsHidden = () => setState((st) => ({ amountsHidden: !st.amountsHidden }))
-  const prevReportSlide = () => setState((st) => ({ reportSlide: Math.max(st.reportSlide - 1, 0) }))
-  const nextReportSlide = () => setState((st) => ({ reportSlide: Math.min(st.reportSlide + 1, 4) }))
+  const toggleAmountsHidden = () => setState((prev) => ({ amountsHidden: !prev.amountsHidden }))
+  const prevReportSlide = () => setState((prev) => ({ reportSlide: Math.max(prev.reportSlide - 1, 0) }))
+  const nextReportSlide = () => setState((prev) => ({ reportSlide: Math.min(prev.reportSlide + 1, 4) }))
 
   const slideBaseStyle = {
     position: 'absolute' as const, inset: 0, background: 'var(--surface)', padding: '44px 34px',

@@ -60,14 +60,14 @@ export interface EntryDraft {
   entryWithdrawAccountId: number | null
   entryDateOverride: string | null
   /** 달력 팝오버가 고른 날짜. entryDateOverride만 되살리면 달력이 기본 달로 돌아간다. */
-  dpPickedEntry: unknown
-  dpNavEntry: unknown
+  datePickerPickedEntry: unknown
+  datePickerNavEntry: unknown
 }
 
 export interface AppState {
   // navigation
   assetTab: AssetTab
-  assetCat: AssetClass | null
+  assetClassDetail: AssetClass | null
   stockTab: string // '전체' | '국내' | '해외' — Korean-literal enum, kept as string (see extraction discipline)
   stockGroupTab: StockGroupTab
   ledgerTab: LedgerTab
@@ -86,11 +86,11 @@ export interface AppState {
 
   // dropdown state — per-key shape confirmed per-dropdown during extraction (ddXxx pattern)
   openDropdown: string | null
-  dd: Record<string, unknown>
+  dropdownValues: Record<string, unknown>
 
   // header
   quickAddOpen: boolean
-  notifOpen: boolean
+  notificationOpen: boolean
 
   // profile: 사용자 이름/이메일은 서버(GET /users/me)에서 온다 — services/user의 useProfileName 참고
 
@@ -118,7 +118,7 @@ export interface AppState {
   /** 수정 대상 accountId. null이면 editAccount 모달이 닫혀 있음. */
   editAccount: number | null
   accountForm: AccountForm
-  addingCatGroup: string | null
+  addingCategoryGroup: string | null
   addAccountReturnTo: string | null
   addGoalReturnTo: string | null
 
@@ -135,25 +135,25 @@ export interface AppState {
   // recurring expense
   recurringType: RecurringType
   /** 고정 지출·구독은 항상 EXPENSE 대분류 소분류라 major/sub 인덱스가 아니라 leaf id 하나로 추적한다. */
-  recurSubcategoryId: number | null
+  recurringSubcategoryId: number | null
   /** 결제수단(계좌) — GET /accounts 목록의 accountId. */
-  recurAccountId: number | null
+  recurringAccountId: number | null
   /** "N일" 형식(예: '25일'). 제출 시 parseInt로 paymentDay(1~31)를 뽑는다.
    * 답변서 C-8: 반복 주기는 매월 전용으로 드롭 확정(frequency 필드 추가 안 함) — recurFreq/
    * recurYearMonth/recurYearDay 죽은 필드는 제거했다. */
-  recurPayDay: string
-  recurName: string
+  recurringPaymentDay: string
+  recurringName: string
   /** 정수 원화 금액. */
-  recurAmount: number
+  recurringAmount: number
   /** 수정 대상 subscriptionId(서버 id). null이면 신규 추가. */
-  editingRecurId: number | null
+  editingRecurringId: number | null
 
   // ledger entry / rows
   entryType: EntryType
   /** 수정 대상 transactionId(서버 id, LedgerTxRow.id). null이면 신규 등록. */
   editingTxId: number | null
   /** 분류별 지출 상세 모달 대상 categoryId. */
-  catDetailCategoryId: number | null
+  categoryDetailId: number | null
   entryTabsVisible: boolean
   /** 수입/지출/저축 항목의 소분류 id. null이면 해당 거래유형의 첫 대분류·첫 소분류를 기본값으로 보여준다. */
   entrySubcategoryId: number | null
@@ -214,8 +214,8 @@ export interface AppState {
   // monthStartDay(정산월 시작일)는 서버 사용자 설정에 있다 — services/user의 useGetUserSettings 참고
 
   // date-picker widget state
-  dpPicked: Record<string, unknown>
-  dpNav: Record<string, unknown>
+  datePickerPicked: Record<string, unknown>
+  datePickerNav: Record<string, unknown>
 
   // auth (login / signup / password-reset — src/screens/Auth) — only relevant while
   // useAuthStore().status === 'anonymous'. Never holds a password (see file header comment).

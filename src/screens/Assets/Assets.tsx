@@ -45,7 +45,7 @@ export function Assets() {
 
   const accounts = accountsQuery.data ?? []
   const assetCats = buildAssetCats(distribution.groups, accounts)
-  const mapBlocks = buildMapTiers(distribution.groups, (assetClass) => setState({ assetCat: assetClass }))
+  const mapBlocks = buildMapTiers(distribution.groups, (assetClass) => setState({ assetClassDetail: assetClass }))
   // 서버는 6개 자산군을 항상 고정 배열로 내려준다(계좌가 하나도 없어도 totalValueKrw:0인 빈 항목들이 옴).
   // groups.length만으로는 "데이터 없음"을 판별할 수 없어 합계 금액까지 함께 확인한다.
   const hasDistributionData =
@@ -96,7 +96,7 @@ export function Assets() {
               <button
                 key={ac.id}
                 className="dkblk-hov"
-                onClick={() => setState({ assetCat: ac.id })}
+                onClick={() => setState({ assetClassDetail: ac.id })}
                 style={{ textAlign: 'left', cursor: 'pointer', background: 'var(--fill-subtle)', border: '0.5px solid var(--border)', borderRadius: 10, padding: 18, fontFamily: 'inherit', color: 'var(--text-strong)' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>

@@ -42,7 +42,7 @@
 // 연도·월 그리드: 헤더 가운데 라벨이 `[2026년 ▾] [8월 ▾]` 두 버튼이다(2026-08-18 연도, 2026-08-22 월).
 // 연도 버튼은 연도 그리드, 월 버튼은 월 그리드를 같은 본문 영역에 띄우고, 이미 열린 쪽을 다시 누르면
 // 날짜 뷰로 돌아간다. 목록·강조·선택 계산은 전부 selectors/datePicker.ts(dp.yearCells / dp.monthCells)
-// 이고, "지금 어느 그리드를 보여줄지"(view)만 이 컴포넌트의 로컬 상태다 — 실제 값(dpNav)과 무관한
+// 이고, "지금 어느 그리드를 보여줄지"(view)만 이 컴포넌트의 로컬 상태다 — 실제 값(datePickerNav)과 무관한
 // 순수 UI 전환이기 때문이다. 달력을 닫을 때(dp.open이 꺼질 때) naturalHeight를 리셋하는 effect에
 // 얹어 view도 'date'로 되돌린다 — 다음에 열 때 항상 날짜 뷰부터 시작한다(요구사항).
 //
@@ -101,7 +101,7 @@ interface DatePickerProps {
 export function DatePicker({ dp }: DatePickerProps) {
   const isMobile = useIsMobile()
   const panelRef = useRef<HTMLDivElement>(null)
-  // 지금 보여주는 그리드 — 값(dpNav)과 무관한 순수 UI 전환이라 로컬 상태로 둔다(파일 상단 주석 참고).
+  // 지금 보여주는 그리드 — 값(datePickerNav)과 무관한 순수 UI 전환이라 로컬 상태로 둔다(파일 상단 주석 참고).
   // 아래 naturalHeight 리셋 effect에서 dp.open이 꺼질 때 항상 'date'로 되돌린다.
   const [view, setView] = useState<PickerView>('date')
   const yearGridRef = useRef<HTMLDivElement>(null)

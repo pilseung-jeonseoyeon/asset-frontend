@@ -94,7 +94,7 @@ export function Header() {
   const notifQuery = useGetNotifications()
   const patchNotificationRead = usePatchNotificationRead()
   const patchAllNotificationsRead = usePatchAllNotificationsRead()
-  const anyDropdownOpen = state.quickAddOpen || state.notifOpen
+  const anyDropdownOpen = state.quickAddOpen || state.notificationOpen
   const hasNotifs = notifQuery.notifications.length > 0
 
   // 알림 linkType → 이동 동작 매핑. linkType은 자유 문자열이고 값 집합이 아직 서버에 의해 확정되지
@@ -116,7 +116,7 @@ export function Header() {
     const handler = nf.linkType ? notificationLinkHandlers[nf.linkType] : undefined
     if (handler && nf.linkId !== null) {
       handler(nf.linkId)
-      setState({ notifOpen: false, quickAddOpen: false })
+      setState({ notificationOpen: false, quickAddOpen: false })
     }
   }
 
@@ -125,7 +125,7 @@ export function Header() {
     patchAllNotificationsRead.mutate()
   }
 
-  const closeDropdowns = () => setState({ quickAddOpen: false, notifOpen: false })
+  const closeDropdowns = () => setState({ quickAddOpen: false, notificationOpen: false })
   const stop = (e: MouseEvent) => e.stopPropagation()
 
   return (
@@ -153,7 +153,7 @@ export function Header() {
 
         <div style={{ position: 'relative' }}>
           <button
-            onClick={() => setState((st) => ({ quickAddOpen: !st.quickAddOpen, notifOpen: false }))}
+            onClick={() => setState((prev) => ({ quickAddOpen: !prev.quickAddOpen, notificationOpen: false }))}
             style={{
               width: 42,
               height: 42,
@@ -216,7 +216,7 @@ export function Header() {
                 onClick={() =>
                   // 가계부 화면의 입력 버튼과 같은 규칙으로 연다 — 저장하지 않고 닫아 보관해 둔
                   // 같은 거래유형의 초안이 있으면 되살린다(state/selectors/entryDraft.ts).
-                  setState((st) => ({ ...openNewEntryUpdater('expense', true, null)(st), quickAddOpen: false }))
+                  setState((prev) => ({ ...openNewEntryUpdater('expense', true, null)(prev), quickAddOpen: false }))
                 }
                 style={MINI_HOV_ITEM_STYLE}
               >
@@ -229,7 +229,7 @@ export function Header() {
 
         <div style={{ position: 'relative' }}>
           <button
-            onClick={() => setState((st) => ({ notifOpen: !st.notifOpen, quickAddOpen: false }))}
+            onClick={() => setState((prev) => ({ notificationOpen: !prev.notificationOpen, quickAddOpen: false }))}
             style={{
               width: 42,
               height: 42,
@@ -259,7 +259,7 @@ export function Header() {
               />
             )}
           </button>
-          {state.notifOpen && (
+          {state.notificationOpen && (
             <div
               onClick={stop}
               aria-busy={notifQuery.isPending}

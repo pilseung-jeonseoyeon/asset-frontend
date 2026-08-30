@@ -425,12 +425,12 @@ function LedgerOverview() {
     setState({
       modalOpen: 'fixedExpense',
       recurringType,
-      editingRecurId: sub?.id ?? null,
-      recurName: sub?.name ?? '',
-      recurAmount: sub?.amount ?? 0,
-      recurSubcategoryId: sub?.subcategoryId ?? null,
-      recurAccountId: sub?.accountId ?? null,
-      recurPayDay: sub ? `${sub.paymentDay}일` : '25일',
+      editingRecurringId: sub?.id ?? null,
+      recurringName: sub?.name ?? '',
+      recurringAmount: sub?.amount ?? 0,
+      recurringSubcategoryId: sub?.subcategoryId ?? null,
+      recurringAccountId: sub?.accountId ?? null,
+      recurringPaymentDay: sub ? `${sub.paymentDay}일` : '25일',
       openDropdown: null,
     })
 
@@ -514,7 +514,7 @@ function LedgerOverview() {
                   <div
                     key={cat.categoryId}
                     className="mini-hov"
-                    onClick={() => setState({ modalOpen: 'categoryDetail', catDetailCategoryId: cat.categoryId })}
+                    onClick={() => setState({ modalOpen: 'categoryDetail', categoryDetailId: cat.categoryId })}
                     style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 8px', borderBottom: '0.5px solid var(--fill-subtle)', borderRadius: 10, cursor: 'pointer' }}
                   >
                     {/* 네 칸의 고정 폭 합(56+92+40+64)에 간격 36을 더하면 288px이라, 좁은 폰
@@ -942,11 +942,11 @@ function LedgerHistory() {
   // 달력 칸 클릭 = "그날 내역 보기". 같은 칸을 다시 누르면 해제해 기간 전체로 돌아간다 — 선택을
   // 푸는 방법이 목록 위 X 하나뿐이면 모바일에서 되돌리기가 번거롭다. 날짜가 바뀌면 페이지는 1로.
   const selectDay = (isoDate: string) => () =>
-    setState((st) => ({
+    setState((prev) => ({
       // 검색 중이라면 검색을 풀면서 그 날짜로 옮겨간다 — 검색은 기간·날짜를 무시하므로, 검색어를 둔 채
       // 날짜만 골라두면 눌러도 목록이 꿈쩍하지 않는 "죽은 달력"이 된다.
       ledgerSearch: '',
-      ledgerSelectedDate: st.ledgerSelectedDate === isoDate ? null : isoDate,
+      ledgerSelectedDate: prev.ledgerSelectedDate === isoDate ? null : isoDate,
       ledgerPage: 1,
     }))
   const clearSelectedDay = () => setState({ ledgerSelectedDate: null, ledgerPage: 1 })
@@ -1253,7 +1253,7 @@ function LedgerHistory() {
           {totalPages > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 16, overflowX: 'auto' }}>
               <button
-                onClick={() => setState((st) => ({ ledgerPage: Math.max(1, (st.ledgerPage || 1) - 1) }))}
+                onClick={() => setState((prev) => ({ ledgerPage: Math.max(1, (prev.ledgerPage || 1) - 1) }))}
                 style={{ width: 44, height: 44, borderRadius: 8, border: 'none', background: 'var(--track)', color: 'var(--text-mid)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}
               >
                 <Icon name="chevron_left" size={16} />
@@ -1271,7 +1271,7 @@ function LedgerHistory() {
                 </button>
               ))}
               <button
-                onClick={() => setState((st) => ({ ledgerPage: Math.min(totalPages, (st.ledgerPage || 1) + 1) }))}
+                onClick={() => setState((prev) => ({ ledgerPage: Math.min(totalPages, (prev.ledgerPage || 1) + 1) }))}
                 style={{ width: 44, height: 44, borderRadius: 8, border: 'none', background: 'var(--track)', color: 'var(--text-mid)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}
               >
                 <Icon name="chevron_right" size={16} />

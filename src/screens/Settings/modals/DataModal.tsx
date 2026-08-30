@@ -138,7 +138,7 @@ export function DataModal() {
   }
 
   const toggleExportDropdown = () =>
-    setState((st) => ({ openDropdown: st.openDropdown === 'dataExportKind' ? null : 'dataExportKind' }))
+    setState((prev) => ({ openDropdown: prev.openDropdown === 'dataExportKind' ? null : 'dataExportKind' }))
 
   const runExport = (kind: ExportKind) => {
     setState({ openDropdown: null })

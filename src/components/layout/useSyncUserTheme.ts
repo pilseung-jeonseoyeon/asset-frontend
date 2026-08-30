@@ -32,7 +32,7 @@ export function useSyncUserTheme(): void {
 
     const next = toThemeSetting(serverTheme)
     storeTheme(next)
-    setState((st) => (st.theme === next ? {} : { theme: next }))
+    setState((prev) => (prev.theme === next ? {} : { theme: next }))
     // 조회 실패 시에는 이 effect 자체가 돌지 않으므로(data가 undefined) 캐시·로컬 테마가
     // 그대로 유지된다 — 전역 에러 UI 없이 조용히 넘어간다.
   }, [data?.theme, setState])

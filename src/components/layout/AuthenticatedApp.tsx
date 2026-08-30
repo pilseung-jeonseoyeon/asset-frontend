@@ -74,7 +74,7 @@ export function AuthenticatedApp() {
   useSyncUserTheme()
 
   // 모달 대부분은 state.modalOpen 하나로 열림을 판단하므로(파일 하단 ModalErrorBoundary 사용부
-  // 참고) 이 하나의 리셋으로 충분하다. assetCat/accountDetail/reportOpen 전용 필드를 쓰는 세 모달만
+  // 참고) 이 하나의 리셋으로 충분하다. assetClassDetail/accountDetail/reportOpen 전용 필드를 쓰는 세 모달만
   // 각자의 필드로 개별 리셋한다.
   //
   // 어떤 필드를 닫든 openDropdown도 항상 함께 지운다 — 이 저장소의 모든 모달(EditAccountModal,
@@ -119,7 +119,7 @@ export function AuthenticatedApp() {
           only replaces that modal's own spot — the sidebar/header/current screen and every other modal
           stay interactive. onReset tells the boundary how to flip this specific modal back to "closed"
           in AppState; most modals key off state.modalOpen (closeModalOpen), and the three that use a
-          dedicated field (assetCat/accountDetail/reportOpen) get their own reset via resetModalState.
+          dedicated field (assetClassDetail/accountDetail/reportOpen) get their own reset via resetModalState.
 
           zIndex must match the literal each modal itself passes to its own <Modal>/scrim (§7-1) so the
           fallback replaces that modal at the same layer instead of a fixed value that could sit on top
@@ -172,7 +172,7 @@ export function AuthenticatedApp() {
       <ModalErrorBoundary onReset={closeModalOpen} zIndex={90} title="계좌 수정">
         <EditAccountModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={resetModalState({ assetCat: null })} zIndex={80} title="자산 카테고리 상세">
+      <ModalErrorBoundary onReset={resetModalState({ assetClassDetail: null })} zIndex={80} title="자산 카테고리 상세">
         <AssetCategoryModal />
       </ModalErrorBoundary>
       <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="부동산">

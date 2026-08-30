@@ -67,7 +67,7 @@ export function CustomModal() {
   const ddMonthStart = {
     value: `${settings.monthStartDay}일`,
     open: state.openDropdown === 'monthStart',
-    toggle: () => setState((st) => ({ openDropdown: st.openDropdown === 'monthStart' ? null : 'monthStart' })),
+    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'monthStart' ? null : 'monthStart' })),
     options: MONTH_START_DAYS.map((d) => ({
       name: `${d}일`,
       pick: () => {

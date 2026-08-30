@@ -7,7 +7,7 @@ import { useAppState } from '../AppStateContext'
 export function useCloseModal() {
   const { setState } = useAppState()
   return () =>
-    setState({ modalOpen: null, editingTxId: null, editingRecurId: null })
+    setState({ modalOpen: null, editingTxId: null, editingRecurringId: null })
 }
 
 export function stopPropagation(e: MouseEvent) {

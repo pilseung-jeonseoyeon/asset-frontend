@@ -14,27 +14,27 @@ import type { AppState, EntryDraft, EntryType } from '../types'
  * 계좌·카테고리 선택은 "적은 것"으로 치지 않는다 — 이 둘은 사용자가 고르지 않아도 첫 계좌·첫
  * 소분류로 자동 폴백되므로, 열었다 바로 닫기만 해도 초안이 생겨 다음에 열 때 엉뚱하게 복원된다.
  */
-export function captureEntryDraft(st: AppState): EntryDraft | null {
+export function captureEntryDraft(state: AppState): EntryDraft | null {
   // 날짜도 "적은 것"으로 친다 — 캘린더 +로 날짜를 지정했거나 달력에서 직접 골랐다면 명백한 사용자
   // 조작이고, 그것만 하고 닫았다가 다시 열었을 때 오늘 날짜로 돌아가 있으면 고친 의미가 없다.
   const hasInput =
-    st.entryDescription.trim() !== '' ||
-    st.entryAmount > 0 ||
-    st.entryMemo.trim() !== '' ||
-    st.entryDateOverride !== null ||
-    st.dpPicked['entry'] !== undefined
+    state.entryDescription.trim() !== '' ||
+    state.entryAmount > 0 ||
+    state.entryMemo.trim() !== '' ||
+    state.entryDateOverride !== null ||
+    state.datePickerPicked['entry'] !== undefined
   if (!hasInput) return null
   return {
-    entryType: st.entryType,
-    entryAmount: st.entryAmount,
-    entryDescription: st.entryDescription,
-    entryMemo: st.entryMemo,
-    entrySubcategoryId: st.entrySubcategoryId,
-    entryAccountId: st.entryAccountId,
-    entryWithdrawAccountId: st.entryWithdrawAccountId,
-    entryDateOverride: st.entryDateOverride,
-    dpPickedEntry: st.dpPicked['entry'],
-    dpNavEntry: st.dpNav['entry'],
+    entryType: state.entryType,
+    entryAmount: state.entryAmount,
+    entryDescription: state.entryDescription,
+    entryMemo: state.entryMemo,
+    entrySubcategoryId: state.entrySubcategoryId,
+    entryAccountId: state.entryAccountId,
+    entryWithdrawAccountId: state.entryWithdrawAccountId,
+    entryDateOverride: state.entryDateOverride,
+    datePickerPickedEntry: state.datePickerPicked['entry'],
+    datePickerNavEntry: state.datePickerNav['entry'],
   }
 }
 
@@ -53,9 +53,9 @@ export function openNewEntryUpdater(
   entryType: EntryType,
   tabsVisible: boolean,
   dateOverride: string | null,
-): (st: AppState) => Partial<AppState> {
-  return (st) => {
-    const draft = st.entryDraft
+): (prev: AppState) => Partial<AppState> {
+  return (prev) => {
+    const draft = prev.entryDraft
     const restored = draft && draft.entryType === entryType ? draft : null
     // 날짜를 지목해 들어왔으면 초안의 달력 선택은 버린다(위 dateOverride 우선 규칙과 짝을 맞춘다).
     const restoredDate = dateOverride ? null : restored
@@ -74,9 +74,9 @@ export function openNewEntryUpdater(
       entryDescription: restored?.entryDescription ?? '',
       entryMemo: restored?.entryMemo ?? '',
       entryDateOverride: dateOverride ?? restored?.entryDateOverride ?? null,
-      // dpPicked/dpNav는 다른 화면의 달력과 한 객체를 공유하므로 'entry' 키만 갈아끼운다.
-      dpPicked: { ...st.dpPicked, entry: restoredDate?.dpPickedEntry },
-      dpNav: { ...st.dpNav, entry: restoredDate?.dpNavEntry },
+      // datePickerPicked/dpNav는 다른 화면의 달력과 한 객체를 공유하므로 'entry' 키만 갈아끼운다.
+      datePickerPicked: { ...prev.datePickerPicked, entry: restoredDate?.datePickerPickedEntry },
+      datePickerNav: { ...prev.datePickerNav, entry: restoredDate?.datePickerNavEntry },
     }
   }
 }

@@ -115,10 +115,10 @@ export function AddHoldingsModal() {
   if (!isOpen) return null
 
   const resetAndClose = () => {
-    setState((st) => ({
+    setState((prev) => ({
       modalOpen: null,
-      dpPicked: { ...st.dpPicked, addHoldings: undefined },
-      dpNav: { ...st.dpNav, addHoldings: undefined },
+      datePickerPicked: { ...prev.datePickerPicked, addHoldings: undefined },
+      datePickerNav: { ...prev.datePickerNav, addHoldings: undefined },
       openDropdown: null,
     }))
     setAccountId(null)
@@ -140,7 +140,7 @@ export function AddHoldingsModal() {
     setHoldingsMissing(missingHoldings)
     if (missingAccount || missingHoldings) return
 
-    const picked = state.dpPicked['addHoldings'] as { y: number; m: number; d: number } | undefined
+    const picked = state.datePickerPicked['addHoldings'] as { y: number; m: number; d: number } | undefined
     const tradeDate = picked ? pickedToISODate(picked) : todayISO
 
     const bodies: CreateTradeRequest[] = holdings.map((h) => ({

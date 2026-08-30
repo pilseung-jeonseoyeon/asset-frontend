@@ -14,7 +14,7 @@
 //    캡션으로 보여준다. 수수료는 선택 입력으로 별도로 받는다(API가 지원하는 필드라 노출).
 //  - 하드코딩된 "실현 수익 $600/920,000원" 블록은 대응 API가 없어 제거했다.
 //  - stockAcct 드롭다운 키는 ExchangeAddModal의 exchangeAcct와 분리했다 — 두 모달이 같은 키를 쓰면
-//    dd 상태를 공유해 한쪽에서 고른 계좌가 다른 쪽으로 새는 버그가 된다(과거 useDropdown 기반 구현의
+//    dropdownValues 상태를 공유해 한쪽에서 고른 계좌가 다른 쪽으로 새는 버그가 된다(과거 useDropdown 기반 구현의
 //    실제 버그였음. 지금은 계좌 선택을 로컬 상태로 들고 있어 값 자체는 새지 않지만, 두 모달이 동시에
 //    같은 openDropdown 키를 다투지 않도록 키는 여전히 분리한다).
 //  - 계좌 드롭다운은 GET /accounts 전체가 아니라 filterTradeAccounts(선택된 시장에 맞는 타입만 — KR·US는
@@ -174,11 +174,11 @@ export function QuickStockModal() {
   const priceLabel = stockModeSell ? '매도 단가' : '매수 단가'
 
   const resetAndClose = () => {
-    setState((st) => ({
+    setState((prev) => ({
       modalOpen: null,
       stockSector: '',
-      dpPicked: { ...st.dpPicked, stockTrade: undefined },
-      dpNav: { ...st.dpNav, stockTrade: undefined },
+      datePickerPicked: { ...prev.datePickerPicked, stockTrade: undefined },
+      datePickerNav: { ...prev.datePickerNav, stockTrade: undefined },
       openDropdown: null,
     }))
     setKeyword('')
@@ -258,7 +258,7 @@ export function QuickStockModal() {
     setAmountMissing(missingAmount)
     if (missingStock || missingAccount || missingAmount) return
 
-    const picked = state.dpPicked['stockTrade'] as { y: number; m: number; d: number } | undefined
+    const picked = state.datePickerPicked['stockTrade'] as { y: number; m: number; d: number } | undefined
     const tradeDate = picked ? pickedToISODate(picked) : todayISO
     const fee = Number(feeStr)
 

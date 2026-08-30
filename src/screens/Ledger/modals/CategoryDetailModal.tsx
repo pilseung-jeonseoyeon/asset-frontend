@@ -13,7 +13,7 @@ import { useGetCategoryDetail } from '@/services/transaction'
 export function CategoryDetailModal() {
   const { state, setState } = useAppState()
   const isOpen = state.modalOpen === 'categoryDetail'
-  const detail = useGetCategoryDetail(state.catDetailCategoryId, {}, { enabled: isOpen })
+  const detail = useGetCategoryDetail(state.categoryDetailId, {}, { enabled: isOpen })
 
   if (!isOpen) return null
 

@@ -52,7 +52,7 @@ export function CategorySettingsModal() {
     setAddError(null)
     postSubcategory.reset()
     deleteSubcategory.reset()
-    setState({ addingCatGroup: null })
+    setState({ addingCategoryGroup: null })
     closeModal()
   }
 
@@ -61,17 +61,17 @@ export function CategorySettingsModal() {
     setAddError(null)
     postSubcategory.reset()
     deleteSubcategory.reset()
-    setState({ modalOpen: 'custom', addingCatGroup: null })
+    setState({ modalOpen: 'custom', addingCategoryGroup: null })
   }
 
   const startAdd = (key: string) => {
     setAddError(null)
     postSubcategory.reset()
-    setState({ addingCatGroup: key })
+    setState({ addingCategoryGroup: key })
   }
   const cancelAdd = () => {
     setAddError(null)
-    setState({ addingCatGroup: null })
+    setState({ addingCategoryGroup: null })
   }
   const submitAdd = (categoryId: number, e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
@@ -89,7 +89,7 @@ export function CategorySettingsModal() {
     postSubcategory.mutate(
       { categoryId, body: { name: value } },
       {
-        onSuccess: () => setState({ addingCatGroup: null }),
+        onSuccess: () => setState({ addingCategoryGroup: null }),
         onError: (error) => {
           const message =
             error instanceof ApiError && error.code === 'SUBCATEGORY_DUPLICATE_NAME'
@@ -166,7 +166,7 @@ export function CategorySettingsModal() {
                     </div>
                     {majors.map((major) => {
                       const addingKey = `${kind}|${major.id}`
-                      const adding = state.addingCatGroup === addingKey
+                      const adding = state.addingCategoryGroup === addingKey
                       return (
                         <div key={major.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '9px 0', borderBottom: '0.5px solid var(--fill-subtle)' }}>
                           <div style={{ width: 76, flex: 'none', fontSize: 12, fontWeight: 700, color: 'var(--text-strong)', paddingTop: 5, overflow: 'hidden', textOverflow: 'ellipsis' }}>

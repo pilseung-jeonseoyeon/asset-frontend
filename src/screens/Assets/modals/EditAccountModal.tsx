@@ -230,7 +230,7 @@ export function EditAccountModal() {
   }
 
   const patchForm = (patch: Partial<typeof form>) =>
-    setState((st) => ({ accountForm: { ...st.accountForm, ...patch } }))
+    setState((prev) => ({ accountForm: { ...prev.accountForm, ...patch } }))
 
   const handleSave = () => {
     if (!account) return

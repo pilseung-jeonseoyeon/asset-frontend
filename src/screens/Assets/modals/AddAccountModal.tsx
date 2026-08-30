@@ -19,7 +19,7 @@
 //   가상자산  현재 잔액 + 보유 코인(CRYPTO)
 //   연금·기타 현재 잔액
 // 이율·개설일·만기일은 2026-08-19 폼 축소 때 지웠다가 이번에 되살린 것이다(커밋 0747fe4^) — DatePicker
-// 팝오버가 잘리지 않게 단독 전체 폭 행으로 두는 배치와, resetAndClose에서 dpPicked/dpNav 키를 지우는
+// 팝오버가 잘리지 않게 단독 전체 폭 행으로 두는 배치와, resetAndClose에서 datePickerPicked/datePickerNav 키를 지우는
 // 처리는 그때 이미 해결해둔 것이라 그대로 가져왔다. 이 둘을 빼먹으면 각각 달력이 잘리고, 모달을 다시
 // 열었을 때 지난 날짜가 남는다(이 모달은 AppShell에 항상 마운트돼 있어 닫아도 언마운트되지 않는다).
 //
@@ -210,7 +210,7 @@ export function AddAccountModal() {
     (i) => i.name,
     form.institutionId,
     (id) => {
-      setState((st) => ({ accountForm: { ...st.accountForm, institutionId: id } }))
+      setState((prev) => ({ accountForm: { ...prev.accountForm, institutionId: id } }))
       setInstitutionNone(false)
       setInstitutionMissing(false)
     },
@@ -226,7 +226,7 @@ export function AddAccountModal() {
         id: 'none',
         name: '없음',
         pick: () => {
-          setState((st) => ({ accountForm: { ...st.accountForm, institutionId: null }, openDropdown: null }))
+          setState((prev) => ({ accountForm: { ...prev.accountForm, institutionId: null }, openDropdown: null }))
           setInstitutionNone(true)
           setInstitutionMissing(false)
         },
@@ -260,7 +260,7 @@ export function AddAccountModal() {
   // 필드 옆 빨간 문구와 저장 버튼 위 요약이 같은 근거를 보도록 한 벌로 계산한다. 만기일은 플래그만
   // 보면 안 된다 — 검증에 걸린 뒤 달력에서 날짜를 골라도 플래그가 남아 이미 채운 필드에 빨간 문구가
   // 계속 떠 있었다(DatePicker는 이 모달의 검증 상태를 모른다).
-  const maturityPickedNow = state.dpPicked['addAccountMaturity'] as { y: number; m: number; d: number } | undefined
+  const maturityPickedNow = state.datePickerPicked['addAccountMaturity'] as { y: number; m: number; d: number } | undefined
   const showInstitutionError = institutionMissing && form.institutionId === null && !institutionNone
   const showMaturityError = maturityMissing && !maturityPickedNow && !form.maturityDate
   // 저장 버튼 바로 위에 띄우는 요약. 화면 밖 필드에서 실패했을 때 "왜 저장이 안 됐는지"를 누른 자리
@@ -276,14 +276,14 @@ export function AddAccountModal() {
   if (!isOpen) return null
 
   const resetAndClose = () => {
-    setState((st) => ({
-      modalOpen: st.addAccountReturnTo,
+    setState((prev) => ({
+      modalOpen: prev.addAccountReturnTo,
       addAccountReturnTo: null,
       accountForm: BLANK_ACCOUNT_FORM,
-      // 날짜는 폼이 아니라 dpPicked/dpNav에 남는다 — 여기서 지우지 않으면 다음에 "계좌 추가"를 열었을
+      // 날짜는 폼이 아니라 datePickerPicked/dpNav에 남는다 — 여기서 지우지 않으면 다음에 "계좌 추가"를 열었을
       // 때 지난 개설일·만기일이 그대로 보인다.
-      dpPicked: { ...st.dpPicked, addAccountOpened: undefined, addAccountMaturity: undefined },
-      dpNav: { ...st.dpNav, addAccountOpened: undefined, addAccountMaturity: undefined },
+      datePickerPicked: { ...prev.datePickerPicked, addAccountOpened: undefined, addAccountMaturity: undefined },
+      datePickerNav: { ...prev.datePickerNav, addAccountOpened: undefined, addAccountMaturity: undefined },
       openDropdown: null,
       // 연동 서브뷰도 함께 접는다 — 남겨두면 다음에 "계좌 추가"를 열었을 때 계좌 폼이 아니라
       // 지난번 연동 화면이 그대로 뜬다(이 모달은 닫아도 언마운트되지 않는다).
@@ -303,7 +303,7 @@ export function AddAccountModal() {
   }
 
   const patchForm = (patch: Partial<typeof form>) =>
-    setState((st) => ({ accountForm: { ...st.accountForm, ...patch } }))
+    setState((prev) => ({ accountForm: { ...prev.accountForm, ...patch } }))
 
   /**
    * 유형 칩 적용. 계좌 이름·금융기관·유동성·원화 금액은 유형과 무관한 사용자 의도라 그대로 두고,
@@ -311,9 +311,9 @@ export function AddAccountModal() {
    */
   const applyAssetClass = (assetClass: AssetClass) => {
     const next = formFieldsOf(assetClass)
-    setState((st) => ({
+    setState((prev) => ({
       accountForm: {
-        ...st.accountForm,
+        ...prev.accountForm,
         ...assetClassFormPreset(assetClass),
         ...(next.usdBalance ? {} : { initialBalanceUsd: '' }),
         ...(next.savingsFields ? {} : { interestRate: null, openedAt: null, maturityDate: null }),
@@ -321,8 +321,8 @@ export function AddAccountModal() {
       ...(next.savingsFields
         ? {}
         : {
-            dpPicked: { ...st.dpPicked, addAccountOpened: undefined, addAccountMaturity: undefined },
-            dpNav: { ...st.dpNav, addAccountOpened: undefined, addAccountMaturity: undefined },
+            datePickerPicked: { ...prev.datePickerPicked, addAccountOpened: undefined, addAccountMaturity: undefined },
+            datePickerNav: { ...prev.datePickerNav, addAccountOpened: undefined, addAccountMaturity: undefined },
           }),
     }))
     // 종목은 시장(KR/US/CRYPTO)에 종속돼 있어 유형이 바뀌면 의미가 없다 — 아래 requestAssetClass가
@@ -347,7 +347,7 @@ export function AddAccountModal() {
     const missingName = !form.name.trim()
     // '없음'을 고른 것도 어엿한 선택이다 — 아직 아무것도 안 고른 경우만 막는다(현금 포함 모든 유형).
     const missingInstitution = form.institutionId === null && !institutionNone
-    const maturityPicked = state.dpPicked['addAccountMaturity'] as { y: number; m: number; d: number } | undefined
+    const maturityPicked = state.datePickerPicked['addAccountMaturity'] as { y: number; m: number; d: number } | undefined
     const maturityDate = maturityPicked ? pickedToISODate(maturityPicked) : (form.maturityDate ?? undefined)
     const missingMaturity = fields.savingsFields && !maturityDate
     setNameInvalid(missingName)
@@ -368,7 +368,7 @@ export function AddAccountModal() {
       return
     }
 
-    const openedPicked = state.dpPicked['addAccountOpened'] as { y: number; m: number; d: number } | undefined
+    const openedPicked = state.datePickerPicked['addAccountOpened'] as { y: number; m: number; d: number } | undefined
     const openedAt = openedPicked ? pickedToISODate(openedPicked) : (form.openedAt ?? undefined)
 
     const body: CreateAccountRequest = {

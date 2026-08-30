@@ -99,9 +99,9 @@ export function ExchangeHistoryModal() {
     setSyncedId(editing.id)
     setAmountMissing(false)
     setDeleteConfirmOpen(false)
-    setState((st) => ({
-      dpPicked: { ...st.dpPicked, exchangeEditDate: undefined },
-      dpNav: { ...st.dpNav, exchangeEditDate: undefined },
+    setState((prev) => ({
+      datePickerPicked: { ...prev.datePickerPicked, exchangeEditDate: undefined },
+      datePickerNav: { ...prev.datePickerNav, exchangeEditDate: undefined },
     }))
     putReset()
     deleteReset()
@@ -110,11 +110,11 @@ export function ExchangeHistoryModal() {
   if (!isOpen) return null
 
   const closeModal = () => {
-    setState((st) => ({
+    setState((prev) => ({
       modalOpen: null,
       editingExchangeId: null,
-      dpPicked: { ...st.dpPicked, exchangeEditDate: undefined },
-      dpNav: { ...st.dpNav, exchangeEditDate: undefined },
+      datePickerPicked: { ...prev.datePickerPicked, exchangeEditDate: undefined },
+      datePickerNav: { ...prev.datePickerNav, exchangeEditDate: undefined },
       openDropdown: null,
     }))
     setSide('BUY')
@@ -129,10 +129,10 @@ export function ExchangeHistoryModal() {
 
   const openEdit = (id: number) => setState({ editingExchangeId: id })
   const backToList = () => {
-    setState((st) => ({
+    setState((prev) => ({
       editingExchangeId: null,
-      dpPicked: { ...st.dpPicked, exchangeEditDate: undefined },
-      dpNav: { ...st.dpNav, exchangeEditDate: undefined },
+      datePickerPicked: { ...prev.datePickerPicked, exchangeEditDate: undefined },
+      datePickerNav: { ...prev.datePickerNav, exchangeEditDate: undefined },
     }))
     setSyncedId(null)
     setAmountMissing(false)
@@ -155,7 +155,7 @@ export function ExchangeHistoryModal() {
     setAmountMissing(missingAmount)
     if (missingAmount) return
 
-    const picked = state.dpPicked['exchangeEditDate'] as { y: number; m: number; d: number } | undefined
+    const picked = state.datePickerPicked['exchangeEditDate'] as { y: number; m: number; d: number } | undefined
     const exchangedAt = picked ? pickedToISODate(picked) : editing.exchangedAt
 
     const body: UpdateExchangeRequest = {

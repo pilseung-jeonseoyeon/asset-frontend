@@ -24,26 +24,26 @@ const BRAND_POINTS: { icon: string; label: string }[] = [
 function AuthLogo() {
   // useId()가 돌려주는 «r0» 같은 특수문자를 빼야 url(#…) 참조가 안전하다.
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
-  const ovL = `monit-ov-${uid}L`
-  const clipL = `monit-clip-${uid}L`
-  const bgD = `monit-bg-${uid}D`
-  const ovD = `monit-ov-${uid}D`
-  const clipD = `monit-clip-${uid}D`
+  const overlayGradientLight = `monit-ov-${uid}L`
+  const clipPathLight = `monit-clip-${uid}L`
+  const backgroundGradientDark = `monit-bg-${uid}D`
+  const overlayGradientDark = `monit-ov-${uid}D`
+  const clipPathDark = `monit-clip-${uid}D`
 
   return (
     <>
       <svg className="monit-logo-light" width="44" height="44" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <linearGradient id={ovL} gradientUnits="userSpaceOnUse" x1="38.48" y1="62.89" x2="47.46" y2="53.91">
+          <linearGradient id={overlayGradientLight} gradientUnits="userSpaceOnUse" x1="38.48" y1="62.89" x2="47.46" y2="53.91">
             <stop offset="0" stopColor="#6761CD" stopOpacity="0" />
             <stop offset="1" stopColor="#6761CD" stopOpacity=".76" />
           </linearGradient>
-          <clipPath id={clipL}>
+          <clipPath id={clipPathLight}>
             <rect width="100" height="100" rx="24.26" ry="24.26" />
           </clipPath>
         </defs>
         <rect width="100" height="100" rx="24.26" ry="24.26" fill="#2A2E5C" />
-        <path d="M47.75 44.92 L47.75 91.8 L0.88 91.8 Z" fill={`url(#${ovL})`} clipPath={`url(#${clipL})`} />
+        <path d="M47.75 44.92 L47.75 91.8 L0.88 91.8 Z" fill={`url(#${overlayGradientLight})`} clipPath={`url(#${clipPathLight})`} />
         <circle cx="78.22" cy="27.15" r="5.57" fill="#6979F8" />
         <g fill="none" stroke="#FFFFFF" strokeWidth="14.16" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18.95 67.38 L40.62 45.61" />
@@ -52,20 +52,20 @@ function AuthLogo() {
       </svg>
       <svg className="monit-logo-dark" width="44" height="44" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <linearGradient id={bgD} x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={backgroundGradientDark} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor="#3A3F75" />
             <stop offset="1" stopColor="#1E2359" />
           </linearGradient>
-          <linearGradient id={ovD} gradientUnits="userSpaceOnUse" x1="38.48" y1="62.89" x2="47.46" y2="53.91">
+          <linearGradient id={overlayGradientDark} gradientUnits="userSpaceOnUse" x1="38.48" y1="62.89" x2="47.46" y2="53.91">
             <stop offset="0" stopColor="#6761CD" stopOpacity="0" />
             <stop offset="1" stopColor="#6761CD" stopOpacity=".76" />
           </linearGradient>
-          <clipPath id={clipD}>
+          <clipPath id={clipPathDark}>
             <rect width="100" height="100" rx="24.26" ry="24.26" />
           </clipPath>
         </defs>
-        <rect width="100" height="100" rx="24.26" ry="24.26" fill={`url(#${bgD})`} />
-        <path d="M47.75 44.92 L47.75 91.8 L0.88 91.8 Z" fill={`url(#${ovD})`} clipPath={`url(#${clipD})`} />
+        <rect width="100" height="100" rx="24.26" ry="24.26" fill={`url(#${backgroundGradientDark})`} />
+        <path d="M47.75 44.92 L47.75 91.8 L0.88 91.8 Z" fill={`url(#${overlayGradientDark})`} clipPath={`url(#${clipPathDark})`} />
         <circle cx="78.22" cy="27.15" r="5.57" fill="#6979F8" />
         <g fill="none" stroke="#FFFFFF" strokeWidth="14.16" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18.95 67.38 L40.62 45.61" />

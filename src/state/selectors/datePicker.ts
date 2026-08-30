@@ -1,5 +1,5 @@
 // Source: secret/Asset Manager v14.dc.html L3928-3969 (makeDatePicker factory) — transcribed verbatim,
-// ported to a hook over AppStateContext. Reuses existing `dpNav`/`dpPicked`/`openDropdown` AppState
+// ported to a hook over AppStateContext. Reuses existing `datePickerNav`/`datePickerPicked`/`openDropdown` AppState
 // fields. The `open` flag is namespaced with a `dp_` prefix (distinct from the plain dropdown-key
 // namespace `useDropdown` uses) — that prefix is the source's own scheme, not invented here.
 //
@@ -8,11 +8,11 @@
 // nav 갱신은 전부 계산이라 이 파일(셀렉터)에 두고, "지금 어느 그리드를 보여줄지"라는 순수 UI 전환
 // 상태만 DatePicker.tsx가 로컬 useState로 갖는다(기존 "계산은 셀렉터, 렌더는 컴포넌트" 경계 유지).
 // 범위는 오늘 기준 -50년~+50년이고, maxISO가 있으면 그 연도를 상한으로 자른다(매매·환전일처럼 미래가
-// 성립하지 않는 폼). 강조는 실제로 고른 날짜(dpPicked)가 아니라 지금 보고 있는 달(dpNav.y) 기준이다
+// 성립하지 않는 폼). 강조는 실제로 고른 날짜(datePickerPicked)가 아니라 지금 보고 있는 달(datePickerNav.y) 기준이다
 // — 아직 날짜를 고르지 않았어도 지금 탐색 중인 연도가 어디인지는 알려줘야 한다.
 //
 // 월 그리드(monthCells, 2026-08-22 추가): 연도는 바로 고를 수 있는데 월은 chevron으로만 움직여야
-// 한다는 지적으로 추가했다. yearCells와 같은 패턴 — 12칸, 강조는 지금 보고 있는 달(dpNav.m) 기준,
+// 한다는 지적으로 추가했다. yearCells와 같은 패턴 — 12칸, 강조는 지금 보고 있는 달(datePickerNav.m) 기준,
 // maxISO가 속한 연도를 보고 있으면 그 이후 달은 날짜 셀의 future 처리와 같은 방식으로 비활성이다.
 // 헤더 라벨도 "2026년 8월" 하나가 아니라 yearLabel("2026년")·monthOnlyLabel("8월") 둘로 나눠 각각
 // 버튼이 되게 했다.
@@ -39,7 +39,7 @@ interface DateCell {
 
 interface YearCell {
   y: number
-  /** 지금 탐색 중인 연도(dpNav.y)와 같은가 — 실제로 고른 날짜(dpPicked)가 아니라 nav 기준이다(파일
+  /** 지금 탐색 중인 연도(datePickerNav.y)와 같은가 — 실제로 고른 날짜(datePickerPicked)가 아니라 nav 기준이다(파일
    *  상단 주석 참고). 강조 스타일뿐 아니라 연도 그리드를 열 때 스크롤 위치를 맞추는 기준으로도 쓴다. */
   isNavYear: boolean
   cellStyle: CSSProperties
@@ -49,7 +49,7 @@ interface YearCell {
 interface MonthCell {
   m: number
   label: string
-  /** 지금 보고 있는 달(dpNav.m)과 같은가 — yearCells.isNavYear와 같은 기준. */
+  /** 지금 보고 있는 달(datePickerNav.m)과 같은가 — yearCells.isNavYear와 같은 기준. */
   isNavMonth: boolean
   cellStyle: CSSProperties
   /** maxISO가 속한 연도를 보고 있을 때 그 이후 달(전부 미래)은 pick이 없다 — 날짜 셀의 future 처리와 동일. */
@@ -114,12 +114,12 @@ export function useDatePicker(
   maxISO?: string,
 ): DatePickerState {
   const { state, setState } = useAppState()
-  const dpNav = state.dpNav as Record<string, DateNav>
-  const dpPicked = state.dpPicked as Record<string, DateNav & { d: number }>
+  const datePickerNav = state.datePickerNav as Record<string, DateNav>
+  const datePickerPicked = state.datePickerPicked as Record<string, DateNav & { d: number }>
   const open = state.openDropdown === 'dp_' + key
 
-  const nav = dpNav[key] || defaultNav
-  const picked = dpPicked[key]
+  const nav = datePickerNav[key] || defaultNav
+  const picked = datePickerPicked[key]
   const value = picked ? `${picked.y}.${String(picked.m).padStart(2, '0')}.${String(picked.d).padStart(2, '0')}` : defaultDisplay
 
   const [maxY, maxM, maxD] = maxISO ? maxISO.split('-').map(Number) : [null, null, null]
@@ -154,8 +154,8 @@ export function useDatePicker(
       pick: isFuture
         ? undefined
         : () =>
-            setState((st) => ({
-              dpPicked: { ...st.dpPicked, [key]: { y: nav.y, m: nav.m, d } },
+            setState((prev) => ({
+              datePickerPicked: { ...prev.datePickerPicked, [key]: { y: nav.y, m: nav.m, d } },
               openDropdown: null,
             })),
     })
@@ -194,9 +194,9 @@ export function useDatePicker(
         pick: isFuture
           ? undefined
           : () =>
-              setState((st) => {
-                const cur = (st.dpNav as Record<string, DateNav>)[key] || defaultNav
-                return { dpNav: { ...st.dpNav, [key]: { y: cur.y, m } } }
+              setState((prev) => {
+                const currentNav = (prev.datePickerNav as Record<string, DateNav>)[key] || defaultNav
+                return { datePickerNav: { ...prev.datePickerNav, [key]: { y: currentNav.y, m } } }
               }),
       })
     }
@@ -237,12 +237,12 @@ export function useDatePicker(
           color: isNavYear ? '#fff' : 'var(--text-strong)',
         },
         pick: () =>
-          setState((st) => {
-            const cur = (st.dpNav as Record<string, DateNav>)[key] || defaultNav
+          setState((prev) => {
+            const currentNav = (prev.datePickerNav as Record<string, DateNav>)[key] || defaultNav
             // 고른 연도가 maxISO가 속한 연도인데 지금 보던 달이 그 이후 달이면, 전부 미래라 고를 수 있는
             // 날이 하나도 없는 달로 떨어뜨리지 않도록 maxISO가 속한 달로 같이 당겨온다.
-            const m = maxY !== null && maxM !== null && y === maxY && cur.m > maxM ? maxM : cur.m
-            return { dpNav: { ...st.dpNav, [key]: { y, m } } }
+            const m = maxY !== null && maxM !== null && y === maxY && currentNav.m > maxM ? maxM : currentNav.m
+            return { datePickerNav: { ...prev.datePickerNav, [key]: { y, m } } }
           }),
       })
     }
@@ -251,36 +251,36 @@ export function useDatePicker(
   return {
     value,
     open,
-    toggle: () => setState((st) => ({ openDropdown: st.openDropdown === 'dp_' + key ? null : 'dp_' + key })),
+    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'dp_' + key ? null : 'dp_' + key })),
     yearLabel: `${nav.y}년`,
     monthOnlyLabel: DATE_PICKER_MONTH_NAMES[nav.m - 1],
     prevMonth: () =>
-      setState((st) => {
-        const cur = (st.dpNav as Record<string, DateNav>)[key] || defaultNav
-        const m = cur.m === 1 ? 12 : cur.m - 1
-        const y = cur.m === 1 ? cur.y - 1 : cur.y
-        return { dpNav: { ...st.dpNav, [key]: { y, m } } }
+      setState((prev) => {
+        const currentNav = (prev.datePickerNav as Record<string, DateNav>)[key] || defaultNav
+        const m = currentNav.m === 1 ? 12 : currentNav.m - 1
+        const y = currentNav.m === 1 ? currentNav.y - 1 : currentNav.y
+        return { datePickerNav: { ...prev.datePickerNav, [key]: { y, m } } }
       }),
     nextMonth: nextDisabled
       ? () => {}
       : () =>
-          setState((st) => {
-            const cur = (st.dpNav as Record<string, DateNav>)[key] || defaultNav
-            const m = cur.m === 12 ? 1 : cur.m + 1
-            const y = cur.m === 12 ? cur.y + 1 : cur.y
-            return { dpNav: { ...st.dpNav, [key]: { y, m } } }
+          setState((prev) => {
+            const currentNav = (prev.datePickerNav as Record<string, DateNav>)[key] || defaultNav
+            const m = currentNav.m === 12 ? 1 : currentNav.m + 1
+            const y = currentNav.m === 12 ? currentNav.y + 1 : currentNav.y
+            return { datePickerNav: { ...prev.datePickerNav, [key]: { y, m } } }
           }),
     nextDisabled,
     cells,
     monthCells,
     yearCells,
     goToday: () =>
-      setState((st) => {
+      setState((prev) => {
         // maxISO 상한과 같은 규칙으로 오늘을 clamp한다 — 매매·환전일 달력에서 오늘이 상한을 넘을 일은
         // 없지만(오늘 자체가 상한 근거), 방어적으로 동일한 규칙을 적용해둔다.
         const y = maxY !== null && todayY > maxY ? maxY : todayY
         const m = maxY !== null && maxM !== null && y === maxY && todayM > maxM ? maxM : todayM
-        return { dpNav: { ...st.dpNav, [key]: { y, m } } }
+        return { datePickerNav: { ...prev.datePickerNav, [key]: { y, m } } }
       }),
   }
 }

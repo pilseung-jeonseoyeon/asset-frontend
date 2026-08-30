@@ -79,10 +79,10 @@ export function ExchangeAddModal() {
   if (!isOpen) return null
 
   const resetAndClose = () => {
-    setState((st) => ({
+    setState((prev) => ({
       modalOpen: null,
-      dpPicked: { ...st.dpPicked, exchangeDate: undefined },
-      dpNav: { ...st.dpNav, exchangeDate: undefined },
+      datePickerPicked: { ...prev.datePickerPicked, exchangeDate: undefined },
+      datePickerNav: { ...prev.datePickerNav, exchangeDate: undefined },
       openDropdown: null,
     }))
     setSide('BUY')
@@ -105,7 +105,7 @@ export function ExchangeAddModal() {
     setAmountMissing(missingAmount)
     if (missingAccount || missingAmount) return
 
-    const picked = state.dpPicked['exchangeDate'] as { y: number; m: number; d: number } | undefined
+    const picked = state.datePickerPicked['exchangeDate'] as { y: number; m: number; d: number } | undefined
     const exchangedAt = picked ? pickedToISODate(picked) : todayISO
 
     const body: CreateExchangeRequest = {

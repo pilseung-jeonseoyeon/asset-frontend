@@ -79,9 +79,9 @@ export function AddGoalModal() {
       setMonthlyIncome(suggestedMonthlyIncome)
       // 목표 시점도 표시 중인 기본값(올해 12/31)을 dpPicked에 실제로 채워 넣는다 — 위 ddGoalDate의
       // defaultDisplay는 화면 표시용일 뿐이라, 사용자가 달력을 건드리지 않고 그대로 저장을 누르면
-      // handleSave가 읽는 dpPicked['goal']이 비어 "목표 시점을 선택해주세요" 오류로 이어진다.
+      // handleSave가 읽는 datePickerPicked['goal']이 비어 "목표 시점을 선택해주세요" 오류로 이어진다.
       const [y, m, d] = defaultGoalTargetDate.split('-').map(Number)
-      setState((st) => ({ dpPicked: { ...st.dpPicked, goal: { y, m, d } } }))
+      setState((prev) => ({ datePickerPicked: { ...prev.datePickerPicked, goal: { y, m, d } } }))
     } else {
       setTargetAmount(goal.targetAmount)
       setMonthlyIncome(goal.monthlyIncome)
@@ -102,11 +102,11 @@ export function AddGoalModal() {
   if (!isOpen) return null
 
   const closeGoalModal = () => {
-    setState((st) => ({
-      modalOpen: st.addGoalReturnTo,
+    setState((prev) => ({
+      modalOpen: prev.addGoalReturnTo,
       addGoalReturnTo: null,
-      dpPicked: { ...st.dpPicked, goal: undefined },
-      dpNav: { ...st.dpNav, goal: undefined },
+      datePickerPicked: { ...prev.datePickerPicked, goal: undefined },
+      datePickerNav: { ...prev.datePickerNav, goal: undefined },
       openDropdown: null,
     }))
     // 이 모달은 AppShell에 항상 마운트되어 있어 닫아도 언마운트되지 않는다.
@@ -116,7 +116,7 @@ export function AddGoalModal() {
   }
 
   const handleSave = () => {
-    const picked = state.dpPicked['goal'] as { y: number; m: number; d: number } | undefined
+    const picked = state.datePickerPicked['goal'] as { y: number; m: number; d: number } | undefined
     const targetDate = picked ? pickedToISODate(picked) : (goal?.targetDate ?? null)
     const todayISO = toISODate(new Date())
 

@@ -76,9 +76,9 @@ export function TradeEditModal() {
     setSyncedId(trade.id)
     setAmountInvalid(false)
     setDeleteConfirmOpen(false)
-    setState((st) => ({
-      dpPicked: { ...st.dpPicked, tradeEditDate: undefined },
-      dpNav: { ...st.dpNav, tradeEditDate: undefined },
+    setState((prev) => ({
+      datePickerPicked: { ...prev.datePickerPicked, tradeEditDate: undefined },
+      datePickerNav: { ...prev.datePickerNav, tradeEditDate: undefined },
     }))
     putReset()
     deleteReset()
@@ -89,11 +89,11 @@ export function TradeEditModal() {
   const isFormReady = !!trade && syncedId === trade.id
 
   const resetAndClose = () => {
-    setState((st) => ({
+    setState((prev) => ({
       modalOpen: null,
       editingTradeId: null,
-      dpPicked: { ...st.dpPicked, tradeEditDate: undefined },
-      dpNav: { ...st.dpNav, tradeEditDate: undefined },
+      datePickerPicked: { ...prev.datePickerPicked, tradeEditDate: undefined },
+      datePickerNav: { ...prev.datePickerNav, tradeEditDate: undefined },
       openDropdown: null,
     }))
     setQuantityStr('')
@@ -116,7 +116,7 @@ export function TradeEditModal() {
     setAmountInvalid(missingAmount)
     if (missingAmount) return
 
-    const picked = state.dpPicked['tradeEditDate'] as { y: number; m: number; d: number } | undefined
+    const picked = state.datePickerPicked['tradeEditDate'] as { y: number; m: number; d: number } | undefined
     const tradeDate = picked ? pickedToISODate(picked) : trade.tradeDate
     const fee = Number(feeStr)
 

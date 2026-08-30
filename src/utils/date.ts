@@ -54,10 +54,10 @@ export function toISODate(d: Date): string {
 }
 
 // --- DatePicker(state/selectors/datePicker.ts) ↔ 서버 LocalDate 변환 -------
-// useDatePicker의 cell.pick()은 { y, m, d }를 dpPicked[key]에 직접 쓰므로(선택기 자체를 수정하지
+// useDatePicker의 cell.pick()은 { y, m, d }를 datePickerPicked[key]에 직접 쓰므로(선택기 자체를 수정하지
 // 않는다는 제약), 폼 제출 시점에 이 형태를 서버가 받는 'YYYY-MM-DD'로 변환하는 헬퍼가 필요하다.
 
-/** DatePicker가 dpPicked[key]에 저장하는 { y, m, d } → 'YYYY-MM-DD'. */
+/** DatePicker가 datePickerPicked[key]에 저장하는 { y, m, d } → 'YYYY-MM-DD'. */
 export function pickedToISODate(picked: { y: number; m: number; d: number }): string {
   return toISODate(new Date(picked.y, picked.m - 1, picked.d))
 }

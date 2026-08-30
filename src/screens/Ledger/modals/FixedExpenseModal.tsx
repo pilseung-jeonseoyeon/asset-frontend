@@ -5,7 +5,7 @@
 // 반복 주기: 원본 프로토타입은 매주/매월/매년(recurFreq) + 결제요일/결제월·결제일을 입력받았지만, 서버
 // CreateSubscriptionReq(secret/API-SPEC.md §8.2)는 paymentDay(1~31, "매월 며칠") 하나만 받는다 — 주간·
 // 연간 주기 자체가 서버 모델에 없다. 답변서 C-8에서 매월 전용으로 드롭 확정(frequency 필드 추가 안 함)
-// 했으므로, 죽은 state였던 recurFreq/recurYearMonth/recurYearDay는 제거했다. recurPayDay("N일" 문자열)
+// 했으므로, 죽은 state였던 recurFreq/recurYearMonth/recurYearDay는 제거했다. recurringPaymentDay("N일" 문자열)
 // 만 그대로 재사용해 paymentDay를 만든다.
 //
 // 시작일(startedAt): GET /subscriptions 응답에 startedAt이 없어(subscription.type.ts SubscriptionResponse
@@ -41,7 +41,7 @@ const PAY_DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => `${i + 1}일`)
 export function FixedExpenseModal() {
   const { state, setState } = useAppState()
   const isOpen = state.modalOpen === 'fixedExpense'
-  const isEditing = state.editingRecurId !== null
+  const isEditing = state.editingRecurringId !== null
 
   const categoriesQuery = useGetCategories('EXPENSE', { enabled: isOpen })
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })
@@ -50,10 +50,10 @@ export function FixedExpenseModal() {
   const putSub = usePutSubscription()
   const deleteSub = useDeleteSubscription()
 
-  const effectiveRecurAccountId = state.recurAccountId ?? accounts[0]?.id ?? null
+  const effectiveRecurAccountId = state.recurringAccountId ?? accounts[0]?.id ?? null
   const ddRecurPayMethod = useEntityDropdown(
     'recurPayMethod', accounts, (a) => a.id, (a) => a.name,
-    effectiveRecurAccountId, (id) => setState({ recurAccountId: id }),
+    effectiveRecurAccountId, (id) => setState({ recurringAccountId: id }),
   )
   const recurDateDefault = isoDateToDisplay(toISODate(new Date()))
   const [recurNavY, recurNavM] = recurDateDefault.split('.').map(Number)
@@ -70,41 +70,41 @@ export function FixedExpenseModal() {
   if (!isOpen) return null
 
   const categories = categoriesQuery.categories
-  const selected = findSubcategoryById(categories, state.recurSubcategoryId)
+  const selected = findSubcategoryById(categories, state.recurringSubcategoryId)
   const effectiveCategory = selected?.category ?? categories[0] ?? null
   const effectiveSubcategory = selected?.subcategory ?? effectiveCategory?.subcategories[0] ?? null
   const subOptions = effectiveCategory?.subcategories ?? []
   // ds_rules 없음 — 순수 데이터 정합성 문제: 화면엔 첫 대분류·첫 소분류가 기본 선택으로 보이지만
   // 사용자가 한 번도 안 건드렸으면 state.recurSubcategoryId는 여전히 null이라, 그대로 제출하면 서버가
   // "필수값 누락"으로 거부한다 — 화면에 보이는 값을 실제 제출값으로도 채운다.
-  const submitSubcategoryId = state.recurSubcategoryId ?? effectiveSubcategory?.id ?? null
+  const submitSubcategoryId = state.recurringSubcategoryId ?? effectiveSubcategory?.id ?? null
 
   const ddRecurCatMajor: DropdownState = {
     value: effectiveCategory?.name ?? '',
     open: state.openDropdown === 'recurCatMajor',
-    toggle: () => setState((st) => ({ openDropdown: st.openDropdown === 'recurCatMajor' ? null : 'recurCatMajor' })),
+    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'recurCatMajor' ? null : 'recurCatMajor' })),
     options: categories.map((c) => ({
       name: c.name,
-      pick: () => setState({ recurSubcategoryId: c.subcategories[0]?.id ?? null, openDropdown: null }),
+      pick: () => setState({ recurringSubcategoryId: c.subcategories[0]?.id ?? null, openDropdown: null }),
     })),
   }
   const ddRecurCatSub: DropdownState = {
     value: effectiveSubcategory?.name ?? '',
     open: state.openDropdown === 'recurCatSub',
-    toggle: () => setState((st) => ({ openDropdown: st.openDropdown === 'recurCatSub' ? null : 'recurCatSub' })),
+    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'recurCatSub' ? null : 'recurCatSub' })),
     options: subOptions.map((s) => ({
       name: s.name,
-      pick: () => setState({ recurSubcategoryId: s.id, openDropdown: null }),
+      pick: () => setState({ recurringSubcategoryId: s.id, openDropdown: null }),
     })),
   }
-  const recurPayDayDisplay = state.recurPayDay || '25일'
+  const recurPayDayDisplay = state.recurringPaymentDay || '25일'
   const ddRecurPayDay: DropdownState = {
     value: recurPayDayDisplay,
-    open: state.openDropdown === 'recurPayDay',
-    toggle: () => setState((st) => ({ openDropdown: st.openDropdown === 'recurPayDay' ? null : 'recurPayDay' })),
+    open: state.openDropdown === 'recurringPaymentDay',
+    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'recurringPaymentDay' ? null : 'recurringPaymentDay' })),
     options: PAY_DAY_OPTIONS.map((pd) => ({
       name: pd,
-      pick: () => setState({ recurPayDay: pd, openDropdown: null }),
+      pick: () => setState({ recurringPaymentDay: pd, openDropdown: null }),
     })),
   }
   const paymentDay = parseInt(recurPayDayDisplay, 10) || 25
@@ -114,17 +114,17 @@ export function FixedExpenseModal() {
   const recurSaveLabel = isEditing ? '변경사항 저장' : state.recurringType === 'fixed' ? '고정 지출 저장' : '구독 저장'
 
   const resetAndClose = () => {
-    setState((st) => ({
+    setState((prev) => ({
       modalOpen: null,
-      editingRecurId: null,
-      recurName: '',
-      recurAmount: 0,
-      recurSubcategoryId: null,
-      recurAccountId: null,
-      recurPayDay: '25일',
-      dpPicked: { ...st.dpPicked, recur: undefined },
+      editingRecurringId: null,
+      recurringName: '',
+      recurringAmount: 0,
+      recurringSubcategoryId: null,
+      recurringAccountId: null,
+      recurringPaymentDay: '25일',
+      datePickerPicked: { ...prev.datePickerPicked, recur: undefined },
       // dpNav도 함께 지운다 — 안 지우면 지난 세션에 넘겨둔 달이 남아 다음에 열 때 엉뚱한 달이 펼쳐진다.
-      dpNav: { ...st.dpNav, recur: undefined },
+      datePickerNav: { ...prev.datePickerNav, recur: undefined },
       openDropdown: null,
     }))
     // 이 모달은 AppShell에 항상 마운트되어 있어 닫아도 언마운트되지 않는다. 로컬 확인/검증 상태와
@@ -146,7 +146,7 @@ export function FixedExpenseModal() {
   }
 
   const handleSave = () => {
-    const name = state.recurName.trim()
+    const name = state.recurringName.trim()
     let hasError = false
     if (!name) {
       setNameInvalid(true)
@@ -154,7 +154,7 @@ export function FixedExpenseModal() {
     } else {
       setNameInvalid(false)
     }
-    if (state.recurAmount <= 0) {
+    if (state.recurringAmount <= 0) {
       setAmountInvalid(true)
       hasError = true
     } else {
@@ -165,14 +165,14 @@ export function FixedExpenseModal() {
 
     if (isEditing) {
       const body: UpdateSubscriptionRequest = {
-        name, amount: state.recurAmount, paymentDay, accountId, subcategoryId: submitSubcategoryId,
+        name, amount: state.recurringAmount, paymentDay, accountId, subcategoryId: submitSubcategoryId,
       }
-      putSub.mutate({ id: state.editingRecurId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
+      putSub.mutate({ id: state.editingRecurringId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
     } else {
-      const picked = state.dpPicked['recur'] as { y: number; m: number; d: number } | undefined
+      const picked = state.datePickerPicked['recur'] as { y: number; m: number; d: number } | undefined
       const startedAt = picked ? pickedToISODate(picked) : undefined
       const body: CreateSubscriptionRequest = {
-        name, kind: state.recurringType === 'fixed' ? 'FIXED' : 'SUBSCRIPTION', amount: state.recurAmount,
+        name, kind: state.recurringType === 'fixed' ? 'FIXED' : 'SUBSCRIPTION', amount: state.recurringAmount,
         paymentDay, accountId, subcategoryId: submitSubcategoryId, ...(startedAt ? { startedAt } : {}),
       }
       postSub.mutate(body, { onSuccess: resetAndClose, onError: handleMutationError })
@@ -180,8 +180,8 @@ export function FixedExpenseModal() {
   }
 
   const handleEnd = () => {
-    if (state.editingRecurId === null) return
-    deleteSub.mutate(state.editingRecurId, { onSuccess: resetAndClose })
+    if (state.editingRecurringId === null) return
+    deleteSub.mutate(state.editingRecurringId, { onSuccess: resetAndClose })
   }
 
   const isBusy = postSub.isPending || putSub.isPending || deleteSub.isPending
@@ -237,9 +237,9 @@ export function FixedExpenseModal() {
           <div style={LABEL_STYLE}>이름</div>
           <input
             type="text" placeholder={recurNamePlaceholder}
-            value={state.recurName}
+            value={state.recurringName}
             onChange={(e) => {
-              setState({ recurName: e.target.value })
+              setState({ recurringName: e.target.value })
               if (nameInvalid) setNameInvalid(false)
             }}
             style={{ width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box' }}
@@ -253,9 +253,9 @@ export function FixedExpenseModal() {
             <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
             <input
               type="text" placeholder="0"
-              value={state.recurAmount ? formatNumber(state.recurAmount) : ''}
+              value={state.recurringAmount ? formatNumber(state.recurringAmount) : ''}
               onChange={(e) => {
-                setState({ recurAmount: parseAmount(e.target.value) })
+                setState({ recurringAmount: parseAmount(e.target.value) })
                 if (amountInvalid) setAmountInvalid(false)
               }}
               style={{ border: 'none', outline: 'none', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', width: '100%', color: 'var(--text-strong)' }}

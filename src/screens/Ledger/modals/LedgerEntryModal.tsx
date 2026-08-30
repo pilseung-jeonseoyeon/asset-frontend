@@ -192,7 +192,7 @@ export function LedgerEntryModal() {
   const ddEntryCatMajor: DropdownState = {
     value: effectiveCategory?.name ?? '',
     open: state.openDropdown === 'entryCatMajor',
-    toggle: () => setState((st) => ({ openDropdown: st.openDropdown === 'entryCatMajor' ? null : 'entryCatMajor' })),
+    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'entryCatMajor' ? null : 'entryCatMajor' })),
     options: categories.map((c) => ({
       name: c.name,
       pick: () => setState({ entrySubcategoryId: c.subcategories[0]?.id ?? null, openDropdown: null }),
@@ -201,7 +201,7 @@ export function LedgerEntryModal() {
   const ddEntryCatSub: DropdownState = {
     value: effectiveSubcategory?.name ?? '',
     open: state.openDropdown === 'entryCatSub',
-    toggle: () => setState((st) => ({ openDropdown: st.openDropdown === 'entryCatSub' ? null : 'entryCatSub' })),
+    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'entryCatSub' ? null : 'entryCatSub' })),
     options: subOptions.map((s) => ({
       name: s.name,
       pick: () => setState({ entrySubcategoryId: s.id, openDropdown: null }),
@@ -254,12 +254,12 @@ export function LedgerEntryModal() {
    *   새로 채우는 게 맞고, 남기면 다음 "새 거래"에 남의 거래 내용이 튀어나온다.
    */
   const closeModal = (keepDraft: boolean) => {
-    setState((st) => ({
+    setState((prev) => ({
       // 수정 세션(editingTxId)은 어느 경로로 닫히든 초안을 만들지도, 기존 초안을 지우지도 않는다.
       // 남의 거래를 잠깐 고치고 저장했다고 해서 내가 쓰다 만 새 거래 초안이 날아가면 안 된다.
       entryDraft:
-        st.editingTxId !== null ? st.entryDraft
-        : keepDraft ? captureEntryDraft(st)
+        prev.editingTxId !== null ? prev.entryDraft
+        : keepDraft ? captureEntryDraft(prev)
         : null,
       entryDraftRestored: false,
       modalOpen: null,
@@ -271,9 +271,9 @@ export function LedgerEntryModal() {
       entryDescription: '',
       entryMemo: '',
       entryDateOverride: null,
-      dpPicked: { ...st.dpPicked, entry: undefined },
+      datePickerPicked: { ...prev.datePickerPicked, entry: undefined },
       // dpNav도 함께 지운다 — 안 지우면 지난 세션에 넘겨둔 달이 남아 다음에 열 때 엉뚱한 달이 펼쳐진다.
-      dpNav: { ...st.dpNav, entry: undefined },
+      datePickerNav: { ...prev.datePickerNav, entry: undefined },
       openDropdown: null,
     }))
     // 이 모달은 AppShell에 항상 마운트되어 있어 닫아도 언마운트되지 않는다. 로컬 확인/검증 상태와
@@ -310,7 +310,7 @@ export function LedgerEntryModal() {
     }
     if (hasError) return
 
-    const picked = state.dpPicked['entry'] as { y: number; m: number; d: number } | undefined
+    const picked = state.datePickerPicked['entry'] as { y: number; m: number; d: number } | undefined
     const transactionDate = picked ? pickedToISODate(picked) : entryDateDisplay.replaceAll('.', '-')
     const type = ENTRY_TYPE_TO_TX_TYPE[entryType]
 

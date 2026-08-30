@@ -27,7 +27,7 @@ const todayCursor = todayYearMonth()
 
 export const initialState: AppState = {
   assetTab: 'overview',
-  assetCat: null,
+  assetClassDetail: null,
   stockTab: '전체',
   stockGroupTab: 'sector',
   ledgerTab: 'overview',
@@ -43,10 +43,10 @@ export const initialState: AppState = {
   withdrawConfirmOpen: false,
 
   openDropdown: null,
-  dd: {},
+  dropdownValues: {},
 
   quickAddOpen: false,
-  notifOpen: false,
+  notificationOpen: false,
 
   // index.html의 부팅 전 인라인 스크립트와 같은 값을 읽어, 최초 렌더부터 <html> 클래스와
   // AppState가 어긋나지 않게 한다(2단계 참고). 로그인 후에는 useSyncUserTheme이 서버 값으로 덮는다.
@@ -64,7 +64,7 @@ export const initialState: AppState = {
 
   editAccount: null,
   accountForm: BLANK_ACCOUNT_FORM,
-  addingCatGroup: null,
+  addingCategoryGroup: null,
   addAccountReturnTo: null,
   addGoalReturnTo: null,
 
@@ -72,16 +72,16 @@ export const initialState: AppState = {
   connectProvider: null,
 
   recurringType: 'fixed',
-  recurSubcategoryId: null,
-  recurAccountId: null,
-  recurPayDay: '25일',
-  recurName: '',
-  recurAmount: 0,
-  editingRecurId: null,
+  recurringSubcategoryId: null,
+  recurringAccountId: null,
+  recurringPaymentDay: '25일',
+  recurringName: '',
+  recurringAmount: 0,
+  editingRecurringId: null,
 
   entryType: 'income',
   editingTxId: null,
-  catDetailCategoryId: null,
+  categoryDetailId: null,
   entryTabsVisible: false,
   entrySubcategoryId: null,
   entryAccountId: null,
@@ -100,8 +100,8 @@ export const initialState: AppState = {
   entryDraft: null,
   entryDraftRestored: false,
 
-  dpPicked: {},
-  dpNav: {},
+  datePickerPicked: {},
+  datePickerNav: {},
 
   authScreen: 'login',
   authStep: 'form',
