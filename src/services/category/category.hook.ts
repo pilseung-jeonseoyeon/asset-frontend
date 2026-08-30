@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import type { CategoryKind } from '../common.type'
 import { deleteSubcategory, getCategories, postSubcategory } from './category.service'
 import type { CreateSubcategoryRequest } from './category.type'
@@ -9,7 +9,7 @@ const CATEGORY_STALE_TIME = 5 * 60_000
 
 export function useGetCategories(kind?: CategoryKind, options?: { enabled?: boolean }) {
   const query = useQuery({
-    queryKey: qk.category.list(kind),
+    queryKey: queryKeys.category.list(kind),
     queryFn: () => getCategories(kind),
     staleTime: CATEGORY_STALE_TIME,
     enabled: options?.enabled,
@@ -21,8 +21,8 @@ export function useGetCategories(kind?: CategoryKind, options?: { enabled?: bool
 function useInvalidateCategory() {
   const queryClient = useQueryClient()
   return () => {
-    void queryClient.invalidateQueries({ queryKey: qk.category.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.transaction.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.category.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.transaction.all() })
   }
 }
 

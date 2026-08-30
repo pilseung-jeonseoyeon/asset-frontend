@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '../api'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import type { Market } from '../common.type'
 import {
   getClosedHoldings,
@@ -25,7 +25,7 @@ export function isFxRateMissing(error: unknown): boolean {
 
 export function useGetStocks(keyword: string, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: qk.stock.search(keyword),
+    queryKey: queryKeys.stock.search(keyword),
     queryFn: () => getStocks(keyword || undefined),
     enabled: options?.enabled,
   })
@@ -34,7 +34,7 @@ export function useGetStocks(keyword: string, options?: QueryOptions) {
 
 export function useGetHoldings(market?: Market, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: qk.stock.holdings(market),
+    queryKey: queryKeys.stock.holdings(market),
     queryFn: () => getHoldings(market),
     enabled: options?.enabled,
   })
@@ -47,7 +47,7 @@ export function useGetHoldings(market?: Market, options?: QueryOptions) {
 
 export function useGetHoldingGroups(by: 'sector' | 'market', options?: QueryOptions) {
   const query = useQuery({
-    queryKey: qk.stock.holdingGroups(by),
+    queryKey: queryKeys.stock.holdingGroups(by),
     queryFn: () => getHoldingGroups(by),
     enabled: options?.enabled,
   })
@@ -60,7 +60,7 @@ export function useGetHoldingGroups(by: 'sector' | 'market', options?: QueryOpti
 
 export function useGetClosedHoldings(market?: Market, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: qk.stock.closedHoldings(market),
+    queryKey: queryKeys.stock.closedHoldings(market),
     queryFn: () => getClosedHoldings(market),
     enabled: options?.enabled,
   })
@@ -70,7 +70,7 @@ export function useGetClosedHoldings(market?: Market, options?: QueryOptions) {
 function useInvalidateStock() {
   const queryClient = useQueryClient()
   return () => {
-    void queryClient.invalidateQueries({ queryKey: qk.stock.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.stock.all() })
   }
 }
 

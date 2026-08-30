@@ -40,7 +40,7 @@ import {
   authSecondary,
   checkBox,
   filterEmailInput,
-  filterPwInput,
+  filterPasswordInput,
   EMAIL_PATTERN,
 } from './authFormStyles'
 import {
@@ -329,7 +329,7 @@ export function SignupForm() {
                 autoComplete="new-password"
                 placeholder="영문 · 숫자 · 기호 조합 8자 이상"
                 value={password}
-                onInput={filterPwInput}
+                onInput={filterPasswordInput}
                 onChange={(e) => setPassword(e.target.value)}
                 style={authInputPw}
               />
@@ -356,7 +356,7 @@ export function SignupForm() {
                 autoComplete="new-password"
                 placeholder="비밀번호 다시 입력"
                 value={passwordConfirm}
-                onInput={filterPwInput}
+                onInput={filterPasswordInput}
                 onChange={(e) => setPasswordConfirm(e.target.value)}
                 style={authInputPw}
               />

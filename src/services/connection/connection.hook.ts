@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import {
   deleteConnection,
   getConnections,
@@ -14,7 +14,7 @@ interface QueryOptions {
 
 export function useGetConnections(options?: QueryOptions) {
   const query = useQuery({
-    queryKey: qk.connection.list(),
+    queryKey: queryKeys.connection.list(),
     queryFn: getConnections,
     enabled: options?.enabled,
   })
@@ -30,7 +30,7 @@ export function usePostConnection() {
   return useMutation({
     mutationFn: (body: CreateConnectionRequest) => postConnection(body),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: qk.connection.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.connection.all() })
     },
   })
 }
@@ -48,12 +48,12 @@ export function usePostConnectionSync() {
     mutationFn: (connectionId: number) => postConnectionSync(connectionId),
     onSuccess: () => {
       for (const key of [
-        qk.connection.all(),
-        qk.account.all(),
-        qk.asset.all(),
-        qk.trade.all(),
-        qk.stock.all(),
-        qk.dashboard.all(),
+        queryKeys.connection.all(),
+        queryKeys.account.all(),
+        queryKeys.asset.all(),
+        queryKeys.trade.all(),
+        queryKeys.stock.all(),
+        queryKeys.dashboard.all(),
       ]) {
         void queryClient.invalidateQueries({ queryKey: key })
       }
@@ -70,7 +70,7 @@ export function useDeleteConnection() {
   return useMutation({
     mutationFn: (connectionId: number) => deleteConnection(connectionId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: qk.connection.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.connection.all() })
     },
   })
 }

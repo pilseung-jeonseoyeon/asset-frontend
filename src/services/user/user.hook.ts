@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import { deleteMe, getMe, getUserSettings, patchMe, patchPassword, patchUserSettings } from './user.service'
 import type {
   ChangePasswordRequest,
@@ -29,7 +29,7 @@ export const DEFAULT_USER_SETTINGS: UserSettingsResponse = {
 
 export function useGetMe() {
   return useQuery({
-    queryKey: qk.user.me(),
+    queryKey: queryKeys.user.me(),
     queryFn: getMe,
     staleTime: 5 * 60_000,
     retry: false,
@@ -56,7 +56,7 @@ export function useProfileName(): string {
  */
 export function useGetUserSettings(options?: { enabled?: boolean }) {
   const query = useQuery({
-    queryKey: qk.user.settings(),
+    queryKey: queryKeys.user.settings(),
     queryFn: getUserSettings,
     staleTime: 5 * 60_000,
     enabled: options?.enabled,
@@ -74,7 +74,7 @@ export function usePatchMe() {
   return useMutation({
     mutationFn: (body: UpdateProfileRequest) => patchMe(body),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: qk.user.me() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.user.me() })
     },
   })
 }
@@ -126,7 +126,7 @@ function withRestoredFields<T extends object>(target: T, source: T, keys: (keyof
 // 거래 저장)까지 세어, 이 화면과 무관한 요청 때문에 onSuccess의 setQueryData가 부당하게
 // 건너뛰어진다. GeneralModal의 두 usePatchUserSettings() 인스턴스가 이 키를 공유해야 서로를
 // "겹치는 설정 저장"으로 인식할 수 있으므로, 훅 밖 모듈 스코프 상수로 고정한다.
-const SETTINGS_MUTATION_KEY = qk.user.settings()
+const SETTINGS_MUTATION_KEY = queryKeys.user.settings()
 
 /**
  * 낙관적 업데이트: 누르는 즉시 캐시(따라서 그걸 구독하는 화면)를 바꾸고, 실패하면 여기서
@@ -145,11 +145,11 @@ export function usePatchUserSettings() {
     mutationKey: SETTINGS_MUTATION_KEY,
     mutationFn: (body: UpdateUserSettingsRequest) => patchUserSettings(body),
     onMutate: async (patch) => {
-      await queryClient.cancelQueries({ queryKey: qk.user.settings() })
-      const previous = queryClient.getQueryData<UserSettingsResponse>(qk.user.settings())
+      await queryClient.cancelQueries({ queryKey: queryKeys.user.settings() })
+      const previous = queryClient.getQueryData<UserSettingsResponse>(queryKeys.user.settings())
       // 아직 한 번도 못 받아왔으면(캐시가 비어 있으면) 부분 병합이 불완전한 객체를 만들어버리므로
       // 건드리지 않는다 — 이 경우 요청이 끝날 때까지 화면은 DEFAULT_USER_SETTINGS 폴백을 본다.
-      if (previous) queryClient.setQueryData(qk.user.settings(), { ...previous, ...patch })
+      if (previous) queryClient.setQueryData(queryKeys.user.settings(), { ...previous, ...patch })
       return { previous }
     },
     onError: (_error, variables, context) => {
@@ -159,7 +159,7 @@ export function usePatchUserSettings() {
       if (!context?.previous) return
       const previous = context.previous
       const touchedKeys = Object.keys(variables) as (keyof UserSettingsResponse)[]
-      queryClient.setQueryData<UserSettingsResponse>(qk.user.settings(), (current) =>
+      queryClient.setQueryData<UserSettingsResponse>(queryKeys.user.settings(), (current) =>
         current ? withRestoredFields(current, previous, touchedKeys) : current,
       )
     },
@@ -174,7 +174,7 @@ export function usePatchUserSettings() {
       // 섞여 setQueryData가 부당하게 건너뛰어지는 일이 없다.
       const applied = queryClient.isMutating({ mutationKey: SETTINGS_MUTATION_KEY }) <= 1
       if (applied) {
-        queryClient.setQueryData(qk.user.settings(), data)
+        queryClient.setQueryData(queryKeys.user.settings(), data)
       }
       // monthStartDay가 바뀌면 정산월에 의존하는 응답(가계부 요약·순위·캘린더, 목표, 대시보드)이
       // 전부 달라지므로 캐시 전체를 무효화한다. setQueryData 뒤에 둬야 이 쿼리 자체도 서버 값으로
@@ -190,12 +190,12 @@ export function usePatchUserSettings() {
         })
         return
       }
-      // PATCH /users/me/settings는 GET /users/me(qk.user.me())에 영향을 주지 않으므로 qk.user.all()
+      // PATCH /users/me/settings는 GET /users/me(queryKeys.user.me())에 영향을 주지 않으므로 queryKeys.user.all()
       // 전체 무효화는 과하다 — 겹치는 mutation이 있어 setQueryData를 건너뛴 경우에만 설정 쿼리를
       // 무효화해 최종 수렴시킨다(2차 리뷰 #3). applied면 이미 서버 값으로 캐시가 최신이라 무효화가
       // 필요 없다.
       if (!applied) {
-        void queryClient.invalidateQueries({ queryKey: qk.user.settings() })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.user.settings() })
       }
     },
   })

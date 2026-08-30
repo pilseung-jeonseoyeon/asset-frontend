@@ -14,7 +14,7 @@
 //
 // 2026-08-17 재수정(docs/frontend-todo.md A-7 · B-5): HoldingRes의 평가 계열(valuationKrw·
 // unrealizedPnlKrw·returnRatePercent·currentPrice·previousClosePrice·dayChangePercent·priceAsOf)이
-// nullable로 확인돼 fmt(null) 크래시가 났다 — 시세 미확보 종목은 카드에 "시세를 아직 확보하지
+// nullable로 확인돼 formatNumber(null) 크래시가 났다 — 시세 미확보 종목은 카드에 "시세를 아직 확보하지
 // 못했어요"로 대체하고, 포트폴리오 요약 reduce 합산에서는 해당 종목을 제외한 뒤 캡션으로 안내한다.
 // 원가 역산(valuationKrw − unrealizedPnlKrw) 대신 totalCostKrw를 쓰도록 바뀌면서, ticker·현재가·전
 // 영업일 대비도 함께 복원됐다(더 이상 GET /stocks 전체 조회로 ticker를 조인하지 않는다). 외화 카드도
@@ -29,7 +29,7 @@ import { SegmentedTab } from '../../components/primitives/SegmentedTab/Segmented
 import { Skeleton } from '../../components/primitives/Skeleton/Skeleton'
 import { useAppState } from '../../state/AppStateContext'
 import { darkTab, liteTab } from '../../state/selectors/stocks'
-import { fmt, fmtKrw, formatKoreanAbbrev } from '../../utils/format'
+import { formatNumber, formatKrw, formatKoreanAbbrev } from '../../utils/format'
 import { isoDateToDisplay } from '../../utils/date'
 import {
   buildClosedHoldingCards,
@@ -321,18 +321,18 @@ export function Stocks() {
                 <div>
                   <div style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 600 }}>총 보유 USD</div>
                   <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em', color: 'var(--text-strong)' }}>
-                    $ {fmt(exchangeSummary.data.heldForeignAmount)}
+                    $ {formatNumber(exchangeSummary.data.heldForeignAmount)}
                   </div>
                   {/* 서버가 직접 계산한 원화 평가액(heldKrwValuation) — 더 이상 GET /indices의
                       USDKRW로 근사하지 않는다(docs/frontend-todo.md A-7). */}
                   <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>
-                    ≈ {fmtKrw(exchangeSummary.data.heldKrwValuation)}원 ({isoDateToDisplay(exchangeSummary.data.rateAsOf)} 매매기준율 기준)
+                    ≈ {formatKrw(exchangeSummary.data.heldKrwValuation)}원 ({isoDateToDisplay(exchangeSummary.data.rateAsOf)} 매매기준율 기준)
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>평단가 (가중평균)</div>
                   <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4, color: 'var(--text-strong)' }}>
-                    {exchangeSummary.data.weightedAvgRate === null ? '—' : `${fmt(exchangeSummary.data.weightedAvgRate)}원`}
+                    {exchangeSummary.data.weightedAvgRate === null ? '—' : `${formatNumber(exchangeSummary.data.weightedAvgRate)}원`}
                   </div>
                 </div>
               </div>
@@ -687,5 +687,5 @@ function signColor(n: number): string {
 }
 
 function signedAmount(n: number): string {
-  return (n >= 0 ? '+' : '−') + fmtKrw(Math.abs(n))
+  return (n >= 0 ? '+' : '−') + formatKrw(Math.abs(n))
 }

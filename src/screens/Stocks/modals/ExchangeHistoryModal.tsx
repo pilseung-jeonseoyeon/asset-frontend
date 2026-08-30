@@ -23,7 +23,7 @@ import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker
 import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useDatePicker } from '../../../state/selectors/datePicker'
-import { fmt, fmtKrw, sanitizeDecimalInput } from '../../../utils/format'
+import { formatNumber, formatKrw, sanitizeDecimalInput } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate } from '../../../utils/date'
 import { ApiError } from '@/services/api'
 import { useGetAccounts } from '@/services/account'
@@ -217,12 +217,12 @@ export function ExchangeHistoryModal() {
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: r.side === 'BUY' ? 'var(--accent)' : 'var(--text-strong)' }}>{sideLabel(r.side)}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>
-                      {isoDateToDisplay(r.exchangedAt)} · {fmt(r.rate)}원
+                      {isoDateToDisplay(r.exchangedAt)} · {formatNumber(r.rate)}원
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flex: 'none' }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 700, color: r.side === 'BUY' ? 'var(--accent)' : 'var(--text-strong)' }}>${fmt(r.foreignAmount)}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>{fmtKrw(r.krwAmount)}원</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: r.side === 'BUY' ? 'var(--accent)' : 'var(--text-strong)' }}>${formatNumber(r.foreignAmount)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>{formatKrw(r.krwAmount)}원</div>
                   </div>
                 </div>
               ))}
@@ -287,7 +287,7 @@ export function ExchangeHistoryModal() {
             {amountMissing && <div style={ERROR_STYLE}>금액과 환율을 입력해주세요</div>}
             {!!krwAmountEstimate && (
               <div style={{ fontSize: 11.5, color: 'var(--text-mid)' }}>
-                원화 환산 총액 <b style={{ color: 'var(--text-strong)' }}>{fmtKrw(krwAmountEstimate)}원</b>
+                원화 환산 총액 <b style={{ color: 'var(--text-strong)' }}>{formatKrw(krwAmountEstimate)}원</b>
               </div>
             )}
             <div>

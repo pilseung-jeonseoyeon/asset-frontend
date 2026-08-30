@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import type { RecurringExpenseKind } from '../common.type'
 import {
   deleteSubscription,
@@ -14,7 +14,7 @@ export function useGetSubscriptions(
   options?: { enabled?: boolean },
 ) {
   const query = useQuery({
-    queryKey: qk.subscription.list(kind),
+    queryKey: queryKeys.subscription.list(kind),
     queryFn: () => getSubscriptions(kind),
     enabled: options?.enabled,
   })
@@ -33,7 +33,7 @@ export function useGetSubscriptions(
 function useInvalidateSubscription() {
   const queryClient = useQueryClient()
   return () => {
-    void queryClient.invalidateQueries({ queryKey: qk.subscription.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.subscription.all() })
   }
 }
 

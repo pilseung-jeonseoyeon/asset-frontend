@@ -1,4 +1,4 @@
-// Source: secret/Asset Manager v14.dc.html L4116-4125 (hexToRgba/mkDelta) — transcribed verbatim.
+// Source: secret/Asset Manager v14.dc.html L4116-4125 (hexToRgba/makeDeltaBadge) — transcribed verbatim.
 // Used by the Ledger deep-card income/expense/saving delta chips. Note: callers pass fixed dark-theme
 // hex values (#7FE0B6/#F5A29B/#B9B2F4, the dark-mode --deep-up/--deep-down/--deep-saving values)
 // regardless of the current theme — that is the source's own behavior (it does not switch with
@@ -16,7 +16,7 @@ export interface DeltaBadge {
   bg: string
 }
 
-export function mkDelta(text: string, up: boolean, color: string): DeltaBadge {
+export function makeDeltaBadge(text: string, up: boolean, color: string): DeltaBadge {
   return {
     text,
     icon: up ? 'arrow_drop_up' : 'arrow_drop_down',

@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import type { TradeSearchParams } from '../common.type'
 import { deleteTrade, getTrades, postTrade, putTrade } from './trade.service'
 import type { CreateTradeRequest, UpdateTradeRequest } from './trade.type'
 
 export function useGetTrades(params: TradeSearchParams = {}, options?: { enabled?: boolean }) {
   const query = useQuery({
-    queryKey: qk.trade.list(params),
+    queryKey: queryKeys.trade.list(params),
     queryFn: () => getTrades(params),
     enabled: options?.enabled,
   })
@@ -21,12 +21,12 @@ export function useGetTrades(params: TradeSearchParams = {}, options?: { enabled
 function useInvalidateTrade() {
   const queryClient = useQueryClient()
   return () => {
-    void queryClient.invalidateQueries({ queryKey: qk.trade.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.stock.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.account.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.asset.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.dashboard.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.goal.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.trade.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.stock.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.account.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.asset.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.goal.all() })
   }
 }
 

@@ -39,7 +39,7 @@ import { useAppState } from '../../../state/AppStateContext'
 import { useEntityDropdown, type DropdownState } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { isoDateToDisplay, pickedToISODate, recentMonthsRange, toISODate } from '../../../utils/date'
-import { fmt, parseAmount } from '../../../utils/format'
+import { formatNumber, parseAmount } from '../../../utils/format'
 import { captureEntryDraft } from '../../../state/selectors/entryDraft'
 import { ENTRY_TYPE_TO_CATEGORY_KIND, ENTRY_TYPE_TO_TX_TYPE, buildEntrySuggestions, findSubcategoryById } from '../../../data/ledgerView'
 import type { EntrySuggestion } from '../../../data/ledgerView'
@@ -475,7 +475,7 @@ export function LedgerEntryModal() {
             <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
             <input
               type="text" placeholder="0"
-              value={state.entryAmount ? fmt(state.entryAmount) : ''}
+              value={state.entryAmount ? formatNumber(state.entryAmount) : ''}
               onChange={(e) => {
                 setState({ entryAmount: parseAmount(e.target.value) })
                 if (amountInvalid) setAmountInvalid(false)

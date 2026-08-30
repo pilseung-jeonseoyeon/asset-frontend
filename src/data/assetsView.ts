@@ -8,7 +8,7 @@
 // exposes a return figure per asset class.
 
 import type { TreemapBlock } from '../components/primitives/Treemap/Treemap'
-import { fmt, formatCurrencyAmount } from '../utils/format'
+import { formatNumber, formatCurrencyAmount } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
 import { toPercentages } from './dashboardView'
 import type { LedgerTxRow } from './ledgerView'
@@ -207,7 +207,7 @@ export function buildAssetCats(groups: AssetClassGroup[], accounts: AccountRespo
         icon: meta.icon,
         color: meta.color,
         count: g.accounts.length,
-        totalFmt: fmt(g.totalValueKrw),
+        totalFmt: formatNumber(g.totalValueKrw),
         // 카테고리 내부 계좌는 금액 내림차순 — ①의 카테고리 순서 규칙과는 별개다.
         accounts: [...g.accounts]
           .sort((a, b) => b.valueKrw - a.valueKrw)
@@ -216,7 +216,7 @@ export function buildAssetCats(groups: AssetClassGroup[], accounts: AccountRespo
             name: a.accountName,
             inst: institutionNameOf(a.accountId, accounts),
             amt: a.valueKrw,
-            amtFmt: fmt(a.valueKrw),
+            amtFmt: formatNumber(a.valueKrw),
           })),
       }
     })
@@ -288,7 +288,7 @@ export function buildMapTiers(
       id: b.id,
       label: b.label,
       icon: b.icon,
-      amtFmt: fmt(b.amt),
+      amtFmt: formatNumber(b.amt),
       pct: Math.round(b.pct),
       widthPct: b.pct,
       tint: RAMP[Math.min(bi, RAMP.length - 1)],
@@ -327,8 +327,8 @@ export function buildLiquidityView(liquidAccounts: { balance: number }[], locked
     liquidPct,
     lockedPct,
     liquidAmt: liquidSum,
-    liquidAmtFmt: fmt(liquidSum),
-    lockedAmtFmt: fmt(lockedSum),
+    liquidAmtFmt: formatNumber(liquidSum),
+    lockedAmtFmt: formatNumber(lockedSum),
   }
 }
 
@@ -416,7 +416,7 @@ export interface AccountBalanceRow {
 export interface AccountBalanceView {
   /** 대표 금액에 붙일 라벨. 쪼갤 것이 없으면 '현재 잔액', 있으면 '총 평가액'(아래 함수 주석 참고). */
   totalLabel: string
-  /** 대표 금액(총 평가액). fmt와 같은 규칙으로 통화 기호를 포함하지 않는다 — '원'은 호출부 JSX가 붙인다. */
+  /** 대표 금액(총 평가액). formatNumber와 같은 규칙으로 통화 기호를 포함하지 않는다 — '원'은 호출부 JSX가 붙인다. */
   totalText: string
   /** 1억 원 이상일 때만 붙는 축약 캡션(형식은 formatBigAmountCaption). */
   totalCaption: string | null
@@ -435,16 +435,16 @@ export function buildAccountBalanceView(detail: AccountDetailResponse): AccountB
 
   const rows: AccountBalanceRow[] = []
   if (hasUsdCash || hasHoldings) {
-    rows.push({ label: '원화 예수금', valueText: `${fmt(account.cashKrw)}원`, note: null })
+    rows.push({ label: '원화 예수금', valueText: `${formatNumber(account.cashKrw)}원`, note: null })
     if (hasUsdCash) {
       rows.push({
         label: '달러 예수금',
         valueText: `$${formatCurrencyAmount(usdCash, 'USD')}`,
-        note: account.cashUsdKrw != null ? `${fmt(account.cashUsdKrw)}원` : null,
+        note: account.cashUsdKrw != null ? `${formatNumber(account.cashUsdKrw)}원` : null,
       })
     }
     if (hasHoldings) {
-      rows.push({ label: '보유 종목', valueText: `${fmt(holdingValueKrw)}원`, note: null })
+      rows.push({ label: '보유 종목', valueText: `${formatNumber(holdingValueKrw)}원`, note: null })
     }
   }
 
@@ -452,7 +452,7 @@ export function buildAccountBalanceView(detail: AccountDetailResponse): AccountB
     // 지갑·통장처럼 예수금 한 덩어리뿐인 계좌에서 "총 평가액"은 과한 말이다(합칠 것이 없으니 그냥
     // 잔액이다). 쪼갠 줄이 있을 때만 "총 평가액"이라고 부른다.
     totalLabel: rows.length > 0 ? '총 평가액' : '현재 잔액',
-    totalText: fmt(totalValueKrw),
+    totalText: formatNumber(totalValueKrw),
     totalCaption: formatBigAmountCaption(totalValueKrw),
     rows,
     // 환율은 소수점 둘째 자리까지 쓴다 — formatCurrencyAmount의 USD 분기가 정확히 그 형식이라

@@ -1,5 +1,5 @@
 // Source: secret/Asset Manager v14.dc.html L3571-3589 ("인증 화면 공통 스타일" block) + L3622
-// (filterEmailInput) + L3636 (filterPwInput) — transcribed verbatim, camelCased into CSSProperties
+// (filterEmailInput) + L3636 (filterPasswordInput) — transcribed verbatim, camelCased into CSSProperties
 // objects. This is the canonical home for these constants: screens/Auth owns the real auth screens,
 // and src/components/layout/modals/AccountModal.tsx (its password-change subview reuses the same
 // input/button look) imports from here instead of keeping its own copy.
@@ -85,7 +85,7 @@ export function filterEmailInput(e: FormEvent<HTMLInputElement>) {
 }
 
 /** 비밀번호 입력 — 출력 가능 ASCII 이외 차단(한글 조합 중 글자 등). */
-export function filterPwInput(e: FormEvent<HTMLInputElement>) {
+export function filterPasswordInput(e: FormEvent<HTMLInputElement>) {
   const target = e.target as HTMLInputElement
   target.value = target.value.replace(/[^\x21-\x7E]/g, '')
 }

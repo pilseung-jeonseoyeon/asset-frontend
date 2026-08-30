@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { downloadImportTemplate, uploadImportFile } from './import.service'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import { triggerBrowserDownload } from '@/utils/download'
 import type { ImportKind } from './import.type'
 
@@ -24,11 +24,11 @@ export function useUploadImportFile() {
     mutationFn: ({ kind, file }: { kind: ImportKind; file: File }) => uploadImportFile(kind, file),
     onSuccess: (result) => {
       if (result.importedCount === 0) return
-      void queryClient.invalidateQueries({ queryKey: qk.transaction.all() })
-      void queryClient.invalidateQueries({ queryKey: qk.account.all() })
-      void queryClient.invalidateQueries({ queryKey: qk.asset.all() })
-      void queryClient.invalidateQueries({ queryKey: qk.dashboard.all() })
-      void queryClient.invalidateQueries({ queryKey: qk.goal.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.transaction.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.account.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.asset.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.goal.all() })
     },
   })
 }

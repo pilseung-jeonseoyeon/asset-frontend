@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import type { YearMonth } from '../common.type'
 import { getGoal, putGoal } from './goal.service'
 import type { UpsertGoalRequest } from './goal.type'
@@ -18,7 +18,7 @@ interface QueryOptions {
  */
 export function useGetGoal(period: Partial<YearMonth> = {}, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: qk.goal.detail(period),
+    queryKey: queryKeys.goal.detail(period),
     queryFn: () => getGoal(period),
     enabled: options?.enabled,
   })
@@ -34,9 +34,9 @@ export function usePutGoal() {
   return useMutation({
     mutationFn: (body: UpsertGoalRequest) => putGoal(body),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: qk.goal.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.goal.all() })
       // 대시보드의 "자산 목표" 위젯이 같은 값을 읽는다.
-      void queryClient.invalidateQueries({ queryKey: qk.dashboard.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() })
     },
   })
 }

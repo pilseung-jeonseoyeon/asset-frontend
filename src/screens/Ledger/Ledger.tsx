@@ -22,7 +22,7 @@ import {
   yearMonthLabel,
   yearMonthOf,
 } from '../../utils/date'
-import { fmt } from '../../utils/format'
+import { formatNumber } from '../../utils/format'
 import { openNewEntryUpdater } from '../../state/selectors/entryDraft'
 import { useDebouncedValue } from '../../utils/useDebouncedValue'
 import { useIsMobile } from '../../utils/useMediaQuery'
@@ -134,7 +134,7 @@ function CalendarTotalsRow({ periodLabel, income, expense }: { periodLabel: stri
           whiteSpace: 'nowrap',
         }}
       >
-        {amount === 0 ? '0' : sign + fmt(amount)}
+        {amount === 0 ? '0' : sign + formatNumber(amount)}
       </span>
     </span>
   )
@@ -760,7 +760,7 @@ function LedgerOverview() {
 }
 
 function fmtSum(amounts: number[]): string {
-  return fmt(amounts.reduce((sum, n) => sum + n, 0))
+  return formatNumber(amounts.reduce((sum, n) => sum + n, 0))
 }
 
 function HeroValue({
@@ -777,7 +777,7 @@ function HeroValue({
       <div style={{ fontSize: 12, color: 'var(--deep-label)', fontWeight: 500 }}>{label}</div>
       <div className="dk-accent" style={{ fontSize: 30, fontWeight: 700, marginTop: 8, color, letterSpacing: '-.02em', whiteSpace: 'nowrap' }}>
         {sign}
-        {fmt(valueFmt)}
+        {formatNumber(valueFmt)}
         <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--deep-label)' }}>원</span>
       </div>
       <div style={{ marginTop: 10, minHeight: 24 }}>{delta && <DeltaChip delta={delta} />}</div>

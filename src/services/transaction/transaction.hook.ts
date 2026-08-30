@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import type { PeriodUnit, TransactionSearchParams, YearMonth } from '../common.type'
 import {
   deleteTransaction,
@@ -28,7 +28,7 @@ export function useGetTransactions(
 ) {
   const serverParams: TransactionSearchParams = { ...params, page: Math.max(0, params.page - 1) }
   return useQuery({
-    queryKey: qk.transaction.list(serverParams),
+    queryKey: queryKeys.transaction.list(serverParams),
     queryFn: () => getTransactions(serverParams),
     placeholderData: keepPreviousData,
     enabled: options?.enabled,
@@ -37,7 +37,7 @@ export function useGetTransactions(
 
 export function useGetDailySummaries(period: YearMonth, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: qk.transaction.dailySummary(period),
+    queryKey: queryKeys.transaction.dailySummary(period),
     queryFn: () => getDailySummaries(period),
     enabled: options?.enabled,
   })
@@ -49,7 +49,7 @@ export function useGetPeriodSummary(
   options?: QueryOptions,
 ) {
   return useQuery({
-    queryKey: qk.transaction.periodSummary(period),
+    queryKey: queryKeys.transaction.periodSummary(period),
     queryFn: () => getPeriodSummary(period),
     enabled: options?.enabled,
   })
@@ -57,7 +57,7 @@ export function useGetPeriodSummary(
 
 export function useGetMonthlySummaries(year: number, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: qk.transaction.monthlySummary(year),
+    queryKey: queryKeys.transaction.monthlySummary(year),
     queryFn: () => getMonthlySummaries(year),
     enabled: options?.enabled,
   })
@@ -66,7 +66,7 @@ export function useGetMonthlySummaries(year: number, options?: QueryOptions) {
 
 export function useGetCategoryRankings(period: Partial<YearMonth>, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: qk.transaction.rankings(period),
+    queryKey: queryKeys.transaction.rankings(period),
     queryFn: () => getCategoryRankings(period),
     enabled: options?.enabled,
   })
@@ -79,7 +79,7 @@ export function useGetCategoryDetail(
   options?: QueryOptions,
 ) {
   return useQuery({
-    queryKey: qk.transaction.categoryDetail(categoryId ?? 0, period),
+    queryKey: queryKeys.transaction.categoryDetail(categoryId ?? 0, period),
     queryFn: () => getCategoryDetail(categoryId as number, period),
     enabled: categoryId !== null && options?.enabled !== false,
   })
@@ -92,11 +92,11 @@ export function useGetCategoryDetail(
 function useInvalidateTransaction() {
   const queryClient = useQueryClient()
   return () => {
-    void queryClient.invalidateQueries({ queryKey: qk.transaction.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.account.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.asset.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.dashboard.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.goal.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.transaction.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.account.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.asset.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.goal.all() })
   }
 }
 

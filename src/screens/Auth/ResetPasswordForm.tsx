@@ -15,7 +15,7 @@ import { useAppState } from '../../state/AppStateContext'
 import { useGoAuthScreen, useMarkAuthCodeSent } from '../../state/selectors/auth'
 import { CodeInput } from './CodeInput'
 import { useResendCooldown } from './useResendCooldown'
-import { authInput, authPrimary, authPrimaryOff, filterEmailInput, filterPwInput, EMAIL_PATTERN } from './authFormStyles'
+import { authInput, authPrimary, authPrimaryOff, filterEmailInput, filterPasswordInput, EMAIL_PATTERN } from './authFormStyles'
 import { usePostPasswordResetCode, usePutPassword, PASSWORD_PATTERN, PASSWORD_RULE_TEXT } from '@/services/auth'
 
 export function ResetPasswordForm() {
@@ -181,7 +181,7 @@ export function ResetPasswordForm() {
               autoComplete="new-password"
               placeholder="영문 · 숫자 · 기호 조합 8자 이상"
               value={newPassword}
-              onInput={filterPwInput}
+              onInput={filterPasswordInput}
               onChange={(e) => setNewPassword(e.target.value)}
               style={authInput}
             />
@@ -198,7 +198,7 @@ export function ResetPasswordForm() {
               autoComplete="new-password"
               placeholder="비밀번호 다시 입력"
               value={newPasswordConfirm}
-              onInput={filterPwInput}
+              onInput={filterPasswordInput}
               onChange={(e) => setNewPasswordConfirm(e.target.value)}
               style={authInput}
             />

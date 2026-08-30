@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import type { AccountType, DateRange } from '../common.type'
 import {
   getDashboardAllocation,
@@ -14,7 +14,7 @@ interface QueryOptions {
 
 export function useGetDashboardSummary(options?: QueryOptions) {
   return useQuery({
-    queryKey: qk.dashboard.summary(),
+    queryKey: queryKeys.dashboard.summary(),
     queryFn: getDashboardSummary,
     enabled: options?.enabled,
   })
@@ -28,7 +28,7 @@ export function useGetDashboardTrend(
   options?: QueryOptions & { type?: AccountType },
 ) {
   const query = useQuery({
-    queryKey: qk.dashboard.trend(range, unit, options?.type),
+    queryKey: queryKeys.dashboard.trend(range, unit, options?.type),
     queryFn: () => getDashboardTrend(range, unit, options?.type),
     enabled: options?.enabled,
   })
@@ -37,7 +37,7 @@ export function useGetDashboardTrend(
 
 export function useGetDashboardAllocation(options?: QueryOptions) {
   const query = useQuery({
-    queryKey: qk.dashboard.allocation(),
+    queryKey: queryKeys.dashboard.allocation(),
     queryFn: getDashboardAllocation,
     enabled: options?.enabled,
   })

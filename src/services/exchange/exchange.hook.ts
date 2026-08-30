@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import type { Currency, ExchangeSearchParams } from '../common.type'
 import { isFxRateMissing } from '../stock/stock.hook'
 import {
@@ -18,7 +18,7 @@ interface QueryOptions {
 /** params.currency를 생략하면 전 통화 내역을 함께 조회한다. */
 export function useGetExchanges(params: ExchangeSearchParams = {}, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: qk.exchange.list(params),
+    queryKey: queryKeys.exchange.list(params),
     queryFn: () => getExchanges(params),
     enabled: options?.enabled,
   })
@@ -27,7 +27,7 @@ export function useGetExchanges(params: ExchangeSearchParams = {}, options?: Que
 
 export function useGetExchangeSummary(currency: Currency, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: qk.exchange.summary(currency),
+    queryKey: queryKeys.exchange.summary(currency),
     queryFn: () => getExchangeSummary(currency),
     enabled: options?.enabled,
   })
@@ -38,11 +38,11 @@ export function useGetExchangeSummary(currency: Currency, options?: QueryOptions
 function useInvalidateExchange() {
   const queryClient = useQueryClient()
   return () => {
-    void queryClient.invalidateQueries({ queryKey: qk.exchange.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.account.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.asset.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.stock.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.dashboard.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.exchange.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.account.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.asset.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.stock.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() })
   }
 }
 

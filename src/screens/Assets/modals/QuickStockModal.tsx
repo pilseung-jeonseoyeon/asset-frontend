@@ -45,7 +45,7 @@ import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
-import { fmt, sanitizeDecimalInput } from '../../../utils/format'
+import { formatNumber, sanitizeDecimalInput } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate } from '../../../utils/date'
 import { accountInstitutionMeta, buyMarketToMarket, filterTradeAccounts, marketToCurrency, sortHoldingsByReturn } from '../../../data/stocksView'
 import { ApiError } from '@/services/api'
@@ -441,7 +441,7 @@ export function QuickStockModal() {
               <Dropdown dd={ddHoldingDisplay} maxHeight={180} />
             )}
             {quantityMax !== null && (
-              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>보유 {fmt(quantityMax)}주</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>보유 {formatNumber(quantityMax)}주</div>
             )}
             {stockMissing && !stockId && <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>종목을 선택해주세요</div>}
           </div>
@@ -484,7 +484,7 @@ export function QuickStockModal() {
         {amountMissing && <div style={{ fontSize: 11.5, color: 'var(--down)' }}>수량과 단가를 입력해주세요</div>}
         {!!estimatedTotal && (
           <div style={{ fontSize: 11.5, color: 'var(--text-mid)' }}>
-            예상 총액 <b style={{ color: 'var(--text-strong)' }}>{stockCurrencySymbol}{fmt(estimatedTotal)}</b>
+            예상 총액 <b style={{ color: 'var(--text-strong)' }}>{stockCurrencySymbol}{formatNumber(estimatedTotal)}</b>
           </div>
         )}
 

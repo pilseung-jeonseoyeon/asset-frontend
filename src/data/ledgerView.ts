@@ -9,8 +9,8 @@
 // response, so each formula gets a divide-by-zero / "previous is 0" guard the mock never needed
 // (a brand-new category has expenseTotalPrevious: 0, which would otherwise produce Infinity%).
 
-import { fmt } from '../utils/format'
-import { mkDelta, type DeltaBadge } from '../utils/deltaBadge'
+import { formatNumber } from '../utils/format'
+import { makeDeltaBadge, type DeltaBadge } from '../utils/deltaBadge'
 import {
   addDays,
   daysInMonth,
@@ -103,7 +103,7 @@ function periodDeltaLabel(period: LedgerPeriod): string {
 }
 
 /**
- * 딥 카드 증감 배지. hexToRgba/mkDelta가 요구하는 고정 다크 hex(#7FE0B6/#F5A29B/#B9B2F4)는
+ * 딥 카드 증감 배지. hexToRgba/makeDeltaBadge가 요구하는 고정 다크 hex(#7FE0B6/#F5A29B/#B9B2F4)는
  * src/utils/deltaBadge.ts 헤더 주석대로 라이트/다크 무관하게 그대로 쓴다(원본 동작 유지).
  * current===previous(둘 다 0인 "데이터 없음" 포함)면 의미 있는 배지가 없으므로 null.
  */
@@ -118,12 +118,12 @@ function buildAmountDelta(
   const diff = current - previous
   const up = diff > 0
   const sign = up ? '+' : '−'
-  let text = `${periodDeltaLabel(period)} 대비 ${sign}${fmt(Math.abs(diff))}원`
+  let text = `${periodDeltaLabel(period)} 대비 ${sign}${formatNumber(Math.abs(diff))}원`
   if (withPercent && previous !== 0) {
     const pct = Math.round((diff / previous) * 1000) / 10
     text += ` (${pct > 0 ? '+' : '−'}${Math.abs(pct).toFixed(1)}%)`
   }
-  return mkDelta(text, up, colorHex)
+  return makeDeltaBadge(text, up, colorHex)
 }
 
 export interface PeriodDeltas {
@@ -177,8 +177,8 @@ export function buildSavingsRing(summary: PeriodSummaryResponse): SavingsRingVie
   return {
     ratePct,
     dashArray: `${ratePct} ${100 - ratePct}`,
-    savingFmt: fmt(summary.savingTotal),
-    expenseFmt: fmt(summary.expenseTotal),
+    savingFmt: formatNumber(summary.savingTotal),
+    expenseFmt: formatNumber(summary.expenseTotal),
   }
 }
 
@@ -240,7 +240,7 @@ export function buildLedgerCategories(rankings: CategoryRankingResponse[]): Ledg
       return {
         categoryId: r.categoryId,
         name: r.categoryName,
-        amtFmt: fmt(r.expenseTotal),
+        amtFmt: formatNumber(r.expenseTotal),
         barPct: maxAmt > 0 ? Math.round((r.expenseTotal / maxAmt) * 100) : 0,
         isNew,
         changePct,
@@ -307,7 +307,7 @@ export function buildSubscriptionRows(subscriptions: SubscriptionResponse[], acc
       icon: subscriptionIconOf(s.icon),
       dayLabel: `매월 ${s.paymentDay}일`,
       accountLabel: accountLabelOf(s.accountId, accounts),
-      amtFmt: fmt(s.amount),
+      amtFmt: formatNumber(s.amount),
       amount: s.amount,
       paymentDay: s.paymentDay,
       accountId: s.accountId,
@@ -376,7 +376,7 @@ export function buildLedgerTx(transactions: TransactionResponse[], accounts: Acc
       desc: t.description,
       tag,
       type: t.type,
-      amount: sign + fmt(t.amount),
+      amount: sign + formatNumber(t.amount),
       amountColor: TX_TYPE_COLOR[t.type],
       key: String(t.id),
       accountId: t.accountId,
@@ -492,7 +492,7 @@ function dayLine(kind: 'income' | 'saving' | 'expense' | 'transfer', amt: number
   // +/−를 붙이면 수입·지출처럼 읽힌다. 대신 방향 기호(⇄)를 앞에 달아 한눈에 구분되게 한다.
   const sign = kind === 'income' ? '+' : kind === 'expense' ? '−' : kind === 'transfer' ? '⇄ ' : ''
   return {
-    text: sign + fmt(amt),
+    text: sign + formatNumber(amt),
     // 이체는 디자인 시스템에 전용 색이 없다(CLAUDE.md 도메인 컨텍스트) — 수입·지출·저축보다
     // 한 톤 낮은 --text-mid로 렌더해 세 종류의 색 대비를 흐리지 않게 한다.
     color:

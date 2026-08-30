@@ -4,12 +4,12 @@
 //
 // 여기 없는 것과 그 이유:
 //   - 억/만 축약 캡션(예: "약 12억 8,450만 원")은 src/utils/format.ts의 formatKoreanAbbrev가 맡는다 —
-//     fmt()와 마찬가지로 통화 기호 없는 범용 포맷터라 화면 레이어가 아니라 utils에 둔다.
+//     formatNumber()와 마찬가지로 통화 기호 없는 범용 포맷터라 화면 레이어가 아니라 utils에 둔다.
 //   - "7월 이후는 예정 구간" 같은 미래 구간 표기: 서버가 예측값을 주지 않는다.
 // 추이 차트의 y축 눈금 라벨(13억/11억/9억, dc.html L919-922)은 buildTrendYAxisTicks가 formatKoreanAbbrev로
 // 계산한다(2026-08-17 복원 — formatKoreanAbbrev 신설 전에는 계산 수단이 없어 생략돼 있었다).
 
-import { fmt, formatKoreanAbbrev } from '../utils/format'
+import { formatNumber, formatKoreanAbbrev } from '../utils/format'
 import { assetClassMetaOf } from './assetsView'
 import type {
   AllocationResponse,
@@ -57,7 +57,7 @@ export interface DashboardHeroView {
 /** 증감액은 부호를 명시적으로 붙인다(히어로/딥카드 배지 규칙). */
 function signedFmt(n: number): string {
   const sign = n > 0 ? '+' : n < 0 ? '−' : ''
-  return `${sign}${fmt(Math.abs(n))}`
+  return `${sign}${formatNumber(Math.abs(n))}`
 }
 
 /**
@@ -75,7 +75,7 @@ export function buildDashboardHero(
 
   return {
     totalAssetKrw,
-    totalFmt: fmt(totalAssetKrw),
+    totalFmt: formatNumber(totalAssetKrw),
     monthChangeKrw: summary.monthChangeKrw,
     monthChangeFmt: summary.monthChangeKrw === null ? null : signedFmt(summary.monthChangeKrw),
     yearChangeKrw: summary.yearChangeKrw,
@@ -167,7 +167,7 @@ export function buildTrendChart(
  * 추이 차트 왼쪽의 y축 눈금 라벨 3개(원본 dc.html L919-922, 위→아래 = 최댓값→최솟값). 그리드선
  * y좌표(6/46/86, buildTrendChart와 동일한 viewBox 92)와 짝을 맞춰 값을 등간격(최대/중간/최소)으로
  * 배치한다. `formatKoreanAbbrev`가 억 단위 미만은 "0"을 돌려주므로(만 원 단위 반올림), 세 값이 전부
- * 그렇게 뭉개지는 소액 구간에서는 원 단위 그대로(`fmt`)로 대체해 "0/0/0"이 찍히지 않게 한다.
+ * 그렇게 뭉개지는 소액 구간에서는 원 단위 그대로(`formatNumber`)로 대체해 "0/0/0"이 찍히지 않게 한다.
  * 포인트가 2개 미만이면(선을 그릴 수 없음) null.
  */
 export function buildTrendYAxisTicks(points: TrendPointResponse[]): [string, string, string] | null {
@@ -180,7 +180,7 @@ export function buildTrendYAxisTicks(points: TrendPointResponse[]): [string, str
   const abbrevs = [max, mid, min].map((v) => formatKoreanAbbrev(v))
   const allCollapsed = abbrevs.every((a) => a === '0')
   return allCollapsed
-    ? ([fmt(max), fmt(mid), fmt(min)] as [string, string, string])
+    ? ([formatNumber(max), formatNumber(mid), formatNumber(min)] as [string, string, string])
     : (abbrevs as [string, string, string])
 }
 
@@ -294,7 +294,7 @@ export function buildDashboardInstitutions(
         tokenKey: institution?.icon ?? '',
         name: g.institutionName ?? '미지정',
         amount: g.totalValueKrw,
-        amountFmt: fmt(g.totalValueKrw),
+        amountFmt: formatNumber(g.totalValueKrw),
       }
     })
 }
@@ -353,7 +353,7 @@ export function buildAssetGoals(goal: GoalResponse, today: Date = new Date()): A
 
   const annualHasData = goal.annual.progressPercent !== null
   const monthlyHasData = goal.monthly.progressPercent !== null
-  const monthlyTargetFmt = goal.monthly.targetAmount === null ? null : fmt(goal.monthly.targetAmount)
+  const monthlyTargetFmt = goal.monthly.targetAmount === null ? null : formatNumber(goal.monthly.targetAmount)
   const surplus =
     goal.monthly.currentValue === null || goal.monthly.targetAmount === null
       ? null
@@ -366,8 +366,8 @@ export function buildAssetGoals(goal: GoalResponse, today: Date = new Date()): A
       color: 'var(--accent)',
       pct: goal.annual.progressPercent,
       barPct: annualHasData ? Math.max(0, Math.min(100, goal.annual.progressPercent as number)) : 0,
-      currentFmt: goal.annual.currentValue === null ? null : fmt(goal.annual.currentValue),
-      targetFmt: goal.annual.targetAmount === null ? null : fmt(goal.annual.targetAmount),
+      currentFmt: goal.annual.currentValue === null ? null : formatNumber(goal.annual.currentValue),
+      targetFmt: goal.annual.targetAmount === null ? null : formatNumber(goal.annual.targetAmount),
       hasProgressData: annualHasData,
       subCaption: isAchieved
         ? GOAL_ACHIEVED_CAPTION
@@ -391,7 +391,7 @@ export function buildAssetGoals(goal: GoalResponse, today: Date = new Date()): A
       color: 'var(--accent)',
       pct: goal.monthly.progressPercent,
       barPct: monthlyHasData ? Math.max(0, Math.min(100, goal.monthly.progressPercent as number)) : 0,
-      currentFmt: goal.monthly.currentValue === null ? null : fmt(goal.monthly.currentValue),
+      currentFmt: goal.monthly.currentValue === null ? null : formatNumber(goal.monthly.currentValue),
       targetFmt: monthlyTargetFmt,
       hasProgressData: monthlyHasData,
       subCaption: isAchieved
@@ -403,8 +403,8 @@ export function buildAssetGoals(goal: GoalResponse, today: Date = new Date()): A
             : surplus === null
               ? GOAL_PROGRESS_UNKNOWN_CAPTION
               : surplus >= 0
-                ? `+${fmt(surplus)}원 초과`
-                : `${fmt(Math.abs(surplus))}원 부족`,
+                ? `+${formatNumber(surplus)}원 초과`
+                : `${formatNumber(Math.abs(surplus))}원 부족`,
     },
   ]
 }

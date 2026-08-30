@@ -24,7 +24,7 @@ import { useAppState } from '../../../state/AppStateContext'
 import { useEntityDropdown, type DropdownState } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { isoDateToDisplay, pickedToISODate, toISODate } from '../../../utils/date'
-import { fmt, parseAmount } from '../../../utils/format'
+import { formatNumber, parseAmount } from '../../../utils/format'
 import { findSubcategoryById } from '../../../data/ledgerView'
 import { ApiError } from '@/services/api'
 import { useGetAccounts } from '@/services/account'
@@ -253,7 +253,7 @@ export function FixedExpenseModal() {
             <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
             <input
               type="text" placeholder="0"
-              value={state.recurAmount ? fmt(state.recurAmount) : ''}
+              value={state.recurAmount ? formatNumber(state.recurAmount) : ''}
               onChange={(e) => {
                 setState({ recurAmount: parseAmount(e.target.value) })
                 if (amountInvalid) setAmountInvalid(false)

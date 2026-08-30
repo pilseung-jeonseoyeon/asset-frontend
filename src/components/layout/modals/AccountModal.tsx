@@ -2,7 +2,7 @@
 // globally from the sidebar avatar (openAccountProfile, L751), not owned by any single screen — see the
 // plan's Phase 5 note on why this is NOT built as a Ledger-owned modal despite its line range sitting
 // near the Ledger section of the source file.
-// authInput/authPrimary/authSecondary (source L3572-3589) and filterPwInput (L3636) live in
+// authInput/authPrimary/authSecondary (source L3572-3589) and filterPasswordInput (L3636) live in
 // screens/Auth/authFormStyles.ts (the real auth screens' canonical home for these constants) and are
 // reused here verbatim for the password-change subview instead of keeping a second copy.
 // 로그아웃 버튼은 usePostLogout()에 연결되어 있다 — 실패해도 클라이언트 세션은 끊는다
@@ -20,7 +20,7 @@ import { Avatar } from '../../primitives/Avatar/Avatar'
 import { Switch } from '../../primitives/Switch/Switch'
 import { useAppState } from '../../../state/AppStateContext'
 import { stopPropagation, useCloseModal } from '../../../state/selectors/modal'
-import { authInput, authPrimary, authSecondary, filterPwInput } from '../../../screens/Auth/authFormStyles'
+import { authInput, authPrimary, authSecondary, filterPasswordInput } from '../../../screens/Auth/authFormStyles'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useDeleteMe, useGetMe, usePatchMe, usePatchPassword, useProfileName } from '@/services/user'
 import { usePostLogout, PASSWORD_PATTERN, PASSWORD_RULE_TEXT } from '@/services/auth'
@@ -555,7 +555,7 @@ export function AccountModal() {
                   placeholder="현재 비밀번호 입력"
                   value={currentPw}
                   onChange={(e) => setCurrentPw(e.target.value)}
-                  onInput={filterPwInput}
+                  onInput={filterPasswordInput}
                   style={authInput}
                 />
               </div>
@@ -570,7 +570,7 @@ export function AccountModal() {
                   placeholder={PASSWORD_RULE_TEXT}
                   value={newPw}
                   onChange={(e) => setNewPw(e.target.value)}
-                  onInput={filterPwInput}
+                  onInput={filterPasswordInput}
                   style={authInput}
                 />
               </div>
@@ -585,7 +585,7 @@ export function AccountModal() {
                   placeholder="비밀번호 다시 입력"
                   value={confirmPw}
                   onChange={(e) => setConfirmPw(e.target.value)}
-                  onInput={filterPwInput}
+                  onInput={filterPasswordInput}
                   style={authInput}
                 />
               </div>
@@ -746,7 +746,7 @@ export function AccountModal() {
                   setWithdrawPw(e.target.value)
                   setLocalWithdrawError(null)
                 }}
-                onInput={filterPwInput}
+                onInput={filterPasswordInput}
                 style={authInput}
               />
             </div>

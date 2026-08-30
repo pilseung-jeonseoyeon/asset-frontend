@@ -23,7 +23,7 @@ import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
-import { fmt, sanitizeDecimalInput } from '../../../utils/format'
+import { formatNumber, sanitizeDecimalInput } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate } from '../../../utils/date'
 import { ApiError } from '@/services/api'
 import { useGetAccounts } from '@/services/account'
@@ -173,7 +173,7 @@ export function ExchangeAddModal() {
         {amountMissing && <div style={{ fontSize: 11.5, color: 'var(--down)' }}>금액과 환율을 입력해주세요</div>}
         {!!krwAmountEstimate && (
           <div style={{ fontSize: 11.5, color: 'var(--text-mid)' }}>
-            원화 환산 총액 <b style={{ color: 'var(--text-strong)' }}>{fmt(krwAmountEstimate)}원</b>
+            원화 환산 총액 <b style={{ color: 'var(--text-strong)' }}>{formatNumber(krwAmountEstimate)}원</b>
           </div>
         )}
         <div style={fieldRowStyle}>

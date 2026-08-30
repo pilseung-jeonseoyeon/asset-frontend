@@ -10,7 +10,7 @@
 // 수량·평단가 계산에 미치는 영향이 크다) 이 모달의 편집 범위(수량·단가·수수료·일자)에서 일부러 뺐다.
 //
 // GET /trades/{id} 단건 조회가 없어(가계부와 같은 제약), Stocks.tsx의 매매 내역 섹션이 쓰는 것과
-// 같은 캐시(qk.trade.list({}))에서 editingTradeId로 찾는다 — 별도 네트워크 요청이 없다.
+// 같은 캐시(queryKeys.trade.list({}))에서 editingTradeId로 찾는다 — 별도 네트워크 요청이 없다.
 
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -39,7 +39,7 @@ export function TradeEditModal() {
   const isOpen = state.modalOpen === 'tradeEdit' && editingTradeId !== null
   const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
 
-  // Stocks.tsx의 매매 내역 섹션과 같은 쿼리키(qk.trade.list({}))를 공유한다 — 별도 요청이 나가지 않는다.
+  // Stocks.tsx의 매매 내역 섹션과 같은 쿼리키(queryKeys.trade.list({}))를 공유한다 — 별도 요청이 나가지 않는다.
   const tradesQuery = useGetTrades({}, { enabled: isOpen })
   const trade = tradesQuery.trades.find((t) => t.id === editingTradeId) ?? null
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })

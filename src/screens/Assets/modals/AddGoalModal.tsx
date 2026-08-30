@@ -4,7 +4,7 @@
 // screen/modal opened it — Dashboard passes null, Settings' CustomModal passes 'custom'), same
 // return-to pattern as closeAddAccount.
 //
-// Adapted vs. source: 목표 자산 / 월평균 수입은 이제 로컬 폼 상태(useState) + fmt/parseAmount로 제어되는
+// Adapted vs. source: 목표 자산 / 월평균 수입은 이제 로컬 폼 상태(useState) + formatNumber/parseAmount로 제어되는
 // 입력이다(원본의 defaultValue+onInput은 아무 값도 저장하지 않는 장식이었다). 월평균 수입의 초기
 // 제안값은 API-SPEC §5.2 각주대로 서버가 주지 않아 GET /transactions/summaries/monthly의 최근 3개월
 // incomeTotal 평균으로 프론트가 직접 계산한다 — 이미 저장된 목표가 있으면(isUnset === false) 저장된
@@ -17,7 +17,7 @@ import { Modal } from '../../../components/primitives/Modal/Modal'
 import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker'
 import { useAppState } from '../../../state/AppStateContext'
 import { useDatePicker } from '../../../state/selectors/datePicker'
-import { fmt, parseAmount } from '../../../utils/format'
+import { formatNumber, parseAmount } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate, yearEndISODate } from '../../../utils/date'
 import { useGetGoal, usePutGoal } from '@/services/goal'
 import { useGetMonthlySummaries } from '@/services/transaction'
@@ -184,7 +184,7 @@ export function AddGoalModal() {
               <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
               <input
                 type="text" inputMode="numeric" placeholder="0"
-                value={targetAmount ? fmt(targetAmount) : ''}
+                value={targetAmount ? formatNumber(targetAmount) : ''}
                 onChange={moneyInputChange(setTargetAmount)}
                 style={{ border: 'none', outline: 'none', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', width: '100%', color: 'var(--text-strong)' }}
               />
@@ -208,7 +208,7 @@ export function AddGoalModal() {
               <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
               <input
                 type="text" inputMode="numeric" placeholder="0"
-                value={monthlyIncome ? fmt(monthlyIncome) : ''}
+                value={monthlyIncome ? formatNumber(monthlyIncome) : ''}
                 onChange={moneyInputChange(setMonthlyIncome)}
                 style={{ border: 'none', outline: 'none', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', width: '100%', color: 'var(--text-strong)' }}
               />
@@ -222,7 +222,7 @@ export function AddGoalModal() {
               <>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
                   <span>월 필요 저축액</span>
-                  <span>{fmt(monthlyNeeded)}원</span>
+                  <span>{formatNumber(monthlyNeeded)}원</span>
                 </div>
                 {feasibility === 'INFEASIBLE' ? (
                   // 서버가 지출 가능액에 하한 0을 적용해도 "쓸 수 있는 돈이 0원"이라는 말은
@@ -230,14 +230,14 @@ export function AddGoalModal() {
                   <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-mid)' }}>
                     지금 수입으로는 이 목표를 맞추기 어려워요
                     {monthlyShortfallAmt !== null && monthlyShortfallAmt > 0
-                      ? ` · 월 ${fmt(monthlyShortfallAmt)}원 부족`
+                      ? ` · 월 ${formatNumber(monthlyShortfallAmt)}원 부족`
                       : ''}
                   </div>
                 ) : monthlySpendableAmt !== null ? (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13, fontWeight: 700 }}>
                       <span>월 지출 가능액</span>
-                      <span>{fmt(monthlySpendableAmt)}원</span>
+                      <span>{formatNumber(monthlySpendableAmt)}원</span>
                     </div>
                     {feasibility === 'TIGHT' && (
                       <div style={{ fontSize: 11.5, color: 'var(--text-mid)', marginTop: 6 }}>

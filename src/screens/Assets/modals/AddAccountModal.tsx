@@ -86,7 +86,7 @@ import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
-import { fmt, parseAmount, sanitizeDecimalInput } from '../../../utils/format'
+import { formatNumber, parseAmount, sanitizeDecimalInput } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToNav, pickedToISODate } from '../../../utils/date'
 import { ASSET_CLASS_META, ASSET_CLASS_ORDER, assetClassFormPreset, assetClassOfAccountType } from '../../../data/assetsView'
 import { describeQueryError } from '../../../data/ledgerView'
@@ -414,7 +414,7 @@ export function AddAccountModal() {
         <span style={AMOUNT_PREFIX_STYLE}>₩</span>
         <input
           type="text" inputMode="numeric" placeholder="0"
-          value={form.initialBalanceKrw ? fmt(form.initialBalanceKrw) : ''}
+          value={form.initialBalanceKrw ? formatNumber(form.initialBalanceKrw) : ''}
           onChange={(e) => patchForm({ initialBalanceKrw: parseAmount(e.target.value) })}
           style={AMOUNT_INPUT_STYLE}
         />

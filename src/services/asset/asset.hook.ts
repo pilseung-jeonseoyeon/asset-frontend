@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import { getAssetDistribution, getAssetLiquidity } from './asset.service'
 
 interface AssetQueryOptions {
@@ -13,7 +13,7 @@ interface AssetQueryOptions {
 /** 자산군(6분류)별 분포. 자산 화면의 카테고리 카드·트리맵이 쓴다. */
 export function useGetAssetDistributionByClass(options?: AssetQueryOptions) {
   const query = useQuery({
-    queryKey: qk.asset.distribution('CLASS'),
+    queryKey: queryKeys.asset.distribution('CLASS'),
     queryFn: () => getAssetDistribution('CLASS'),
     enabled: options?.enabled,
   })
@@ -23,7 +23,7 @@ export function useGetAssetDistributionByClass(options?: AssetQueryOptions) {
 /** 금융기관별 분포. 기관별 보유액 모달이 쓴다. */
 export function useGetAssetDistributionByInstitution(options?: AssetQueryOptions) {
   const query = useQuery({
-    queryKey: qk.asset.distribution('INSTITUTION'),
+    queryKey: queryKeys.asset.distribution('INSTITUTION'),
     queryFn: () => getAssetDistribution('INSTITUTION'),
     enabled: options?.enabled,
   })
@@ -32,7 +32,7 @@ export function useGetAssetDistributionByInstitution(options?: AssetQueryOptions
 
 export function useGetAssetLiquidity(options?: AssetQueryOptions) {
   return useQuery({
-    queryKey: qk.asset.liquidity(),
+    queryKey: queryKeys.asset.liquidity(),
     queryFn: getAssetLiquidity,
     enabled: options?.enabled,
   })

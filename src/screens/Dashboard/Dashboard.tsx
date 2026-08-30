@@ -21,7 +21,7 @@ import { BankIcon } from '../../components/primitives/BankIcon/BankIcon'
 import { DonutChart } from '../../components/primitives/DonutChart/DonutChart'
 import { useAppState } from '../../state/AppStateContext'
 import { useIsMobile } from '../../utils/useMediaQuery'
-import { fmt, formatKoreanAbbrev } from '../../utils/format'
+import { formatNumber, formatKoreanAbbrev } from '../../utils/format'
 import { isoDateToDisplay, todayYearMonth, toISODate } from '../../utils/date'
 import {
   buildAllocationSegments,
@@ -281,7 +281,7 @@ export function Dashboard() {
                   <span style={{ fontSize: 12.5, color: 'var(--deep-label)', fontWeight: 400 }}>이번 달 증감액</span>
                   <StatBadge
                     direction={hero.monthChangeKrw >= 0 ? 'up' : 'down'}
-                    text={`${fmt(Math.abs(hero.monthChangeKrw))}원`}
+                    text={`${formatNumber(Math.abs(hero.monthChangeKrw))}원`}
                     bg="var(--deep-chip)"
                     color={hero.monthChangeKrw >= 0 ? 'var(--deep-up)' : 'var(--deep-down)'}
                   />

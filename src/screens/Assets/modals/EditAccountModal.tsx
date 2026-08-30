@@ -69,7 +69,7 @@ import { Modal } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
-import { fmt, formatCurrencyAmount } from '../../../utils/format'
+import { formatNumber, formatCurrencyAmount } from '../../../utils/format'
 import {
   assetClassMetaOf,
   assetClassOfAccountType,
@@ -405,7 +405,7 @@ export function EditAccountModal() {
                   <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
                   <input
                     type="text" inputMode="numeric" placeholder="0"
-                    value={balanceKrwInput === null ? '' : fmt(balanceKrwInput)}
+                    value={balanceKrwInput === null ? '' : formatNumber(balanceKrwInput)}
                     onChange={(e) => {
                       // 빈 문자열은 0이 아니라 "아직 값을 안 씀"으로 남긴다 — 파일 상단 주석 참고. 칸을
                       // 전체 지운 순간 parseAmount('')가 0을 돌려주면, 다시 채우기 전에 저장을 눌렀을 때
@@ -442,7 +442,7 @@ export function EditAccountModal() {
                 </div>
               ) : balanceKrwInput !== null && balanceKrwInput !== account.balanceKrw ? (
                 <div style={{ fontSize: 11.5, color: 'var(--text-mid)', fontWeight: 600, marginTop: 6 }}>
-                  {`${balanceKrwInput > account.balanceKrw ? '+' : '−'}${fmt(Math.abs(balanceKrwInput - account.balanceKrw))}원 차액이 가계부에 조정 거래로 자동 기록돼요`}
+                  {`${balanceKrwInput > account.balanceKrw ? '+' : '−'}${formatNumber(Math.abs(balanceKrwInput - account.balanceKrw))}원 차액이 가계부에 조정 거래로 자동 기록돼요`}
                 </div>
               ) : (
                 <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>
@@ -461,11 +461,11 @@ export function EditAccountModal() {
               <div style={LABEL_STYLE}>현재 원화 예수금</div>
               <div
                 role="group"
-                aria-label={`현재 원화 예수금(읽기 전용) ₩${fmt(account.cashKrw)}`}
+                aria-label={`현재 원화 예수금(읽기 전용) ₩${formatNumber(account.cashKrw)}`}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--fill-subtle)', ...FIELD_BORDER_STYLE }}
               >
                 <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
-                <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-mid)' }}>{fmt(account.cashKrw)}</span>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-mid)' }}>{formatNumber(account.cashKrw)}</span>
                 <Icon name="lock" size={14} color="var(--text-weak)" style={{ marginLeft: 'auto', flexShrink: 0 }} ariaHidden />
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>
@@ -482,11 +482,11 @@ export function EditAccountModal() {
               <div style={LABEL_STYLE}>예수금 합계 (원화)</div>
               <div
                 role="group"
-                aria-label={`예수금 합계(읽기 전용) ₩${fmt(account.balanceKrw)}`}
+                aria-label={`예수금 합계(읽기 전용) ₩${formatNumber(account.balanceKrw)}`}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--fill-subtle)', ...FIELD_BORDER_STYLE }}
               >
                 <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
-                <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-mid)' }}>{fmt(account.balanceKrw)}</span>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-mid)' }}>{formatNumber(account.balanceKrw)}</span>
                 <Icon name="lock" size={14} color="var(--text-weak)" style={{ marginLeft: 'auto', flexShrink: 0 }} ariaHidden />
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>

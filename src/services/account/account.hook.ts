@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import type { AccountListParams } from '../common.type'
 import {
   deleteAccount,
@@ -20,7 +20,7 @@ export function useGetAccounts(
   options?: { enabled?: boolean },
 ) {
   return useQuery({
-    queryKey: qk.account.list(params),
+    queryKey: queryKeys.account.list(params),
     queryFn: () => getAccounts(params),
     enabled: options?.enabled,
   })
@@ -28,7 +28,7 @@ export function useGetAccounts(
 
 export function useGetAccount(accountId: number | null) {
   return useQuery({
-    queryKey: qk.account.detail(accountId ?? 0),
+    queryKey: queryKeys.account.detail(accountId ?? 0),
     queryFn: () => getAccount(accountId as number),
     enabled: accountId !== null,
   })
@@ -50,13 +50,13 @@ export function useGetAccount(accountId: number | null) {
 function useInvalidateAccount() {
   const queryClient = useQueryClient()
   return () => {
-    void queryClient.invalidateQueries({ queryKey: qk.account.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.asset.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.dashboard.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.institution.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.stock.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.trade.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.goal.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.account.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.asset.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.institution.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.stock.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.trade.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.goal.all() })
   }
 }
 
@@ -93,10 +93,10 @@ export function useDeleteAccount() {
 function useInvalidateAccountBalance() {
   const queryClient = useQueryClient()
   return () => {
-    void queryClient.invalidateQueries({ queryKey: qk.account.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.asset.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.dashboard.all() })
-    void queryClient.invalidateQueries({ queryKey: qk.transaction.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.account.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.asset.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.transaction.all() })
   }
 }
 

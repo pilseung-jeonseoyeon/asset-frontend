@@ -37,7 +37,7 @@ import { Icon } from '../../../components/primitives/Icon/Icon'
 import { POPOVER_VIEWPORT_MARGIN, usePopoverAnchor } from '../../../components/primitives/usePopoverAnchor'
 import { stopPropagation } from '../../../state/selectors/modal'
 import { useIsMobile } from '../../../utils/useMediaQuery'
-import { fmt, parseAmount, sanitizeDecimalInput } from '../../../utils/format'
+import { formatNumber, parseAmount, sanitizeDecimalInput } from '../../../utils/format'
 import { useGetStocks } from '@/services/stock'
 import type { Market } from '@/services/common.type'
 
@@ -101,7 +101,7 @@ function unitLabel(market: Market): string {
 
 function priceLabel(market: Market, raw: string): string {
   const n = Number(raw) || 0
-  return market === 'US' ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${fmt(n)}원`
+  return market === 'US' ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${formatNumber(n)}원`
 }
 
 /** 검색 결과에서 국내/해외를 구분해주는 짧은 배지 문구. 시장이 하나뿐인 계좌에서는 쓰지 않는다. */
@@ -310,7 +310,7 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
                 ) : (
                   <input
                     type="text" inputMode="numeric" placeholder="0"
-                    value={avgPriceStr ? fmt(Number(avgPriceStr)) : ''}
+                    value={avgPriceStr ? formatNumber(Number(avgPriceStr)) : ''}
                     onChange={(e) => {
                       const n = parseAmount(e.target.value)
                       setAvgPriceStr(n ? String(n) : '')

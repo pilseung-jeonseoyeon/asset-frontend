@@ -27,7 +27,7 @@
 // 실제 손익 금액(unrealizedPnlKrw)은 계속 보여준다. currentPriceFmt/buildTradeRows.amountFmt는
 // 통화별 소수 자릿수를 고정하는 utils/format.ts의 formatCurrencyAmount로 교체했다.
 
-import { fmt, fmtKrw, formatCurrencyAmount } from '../utils/format'
+import { formatNumber, formatKrw, formatCurrencyAmount } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
 import { findBankInstitution } from '../design/bank-institutions'
 import type { ClosedHoldingResponse, HoldingGroupResponse, HoldingResponse } from '@/services/stock'
@@ -120,7 +120,7 @@ export function buildMarketIndexViews(indices: MarketIndexResponse[]): MarketInd
         symbol: idx.symbol,
         label: INDEX_SYMBOL_LABELS[idx.symbol] ?? idx.symbol,
         // 소수점 자릿수를 지수마다 서버가 다르게 내려준다(NASDAQ만 3자리로 온 적 있음, 실행 화면
-        // 확인) — fmt()는 자릿수를 고정하지 않으므로, 원본대로 항상 2자리로 고정한다.
+        // 확인) — formatNumber()는 자릿수를 고정하지 않으므로, 원본대로 항상 2자리로 고정한다.
         valueFmt: idx.currentValue.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         changePctFmt: changePercent !== null ? (positive ? '+' : '−') + Math.abs(changePercent).toFixed(2) + '%' : null,
         positive,
@@ -254,8 +254,8 @@ export function buildHoldingCards(holdings: HoldingResponse[]): HoldingCardView[
       marketLabel: MARKET_LABELS[h.market],
       sector: h.sector ?? '기타',
       ticker: h.ticker,
-      costFmt: fmtKrw(h.totalCostKrw),
-      qtyFmt: fmt(h.quantity),
+      costFmt: formatKrw(h.totalCostKrw),
+      qtyFmt: formatNumber(h.quantity),
       currentPriceFmt,
       dayChangePctFmt,
       dayChangePositive,
@@ -276,8 +276,8 @@ export function buildHoldingCards(holdings: HoldingResponse[]): HoldingCardView[
     return {
       ...base,
       priceMissing: false,
-      valueFmt: fmtKrw(h.valuationKrw),
-      gainFmt: `${sign}${fmtKrw(Math.abs(h.unrealizedPnlKrw))}원${pctPart}`,
+      valueFmt: formatKrw(h.valuationKrw),
+      gainFmt: `${sign}${formatKrw(Math.abs(h.unrealizedPnlKrw))}원${pctPart}`,
       positive,
       returnPct: h.returnRatePercent,
     }
@@ -340,10 +340,10 @@ export function buildPortfolioSummary(holdings: HoldingResponse[], totalAssetKrw
   const sharePct = totalAssetKrw ? (totalValue / totalAssetKrw) * 100 : null
   return {
     totalValueKrw: totalValue,
-    totalValueFmt: priced.length === 0 ? null : fmtKrw(totalValue),
-    totalCostFmt: priced.length === 0 ? null : fmtKrw(pricedCost),
+    totalValueFmt: priced.length === 0 ? null : formatKrw(totalValue),
+    totalCostFmt: priced.length === 0 ? null : formatKrw(pricedCost),
     hasMissingPrice,
-    pnlFmt: priced.length === 0 ? null : `${pnlPositive ? '+' : '−'}${fmtKrw(Math.abs(pnl))}`,
+    pnlFmt: priced.length === 0 ? null : `${pnlPositive ? '+' : '−'}${formatKrw(Math.abs(pnl))}`,
     pnlPositive,
     returnRateFmt: returnRateAvailable ? `${returnRatePositive ? '+' : '−'}${Math.abs(returnRate).toFixed(1)}%` : null,
     holdingCount: holdings.length,
@@ -381,9 +381,9 @@ export function buildClosedHoldingCards(closedHoldings: ClosedHoldingResponse[])
       marketLabel: MARKET_LABELS[h.market],
       sector: h.sector ?? '기타',
       ticker: h.ticker,
-      principalFmt: fmtKrw(h.principalKrw),
-      proceedsFmt: fmtKrw(h.proceedsKrw),
-      gainFmt: `${sign}${fmtKrw(Math.abs(h.realizedPnlKrw))}원 (${pctPart})`,
+      principalFmt: formatKrw(h.principalKrw),
+      proceedsFmt: formatKrw(h.proceedsKrw),
+      gainFmt: `${sign}${formatKrw(Math.abs(h.realizedPnlKrw))}원 (${pctPart})`,
       positive,
       closedAtFmt: isoDateToDisplay(h.closedAt),
     }
@@ -508,6 +508,6 @@ export function buildTradeRows(trades: TradeResponse[], market?: Market, limit: 
       amountFmt:
         marketToCurrency(t.market) === 'USD'
           ? `$${formatCurrencyAmount(t.quantity * t.price, 'USD')}`
-          : `${fmtKrw(t.quantity * t.price)}원`,
+          : `${formatKrw(t.quantity * t.price)}원`,
     }))
 }

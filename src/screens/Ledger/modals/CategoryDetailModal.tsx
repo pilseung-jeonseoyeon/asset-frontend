@@ -6,7 +6,7 @@
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
-import { fmt } from '../../../utils/format'
+import { formatNumber } from '../../../utils/format'
 import { describeQueryError, formatCategoryDetailChange } from '../../../data/ledgerView'
 import { useGetCategoryDetail } from '@/services/transaction'
 
@@ -59,7 +59,7 @@ export function CategoryDetailModal() {
               </button>
             </div>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--exp-text)', marginBottom: 18 }}>
-              {fmt(detail.data.expenseTotal)}원 · {formatCategoryDetailChange(detail.data.expenseTotal, detail.data.expenseTotalPrevious)}
+              {formatNumber(detail.data.expenseTotal)}원 · {formatCategoryDetailChange(detail.data.expenseTotal, detail.data.expenseTotalPrevious)}
             </div>
             {detail.data.subcategories.length === 0 ? (
               <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>이 카테고리엔 아직 지출 내역이 없어요.</div>
@@ -85,7 +85,7 @@ export function CategoryDetailModal() {
                             <div key={t.transactionId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8 }}>
                               <div style={{ fontSize: 11.5, color: 'var(--text-weak)', width: 44, flex: 'none' }}>{t.date.slice(5).replace('-', '.')}</div>
                               <div style={{ flex: 1, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</div>
-                              <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--exp-text)' }}>−{fmt(t.amount)}원</div>
+                              <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--exp-text)' }}>−{formatNumber(t.amount)}원</div>
                             </div>
                           ))}
                         </div>

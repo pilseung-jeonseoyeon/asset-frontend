@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { qk } from '../queryKeys'
+import { queryKeys } from '../queryKeys'
 import {
   getNotifications,
   patchAllNotificationsRead,
@@ -12,7 +12,7 @@ interface QueryOptions {
 
 export function useGetNotifications(unreadOnly?: boolean, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: qk.notification.list(unreadOnly),
+    queryKey: queryKeys.notification.list(unreadOnly),
     queryFn: () => getNotifications(unreadOnly),
     enabled: options?.enabled,
     // 답변서 4-10: SSE 붙이기 전까지의 대안으로 백엔드가 권고한 값. 전역 queryClient 기본값
@@ -34,7 +34,7 @@ export function usePatchNotificationRead() {
   return useMutation({
     mutationFn: (notificationId: number) => patchNotificationRead(notificationId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: qk.notification.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notification.all() })
     },
   })
 }
@@ -44,7 +44,7 @@ export function usePatchAllNotificationsRead() {
   return useMutation({
     mutationFn: patchAllNotificationsRead,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: qk.notification.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notification.all() })
     },
   })
 }
