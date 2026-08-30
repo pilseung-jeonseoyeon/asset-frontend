@@ -1,8 +1,11 @@
 // Source: secret/Asset Manager v14.dc.html L2145-2305 (월간 리포트 카드, reportOpen) — transcribed
-// verbatim. z-index 90. Unlike every other modal, the scrim has NO onClick-to-close (source omits it,
-// L2147-2148) — this overlay only closes via the explicit X button. ds_rules_v2_5.md §6-2 documents the
+// verbatim. z-index 90. 원본(L2147-2148)에는 스크림 클릭 닫기가 없었지만, 2026-08-29 사용자 요청으로
+// 앱의 모든 모달과 같이 배경을 누르면 닫히게 했다(입력 폼이 없는 읽기 전용 오버레이라 잃을 것도 없다).
+// X 버튼도 그대로 남아 있다. ds_rules_v2_5.md §6-2 documents the
 // one shadow exception used here: `0 60px 100px -40px rgba(0,0,0,.6)`, allowed only in this context.
 
+import { useRef } from 'react'
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
@@ -10,6 +13,8 @@ import { useIsMobile } from '../../../utils/useMediaQuery'
 export function ReportOverlay() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
+  // 훅은 조건부 return보다 위에 있어야 한다(react-hooks/rules-of-hooks).
+  const scrimPressedRef = useRef(false)
 
   if (!state.reportOpen) return null
 
@@ -35,8 +40,21 @@ export function ReportOverlay() {
   const navBtnSize = isMobile ? 44 : 36
   const topIconOffset = isMobile ? 'calc(26px + env(safe-area-inset-top))' : 26
 
+  // 누른 지점이 스크림 자신일 때만 닫는다 — 이유는 Modal.tsx의 handleScrimPointerDown 주석 참고.
+  const handleScrimPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    scrimPressedRef.current = e.target === e.currentTarget
+  }
+  const handleScrimClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!scrimPressedRef.current) return
+    scrimPressedRef.current = false
+    if (e.target !== e.currentTarget) return
+    closeReport()
+  }
+
   return (
     <div
+      onPointerDown={handleScrimPointerDown}
+      onClick={handleScrimClick}
       style={{
         position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', zIndex: 90,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: overlayPadding,

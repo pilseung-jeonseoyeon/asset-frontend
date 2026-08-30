@@ -10,17 +10,19 @@
 // panelStyle so a caller's desktop-only values for those three (e.g. an explicit width or 90vh maxHeight)
 // can never win on mobile. zIndex is untouched — callers' §7-1 nesting order still applies.
 //
-// 모바일 시트는 **아래로 스와이프해서 내릴 수 있다**(2026-08-28, 사용자 요청). 스크림 클릭은 여전히
-// 닫지 않는다(아래 긴 주석 참고) — 실수로 배경을 눌러 폼이 날아가는 사고는 그대로 막으면서, 요즘
-// 앱의 표준 제스처만 더한 것이다. 구현은 useSheetSwipeDown 참고.
+// 모바일 시트는 **아래로 스와이프해서 내릴 수 있다**(2026-08-28, 사용자 요청). 구현은
+// useSheetSwipeDown 참고.
+//
+// 스크림(배경)을 누르면 닫힌다(2026-08-29, 사용자 요청 — 2026-08-19에 막아둔 것을 되돌림).
+// 자세한 근거와 pointerdown을 쓰는 이유는 아래 handleScrimPointerDown 위 주석 참고.
 
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useAppState } from '../../../state/AppStateContext'
 
 interface ModalProps {
-  // 스크림 클릭으로는 닫지 않지만(바로 아래 주석 참고), Esc 키는 Modal 자신이 처리해 이 onClose를
+  // 스크림(배경)을 누르거나(바로 아래 주석 참고), Esc 키는 Modal 자신이 처리해 이 onClose를
   // 호출한다 — 호출부는 여전히 ModalHeader나 자체 X/취소 버튼에도 같은 핸들러를 넘겨야 한다(닫을
   // 방법이 Esc뿐인 모달이 생기는 걸 막기 위해 필수로 남겨둔다).
   onClose: () => void
@@ -254,16 +256,38 @@ export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalPro
       }
     : undefined
 
-  // 스크림(바깥 영역) 클릭으로는 닫지 않는다(2026-08-19, 사용자 피드백 — dc.html 원본과 의도적으로
-  // 어긋나는 지점). 폼을 작성하던 중 배경을 실수로 눌러 입력 내용이 통째로 날아가는 사고가 실사용에서
-  // 반복 보고됐다 — 닫기는 ModalHeader의 X 버튼이나 각 모달의 "취소" 버튼처럼 명시적인 조작으로만
-  // 일어나야 한다. 이 컴포넌트를 쓰는 모든 호출부가 눈에 보이는 닫기 수단을 갖추고 있는지는
-  // Modal을 새로 쓸 때마다 직접 확인할 것 — 스크림 클릭이 유일한 탈출구였던 곳이 있으면 안 된다.
-  // 스크림 클릭을 없앤 대신 키보드 사용자를 위한 탈출구로 Esc는 남겨뒀다(위 useEffect) — 다만 Esc는
-  // "가장 위 모달"에서만 동작하고, 열린 팝오버부터 닫으므로 입력 도중 실수로 폼 전체가 닫히는
-  // 사고까지 재현하지는 않는다.
+  // 스크림(바깥 영역)을 누르면 닫는다(2026-08-29 사용자 요청으로 되돌림). 원래는 2026-08-19에
+  // "폼 작성 중 배경을 실수로 눌러 입력이 통째로 날아간다"는 이유로 막아뒀는데, 지금은 가계부 거래
+  // 입력 모달이 닫힐 때 작성 중이던 내용을 기억했다가 다시 열 때 되살리므로(LedgerEntryModal의
+  // entryDraft) 그 사고의 대가가 훨씬 가벼워졌다.
+  // **다만 초안 복원이 있는 곳은 아직 가계부 거래 입력 모달뿐이다** — 계좌 등록·종목 추가처럼 긴 폼을
+  // 가진 다른 모달은 배경을 누르면 입력이 그대로 사라진다(2026-08-29 사용자 확인). 그 모달들에도
+  // 초안 복원을 넣자는 이야기가 나오면 같은 방식(닫기 직전 AppState에 초안 보관 → 열 때 복원)을 따른다.
+  //
+  // **pointerdown에서 기억해 두고 click에서 닫는다** — 두 단계로 나눈 이유가 각각 있다:
+  //  - pointerdown 시점에 바로 닫으면, 손을 떼는 순간 그 좌표에는 이미 모달이 없어 뒤에 드러난
+  //    헤더 버튼 등이 대신 눌린다("고스트 클릭"). 모바일 바텀시트는 스크림이 화면 위쪽이라 그 자리가
+  //    정확히 헤더의 알림·퀵추가 버튼이다.
+  //  - 반대로 click만 보면, 패널 안에서 글자를 드래그 선택하다 바깥에서 손을 뗐을 때 click의 대상이
+  //    공통 조상(=스크림)이 되어 의도치 않게 닫힌다. 그래서 "누르기도 스크림에서 시작했는가"를
+  //    pointerdown에서 함께 확인한다.
+  //  - 드롭다운·달력이 열려 있으면 그 팝오버용 투명 캐처(zIndex 94)가 화면을 덮고 있어 두 이벤트의
+  //    target이 스크림이 아니게 된다 → 바깥을 누르면 팝오버만 닫히고 모달은 남는다(Esc와 같은 층위).
+  const scrimPressedRef = useRef(false)
+  const handleScrimPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    scrimPressedRef.current = e.target === e.currentTarget
+  }
+  const handleScrimClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!scrimPressedRef.current) return
+    scrimPressedRef.current = false
+    if (e.target !== e.currentTarget) return
+    onCloseRef.current()
+  }
+
   return (
     <div
+      onPointerDown={handleScrimPointerDown}
+      onClick={handleScrimClick}
       style={{
         position: 'fixed',
         inset: 0,

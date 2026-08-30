@@ -13,8 +13,8 @@
 // re-implemented locally here — same shape as Modal.tsx: flex-end scrim, 10px 10px 0 0 radius, 88vh
 // max height, safe-area bottom padding, top grabber, sheet-up slide-in.
 
-import { useEffect, useState } from 'react'
-import type { CSSProperties } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { Icon } from '../../primitives/Icon/Icon'
 import { Avatar } from '../../primitives/Avatar/Avatar'
 import { Switch } from '../../primitives/Switch/Switch'
@@ -58,6 +58,8 @@ export function AccountModal() {
 
   // 비밀번호는 전역 상태(AppState)에 두지 않는다 — 평문이 앱 전역 상태에 남게 된다.
   // 이 모달은 AppShell에 항상 마운트되므로 닫을 때 반드시 직접 지운다.
+  // 훅은 아래 `if (!isOpen) return null`보다 위에 있어야 한다(react-hooks/rules-of-hooks).
+  const scrimPressedRef = useRef(false)
   const [currentPw, setCurrentPw] = useState('')
   const [newPw, setNewPw] = useState('')
   const [confirmPw, setConfirmPw] = useState('')
@@ -242,11 +244,25 @@ export function AccountModal() {
         ? '이미 탈퇴 처리된 계정이에요.'
         : (withdraw.error?.message ?? null))
 
-  // 스크림 클릭으로는 닫지 않는다(2026-08-19, primitives/Modal과 동일한 근거 — 프로필/비밀번호/탈퇴
-  // 폼을 작성하다 배경을 실수로 눌러 입력이 날아가는 사고를 막는다). 각 서브뷰의 X·뒤로가기·"취소"
-  // 버튼과, 위에서 붙인 Esc(서브뷰에서는 메인으로만 돌아가는)가 닫기 수단으로 남아 있다.
+  // 스크림(배경)을 누르면 닫는다(2026-08-29, primitives/Modal과 같은 시점에 같은 이유로 되돌림).
+  // 누른 지점이 스크림 자신일 때만 닫는 이유(드래그 선택·팝오버 층위)는 Modal.tsx의
+  // handleScrimPointerDown 주석 참고. 여기서는 서브뷰(프로필/비밀번호/탈퇴)로 들어가 있어도
+  // Esc와 달리 곧바로 전체를 닫는다 — 배경을 누르는 건 "이 창을 그만 보겠다"는 뜻이기 때문이다.
+  // 프로필·비밀번호 폼은 초안을 기억하지 않으므로 작성 중이던 값은 사라진다(2026-08-29 사용자 확인).
+  const handleScrimPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    scrimPressedRef.current = e.target === e.currentTarget
+  }
+  const handleScrimClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!scrimPressedRef.current) return
+    scrimPressedRef.current = false
+    if (e.target !== e.currentTarget) return
+    closeAndReset()
+  }
+
   return (
     <div
+      onPointerDown={handleScrimPointerDown}
+      onClick={handleScrimClick}
       style={{
         position: 'fixed',
         inset: 0,
