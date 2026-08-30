@@ -54,6 +54,21 @@ export interface AccountForm {
   isLiquid: boolean
 }
 
+/** 저장하지 않고 닫은 가계부 입력 폼의 내용. AppState.entryDraft 주석 참고. */
+export interface EntryDraft {
+  entryType: EntryType
+  entryAmount: number
+  entryDescription: string
+  entryMemo: string
+  entrySubcategoryId: number | null
+  entryAccountId: number | null
+  entryWithdrawAccountId: number | null
+  entryDateOverride: string | null
+  /** 달력 팝오버가 고른 날짜. entryDateOverride만 되살리면 달력이 기본 달로 돌아간다. */
+  dpPickedEntry: unknown
+  dpNavEntry: unknown
+}
+
 export interface AppState {
   // navigation
   assetTab: AssetTab
@@ -176,6 +191,25 @@ export interface AppState {
    * 특히 모바일(칸에 금액 없이 색 점만 남음)에서 "그날 뭐 썼지"를 볼 방법이 아예 없었다.
    */
   ledgerSelectedDate: string | null
+  /**
+   * 내역 탭 검색어(내용·메모). 비어 있지 않으면 달력이 보고 있는 기간·선택 날짜를 무시하고
+   * 전체 기간에서 찾는다 — "지난번에 그거 언제였지"를 달을 넘겨가며 찾지 않아도 되게 하기 위함이다.
+   */
+  ledgerSearch: string
+  /**
+   * 가계부 거래 입력 모달에서 저장하지 않고 닫았을 때 보관해 두는 초안(2026-08-29 사용자 요청).
+   * 배경 클릭으로도 모달이 닫히게 되면서(primitives/Modal의 handleScrimPointerDown) 실수로 닫아도
+   * 적던 내용이 사라지지 않도록 하기 위한 것이다. **새 거래 등록에서만 만들어진다** — 기존 거래 수정
+   * 세션은 초안을 남기지 않는다(다시 열면 서버 값을 다시 채우는 게 맞다).
+   * 다시 열 때 같은 거래유형이면 복원되고, 저장했거나 거래유형 탭을 바꾸면 버려진다.
+   */
+  entryDraft: EntryDraft | null
+  /**
+   * 방금 연 입력 폼이 초안에서 되살아난 것인지. true면 모달이 "이어서 작성 중이던 내용을 불러왔어요"
+   * 배너를 띄운다 — 조용히 채워 넣으면 며칠 전 초안의 금액을 새 거래인 줄 알고 그대로 저장하게 된다.
+   * 배너를 닫거나 "새로 작성"을 누르면 꺼진다.
+   */
+  entryDraftRestored: boolean
   // monthStartDay(정산월 시작일)는 서버 사용자 설정에 있다 — services/user의 useGetUserSettings 참고
 
   // selection defaults for entry form

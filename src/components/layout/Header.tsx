@@ -15,6 +15,7 @@ import { Avatar } from '../primitives/Avatar/Avatar'
 import { MonitLogo } from './MonitLogo'
 import { Icon } from '../primitives/Icon/Icon'
 import { useAppState } from '../../state/AppStateContext'
+import { openNewEntryUpdater } from '../../state/selectors/entryDraft'
 import { useIsMobile } from '../../utils/useMediaQuery'
 import { formatNotificationTime } from '../../utils/notificationTime'
 import type { NotificationResponse, NotificationType } from '@/services/notification'
@@ -213,21 +214,9 @@ export function Header() {
               <button
                 className="mini-hov"
                 onClick={() =>
-                  setState({
-                    quickAddOpen: false,
-                    modalOpen: 'ledgerEntry',
-                    entryType: 'expense',
-                    entryTabsVisible: true,
-                    editingTxId: null,
-                    entrySubcategoryId: null,
-                    entryAccountId: null,
-                    entryWithdrawAccountId: null,
-                    entryAmount: 0,
-                    entryDescription: '',
-                    entryMemo: '',
-                    entryPreserved: null,
-                    entryDateOverride: null,
-                  })
+                  // 가계부 화면의 입력 버튼과 같은 규칙으로 연다 — 저장하지 않고 닫아 보관해 둔
+                  // 같은 거래유형의 초안이 있으면 되살린다(state/selectors/entryDraft.ts).
+                  setState((st) => ({ ...openNewEntryUpdater('expense', true, null)(st), quickAddOpen: false }))
                 }
                 style={MINI_HOV_ITEM_STYLE}
               >

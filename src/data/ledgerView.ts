@@ -476,6 +476,14 @@ export interface CalendarCell {
   isoDate: string
   label: string
   lines: DayLine[]
+  /**
+   * 기간 합계(sumCalendarTotals) 계산용 원본 금액. lines는 이미 포맷된 문자열이라 더할 수 없고,
+   * 합계를 서버 응답에서 따로 다시 계산하면 "달력에 그려진 칸"과 "상단 합계"가 어긋날 수 있다
+   * (월간은 정산월 경계 때문에 그리지 못하고 버리는 날짜가 있다 — buildMonthCalendarRows 주석).
+   * 그려지는 셀 자체에 숫자를 실어 두 값이 구조적으로 같아지게 한다.
+   */
+  income: number
+  expense: number
   highlighted: boolean
 }
 
@@ -566,11 +574,15 @@ export function buildMonthCalendarRows(
   const cells: (CalendarCell | null)[] = []
   for (let i = 0; i < startDow; i++) cells.push(null)
   for (let day = 1; day <= dim; day++) {
+    const iso = `${monthPrefix}${String(day).padStart(2, '0')}`
+    const d = byDay.get(day)
     cells.push({
       day,
-      isoDate: `${monthPrefix}${String(day).padStart(2, '0')}`,
+      isoDate: iso,
       label: String(day),
-      lines: linesForDay(byDay.get(day), transferByDate.get(`${monthPrefix}${String(day).padStart(2, '0')}`) ?? 0),
+      lines: linesForDay(d, transferByDate.get(iso) ?? 0),
+      income: d?.incomeAmount ?? 0,
+      expense: d?.expenseAmount ?? 0,
       highlighted: isCurrentMonth && day === todayDate,
     })
   }
@@ -599,14 +611,36 @@ export function buildWeekCalendarRow(
     const year = Number(iso.slice(0, 4))
     const month = Number(iso.slice(5, 7))
     const day = Number(iso.slice(8, 10))
+    const d = byDate.get(iso)
     return {
       day,
       isoDate: iso,
       label: year === owner.year && month === owner.month ? String(day) : `${month}/${day}`,
-      lines: linesForDay(byDate.get(iso), transferByDate.get(iso) ?? 0),
+      lines: linesForDay(d, transferByDate.get(iso) ?? 0),
+      income: d?.incomeAmount ?? 0,
+      expense: d?.expenseAmount ?? 0,
       highlighted: iso === todayIso,
     }
   })
+}
+
+export interface CalendarTotals {
+  income: number
+  expense: number
+}
+
+/**
+ * 달력 우측 상단에 띄우는 기간(주/월) 수입·지출 합계. **달력에 실제로 그려진 칸만** 더한다 —
+ * 그래야 칸을 눈으로 다 더한 값과 상단 합계가 항상 일치한다(월간은 정산월 경계 때문에 격자에
+ * 넣지 못한 날짜가 있을 수 있고, 그 사실은 hasOutOfGridData 캡션이 따로 안내한다).
+ * 저축·이체는 제외한다(2026-08-29 사용자 결정) — 달력 칸에는 그대로 4종이 모두 그려진다.
+ * 빈 칸(null)은 건너뛴다.
+ */
+export function sumCalendarTotals(cells: (CalendarCell | null)[]): CalendarTotals {
+  return cells.reduce<CalendarTotals>(
+    (acc, cell) => (cell ? { income: acc.income + cell.income, expense: acc.expense + cell.expense } : acc),
+    { income: 0, expense: 0 },
+  )
 }
 
 function formatMonthDay(iso: string): string {

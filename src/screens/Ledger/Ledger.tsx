@@ -3,7 +3,7 @@
 // account services + src/data/ledgerView.ts. See ledgerView.ts header for which formulas are
 // design-system rules (kept verbatim) vs. new server-input plumbing.
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { KeyboardEvent } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
 import { Card } from '../../components/primitives/Card/Card'
@@ -23,6 +23,8 @@ import {
   yearMonthOf,
 } from '../../utils/date'
 import { fmt } from '../../utils/format'
+import { openNewEntryUpdater } from '../../state/selectors/entryDraft'
+import { useDebouncedValue } from '../../utils/useDebouncedValue'
 import { useIsMobile } from '../../utils/useMediaQuery'
 import {
   buildLedgerCategories,
@@ -40,6 +42,7 @@ import {
   getLedgerHeroTitle,
   getSavingsRingCopy,
   pickTopIncreaseLabel,
+  sumCalendarTotals,
   TX_TYPE_TO_ENTRY_TYPE,
   weekListTitle,
   weekPeriodLabel,
@@ -69,6 +72,12 @@ const WEEKDAY_HEADERS: { label: string; color: string }[] = [
   { label: '토', color: 'var(--text-mid)' },
   { label: '일', color: 'var(--text-mid)' },
 ]
+/** 기간 이동 화살표. 아이콘은 18px 그대로 두고 터치 영역만 44px로 넓힌다(docs/mobile.md §5). */
+const ARROW_BTN_STYLE = {
+  width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 0,
+} as const
+
 const BAR_X_POSITIONS = [8, 50, 92, 134, 176, 218, 260, 302, 344, 386, 428, 470]
 
 function LoadingLine() {
@@ -101,6 +110,55 @@ const CALENDAR_DOT_LEGEND: { label: string; color: string }[] = [
   { label: '지출', color: 'var(--exp-text)' },
   { label: '이체', color: 'var(--text-mid)' },
 ]
+
+/**
+ * 달력 우측 상단의 기간(주/월) 수입·지출 합계. 달력 칸은 "그 날 하루"만 보여줘서 지금 보고 있는
+ * 주/달 전체가 얼마인지 알 수 없었다 — 특히 모바일은 칸에서 금액 배지를 걷어내고 색 점만 남겼기
+ * 때문에(CalendarCellView 주석) 달력만 봐서는 규모를 전혀 알 수 없었다.
+ *
+ * 저축·이체는 넣지 않는다(2026-08-29 사용자 결정). 색만으로 수입/지출을 가르지 않도록 라벨과
+ * +/− 부호를 함께 둔다. 0원인 기간은 "+0 / −0"이 어색하므로 부호 없이 회색 0으로 조용히 구분한다.
+ */
+function CalendarTotalsRow({ periodLabel, income, expense }: { periodLabel: string; income: number; expense: number }) {
+  const isMobile = useIsMobile()
+  // 금액이 커져 한 줄에 안 들어가면 잘라내지 않고 줄바꿈한다(docs/mobile.md §6 — 금액은 크기를
+  // 줄이기보다 줄바꿈·축약 우선. 여기서는 축약 없이 전체 금액을 그대로 보여준다).
+  const item = (label: string, amount: number, sign: string, color: string) => (
+    <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+      <span style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>{label}</span>
+      <span
+        style={{
+          fontSize: isMobile ? 11.5 : 13,
+          fontWeight: 700,
+          color: amount === 0 ? 'var(--text-weak)' : color,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {amount === 0 ? '0' : sign + fmt(amount)}
+      </span>
+    </span>
+  )
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: isMobile ? 10 : 14,
+        marginBottom: isMobile ? 10 : 14,
+      }}
+    >
+      {/* 무엇의 합계인지 밝힌다. 달력 칸을 눌러 아래 목록을 하루로 좁혀도 이 합계는 기간 전체
+          그대로이므로(달력이 그리는 범위와 맞춘다), 라벨이 없으면 "오늘 하루 합계"로 오해한다. */}
+      <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-mid)', marginRight: 'auto' }}>{periodLabel}</span>
+      {item('수입', income, '+', 'var(--inc-text)')}
+      {/* 부호는 달력 칸 배지(dayLine)와 같은 U+2212 −를 쓴다 — 하이픈과 섞이면 모양이 어긋난다. */}
+      {item('지출', expense, '−', 'var(--exp-text)')}
+    </div>
+  )
+}
 
 function CalendarCellView({
   cell,
@@ -255,19 +313,70 @@ function CalendarCellView({
   )
 }
 
+/**
+ * 수입·지출·저축·이체 빠른 입력 버튼. 원래 '내역' 탭 툴바에만 있었는데, 가계부에 들어오면 항상
+ * '개요' 탭이 먼저 떠서 지출 하나 적는 데 탭 전환이 한 번씩 더 들었다(2026-08-29 사용자 요청).
+ * 두 탭이 공유하도록 화면 최상단 세그탭 옆으로 올렸다.
+ */
+function EntryQuickButtons() {
+  const { setState } = useAppState()
+  // 여기서 여는 건 항상 새 거래다. 저장하지 않고 닫아둔 같은 유형의 초안이 있으면 되살아난다
+  // (state/selectors/entryDraft.ts). 유형을 버튼으로 지목해 들어오므로 유형 탭은 숨긴다.
+  const openEntry = (entryType: EntryType) => () => setState(openNewEntryUpdater(entryType, false, null))
+
+  return (
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <button
+          onClick={openEntry('income')}
+          className="qbtn"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 44, padding: '0 14px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--inc-text)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', transition: 'transform .12s', fontFamily: 'inherit' }}
+        >
+          <Icon name="add" size={16} />
+          수입
+        </button>
+        <button
+          onClick={openEntry('expense')}
+          className="qbtn"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 44, padding: '0 14px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--exp-text)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', transition: 'transform .12s', fontFamily: 'inherit' }}
+        >
+          <Icon name="add" size={16} />
+          지출
+        </button>
+        <button
+          onClick={openEntry('saving')}
+          className="qbtn"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 44, padding: '0 14px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--sav-text)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', transition: 'transform .12s', fontFamily: 'inherit' }}
+        >
+          <Icon name="add" size={16} />
+          저축
+        </button>
+        <button
+          onClick={openEntry('transfer')}
+          className="qbtn"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 44, padding: '0 14px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-strong)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', transition: 'transform .12s', fontFamily: 'inherit' }}
+        >
+          <Icon name="add" size={16} />
+          이체
+        </button>
+      </div>)
+}
+
 export function Ledger() {
   const { state, setState } = useAppState()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
-      {/* 서브 세그먼트 탭 */}
-      <div style={{ display: 'flex', background: 'var(--track)', borderRadius: 10, padding: 4, gap: 2, width: 'fit-content' }}>
-        <SegmentedTab active={state.ledgerTab === 'overview'} onClick={() => setState({ ledgerTab: 'overview' })}>
-          개요
-        </SegmentedTab>
-        <SegmentedTab active={state.ledgerTab === 'history'} onClick={() => setState({ ledgerTab: 'history' })}>
-          내역
-        </SegmentedTab>
+      {/* 서브 세그먼트 탭 + 빠른 입력 버튼. 좁은 화면에서는 버튼이 아랫줄로 접힌다. */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', background: 'var(--track)', borderRadius: 10, padding: 4, gap: 2, width: 'fit-content' }}>
+          <SegmentedTab active={state.ledgerTab === 'overview'} onClick={() => setState({ ledgerTab: 'overview' })}>
+            개요
+          </SegmentedTab>
+          <SegmentedTab active={state.ledgerTab === 'history'} onClick={() => setState({ ledgerTab: 'history' })}>
+            내역
+          </SegmentedTab>
+        </div>
+        <EntryQuickButtons />
       </div>
 
       {state.ledgerTab === 'overview' && <LedgerOverview />}
@@ -408,12 +517,18 @@ function LedgerOverview() {
                     onClick={() => setState({ modalOpen: 'categoryDetail', catDetailCategoryId: cat.categoryId })}
                     style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 8px', borderBottom: '0.5px solid var(--fill-subtle)', borderRadius: 10, cursor: 'pointer' }}
                   >
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-mid)', width: 56, flex: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.name}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', width: 92, flex: 'none', textAlign: 'right' }}>{cat.amtFmt}원</div>
-                    <div style={{ flex: 1, height: 7, background: 'var(--track)', borderRadius: 4, minWidth: 40 }}>
+                    {/* 네 칸의 고정 폭 합(56+92+40+64)에 간격 36을 더하면 288px이라, 좁은 폰
+                        (아이폰 SE·미니 등 375px 이하)에서는 카드 안쪽 폭을 넘어 줄이 화면 밖으로
+                        밀려났다(2026-08-29 실기 확인, 306px에서 337px까지 넘침).
+                        flex:'none'을 '0 1 auto'로 바꿔 **자리가 모자랄 때만** 줄어들게 한다 — 데스크톱처럼
+                        여유가 있으면 flex-basis(=width)가 그대로라 지금 보이는 정렬이 유지되고, 좁아지면
+                        각 칸이 비례해 줄면서 넘치는 글자는 말줄임으로 잘린다. */}
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-mid)', width: 56, flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.name}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', width: 92, flex: '0 1 auto', minWidth: 0, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.amtFmt}원</div>
+                    <div style={{ flex: 1, height: 7, background: 'var(--track)', borderRadius: 4, minWidth: 24 }}>
                       <div style={{ height: '100%', width: `${cat.barPct}%`, background: cat.rampColor, borderRadius: 4 }} />
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, width: 64, flex: 'none', textAlign: 'right', color: 'var(--text-mid)' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, width: 64, flex: '0 1 auto', minWidth: 0, textAlign: 'right', color: 'var(--text-mid)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {cat.isNew ? '신규' : `${cat.changeSign}${cat.changePctFmt}%`}
                     </span>
                   </div>
@@ -611,21 +726,29 @@ function LedgerOverview() {
                         ))}
                       </g>
                       <g fill="var(--sav-fill)">
-                        {bars.map((b, i) => {
+                        {bars.map((b) => {
                           if (b.isFuture) return null
                           const height = (b.pct / 100) * 130
-                          return <rect key={b.month} x={BAR_X_POSITIONS[i]} y={130 - height} width="26" height={height} rx="5" />
+                          // 배열 인덱스가 아니라 b.month로 x좌표를 고른다 — 서버가 12개월을 다 내려주지
+                          // 않는 달(연초 등)에는 인덱스와 월이 어긋나 막대가 엉뚱한 달 자리에 그려진다.
+                          const x = BAR_X_POSITIONS[b.month - 1]
+                          if (x === undefined) return null
+                          return <rect key={b.month} x={x} y={130 - height} width="26" height={height} rx="5" />
                         })}
                       </g>
                     </svg>
+                    {/* 월 라벨은 반드시 SVG와 같은 래퍼(이 flex:1 열) 안에 둔다. 바깥(축 라벨 열의
+                        형제)에 두면 왼쪽 축 라벨 32px + gap 10px = 42px만큼 기준 폭이 달라져, 카드
+                        폭과 무관하게 1월 라벨이 막대보다 40px 왼쪽으로 밀린다(대시보드 추이 그래프도
+                        같은 이유로 라벨을 SVG와 한 래퍼에 두고 있다). */}
+                    <div style={{ display: 'flex', marginTop: 6, fontSize: 10.5, color: 'var(--text-weak)' }}>
+                      {MONTH_LABELS.map((m, i) => (
+                        <span key={m} style={{ flex: 1, textAlign: 'center', ...(i + 1 === today.month ? { fontWeight: 700, color: 'var(--accent)' } : null) }}>
+                          {m}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div style={{ display: 'flex', marginTop: 6, fontSize: 10.5, color: 'var(--text-weak)' }}>
-                  {MONTH_LABELS.map((m, i) => (
-                    <span key={m} style={{ flex: 1, textAlign: 'center', ...(i + 1 === today.month ? { fontWeight: 700, color: 'var(--accent)' } : null) }}>
-                      {m}
-                    </span>
-                  ))}
                 </div>
               </>
             )}
@@ -700,12 +823,21 @@ function LedgerHistory() {
   // 않는 이유는 주간 뷰와 같다 — 고른 날이 정산월 경계 밖일 수 있어 두 조건이 충돌하면 있어야 할
   // 거래가 사라진다. 하루치는 5건을 넘길 수 있으므로 페이지네이션은 그대로 둔다.
   const selectedDate = state.ledgerSelectedDate
+  // 검색어는 타이핑 중 글자마다 요청이 나가지 않도록 잠시 멈출 때까지 기다렸다 보낸다.
+  const searchInput = state.ledgerSearch
+  const searchTerm = useDebouncedValue(searchInput.trim(), 300)
+  const isSearching = searchTerm.length > 0
+  // 검색 중에는 기간 조건(year·month / from·to)을 전부 빼고 keyword만 보낸다 — 서버가 날짜 조건이
+  // 없으면 전체 기간을 조회하므로, "지난번에 그거"를 달을 넘겨가며 찾지 않아도 된다. 달력이 고른
+  // 하루도 무시한다(검색이 기간보다 우선).
   const txQuery = useGetTransactions(
-    selectedDate
-      ? { from: selectedDate, to: selectedDate, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] }
-      : isWeek
-        ? { from: weekAnchor, to: weekEnd, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] }
-        : { year: cursor.year, month: cursor.month, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] },
+    isSearching
+      ? { keyword: searchTerm, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] }
+      : selectedDate
+        ? { from: selectedDate, to: selectedDate, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] }
+        : isWeek
+          ? { from: weekAnchor, to: weekEnd, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] }
+          : { year: cursor.year, month: cursor.month, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] },
   )
   const dailyQueryA = useGetDailySummaries(weekStartMonth)
   const dailyQueryB = useGetDailySummaries(weekEndMonth, { enabled: needsSecondMonth })
@@ -743,8 +875,25 @@ function LedgerHistory() {
     }
   }, [totalPages, state.ledgerPage, setState])
 
+  // 검색어가 **실제로 바뀌었을 때만** 첫 페이지로 돌아간다. 의존성 배열만 두면 이 화면이 다시
+  // 마운트될 때(개요↔내역 탭 왕복 등)마다 실행돼, 검색을 하지도 않았는데 보던 페이지가 1로 리셋된다.
+  // 함께 골라둔 날짜도 푼다 — 검색 중에는 해제 칩이 보이지 않아, 그대로 두면 검색어를 지우는 순간
+  // 목록이 엉뚱한 하루로 튄다.
+  const prevSearchTermRef = useRef(searchTerm)
+  useEffect(() => {
+    if (prevSearchTermRef.current === searchTerm) return
+    prevSearchTermRef.current = searchTerm
+    setState({ ledgerPage: 1, ledgerSelectedDate: null })
+  }, [searchTerm, setState])
+
+  // 검색어는 이 화면을 떠나면 지운다. AppState에 남겨두면 다른 메뉴에 갔다 돌아왔을 때 지난 검색
+  // 결과만 보이는데, 검색창이 달력 아래에 있어 사용자가 그 이유를 알아채기 어렵다.
+  useEffect(() => () => setState({ ledgerSearch: '' }), [setState])
+
   const { rows: monthRows, hasOutOfGridData } = buildMonthCalendarRows(cursor, dailySummaries, transferByDate)
   const weekRow = buildWeekCalendarRow(weekAnchor, dailySummaries, transferByDate)
+  // 달력에 실제로 그려진 칸만 더한다 — 주간은 7칸, 월간은 빈 칸을 뺀 그 달 격자(sumCalendarTotals 주석).
+  const calendarTotals = sumCalendarTotals(isWeek ? weekRow : monthRows.flat())
 
   const goToMonth = (delta: number) => {
     const next = shiftYearMonth(cursor, delta)
@@ -780,24 +929,11 @@ function LedgerHistory() {
     setState({ ledgerRange: 'month', ledgerYear: owner.year, ledgerMonth: owner.month, ledgerPage: 1, ledgerSelectedDate: null })
   }
 
-  // 새 거래 입력 진입점(캘린더 날짜 클릭 · 상단 유형별 버튼) 공용 초기화. 이전에 열려 있던 수정 세션의
-  // 잔재(editingTxId·금액·내용·카테고리·계좌 선택)를 물려받지 않도록 매번 전부 리셋한다.
+  // 새 거래 입력 진입점(캘린더 날짜의 + · 상단 유형별 버튼). 이전에 열려 있던 수정 세션의 잔재
+  // (editingTxId·금액·내용·카테고리·계좌 선택)를 물려받지 않도록 매번 리셋하되, 저장하지 않고 닫아
+  // 보관해 둔 같은 거래유형의 초안이 있으면 그것만 되살린다(state/selectors/entryDraft.ts).
   const openNewEntry = (entryType: EntryType, tabsVisible: boolean, dateOverride: string | null) => () =>
-    setState({
-      modalOpen: 'ledgerEntry',
-      entryType,
-      entryTabsVisible: tabsVisible,
-      editingTxId: null,
-      entrySubcategoryId: null,
-      entryAccountId: null,
-      entryWithdrawAccountId: null,
-      entryAmount: 0,
-      entryDescription: '',
-      entryMemo: '',
-      entryPreserved: null,
-      entryDateOverride: dateOverride,
-      openDropdown: null,
-    })
+    setState(openNewEntryUpdater(entryType, tabsVisible, dateOverride))
 
   // cell.isoDate로 바로 만든다 — 주간 뷰의 셀은 월 경계를 넘어 cursor.year/month와 다른 달에 속할 수
   // 있어(예: 8월 마지막 주에 9월 1일 칸이 섞임) cursor로 재조합하면 엉뚱한 날짜가 만들어진다.
@@ -807,6 +943,9 @@ function LedgerHistory() {
   // 푸는 방법이 목록 위 X 하나뿐이면 모바일에서 되돌리기가 번거롭다. 날짜가 바뀌면 페이지는 1로.
   const selectDay = (isoDate: string) => () =>
     setState((st) => ({
+      // 검색 중이라면 검색을 풀면서 그 날짜로 옮겨간다 — 검색은 기간·날짜를 무시하므로, 검색어를 둔 채
+      // 날짜만 골라두면 눌러도 목록이 꿈쩍하지 않는 "죽은 달력"이 된다.
+      ledgerSearch: '',
       ledgerSelectedDate: st.ledgerSelectedDate === isoDate ? null : isoDate,
       ledgerPage: 1,
     }))
@@ -814,8 +953,8 @@ function LedgerHistory() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', background: 'var(--track)', borderRadius: 10, padding: 4, gap: 2 }}>
             <SegmentedTab active={isWeek} onClick={switchToWeek}>
               주간
@@ -825,13 +964,25 @@ function LedgerHistory() {
             </SegmentedTab>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-mid)' }}>
-            <span onClick={() => (isWeek ? goToWeek(-1) : goToMonth(-1))} style={{ display: 'flex', cursor: 'pointer' }}>
+            {/* span+onClick이던 것을 button으로 바꿨다 — 키보드로 도달조차 못 했고 터치 영역도
+                아이콘 크기(18px)뿐이라 손끝이 큰 사용자에게는 거의 안 눌렸다(docs/mobile.md §5). */}
+            <button
+              type="button"
+              onClick={() => (isWeek ? goToWeek(-1) : goToMonth(-1))}
+              aria-label={isWeek ? '이전 주' : '이전 달'}
+              style={ARROW_BTN_STYLE}
+            >
               <Icon name="chevron_left" size={18} />
-            </span>
+            </button>
             <span style={{ fontSize: 13, fontWeight: 700 }}>{isWeek ? weekPeriodLabel(weekAnchor) : yearMonthLabel(cursor)}</span>
-            <span onClick={() => (isWeek ? goToWeek(1) : goToMonth(1))} style={{ display: 'flex', cursor: 'pointer' }}>
+            <button
+              type="button"
+              onClick={() => (isWeek ? goToWeek(1) : goToMonth(1))}
+              aria-label={isWeek ? '다음 주' : '다음 달'}
+              style={ARROW_BTN_STYLE}
+            >
               <Icon name="chevron_right" size={18} />
-            </span>
+            </button>
           </div>
           <button
             onClick={goToToday}
@@ -840,50 +991,26 @@ function LedgerHistory() {
             오늘로 이동
           </button>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            onClick={openNewEntry('income', false, null)}
-            className="qbtn"
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--inc-text)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', transition: 'transform .12s' }}
-          >
-            <Icon name="add" size={16} />
-            수입
-          </button>
-          <button
-            onClick={openNewEntry('expense', false, null)}
-            className="qbtn"
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--exp-text)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', transition: 'transform .12s' }}
-          >
-            <Icon name="add" size={16} />
-            지출
-          </button>
-          <button
-            onClick={openNewEntry('saving', false, null)}
-            className="qbtn"
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--sav-text)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', transition: 'transform .12s' }}
-          >
-            <Icon name="add" size={16} />
-            저축
-          </button>
-          <button
-            onClick={openNewEntry('transfer', false, null)}
-            className="qbtn"
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-strong)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', transition: 'transform .12s' }}
-          >
-            <Icon name="add" size={16} />
-            이체
-          </button>
-        </div>
       </div>
 
       {/* 캘린더뷰 */}
       <Card style={{ padding: 26 }} aria-busy={dailyPending}>
+        {/* 검색 중에도 달력은 그대로 둔다(2026-08-29 사용자 결정 — 검색하면 달력이 사라지는 게 어색하다).
+            검색은 기간·선택 날짜를 무시하므로 달력이 "죽은 화면"이 되지 않도록, 검색 중에 날짜 칸을
+            누르면 검색을 풀고 그 날짜로 옮겨간다(selectDay 참고). */}
         {dailyPending ? (
           <LoadingLine />
         ) : dailyErr ? (
           <ErrorLine message={dailyErr.message} muted={dailyErr.muted} />
         ) : (
           <>
+            {/* 합계는 주간/월간 공통이라 두 분기 위에 한 번만 그린다. 로딩·에러 중에는 아예 그리지
+                않는다 — 값이 비어 있는 걸 "0원"으로 읽으면 안 된다. */}
+            <CalendarTotalsRow
+              periodLabel={isWeek ? weekPeriodLabel(weekAnchor) : yearMonthLabel(cursor)}
+              income={calendarTotals.income}
+              expense={calendarTotals.expense}
+            />
             {isWeek && (
               <div>
                 <div style={{ display: 'grid', gridTemplateColumns: CALENDAR_GRID_COLUMNS(isMobile), gap: isMobile ? 4 : 8 }}>
@@ -962,15 +1089,57 @@ function LedgerHistory() {
         )}
 
         <div style={{ marginTop: 22, paddingTop: 18, borderTop: '0.5px solid var(--track)' }}>
+          {/* 내역 검색. 돋보기와 지우기 X를 입력창 안에 겹쳐 두어 한 줄만 차지하게 한다 — 모바일에서
+              달력 아래 세로 공간이 귀하다. 지우기 버튼은 터치 최소치(44px, docs/mobile.md §5)를 지킨다. */}
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <span
+              className="ms"
+              aria-hidden
+              style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 17, color: 'var(--text-weak)', pointerEvents: 'none' }}
+            >
+              search
+            </span>
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setState({ ledgerSearch: e.target.value })}
+              placeholder="내용·메모로 전체 기간에서 찾기"
+              aria-label="가계부 내역 검색"
+              style={{
+                width: '100%', minHeight: 44, boxSizing: 'border-box',
+                padding: searchInput ? '0 46px 0 38px' : '0 14px 0 38px',
+                borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)',
+                color: 'var(--text-strong)', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', outline: 'none',
+              }}
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => setState({ ledgerSearch: '', ledgerPage: 1 })}
+                aria-label="검색어 지우기"
+                className="mini-hov"
+                style={{
+                  position: 'absolute', right: 2, top: '50%', transform: 'translateY(-50%)',
+                  width: 44, height: 44, borderRadius: 10, border: 'none', background: 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
+                  color: 'var(--text-weak)',
+                }}
+              >
+                <Icon name="close" size={16} />
+              </button>
+            )}
+          </div>
           {/* keepPreviousData 때문에 기간을 옮기면 새 데이터가 오기 전까지 이전 기간 거래가 그대로
               보인다. 제목은 이미 새 기간으로 바뀌어 있으므로, 갱신 중임을 옆에 표시해 오해를 막는다. */}
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>
-              {selectedDate
-                ? dayListTitle(selectedDate)
-                : isWeek
-                  ? weekListTitle(weekAnchor)
-                  : `${yearMonthLabel(cursor)} 전체 내역`}
+              {isSearching
+                ? `'${searchTerm}' 검색 결과${page ? ` ${page.totalElements}건` : ''}`
+                : selectedDate
+                  ? dayListTitle(selectedDate)
+                  : isWeek
+                    ? weekListTitle(weekAnchor)
+                    : `${yearMonthLabel(cursor)} 전체 내역`}
             </div>
             {txQuery.isFetching && !txQuery.isPending && (
               <span aria-busy style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>불러오는 중…</span>
@@ -1015,7 +1184,9 @@ function LedgerHistory() {
             <ErrorLine message={txErr.message} muted={txErr.muted} />
           ) : rows.length === 0 ? (
             <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>
-              {selectedDate ? '이 날에는' : isWeek ? '이 주에는' : '이 달에는'} 거래 내역이 없어요.
+              {isSearching
+                ? `'${searchTerm}'에 해당하는 거래를 찾지 못했어요.`
+                : `${selectedDate ? '이 날에는' : isWeek ? '이 주에는' : '이 달에는'} 거래 내역이 없어요.`}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1080,10 +1251,10 @@ function LedgerHistory() {
             </div>
           )}
           {totalPages > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 16, overflowX: 'auto' }}>
               <button
                 onClick={() => setState((st) => ({ ledgerPage: Math.max(1, (st.ledgerPage || 1) - 1) }))}
-                style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: 'var(--track)', color: 'var(--text-mid)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: 44, height: 44, borderRadius: 8, border: 'none', background: 'var(--track)', color: 'var(--text-mid)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}
               >
                 <Icon name="chevron_left" size={16} />
               </button>
@@ -1092,7 +1263,7 @@ function LedgerHistory() {
                   key={n}
                   onClick={() => setState({ ledgerPage: n })}
                   style={{
-                    width: 28, height: 28, borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+                    width: 44, height: 44, borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', flex: 'none',
                     background: n === currentPage ? 'var(--accent)' : 'var(--track)', color: n === currentPage ? '#fff' : 'var(--text-mid)',
                   }}
                 >
@@ -1101,7 +1272,7 @@ function LedgerHistory() {
               ))}
               <button
                 onClick={() => setState((st) => ({ ledgerPage: Math.min(totalPages, (st.ledgerPage || 1) + 1) }))}
-                style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: 'var(--track)', color: 'var(--text-mid)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: 44, height: 44, borderRadius: 8, border: 'none', background: 'var(--track)', color: 'var(--text-mid)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}
               >
                 <Icon name="chevron_right" size={16} />
               </button>

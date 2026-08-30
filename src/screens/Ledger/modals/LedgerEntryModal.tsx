@@ -28,7 +28,7 @@
 // buildEntrySuggestions가 한다 — 서버에 제목 검색이 없어서다. 수정 모드에서는 보여주지 않는다(이미
 // 값이 다 차 있고, 엉뚱한 칩을 눌러 기존 거래가 덮어써지는 사고를 막는다).
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
@@ -40,6 +40,7 @@ import { useEntityDropdown, type DropdownState } from '../../../state/selectors/
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { isoDateToDisplay, pickedToISODate, recentMonthsRange, toISODate } from '../../../utils/date'
 import { fmt, parseAmount } from '../../../utils/format'
+import { captureEntryDraft } from '../../../state/selectors/entryDraft'
 import { ENTRY_TYPE_TO_CATEGORY_KIND, ENTRY_TYPE_TO_TX_TYPE, buildEntrySuggestions, findSubcategoryById } from '../../../data/ledgerView'
 import type { EntrySuggestion } from '../../../data/ledgerView'
 import type { AppState, EntryType } from '../../../state/types'
@@ -100,6 +101,7 @@ export function LedgerEntryModal() {
   // 칩을 누른 뒤에는 제목을 다시 고칠 때까지 칩을 숨긴다 — 방금 채운 값과 같은 칩이 계속 떠 있으면
   // "아직 안 채워진 건가?" 하고 헷갈린다.
   const [suggestionApplied, setSuggestionApplied] = useState(false)
+  const amountInputRef = useRef<HTMLInputElement>(null)
   const [descInvalid, setDescInvalid] = useState(false)
   const [sameAccountInvalid, setSameAccountInvalid] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -163,7 +165,10 @@ export function LedgerEntryModal() {
   // 없는 id를 넣으면 드롭다운은 첫 항목을 보여주는데 제출값은 사라진 id가 되어 SUBCATEGORY_NOT_FOUND가 난다).
   const applySuggestion = (s: EntrySuggestion) => {
     const hasAccount = (id: number | null) => id !== null && accounts.some((a) => a.id === id)
-    const patch: Partial<AppState> = { entryDescription: s.description, entryAmount: s.amount }
+    // 금액은 채우지 않는다(2026-08-29 사용자 요청). 같은 이름의 거래라도 금액은 매번 다른데
+    // 지난 금액이 미리 들어가 있으면 그대로 저장돼 틀린 금액이 기록되는 사고가 난다.
+    // 매번 다시 고르기 번거로운 카테고리·계좌만 채우고, 금액은 사용자가 직접 입력하게 둔다.
+    const patch: Partial<AppState> = { entryDescription: s.description }
     if (entryCatVisible && s.subcategoryId !== null && findSubcategoryById(categories, s.subcategoryId)) {
       patch.entrySubcategoryId = s.subcategoryId
     }
@@ -176,8 +181,11 @@ export function LedgerEntryModal() {
     }
     setState(patch)
     setSuggestionApplied(true)
-    setAmountInvalid(false)
     setDescInvalid(false)
+    // 칩은 금액을 채우지 않으므로 다음에 할 일은 늘 금액 입력이다. 그런데 칩은 '내용' 아래에 뜨고
+    // 금액칸은 그 위라, 그냥 두면 사용자가 손가락을 위로 거슬러 올라가야 한다. 이미 금액을 적어둔
+    // 상태라면 포커스를 뺏지 않는다(금액부터 친 사용자도 있다).
+    if (state.entryAmount === 0) amountInputRef.current?.focus()
     setSameAccountInvalid(false)
   }
 
@@ -212,13 +220,48 @@ export function LedgerEntryModal() {
     ? '변경사항 저장'
     : entryType === 'income' ? '수입 저장' : entryType === 'saving' ? '저축 저장' : isTransfer ? '이체 저장' : '지출 저장'
 
+  /** 복원 배너의 "새로 작성" — 보관 중이던 초안을 버리고 빈 폼으로 되돌린다(거래유형·날짜는 유지). */
+  const startFreshEntry = () => {
+    setState({
+      entryDraft: null,
+      entryDraftRestored: false,
+      entryAmount: 0,
+      entryDescription: '',
+      entryMemo: '',
+      entrySubcategoryId: null,
+      entryAccountId: null,
+      entryWithdrawAccountId: null,
+    })
+    setAmountInvalid(false)
+    setDescInvalid(false)
+    setSameAccountInvalid(false)
+    setSuggestionApplied(false)
+  }
+
   const setEntryType = (t: EntryType) => {
-    setState({ entryType: t, entrySubcategoryId: null, entryWithdrawAccountId: null })
+    // 거래유형을 바꾸면 보관 중이던 초안은 버린다(2026-08-29 사용자 결정) — 지금 폼에 남아 있는
+    // 내용이 곧 새 유형의 내용이 되므로, 다른 유형의 옛 초안이 되살아나면 안 된다.
+    setState({ entryType: t, entrySubcategoryId: null, entryWithdrawAccountId: null, entryDraft: null, entryDraftRestored: false })
     setSameAccountInvalid(false)
   }
 
-  const resetAndClose = () => {
+  /**
+   * 모달을 닫는다.
+   * @param keepDraft 저장하지 않고 닫는 경우(X·Esc·배경 클릭·아래로 스와이프) true — 적던 내용을
+   *   초안으로 보관했다가 다음에 같은 거래유형으로 열 때 되살린다(state/selectors/entryDraft.ts).
+   *   저장·삭제에 성공해서 닫는 경우에는 false — 이미 서버에 반영됐으니 초안이 남으면 안 된다.
+   *   **수정 세션(editingTxId)은 keepDraft여도 초안을 남기지 않는다** — 다시 열 때 서버 값을
+   *   새로 채우는 게 맞고, 남기면 다음 "새 거래"에 남의 거래 내용이 튀어나온다.
+   */
+  const closeModal = (keepDraft: boolean) => {
     setState((st) => ({
+      // 수정 세션(editingTxId)은 어느 경로로 닫히든 초안을 만들지도, 기존 초안을 지우지도 않는다.
+      // 남의 거래를 잠깐 고치고 저장했다고 해서 내가 쓰다 만 새 거래 초안이 날아가면 안 된다.
+      entryDraft:
+        st.editingTxId !== null ? st.entryDraft
+        : keepDraft ? captureEntryDraft(st)
+        : null,
+      entryDraftRestored: false,
       modalOpen: null,
       editingTxId: null,
       entrySubcategoryId: null,
@@ -244,6 +287,11 @@ export function LedgerEntryModal() {
     putTx.reset()
     deleteTx.reset()
   }
+
+  /** 저장하지 않고 닫기(X·Esc·배경 클릭·스와이프). Modal의 onClose가 인자를 넘기지 않으므로 감싼다. */
+  const closeKeepingDraft = () => closeModal(true)
+  /** 저장·삭제 성공 후 닫기 — 초안을 남기지 않는다. */
+  const closeDiscardingDraft = () => closeModal(false)
 
   const handleSave = () => {
     const description = state.entryDescription.trim()
@@ -293,9 +341,9 @@ export function LedgerEntryModal() {
       setSameAccountInvalid(false)
       const body: CreateTransactionRequest | UpdateTransactionRequest = { type, accountId, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
       if (isEditing) {
-        putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
+        putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
       } else {
-        postTx.mutate(body, { onSuccess: resetAndClose, onError: handleMutationError })
+        postTx.mutate(body, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
       }
       return
     }
@@ -315,9 +363,9 @@ export function LedgerEntryModal() {
       setSameAccountInvalid(false)
       const body: CreateTransactionRequest | UpdateTransactionRequest = { type, accountId, subcategoryId: submitSubcategoryId, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
       if (isEditing) {
-        putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
+        putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
       } else {
-        postTx.mutate(body, { onSuccess: resetAndClose, onError: handleMutationError })
+        postTx.mutate(body, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
       }
       return
     }
@@ -326,15 +374,15 @@ export function LedgerEntryModal() {
     if (!accountId || !submitSubcategoryId) return
     const body: CreateTransactionRequest | UpdateTransactionRequest = { type, accountId, subcategoryId: submitSubcategoryId, amount: state.entryAmount, transactionDate, description, ...keep }
     if (isEditing) {
-      putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
+      putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
     } else {
-      postTx.mutate(body, { onSuccess: resetAndClose, onError: handleMutationError })
+      postTx.mutate(body, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
     }
   }
 
   const handleDelete = () => {
     if (state.editingTxId === null) return
-    deleteTx.mutate(state.editingTxId, { onSuccess: resetAndClose })
+    deleteTx.mutate(state.editingTxId, { onSuccess: closeDiscardingDraft })
   }
 
   const isBusy = postTx.isPending || putTx.isPending || deleteTx.isPending
@@ -362,7 +410,7 @@ export function LedgerEntryModal() {
   const deleteErrorMessage = deleteTx.error?.message ?? null
 
   return (
-    <Modal onClose={resetAndClose} zIndex={80} width={480} panelStyle={{ maxHeight: '86vh', overflow: 'auto' }}>
+    <Modal onClose={closeKeepingDraft} zIndex={80} width={480} panelStyle={{ maxHeight: '86vh', overflow: 'auto' }}>
       {!!state.openDropdown && (
         <div onClick={() => setState({ openDropdown: null })} style={{ position: 'absolute', inset: 0, zIndex: 94 }} />
       )}
@@ -374,7 +422,7 @@ export function LedgerEntryModal() {
           <div style={{ fontSize: 16.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{entryTitle}</div>
         </div>
         <button
-          onClick={resetAndClose}
+          onClick={closeKeepingDraft}
           style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: 'var(--track)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
         >
           <Icon name="close" size={19} color="var(--text-mid)" />
@@ -382,6 +430,34 @@ export function LedgerEntryModal() {
       </div>
 
       {transactionNotFoundMessage && <div style={{ ...ERROR_STYLE, marginBottom: 14, marginTop: -8 }}>{transactionNotFoundMessage}</div>}
+
+      {/* 초안에서 되살아난 폼이라는 안내. 이게 없으면 며칠 전 실수로 닫아둔 초안의 금액·내용이
+          채워진 채 열린 것을 새 거래인 줄 알고 그대로 저장하게 된다(2026-08-29 리뷰 지적).
+          "새로 작성"은 초안을 버리고 빈 폼으로 돌린다. */}
+      {state.entryDraftRestored && !isEditing && (
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8,
+            marginBottom: 14, marginTop: -8, padding: '10px 12px', borderRadius: 10,
+            background: 'var(--fill-subtle)', fontSize: 12.5, color: 'var(--text-mid)',
+          }}
+        >
+          <Icon name="history" size={15} />
+          <span style={{ fontWeight: 600 }}>이어서 작성 중이던 내용을 불러왔어요</span>
+          <button
+            type="button"
+            onClick={startFreshEntry}
+            className="mini-hov"
+            style={{
+              marginLeft: 'auto', minHeight: 44, padding: '0 12px', borderRadius: 8, border: 'none',
+              background: 'var(--track)', color: 'var(--text-strong)', fontSize: 11.5, fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            새로 작성
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         {state.entryTabsVisible && !isEditing && (
@@ -404,6 +480,7 @@ export function LedgerEntryModal() {
                 setState({ entryAmount: parseAmount(e.target.value) })
                 if (amountInvalid) setAmountInvalid(false)
               }}
+              ref={amountInputRef}
               style={{ border: 'none', outline: 'none', fontSize: 20, fontWeight: 700, fontFamily: 'inherit', width: '100%', color: 'var(--text-strong)' }}
             />
           </div>
@@ -431,12 +508,10 @@ export function LedgerEntryModal() {
                   type="button"
                   className="mini-hov"
                   onClick={() => applySuggestion(s)}
-                  title={`${s.description} · ${fmt(s.amount)}원${s.tag ? ` · ${s.tag}` : ''} — 눌러서 채우기`}
+                  title={`${s.description}${s.tag ? ` · ${s.tag}` : ''} — 눌러서 채우기 (금액은 직접 입력)`}
                   style={SUGGESTION_CHIP_STYLE}
                 >
                   <span style={SUGGESTION_DESC_STYLE}>{s.description}</span>
-                  <span style={{ color: 'var(--text-weak)' }}>·</span>
-                  <span style={{ fontWeight: 700, color: 'var(--text-strong)' }}>{fmt(s.amount)}원</span>
                   {s.tag && (
                     <>
                       <span style={{ color: 'var(--text-weak)' }}>·</span>

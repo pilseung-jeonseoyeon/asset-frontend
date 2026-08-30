@@ -95,6 +95,11 @@ export interface TransactionSearchParams {
   type?: EditableTransactionType
   subcategoryId?: number
   accountId?: number
+  /**
+   * 검색 키워드 — 내용·메모 부분일치(대소문자 무시), 생략하면 전체(2026-08-29 라이브 OpenAPI 원문).
+   * 날짜 조건(year·month / from·to)을 모두 생략하면 전체 기간에서 찾는다.
+   */
+  keyword?: string
   /** 서버는 0-base. 화면의 1-base 페이지는 훅에서 변환한다. */
   page?: number
   size?: number
