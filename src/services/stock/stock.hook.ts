@@ -19,7 +19,7 @@ interface QueryOptions {
  * 환율이 아직 수집되지 않아 평가액을 계산할 수 없는 상태(422).
  * 서버 장애가 아니라 "데이터 미준비"이므로 빨간 에러가 아니라 회색 안내로 렌더할 것.
  */
-export function isFxRateMissing(error: unknown): boolean {
+export function isExchangeRateMissing(error: unknown): boolean {
   return error instanceof ApiError && error.code === 'FX_RATE_NOT_FOUND'
 }
 
@@ -41,7 +41,7 @@ export function useGetHoldings(market?: Market, options?: QueryOptions) {
   return {
     ...query,
     holdings: query.data ?? [],
-    isFxRateMissing: isFxRateMissing(query.error),
+    isExchangeRateMissing: isExchangeRateMissing(query.error),
   }
 }
 
@@ -54,7 +54,7 @@ export function useGetHoldingGroups(by: 'sector' | 'market', options?: QueryOpti
   return {
     ...query,
     groups: query.data ?? [],
-    isFxRateMissing: isFxRateMissing(query.error),
+    isExchangeRateMissing: isExchangeRateMissing(query.error),
   }
 }
 

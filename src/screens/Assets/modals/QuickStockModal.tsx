@@ -38,7 +38,7 @@ import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { formatNumber, sanitizeDecimalInput } from '../../../utils/format'
-import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate } from '../../../utils/date'
+import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate } from '../../../utils/date'
 import { accountInstitutionMeta, buyMarketToMarket, filterTradeAccounts, marketToCurrency, sortHoldingsByReturn } from '../../../data/stocksView'
 import { ApiError } from '@/services/api'
 import { useGetAccounts } from '@/services/account'
@@ -47,6 +47,7 @@ import { useGetHoldings, useGetStocks, usePostStock } from '@/services/stock'
 import { usePostTrade } from '@/services/trade'
 import type { CreateStockRequest } from '@/services/stock'
 import type { CreateTradeRequest } from '@/services/trade'
+import type { StockBuyMarket } from '../../../state/types'
 
 function marketTabStyle(active: boolean): CSSProperties {
   return {
@@ -54,7 +55,7 @@ function marketTabStyle(active: boolean): CSSProperties {
     background: active ? 'var(--surface)' : 'transparent', color: active ? 'var(--text-strong)' : 'var(--text-weak)', boxShadow: 'none',
   }
 }
-function sectorBtn(active: boolean): CSSProperties {
+function sectorButton(active: boolean): CSSProperties {
   return {
     padding: '9px 14px', borderRadius: 10,
     border: active ? '0.5px solid var(--accent)' : '0.5px solid var(--border)',
@@ -70,7 +71,7 @@ const FIELD_BORDER_STYLE: CSSProperties = { border: '0.5px solid var(--border)',
 export function QuickStockModal() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
-  const isOpen = state.modalOpen === 'quickStock'
+  const isOpen = state.openModal === 'quickStock'
   // 좁은 폭에서 Dropdown/DatePicker 팝오버가 옆 칼럼 밖으로 잘리는 것을 막기 위해 세로로 쌓는다.
   const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
   const stockModeSell = state.stockTradeMode === 'sell'
@@ -112,7 +113,7 @@ export function QuickStockModal() {
   const postStock = usePostStock()
   const postTrade = usePostTrade()
 
-  const ddHolding = useEntityDropdown(
+  const holdingDropdown = useEntityDropdown(
     'stockHolding',
     sortedHoldings,
     (h) => h.stockId,
@@ -120,9 +121,9 @@ export function QuickStockModal() {
     stockId,
     (id) => setStockId(id),
   )
-  const ddHoldingDisplay = { ...ddHolding, value: ddHolding.value || '종목을 선택하세요' }
+  const holdingDisplayDropdown = { ...holdingDropdown, value: holdingDropdown.value || '종목을 선택하세요' }
 
-  const ddAccount = useEntityDropdown(
+  const accountDropdown = useEntityDropdown(
     'stockAcct',
     accounts,
     (a) => a.id,
@@ -146,16 +147,16 @@ export function QuickStockModal() {
   // 같은 우선순위를 트리거에도 맞춘다.
   const selectedAccount = accountId !== null ? accounts.find((a) => a.id === accountId) : undefined
   const selectedAccountMeta = selectedAccount ? accountInstitutionMeta(selectedAccount, institutions) : null
-  const ddAccountDisplay = {
-    ...ddAccount,
+  const accountDisplayDropdown = {
+    ...accountDropdown,
     value: selectedAccountMeta
-      ? `${ddAccount.value} · ${selectedAccountMeta.institutionName}`
-      : ddAccount.value || '계좌를 선택하세요',
+      ? `${accountDropdown.value} · ${selectedAccountMeta.institutionName}`
+      : accountDropdown.value || '계좌를 선택하세요',
   }
 
   const todayISO = toISODate(new Date())
   // 미래 매매는 성립하지 않는다(docs/backend-request.md 0-4-5) — 서버 검증이 없어 프론트에서 막는다.
-  const dpTradeDate = useDatePicker('stockTrade', isoDateToDisplay(todayISO), isoDateToNav(todayISO), todayISO)
+  const dpTradeDate = useDatePicker('stockTrade', isoDateToDisplay(todayISO), isoDateToViewingMonth(todayISO), todayISO)
 
   if (!isOpen) return null
 
@@ -167,10 +168,10 @@ export function QuickStockModal() {
 
   const resetAndClose = () => {
     setState((prev) => ({
-      modalOpen: null,
+      openModal: null,
       stockSector: '',
       datePickerPicked: { ...prev.datePickerPicked, stockTrade: undefined },
-      datePickerNav: { ...prev.datePickerNav, stockTrade: undefined },
+      datePickerViewingMonth: { ...prev.datePickerViewingMonth, stockTrade: undefined },
       openDropdown: null,
     }))
     setKeyword('')
@@ -191,7 +192,7 @@ export function QuickStockModal() {
     postStock.reset()
   }
 
-  const switchMarket = (next: string) => {
+  const switchMarket = (next: StockBuyMarket) => {
     setState({ stockBuyMarket: next, stockSector: '' })
     setKeyword('')
     setNewStockMode(false)
@@ -268,8 +269,8 @@ export function QuickStockModal() {
 
   const stockDuplicateMessage = postStock.error instanceof ApiError ? postStock.error.message : null
   const insufficientHolding = postTrade.error instanceof ApiError && postTrade.error.code === 'INSUFFICIENT_HOLDING'
-  const fxMissing = postTrade.error instanceof ApiError && postTrade.error.code === 'FX_RATE_NOT_FOUND'
-  const genericTradeError = postTrade.error && !insufficientHolding && !fxMissing ? postTrade.error.message : null
+  const exchangeRateMissing = postTrade.error instanceof ApiError && postTrade.error.code === 'FX_RATE_NOT_FOUND'
+  const genericTradeError = postTrade.error && !insufficientHolding && !exchangeRateMissing ? postTrade.error.message : null
 
   // 매도 폼의 사전 검증: 서버 409(INSUFFICIENT_HOLDING)까지 왕복하지 않고도 보유 수량을 넘겨 입력할
   // 수 없게 막는다(경합 등으로 서버가 그래도 거부하면 위 insufficientHolding 메시지가 최종 방어선).
@@ -402,7 +403,7 @@ export function QuickStockModal() {
               <div style={LABEL_STYLE}>섹터</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {SECTOR_NAMES.map((n) => (
-                  <button key={n} className="mini-hov" onClick={() => setState({ stockSector: n })} style={sectorBtn(state.stockSector === n)}>
+                  <button key={n} className="mini-hov" onClick={() => setState({ stockSector: n })} style={sectorButton(state.stockSector === n)}>
                     {n}
                   </button>
                 ))}
@@ -430,7 +431,7 @@ export function QuickStockModal() {
             ) : holdingsQuery.holdings.length === 0 ? (
               <div style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>보유 중인 종목이 없어요</div>
             ) : (
-              <Dropdown dd={ddHoldingDisplay} maxHeight={180} />
+              <Dropdown dropdown={holdingDisplayDropdown} maxHeight={180} />
             )}
             {quantityMax !== null && (
               <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>보유 {formatNumber(quantityMax)}주</div>
@@ -510,7 +511,7 @@ export function QuickStockModal() {
                   증권계좌를 먼저 추가해주세요
                 </div>
                 <button
-                  onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'quickStock', openDropdown: null })}
+                  onClick={() => setState({ openModal: 'addAccount', addAccountReturnTo: 'quickStock', openDropdown: null })}
                   className="mini-hov"
                   style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, padding: '9px 10px', borderRadius: 8, border: 'none', background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
                 >
@@ -520,14 +521,14 @@ export function QuickStockModal() {
               </div>
             ) : (
               <Dropdown
-                dd={ddAccountDisplay}
+                dropdown={accountDisplayDropdown}
                 maxHeight={180}
                 footer={
                   <>
                     <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />
                     <button
                       className="mini-hov"
-                      onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'quickStock', openDropdown: null })}
+                      onClick={() => setState({ openModal: 'addAccount', addAccountReturnTo: 'quickStock', openDropdown: null })}
                       style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 8, border: 'none', background: 'transparent', fontSize: 12.5, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
                     >
                       <Icon name="add" size={15} />
@@ -545,7 +546,7 @@ export function QuickStockModal() {
           </div>
         </div>
 
-        {fxMissing && (
+        {exchangeRateMissing && (
           <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>
             아직 환율 정보를 가져오지 못했어요. 잠시 후 다시 시도해주세요.
           </div>

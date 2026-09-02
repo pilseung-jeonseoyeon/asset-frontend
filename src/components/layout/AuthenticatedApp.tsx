@@ -64,8 +64,8 @@ export function AuthenticatedApp() {
   // 서버 설정이 필요한 다른 행(월 시작일 등)도 이 시점에 미리 페치되어 잠깐의 기본값 깜빡임이 준다.
   useSyncUserTheme()
 
-  // 모달 대부분은 state.modalOpen 하나로 열림을 판단하므로(파일 하단 ModalErrorBoundary 사용부
-  // 참고) 이 하나의 리셋으로 충분하다. assetClassDetail/accountDetail/reportOpen 전용 필드를 쓰는 세 모달만
+  // 모달 대부분은 state.openModal 하나로 열림을 판단하므로(파일 하단 ModalErrorBoundary 사용부
+  // 참고) 이 하나의 리셋으로 충분하다. assetClassDetail/accountDetailId/reportOpen 전용 필드를 쓰는 세 모달만
   // 각자의 필드로 개별 리셋한다.
   //
   // 어떤 필드를 닫든 openDropdown도 항상 함께 지운다 — 이 저장소의 모든 모달(EditAccountModal,
@@ -73,7 +73,7 @@ export function AuthenticatedApp() {
   // openDropdown 스크림(z-index 70, 화면 전체를 덮는 전역 클릭 캐처)이 모달과 별개로 계속 열려
   // 있으면 안 되기 때문이다. 19곳 각각이 이 규칙을 따로 기억하지 않도록 여기 한 곳에서만 강제한다.
   const resetModalState = (patch: Partial<AppState>) => () => setState({ ...patch, openDropdown: null })
-  const closeModalOpen = resetModalState({ modalOpen: null })
+  const closeOpenModal = resetModalState({ openModal: null })
 
   return (
     <>
@@ -101,7 +101,7 @@ export function AuthenticatedApp() {
         </main>
       </div>
       {isMobile && <BottomTabNav />}
-      {/* 모든 modalXxx는 s.modalOpen만 보고 열리는 최상위 형제다 —
+      {/* 모든 modalXxx는 s.openModal만 보고 열리는 최상위 형제다 —
           nested inside their "owning" screen's sc-if block (confirmed: modalLedgerEntry's markup sits
           inside the Assets line-range, L1605, yet opens from the Header on any screen). So every modal
           mounts here regardless of the current route, same as AccountModal.
@@ -109,8 +109,8 @@ export function AuthenticatedApp() {
           Each modal is wrapped in its own ModalErrorBoundary instance so a render crash in one modal
           only replaces that modal's own spot — the sidebar/header/current screen and every other modal
           stay interactive. onReset tells the boundary how to flip this specific modal back to "closed"
-          in AppState; most modals key off state.modalOpen (closeModalOpen), and the three that use a
-          dedicated field (assetClassDetail/accountDetail/reportOpen) get their own reset via resetModalState.
+          in AppState; most modals key off state.openModal (closeOpenModal), and the three that use a
+          dedicated field (assetClassDetail/accountDetailId/reportOpen) get their own reset via resetModalState.
 
           zIndex must match the literal each modal itself passes to its own <Modal>/scrim (§7-1) so the
           fallback replaces that modal at the same layer instead of a fixed value that could sit on top
@@ -121,67 +121,67 @@ export function AuthenticatedApp() {
           copied from that modal's own header text. Modals whose title changes with form state (entry
           type, buy/sell, edit-vs-add) use the single most representative label instead of trying to
           reproduce the exact sub-state at crash time. */}
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="계정 및 프로필">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="계정 및 프로필">
         <AccountModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="가계부 입력">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="가계부 입력">
         <LedgerEntryModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="고정 지출 · 구독 추가">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="고정 지출 · 구독 추가">
         <FixedExpenseModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="일반 및 디스플레이">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="일반 및 디스플레이">
         <GeneralModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="데이터 관리 및 백업">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="데이터 관리 및 백업">
         <DataModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="자산 · 가계부 맞춤 설정">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="자산 · 가계부 맞춤 설정">
         <CustomModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="카테고리 설정">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="카테고리 설정">
         <CategorySettingsModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="주식 매수">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="주식 매수">
         <QuickStockModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="환전 추가">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="환전 추가">
         <ExchangeAddModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="보유 종목 추가">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="보유 종목 추가">
         <AddHoldingsModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="매매 내역 수정">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="매매 내역 수정">
         <TradeEditModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="환전 내역">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="환전 내역">
         <ExchangeHistoryModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={90} title="계좌 추가">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={90} title="계좌 추가">
         <AddAccountModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={90} title="계좌 수정">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={90} title="계좌 수정">
         <EditAccountModal />
       </ModalErrorBoundary>
       <ModalErrorBoundary onReset={resetModalState({ assetClassDetail: null })} zIndex={80} title="자산 카테고리 상세">
         <AssetCategoryModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="부동산">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="부동산">
         <RealEstateSoonModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="자산 목표 설정">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="자산 목표 설정">
         <AddGoalModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="자산 보관처">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="자산 보관처">
         <InstitutionsModal />
       </ModalErrorBoundary>
       <ModalErrorBoundary onReset={resetModalState({ reportOpen: false })} zIndex={90} title="월간 리포트">
         <ReportOverlay />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={resetModalState({ accountDetail: null })} zIndex={90} title="계좌 상세">
+      <ModalErrorBoundary onReset={resetModalState({ accountDetailId: null })} zIndex={90} title="계좌 상세">
         <AccountDetailModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeModalOpen} zIndex={80} title="카테고리 상세">
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="카테고리 상세">
         <CategoryDetailModal />
       </ModalErrorBoundary>
     </>

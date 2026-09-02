@@ -1,4 +1,4 @@
-// 계좌 상세 모달. `state.modalOpen`이 아니라 전용 필드 `state.accountDetail !== null`로 열림을
+// 계좌 상세 모달. `state.openModal`이 아니라 전용 필드 `state.accountDetailId !== null`로 열림을
 // 판단한다(AssetCategoryModal과 같은 패턴). AssetCategoryModal의 계좌 행(z-index 80, §7-1 1단 모달)
 // 에서 열리므로 이 모달은 2단(z-index 90)이다 — 같은 부모에서 열리는
 // EditAccountModal/AddAccountModal과 같다.
@@ -31,7 +31,7 @@ import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
 import { buildAccountActivity, buildAccountBalanceView, buildAccountDetailHeader } from '../../../data/assetsView'
-import { buildLedgerTx, describeQueryError } from '../../../data/ledgerView'
+import { buildLedgerTransactions, describeQueryError } from '../../../data/ledgerView'
 import { buildTradeRows, marketsOfAccountType } from '../../../data/stocksView'
 import { useGetAccount, useGetAccounts } from '@/services/account'
 import { useGetTransactions } from '@/services/transaction'
@@ -41,11 +41,11 @@ const RECENT_TX_SIZE = 5
 
 export function AccountDetailModal() {
   const { state, setState } = useAppState()
-  const accountId = state.accountDetail
+  const accountId = state.accountDetailId
   const isOpen = accountId !== null
 
   const accountQuery = useGetAccount(isOpen ? accountId : null)
-  const txQuery = useGetTransactions(
+  const transactionsQuery = useGetTransactions(
     { accountId: accountId ?? undefined, page: 1, size: RECENT_TX_SIZE },
     { enabled: isOpen },
   )
@@ -57,12 +57,12 @@ export function AccountDetailModal() {
     { accountId: accountId ?? undefined },
     { enabled: isOpen && hasTrades },
   )
-  // TRANSFER 거래의 상대 계좌명 조인용(ledgerView.buildLedgerTx가 요구하는 인자).
+  // TRANSFER 거래의 상대 계좌명 조인용(ledgerView.buildLedgerTransactions가 요구하는 인자).
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })
 
   if (!isOpen) return null
 
-  const closeAccount = () => setState({ accountDetail: null })
+  const closeAccount = () => setState({ accountDetailId: null })
 
   const detail = accountQuery.data
   const account = detail?.account
@@ -72,11 +72,11 @@ export function AccountDetailModal() {
   // 두 목록을 각자의 규칙으로 최신순으로 만든 뒤 날짜로 병합해 상위 RECENT_TX_SIZE건만 남긴다.
   // 매매는 여기서 limit을 걸지 않고(buildTradeRows 기본값 10건) 병합 후에 자른다 — 매매가 몰린
   // 날이 있으면 가계부 거래가 밀려날 수 있는데, 그건 "최근에 일어난 일"이라는 기준상 맞는 동작이다.
-  const txRows = buildLedgerTx(txQuery.data?.content ?? [], accountsQuery.data ?? [])
+  const transactionRows = buildLedgerTransactions(transactionsQuery.data?.content ?? [], accountsQuery.data ?? [])
   const tradeRows = buildTradeRows(tradesQuery.trades)
-  const activityRows = buildAccountActivity(txRows, tradeRows, RECENT_TX_SIZE)
+  const activityRows = buildAccountActivity(transactionRows, tradeRows, RECENT_TX_SIZE)
   // 둘 중 하나만 실패해도 나머지는 보여준다 — 매매를 못 불러왔다고 가계부 거래까지 감출 이유가 없다.
-  const activityError = txQuery.error ?? tradesQuery.error
+  const activityError = transactionsQuery.error ?? tradesQuery.error
 
   return (
     <Modal onClose={closeAccount} zIndex={90} width={560} panelStyle={{ maxHeight: '86vh', overflow: 'auto' }}>
@@ -160,7 +160,7 @@ export function AccountDetailModal() {
           </div>
 
           <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>최근 거래내역</div>
-          {txQuery.isPending || (hasTrades && tradesQuery.isPending) ? (
+          {transactionsQuery.isPending || (hasTrades && tradesQuery.isPending) ? (
             <div aria-busy style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
           ) : activityRows.length === 0 ? (
             <div style={{ fontSize: 12.5, color: 'var(--text-weak)', padding: '13px 0' }}>
@@ -172,7 +172,7 @@ export function AccountDetailModal() {
                 <div key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '0.5px solid var(--track)' }}>
                   <div style={{ fontSize: 11.5, color: 'var(--text-weak)', width: 44, flex: 'none' }}>{t.dateLabel}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.desc}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</div>
                   </div>
                   {t.tag && (
                     <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 8, whiteSpace: 'nowrap', background: 'var(--fill-subtle)', color: 'var(--text-mid)' }}>

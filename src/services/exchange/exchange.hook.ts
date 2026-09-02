@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../queryKeys'
 import type { Currency, ExchangeSearchParams } from '../common.type'
-import { isFxRateMissing } from '../stock/stock.hook'
+import { isExchangeRateMissing } from '../stock/stock.hook'
 import {
   deleteExchange,
   getExchangeSummary,
@@ -31,7 +31,7 @@ export function useGetExchangeSummary(currency: Currency, options?: QueryOptions
     queryFn: () => getExchangeSummary(currency),
     enabled: options?.enabled,
   })
-  return { ...query, isFxRateMissing: isFxRateMissing(query.error) }
+  return { ...query, isExchangeRateMissing: isExchangeRateMissing(query.error) }
 }
 
 /** 환전은 계좌 잔액과 해외 자산 평가액을 함께 바꾼다. */

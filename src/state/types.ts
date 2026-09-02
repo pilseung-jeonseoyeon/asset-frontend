@@ -11,6 +11,13 @@ export type LedgerTab = 'overview' | 'history'
 export type LedgerPeriod = 'month' | 'year'
 export type LedgerRange = 'month' | 'week'
 export type StockGroupTab = 'sector' | 'country'
+/** 주식 화면 상단의 시장 탭. 표시 문구는 data/stocksView.ts의 STOCK_MARKET_TAB_LABELS. */
+export type StockMarketTab = 'all' | 'domestic' | 'foreign'
+export type AccountModalView = 'main' | 'profile' | 'password'
+/** 계좌 추가 모달 안의 API 연동 서브뷰 단계. 'none'이면 일반 계좌 폼. */
+export type ConnectView = 'none' | 'provider' | 'form' | 'result'
+export type StockTradeMode = 'buy' | 'sell'
+export type StockBuyMarket = 'domestic' | 'overseas'
 export type RecurringType = 'fixed' | 'subscription'
 export type EntryType = 'income' | 'expense' | 'saving' | 'transfer'
 export type AuthScreen = 'login' | 'signup' | 'resetPassword'
@@ -62,30 +69,29 @@ export interface EntryDraft {
   entryDateOverride: string | null
   /** 달력 팝오버가 고른 날짜. entryDateOverride만 되살리면 달력이 기본 달로 돌아간다. */
   datePickerPickedEntry: unknown
-  datePickerNavEntry: unknown
+  datePickerViewingMonthEntry: unknown
 }
 
 export interface AppState {
   // navigation
   assetTab: AssetTab
   assetClassDetail: AssetClass | null
-  stockTab: string // '전체' | '국내' | '해외' — Korean-literal enum, kept as string (see extraction discipline)
+  stockMarketTab: StockMarketTab
   stockGroupTab: StockGroupTab
   ledgerTab: LedgerTab
   ledgerPeriod: LedgerPeriod
-  ledgerView: string // initial 'calendar'; other values unverified — confirm during Phase 8
   ledgerRange: LedgerRange
 
   // modal / overlay state
-  modalOpen: string | null
+  openModal: string | null
   /** 계좌 상세 모달 대상 accountId. null이면 닫혀 있음(AccountDetailModal). */
-  accountDetail: number | null
+  accountDetailId: number | null
   reportOpen: boolean
   reportSlide: number
-  accountModalView: string // initial 'main'
+  accountModalView: AccountModalView
   withdrawConfirmOpen: boolean
 
-  // dropdown state — per-key shape confirmed per-dropdown during extraction (ddXxx pattern)
+  // 드롭다운 열림 상태(openDropdown = 열린 드롭다운 키)와 선택값(dropdownValues[key])
   openDropdown: string | null
   dropdownValues: Record<string, unknown>
 
@@ -104,8 +110,8 @@ export interface AppState {
    * 말 것(과거 '반도체' 하드코딩이 모든 신규 종목을 조용히 오염시켰던 버그, docs/backend-request.md
    * 5-1 참고). */
   stockSector: string
-  stockBuyMarket: string
-  stockTradeMode: string // initial 'buy'
+  stockBuyMarket: StockBuyMarket
+  stockTradeMode: StockTradeMode
 
   // trade edit (Stocks 화면 — 매매 내역 수정, GET /trades에 단건 조회가 없어 목록 캐시에서 id로 찾는다)
   /** 수정 대상 tradeId(서버 id). null이면 매매 수정 모달이 닫혀 있음. */
@@ -116,8 +122,8 @@ export interface AppState {
   editingExchangeId: number | null
 
   // asset/account editing
-  /** 수정 대상 accountId. null이면 editAccount 모달이 닫혀 있음. */
-  editAccount: number | null
+  /** 수정 대상 accountId. null이면 'editAccount' 모달이 닫혀 있음. */
+  editingAccountId: number | null
   accountForm: AccountForm
   addingCategoryGroup: string | null
   addAccountReturnTo: string | null
@@ -128,8 +134,7 @@ export interface AppState {
   // 발급받은 API 키 자체는 여기 두지 않는다 — 전역 상태에 담으면 모달을 닫아도 메모리에 남고
   // 다른 화면에서도 읽을 수 있다. 비밀번호 폼과 같이 컴포넌트 로컬 state로 들고 있다가
   // 모달을 닫을 때 지운다(AddAccountModal의 resetAndClose 참고).
-  /** 'none' | 'provider' | 'form' | 'result' */
-  connectView: string
+  connectView: ConnectView
   /** 선택한 ConnectionProvider. connectView가 'form' 이상일 때만 의미가 있다. */
   connectProvider: string | null
 
@@ -150,8 +155,8 @@ export interface AppState {
 
   // ledger entry / rows
   entryType: EntryType
-  /** 수정 대상 transactionId(서버 id, LedgerTxRow.id). null이면 신규 등록. */
-  editingTxId: number | null
+  /** 수정 대상 transactionId(서버 id, LedgerTransactionRow.id). null이면 신규 등록. */
+  editingTransactionId: number | null
   /** 분류별 지출 상세 모달 대상 categoryId. */
   categoryDetailId: number | null
   entryTabsVisible: boolean
@@ -214,7 +219,7 @@ export interface AppState {
 
   // date-picker widget state
   datePickerPicked: Record<string, unknown>
-  datePickerNav: Record<string, unknown>
+  datePickerViewingMonth: Record<string, unknown>
 
   // 인증(로그인 / 회원가입 / 비밀번호 재설정 — src/screens/Auth). useAuthStore().status가
   // 'anonymous'일 때만 의미가 있다. 비밀번호는 절대 담지 않는다(파일 헤더 주석 참고).

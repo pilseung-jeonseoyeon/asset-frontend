@@ -35,7 +35,7 @@ import { useDatePicker } from '../../../state/selectors/datePicker'
 import { isoDateToDisplay, pickedToISODate, recentMonthsRange, toISODate } from '../../../utils/date'
 import { formatNumber, parseAmount } from '../../../utils/format'
 import { captureEntryDraft } from '../../../state/selectors/entryDraft'
-import { ENTRY_TYPE_TO_CATEGORY_KIND, ENTRY_TYPE_TO_TX_TYPE, buildEntrySuggestions, findSubcategoryById } from '../../../data/ledgerView'
+import { ENTRY_TYPE_TO_CATEGORY_KIND, ENTRY_TYPE_TO_TRANSACTION_TYPE, buildEntrySuggestions, findSubcategoryById } from '../../../data/ledgerView'
 import type { EntrySuggestion } from '../../../data/ledgerView'
 import type { AppState, EntryType } from '../../../state/types'
 import { ApiError } from '@/services/api'
@@ -69,8 +69,8 @@ const CONTENT_PLACEHOLDER: Record<EntryType, string> = {
 
 export function LedgerEntryModal() {
   const { state, setState } = useAppState()
-  const isOpen = state.modalOpen === 'ledgerEntry'
-  const isEditing = state.editingTxId !== null
+  const isOpen = state.openModal === 'ledgerEntry'
+  const isEditing = state.editingTransactionId !== null
   const entryType = state.entryType
   const isTransfer = entryType === 'transfer'
   const isSaving = entryType === 'saving'
@@ -81,12 +81,12 @@ export function LedgerEntryModal() {
   const categoriesQuery = useGetCategories(categoryKind, { enabled: isOpen && !!categoryKind })
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })
   const accounts = accountsQuery.data ?? []
-  const postTx = usePostTransaction()
-  const putTx = usePutTransaction()
-  const deleteTx = useDeleteTransaction()
+  const createTransaction = usePostTransaction()
+  const updateTransaction = usePutTransaction()
+  const removeTransaction = useDeleteTransaction()
   // 추천 후보. 신규 등록일 때만 받는다(수정 모드엔 추천을 안 보여주므로 요청도 안 한다).
   const suggestionsEnabled = isOpen && !isEditing
-  const recentTxQuery = useGetTransactions(
+  const recentTransactionsQuery = useGetTransactions(
     { ...recentMonthsRange(SUGGESTION_MONTHS_BACK), page: 1, size: SUGGESTION_FETCH_SIZE },
     { enabled: suggestionsEnabled },
   )
@@ -101,7 +101,7 @@ export function LedgerEntryModal() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   const effectiveWithdrawAccountId = state.entryWithdrawAccountId ?? accounts[0]?.id ?? null
-  const ddWithdrawAcct = useEntityDropdown(
+  const withdrawAccountDropdown = useEntityDropdown(
     'withdrawAcct', accounts, (a) => a.id, (a) => a.name,
     effectiveWithdrawAccountId,
     (id) => { setState({ entryWithdrawAccountId: id }); setSameAccountInvalid(false) },
@@ -113,7 +113,7 @@ export function LedgerEntryModal() {
     ? (accounts.find((a) => a.id !== effectiveWithdrawAccountId)?.id ?? accounts[0]?.id ?? null)
     : (accounts[0]?.id ?? null)
   const effectiveEntryAccountId = state.entryAccountId ?? entryAccountFallbackId
-  const ddLedgerEntryAcct = useEntityDropdown(
+  const ledgerEntryAccountDropdown = useEntityDropdown(
     'ledgerEntryAcct', accounts, (a) => a.id, (a) => a.name,
     effectiveEntryAccountId,
     (id) => { setState({ entryAccountId: id }); setSameAccountInvalid(false) },
@@ -121,9 +121,9 @@ export function LedgerEntryModal() {
   const entryDateDefault = isoDateToDisplay(toISODate(new Date()))
   const entryDateDisplay = state.entryDateOverride || entryDateDefault
   const [entryNavY, entryNavM] = entryDateDisplay.split('.').map(Number)
-  const ddEntryDate = useDatePicker('entry', entryDateDisplay, { y: entryNavY, m: entryNavM })
+  const entryDateDropdown = useDatePicker('entry', entryDateDisplay, { y: entryNavY, m: entryNavM })
 
-  const activeMutation = isEditing ? putTx : postTx
+  const activeMutation = isEditing ? updateTransaction : createTransaction
   const saveError = activeMutation.error
   const saveErrorCode = saveError instanceof ApiError ? saveError.code : null
 
@@ -152,7 +152,7 @@ export function LedgerEntryModal() {
   const entryCatVisible = !isTransfer
   const suggestions: EntrySuggestion[] =
     suggestionsEnabled && !suggestionApplied
-      ? buildEntrySuggestions(recentTxQuery.data?.content ?? [], accounts, state.entryDescription, ENTRY_TYPE_TO_TX_TYPE[entryType])
+      ? buildEntrySuggestions(recentTransactionsQuery.data?.content ?? [], accounts, state.entryDescription, ENTRY_TYPE_TO_TRANSACTION_TYPE[entryType])
       : []
 
   // 칩 적용: 제목·금액은 항상 채우고, 소분류·계좌는 지금도 존재하는 것만 채운다(그 사이 지워졌을 수 있다 —
@@ -183,19 +183,19 @@ export function LedgerEntryModal() {
     setSameAccountInvalid(false)
   }
 
-  const ddEntryCatMajor: DropdownState = {
+  const entryMajorCategoryDropdown: DropdownState = {
     value: effectiveCategory?.name ?? '',
-    open: state.openDropdown === 'entryCatMajor',
-    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'entryCatMajor' ? null : 'entryCatMajor' })),
+    open: state.openDropdown === 'entryMajorCategory',
+    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'entryMajorCategory' ? null : 'entryMajorCategory' })),
     options: categories.map((c) => ({
       name: c.name,
       pick: () => setState({ entrySubcategoryId: c.subcategories[0]?.id ?? null, openDropdown: null }),
     })),
   }
-  const ddEntryCatSub: DropdownState = {
+  const entrySubcategoryDropdown: DropdownState = {
     value: effectiveSubcategory?.name ?? '',
-    open: state.openDropdown === 'entryCatSub',
-    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'entryCatSub' ? null : 'entryCatSub' })),
+    open: state.openDropdown === 'entrySubcategory',
+    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'entrySubcategory' ? null : 'entrySubcategory' })),
     options: subOptions.map((s) => ({
       name: s.name,
       pick: () => setState({ entrySubcategoryId: s.id, openDropdown: null }),
@@ -244,20 +244,20 @@ export function LedgerEntryModal() {
    * @param keepDraft 저장하지 않고 닫는 경우(X·Esc·배경 클릭·아래로 스와이프) true — 적던 내용을
    * 초안으로 보관했다가 다음에 같은 거래유형으로 열 때 되살린다(state/selectors/entryDraft.ts).
    * 저장·삭제에 성공해서 닫는 경우에는 false — 이미 서버에 반영됐으니 초안이 남으면 안 된다.
-   * **수정 세션(editingTxId)은 keepDraft여도 초안을 남기지 않는다** — 다시 열 때 서버 값을
+   * **수정 세션(editingTransactionId)은 keepDraft여도 초안을 남기지 않는다** — 다시 열 때 서버 값을
    * 새로 채우는 게 맞고, 남기면 다음 "새 거래"에 남의 거래 내용이 튀어나온다.
    */
   const closeModal = (keepDraft: boolean) => {
     setState((prev) => ({
-      // 수정 세션(editingTxId)은 어느 경로로 닫히든 초안을 만들지도, 기존 초안을 지우지도 않는다.
+      // 수정 세션(editingTransactionId)은 어느 경로로 닫히든 초안을 만들지도, 기존 초안을 지우지도 않는다.
       // 남의 거래를 잠깐 고치고 저장했다고 해서 내가 쓰다 만 새 거래 초안이 날아가면 안 된다.
       entryDraft:
-        prev.editingTxId !== null ? prev.entryDraft
+        prev.editingTransactionId !== null ? prev.entryDraft
         : keepDraft ? captureEntryDraft(prev)
         : null,
       entryDraftRestored: false,
-      modalOpen: null,
-      editingTxId: null,
+      openModal: null,
+      editingTransactionId: null,
       entrySubcategoryId: null,
       entryAccountId: null,
       entryWithdrawAccountId: null,
@@ -267,7 +267,7 @@ export function LedgerEntryModal() {
       entryDateOverride: null,
       datePickerPicked: { ...prev.datePickerPicked, entry: undefined },
       // dpNav도 함께 지운다 — 안 지우면 지난 세션에 넘겨둔 달이 남아 다음에 열 때 엉뚱한 달이 펼쳐진다.
-      datePickerNav: { ...prev.datePickerNav, entry: undefined },
+      datePickerViewingMonth: { ...prev.datePickerViewingMonth, entry: undefined },
       openDropdown: null,
     }))
     // 이 모달은 AppShell에 항상 마운트되어 있어 닫아도 언마운트되지 않는다. 로컬 확인/검증 상태와
@@ -277,9 +277,9 @@ export function LedgerEntryModal() {
     setSameAccountInvalid(false)
     setDeleteConfirmOpen(false)
     setSuggestionApplied(false)
-    postTx.reset()
-    putTx.reset()
-    deleteTx.reset()
+    createTransaction.reset()
+    updateTransaction.reset()
+    removeTransaction.reset()
   }
 
   /** 저장하지 않고 닫기(X·Esc·배경 클릭·스와이프). Modal의 onClose가 인자를 넘기지 않으므로 감싼다. */
@@ -306,7 +306,7 @@ export function LedgerEntryModal() {
 
     const picked = state.datePickerPicked['entry'] as { y: number; m: number; d: number } | undefined
     const transactionDate = picked ? pickedToISODate(picked) : entryDateDisplay.replaceAll('.', '-')
-    const type = ENTRY_TYPE_TO_TX_TYPE[entryType]
+    const type = ENTRY_TYPE_TO_TRANSACTION_TYPE[entryType]
 
     // PUT은 전체 교체다. 이 모달이 편집하지 않는 필드(외화 nativeAmount/nativeCurrency)를 다시
     // 실어 보내지 않으면 금액만 고쳐 저장해도 원래 값이 null로 지워진다. 값이 없던 거래는 키 자체를
@@ -335,9 +335,9 @@ export function LedgerEntryModal() {
       setSameAccountInvalid(false)
       const body: CreateTransactionRequest | UpdateTransactionRequest = { type, accountId, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
       if (isEditing) {
-        putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
+        updateTransaction.mutate({ id: state.editingTransactionId as number, body }, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
       } else {
-        postTx.mutate(body, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
+        createTransaction.mutate(body, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
       }
       return
     }
@@ -357,9 +357,9 @@ export function LedgerEntryModal() {
       setSameAccountInvalid(false)
       const body: CreateTransactionRequest | UpdateTransactionRequest = { type, accountId, subcategoryId: submitSubcategoryId, transferAccountId, amount: state.entryAmount, transactionDate, description, ...keep }
       if (isEditing) {
-        putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
+        updateTransaction.mutate({ id: state.editingTransactionId as number, body }, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
       } else {
-        postTx.mutate(body, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
+        createTransaction.mutate(body, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
       }
       return
     }
@@ -368,18 +368,18 @@ export function LedgerEntryModal() {
     if (!accountId || !submitSubcategoryId) return
     const body: CreateTransactionRequest | UpdateTransactionRequest = { type, accountId, subcategoryId: submitSubcategoryId, amount: state.entryAmount, transactionDate, description, ...keep }
     if (isEditing) {
-      putTx.mutate({ id: state.editingTxId as number, body }, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
+      updateTransaction.mutate({ id: state.editingTransactionId as number, body }, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
     } else {
-      postTx.mutate(body, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
+      createTransaction.mutate(body, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
     }
   }
 
   const handleDelete = () => {
-    if (state.editingTxId === null) return
-    deleteTx.mutate(state.editingTxId, { onSuccess: closeDiscardingDraft })
+    if (state.editingTransactionId === null) return
+    removeTransaction.mutate(state.editingTransactionId, { onSuccess: closeDiscardingDraft })
   }
 
-  const isBusy = postTx.isPending || putTx.isPending || deleteTx.isPending
+  const isBusy = createTransaction.isPending || updateTransaction.isPending || removeTransaction.isPending
   const noCategoryAvailable = entryCatVisible && !categoriesQuery.isPending && !categoriesQuery.error && categories.length === 0
   // 계좌가 하나도 없으면(신규 사용자 등) 저장 버튼을 눌러도 accountId를 채울 수 없다 — 눌러도 아무 일도
   // 안 일어나는 "죽은 클릭"을 만들지 않도록 아예 비활성화한다.
@@ -401,7 +401,7 @@ export function LedgerEntryModal() {
   const genericErrorMessage =
     saveError && !categoryErrorMessage && !transferAccountErrorMessage && !transactionNotFoundMessage ? saveError.message : null
 
-  const deleteErrorMessage = deleteTx.error?.message ?? null
+  const deleteErrorMessage = removeTransaction.error?.message ?? null
 
   return (
     <Modal onClose={closeKeepingDraft} zIndex={80} width={480} panelStyle={{ maxHeight: '86vh', overflow: 'auto' }}>
@@ -540,10 +540,10 @@ export function LedgerEntryModal() {
             ) : (
               <div style={{ display: 'flex', gap: 14 }}>
                 <div style={{ flex: 1, position: 'relative' }}>
-                  <Dropdown dd={ddEntryCatMajor} maxHeight={200} />
+                  <Dropdown dropdown={entryMajorCategoryDropdown} maxHeight={200} />
                 </div>
                 <div style={{ flex: 1, position: 'relative' }}>
-                  <Dropdown dd={ddEntryCatSub} maxHeight={200} />
+                  <Dropdown dropdown={entrySubcategoryDropdown} maxHeight={200} />
                 </div>
               </div>
             )}
@@ -554,7 +554,7 @@ export function LedgerEntryModal() {
         {entryShowWithdraw && (
           <div style={{ position: 'relative' }}>
             <div style={LABEL_STYLE}>출금계좌</div>
-            <Dropdown dd={ddWithdrawAcct} maxHeight={180} />
+            <Dropdown dropdown={withdrawAccountDropdown} maxHeight={180} />
             {notEnoughAccounts ? (
               <div style={{ fontSize: 12.5, color: 'var(--text-weak)', marginTop: 6 }}>
                 계좌가 하나뿐이라 등록할 수 없어요. 서로 다른 두 계좌가 필요해요.
@@ -569,14 +569,14 @@ export function LedgerEntryModal() {
           <div style={{ flex: 1, position: 'relative' }}>
             <div style={LABEL_STYLE}>{ledgerEntryAcctLabel}</div>
             <Dropdown
-              dd={ddLedgerEntryAcct}
+              dropdown={ledgerEntryAccountDropdown}
               maxHeight={180}
               footer={
                 <>
                   <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />
                   <button
                     className="mini-hov"
-                    onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'ledgerEntry', openDropdown: null })}
+                    onClick={() => setState({ openModal: 'addAccount', addAccountReturnTo: 'ledgerEntry', openDropdown: null })}
                     style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 8, border: 'none', background: 'transparent', fontSize: 12.5, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
                   >
                     <Icon name="add" size={15} />
@@ -589,7 +589,7 @@ export function LedgerEntryModal() {
           </div>
           <div style={{ flex: 1, position: 'relative' }}>
             <div style={LABEL_STYLE}>날짜</div>
-            <DatePicker dp={ddEntryDate} />
+            <DatePicker dp={entryDateDropdown} />
           </div>
         </div>
 
@@ -626,11 +626,11 @@ export function LedgerEntryModal() {
               <button
                 onClick={handleDelete}
                 disabled={isBusy}
-                aria-busy={deleteTx.isPending}
+                aria-busy={removeTransaction.isPending}
                 className="qbtn"
                 style={{ flex: 1, padding: 11, borderRadius: 10, border: 'none', background: 'var(--down)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: isBusy ? 'default' : 'pointer', opacity: isBusy ? 0.7 : 1 }}
               >
-                {deleteTx.isPending ? '삭제 중…' : '삭제할게요'}
+                {removeTransaction.isPending ? '삭제 중…' : '삭제할게요'}
               </button>
               <button
                 onClick={() => setDeleteConfirmOpen(false)}

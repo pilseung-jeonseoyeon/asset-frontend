@@ -102,7 +102,7 @@ export function Header() {
   const notificationLinkHandlers: Record<string, (linkId: number) => void> = {
     ACCOUNT: (linkId) => {
       navigate('/assets')
-      setState({ modalOpen: 'editAccount', editAccount: linkId })
+      setState({ openModal: 'editAccount', editingAccountId: linkId })
     },
   }
 
@@ -186,7 +186,7 @@ export function Header() {
             >
               <button
                 className="mini-hov"
-                onClick={() => setState({ quickAddOpen: false, modalOpen: 'addAccount' })}
+                onClick={() => setState({ quickAddOpen: false, openModal: 'addAccount' })}
                 style={MINI_HOV_ITEM_STYLE}
               >
                 <Icon name="add_card" size={19} color="var(--accent)" />
@@ -194,7 +194,7 @@ export function Header() {
               </button>
               <button
                 className="mini-hov"
-                onClick={() => setState({ quickAddOpen: false, modalOpen: 'quickStock', stockTradeMode: 'buy' })}
+                onClick={() => setState({ quickAddOpen: false, openModal: 'quickStock', stockTradeMode: 'buy' })}
                 style={MINI_HOV_ITEM_STYLE}
               >
                 <Icon name="show_chart" size={19} color="var(--accent)" />
@@ -202,7 +202,7 @@ export function Header() {
               </button>
               <button
                 className="mini-hov"
-                onClick={() => setState({ quickAddOpen: false, modalOpen: 'quickStock', stockTradeMode: 'sell' })}
+                onClick={() => setState({ quickAddOpen: false, openModal: 'quickStock', stockTradeMode: 'sell' })}
                 style={MINI_HOV_ITEM_STYLE}
               >
                 <Icon name="trending_down" size={19} color="var(--accent)" />
@@ -382,7 +382,7 @@ export function Header() {
 
         {isMobile && (
           <div
-            onClick={() => setState({ modalOpen: 'account', accountModalView: 'main', withdrawConfirmOpen: false })}
+            onClick={() => setState({ openModal: 'account', accountModalView: 'main', withdrawConfirmOpen: false })}
             title={profileName}
             style={{ cursor: 'pointer' }}
           >

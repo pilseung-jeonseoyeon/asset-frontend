@@ -19,7 +19,7 @@ import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { sanitizeDecimalInput } from '../../../utils/format'
-import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate } from '../../../utils/date'
+import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate } from '../../../utils/date'
 import { MARKET_LABELS, marketToCurrency } from '../../../data/stocksView'
 import { ApiError } from '@/services/api'
 import { useGetAccounts } from '@/services/account'
@@ -35,7 +35,7 @@ export function TradeEditModal() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
   const editingTradeId = state.editingTradeId
-  const isOpen = state.modalOpen === 'tradeEdit' && editingTradeId !== null
+  const isOpen = state.openModal === 'tradeEdit' && editingTradeId !== null
   const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
 
   // Stocks.tsx의 매매 내역 섹션과 같은 쿼리키(queryKeys.trade.list({}))를 공유한다 — 별도 요청이 나가지 않는다.
@@ -58,7 +58,7 @@ export function TradeEditModal() {
   const dpTradeDate = useDatePicker(
     'tradeEditDate',
     isoDateToDisplay(trade?.tradeDate ?? todayISO),
-    isoDateToNav(trade?.tradeDate ?? null),
+    isoDateToViewingMonth(trade?.tradeDate ?? null),
     todayISO,
   )
 
@@ -77,7 +77,7 @@ export function TradeEditModal() {
     setDeleteConfirmOpen(false)
     setState((prev) => ({
       datePickerPicked: { ...prev.datePickerPicked, tradeEditDate: undefined },
-      datePickerNav: { ...prev.datePickerNav, tradeEditDate: undefined },
+      datePickerViewingMonth: { ...prev.datePickerViewingMonth, tradeEditDate: undefined },
     }))
     putReset()
     deleteReset()
@@ -89,10 +89,10 @@ export function TradeEditModal() {
 
   const resetAndClose = () => {
     setState((prev) => ({
-      modalOpen: null,
+      openModal: null,
       editingTradeId: null,
       datePickerPicked: { ...prev.datePickerPicked, tradeEditDate: undefined },
-      datePickerNav: { ...prev.datePickerNav, tradeEditDate: undefined },
+      datePickerViewingMonth: { ...prev.datePickerViewingMonth, tradeEditDate: undefined },
       openDropdown: null,
     }))
     setQuantityStr('')
@@ -141,8 +141,8 @@ export function TradeEditModal() {
 
   const isBusy = putTrade.isPending || deleteTrade.isPending
   const insufficientHolding = putTrade.error instanceof ApiError && putTrade.error.code === 'INSUFFICIENT_HOLDING'
-  const fxMissing = putTrade.error instanceof ApiError && putTrade.error.code === 'FX_RATE_NOT_FOUND'
-  const genericError = putTrade.error && !insufficientHolding && !fxMissing ? putTrade.error.message : null
+  const exchangeRateMissing = putTrade.error instanceof ApiError && putTrade.error.code === 'FX_RATE_NOT_FOUND'
+  const genericError = putTrade.error && !insufficientHolding && !exchangeRateMissing ? putTrade.error.message : null
   const deleteErrorMessage = deleteTrade.error?.message ?? null
 
   return (
@@ -227,7 +227,7 @@ export function TradeEditModal() {
             <DatePicker dp={dpTradeDate} />
           </div>
 
-          {fxMissing && (
+          {exchangeRateMissing && (
             <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>
               아직 환율 정보를 가져오지 못했어요. 잠시 후 다시 시도해주세요.
             </div>

@@ -27,13 +27,13 @@ import { ConnectionsSection } from './ConnectionsSection'
 interface ComingSoonAction {
   icon: string
   title: string
-  desc: string
+  description: string
   danger?: boolean
 }
 
 const COMING_SOON_ACTIONS: ComingSoonAction[] = [
-  { icon: 'cloud_sync', title: '로컬 DB 백업 · 복원', desc: '기기에 저장된 데이터를 백업 · 복원' },
-  { icon: 'delete_forever', title: '데이터 초기화', desc: '모든 기록 영구 삭제', danger: true },
+  { icon: 'cloud_sync', title: '로컬 DB 백업 · 복원', description: '기기에 저장된 데이터를 백업 · 복원' },
+  { icon: 'delete_forever', title: '데이터 초기화', description: '모든 기록 영구 삭제', danger: true },
 ]
 
 const ROW_BASE_STYLE: CSSProperties = {
@@ -103,7 +103,7 @@ function ComingSoonRow({ action }: { action: ComingSoonAction }) {
       </span>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: action.danger ? 'var(--down)' : undefined }}>{action.title}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>{action.desc}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>{action.description}</div>
       </div>
       <span style={COMING_SOON_BADGE_STYLE} title="백엔드 준비 중이에요">추후 업데이트</span>
     </div>
@@ -119,7 +119,7 @@ export function DataModal() {
   const [importOpen, setImportOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const isOpen = state.modalOpen === 'data'
+  const isOpen = state.openModal === 'data'
   const exportDropdownOpen = state.openDropdown === 'dataExportKind'
 
   if (!isOpen) return null

@@ -8,14 +8,14 @@ import { useAppState } from '../../state/AppStateContext'
 interface SettingsCardDef {
   icon: string
   title: string
-  desc: string
+  description: string
   modal: string
 }
 
 const CARDS: SettingsCardDef[] = [
-  { icon: 'tune', title: '일반 및 디스플레이', desc: '앱의 시각적인 테마와 기본적인 사용 환경을 세팅합니다.', modal: 'general' },
-  { icon: 'database', title: '데이터 관리 및 백업', desc: '기록을 안전하게 이관하고 보존합니다.', modal: 'data' },
-  { icon: 'dashboard_customize', title: '자산 · 가계부 맞춤 설정', desc: '라이프스타일에 맞게 자산 관리 기준을 조율합니다.', modal: 'custom' },
+  { icon: 'tune', title: '일반 및 디스플레이', description: '앱의 시각적인 테마와 기본적인 사용 환경을 세팅합니다.', modal: 'general' },
+  { icon: 'database', title: '데이터 관리 및 백업', description: '기록을 안전하게 이관하고 보존합니다.', modal: 'data' },
+  { icon: 'dashboard_customize', title: '자산 · 가계부 맞춤 설정', description: '라이프스타일에 맞게 자산 관리 기준을 조율합니다.', modal: 'custom' },
 ]
 
 export function Settings() {
@@ -26,7 +26,7 @@ export function Settings() {
       {CARDS.map((card) => (
         <section
           key={card.modal}
-          onClick={() => setState({ modalOpen: card.modal })}
+          onClick={() => setState({ openModal: card.modal })}
           style={{
             cursor: 'pointer', background: 'var(--surface)', borderRadius: 10, border: '0.5px solid var(--border)',
             boxShadow: 'var(--shadow-card)', padding: 28, minHeight: 200, display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
@@ -37,7 +37,7 @@ export function Settings() {
               <Icon name={card.icon} size={22} />
             </span>
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{card.title}</div>
-            <div style={{ fontSize: 12.5, color: 'var(--text-weak)', lineHeight: 1.5 }}>{card.desc}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-weak)', lineHeight: 1.5 }}>{card.description}</div>
           </div>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 3 }}>
             자세히 보기

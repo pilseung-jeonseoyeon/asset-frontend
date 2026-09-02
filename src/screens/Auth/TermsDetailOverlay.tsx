@@ -7,7 +7,7 @@
 // 닫기 버튼 하나뿐이라도 Tab/Shift+Tab이 그 버튼 안에서 순환하도록 이 컴포넌트가 직접 트랩한다
 // (포커스 이동/복귀는 Modal이 제공하지 않아 함께 처리한다 — 이 저장소의 다른 모달도 아직 이걸
 // 하는 곳이 없다).
-// AppState의 modalOpen에는 묶지 않는다 — 회원가입 화면을 벗어나면 함께 사라져야 하는 화면 전용
+// AppState의 openModal에는 묶지 않는다 — 회원가입 화면을 벗어나면 함께 사라져야 하는 화면 전용
 // UI 상태라서 SignupForm의 로컬 useState로 관리한다.
 
 import { useEffect, useId, useRef } from 'react'
@@ -31,14 +31,14 @@ const FOCUSABLE_SELECTOR =
 export function TermsDetailOverlay({ documentKey, onClose, returnFocusRef }: TermsDetailOverlayProps) {
   const doc = TERMS_DOCUMENTS[documentKey]
   const titleId = useId()
-  const closeBtnRef = useRef<HTMLButtonElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
 
   // 열리면 닫기 버튼으로 포커스를 옮기고 배경 스크롤을 잠근다. 언마운트(닫힘) 시 스크롤 잠금을
   // 반드시 풀고, 포커스를 원래 눌렀던 "보기 ›" 버튼으로 되돌린다 — 안 그러면 스크린리더/키보드
   // 사용자가 오버레이를 닫은 뒤 포커스를 잃고 문서 맨 위부터 다시 탐색해야 한다.
   useEffect(() => {
-    closeBtnRef.current?.focus()
+    closeButtonRef.current?.focus()
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
@@ -122,7 +122,7 @@ export function TermsDetailOverlay({ documentKey, onClose, returnFocusRef }: Ter
           {/* Outer button stays transparent/unsized on desktop (its box == the 34x34 visual span) so it
               only grows into an invisible 44x44 hit area via .tap-44 on mobile — the visible circle
               (inner span) never changes size. */}
-          <button ref={closeBtnRef} type="button" onClick={onClose} aria-label="닫기" className="tap-44" style={{ border: 'none', background: 'transparent', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flex: 'none' }}>
+          <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="닫기" className="tap-44" style={{ border: 'none', background: 'transparent', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flex: 'none' }}>
             <span
               aria-hidden="true"
               style={{

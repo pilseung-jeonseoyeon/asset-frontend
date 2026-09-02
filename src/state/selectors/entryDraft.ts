@@ -34,7 +34,7 @@ export function captureEntryDraft(state: AppState): EntryDraft | null {
     entryWithdrawAccountId: state.entryWithdrawAccountId,
     entryDateOverride: state.entryDateOverride,
     datePickerPickedEntry: state.datePickerPicked['entry'],
-    datePickerNavEntry: state.datePickerNav['entry'],
+    datePickerViewingMonthEntry: state.datePickerViewingMonth['entry'],
   }
 }
 
@@ -60,11 +60,11 @@ export function openNewEntryUpdater(
     // 날짜를 지목해 들어왔으면 초안의 달력 선택은 버린다(위 dateOverride 우선 규칙과 짝을 맞춘다).
     const restoredDate = dateOverride ? null : restored
     return {
-      modalOpen: 'ledgerEntry',
+      openModal: 'ledgerEntry',
       entryDraftRestored: restored !== null,
       entryType,
       entryTabsVisible: tabsVisible,
-      editingTxId: null,
+      editingTransactionId: null,
       entryPreserved: null,
       openDropdown: null,
       entrySubcategoryId: restored?.entrySubcategoryId ?? null,
@@ -76,7 +76,7 @@ export function openNewEntryUpdater(
       entryDateOverride: dateOverride ?? restored?.entryDateOverride ?? null,
       // datePickerPicked/dpNav는 다른 화면의 달력과 한 객체를 공유하므로 'entry' 키만 갈아끼운다.
       datePickerPicked: { ...prev.datePickerPicked, entry: restoredDate?.datePickerPickedEntry },
-      datePickerNav: { ...prev.datePickerNav, entry: restoredDate?.datePickerNavEntry },
+      datePickerViewingMonth: { ...prev.datePickerViewingMonth, entry: restoredDate?.datePickerViewingMonthEntry },
     }
   }
 }

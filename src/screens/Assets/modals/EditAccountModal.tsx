@@ -85,8 +85,8 @@ const FIELD_BORDER_STYLE: CSSProperties = { border: '0.5px solid var(--border)',
 export function EditAccountModal() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
-  const accountId = state.editAccount
-  const isOpen = state.modalOpen === 'editAccount' && accountId !== null
+  const accountId = state.editingAccountId
+  const isOpen = state.openModal === 'editAccount' && accountId !== null
   const form = state.accountForm
   // AddAccountModal과 동일한 이유(좁은 폭에서 Dropdown 팝오버가 잘림)로 모바일에서 세로로 쌓는다.
   const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
@@ -123,12 +123,12 @@ export function EditAccountModal() {
   // 잔액 정정 가능 여부는 통화가 아니라 **달러 예수금 유무**로 가른다(파일 상단 주석 — 서버가
   // initialBalanceUsd 기준으로 400을 낸다). 서버가 준 값을 그대로 믿는다(form.currency는 폼 초기화
   // 시점에 같은 값이 들어오지만, 잔액을 다룰 수 있는지는 저장된 계좌의 성격이라 서버 응답이 근거다).
-  const hasFxDeposit = account?.initialBalanceUsd != null
+  const hasForeignCurrencyDeposit = account?.initialBalanceUsd != null
   // "현재 원화 예수금"은 값이 있을 때만 보여준다 — 달러만 넣고 만든 해외주식 계좌(가장 흔한 경우)는
   // cashKrw가 0이라, 상시 노출하면 "₩0"과 안내 문구가 항상 뜬다. OpenAPI 상 cashKrw는
   // required·non-null이지만, 바로 이 파일이 "타입 선언을 믿었다가 런타임에 터진" 사고
   // (initialBalanceUsd의 undefined 크래시)를 겪었으므로 null/undefined도 함께 걸러 방어한다.
-  const hasKrwDeposit = hasFxDeposit && !!account?.cashKrw
+  const hasKrwDeposit = hasForeignCurrencyDeposit && !!account?.cashKrw
 
   // 폼 초기값 채우기(예외적으로 허용 — docs/state-management.md "서버 데이터를 AppState로 복사하지
   // 말 것. 단, 폼 초기값을 채우는 것은 예외").
@@ -205,8 +205,8 @@ export function EditAccountModal() {
     // 이미 isBusy가 false로 떨어진 뒤이므로 정상적으로 닫힌다.
     if (isBusy) return
     setState({
-      modalOpen: null,
-      editAccount: null,
+      openModal: null,
+      editingAccountId: null,
       accountForm: BLANK_ACCOUNT_FORM,
       openDropdown: null,
     })
@@ -234,7 +234,7 @@ export function EditAccountModal() {
     // 있는 계좌는 서버가 잔액 정정을 지원하지 않으므로(파일 상단 주석) 항상 null이고, 입력칸도
     // 읽기 전용이다.
     let nextBalanceKrw: number | null
-    if (hasFxDeposit) {
+    if (hasForeignCurrencyDeposit) {
       nextBalanceKrw = null
     } else {
       if (balanceKrwInput === null) {
@@ -373,8 +373,8 @@ export function EditAccountModal() {
               </div>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={LABEL_STYLE}>{hasFxDeposit ? '현재 달러 예수금' : '현재 잔액'}</div>
-              {hasFxDeposit ? (
+              <div style={LABEL_STYLE}>{hasForeignCurrencyDeposit ? '현재 달러 예수금' : '현재 잔액'}</div>
+              {hasForeignCurrencyDeposit ? (
                 // 달러 예수금이 있는 계좌는 잔액 정정을 서버가 거절한다(파일 상단 주석) — 고칠 수 없는
                 // 칸을 열어두면 저장을 눌러야 비로소 에러를 보게 되므로, 아예 읽기 전용으로 둔다.
                 // 보여주는 값은 등록 시점 원금이 아니라 **현재** 달러 예수금(cashUsd)이다 — 서버가
@@ -413,7 +413,7 @@ export function EditAccountModal() {
                   (사용자가 놀라지 않도록 저장 전에 미리 알려준다). 값을 실제로 바꿨을 때는 색을 한 단계
                   올려(--text-weak → --text-mid) 훑고 지나치기 쉬운 문제를 줄인다 — 확인
                   모달까지는 단순 수정이 번거로워지므로 과하다고 판단해 별도로 만들지 않았다. */}
-              {hasFxDeposit ? (
+              {hasForeignCurrencyDeposit ? (
                 <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>
                   {/* balanceKrw(예수금 합계)는 달러 예수금과 원화 예수금을 합쳐 환산한 값이라(파일 상단
                       주석), 원화 예수금이 있는 계좌에서는 "합쳐서" 계산된다는 점을 짚어준다.
@@ -464,7 +464,7 @@ export function EditAccountModal() {
               </div>
             </div>
           )}
-          {hasFxDeposit && (
+          {hasForeignCurrencyDeposit && (
             // 통화별 예수금(달러·원화, 위 두 필드)과 그 합계(원화, 여기)를 나란히 보여준다 —
             // balanceKrw = cashKrw + cashUsdKrw다(파일 상단 주석). 달러분은 조회 시점 환율로 환산되므로
             // 이 값은 매일 달라진다. **보유 종목 평가액은 여기 포함되지 않는다** — 계좌 전체 평가액은

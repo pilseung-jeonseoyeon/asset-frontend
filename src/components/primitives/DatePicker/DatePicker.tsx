@@ -32,12 +32,12 @@
 // 연도·월 그리드: 헤더 가운데 라벨이 `[2026년 ▾] [8월 ▾]` 두 버튼이다. 연도 버튼은 연도 그리드,
 // 월 버튼은 월 그리드를 같은 본문 영역에 띄우고, 이미 열린 쪽을 다시 누르면 날짜 뷰로 돌아간다.
 // 목록·강조·선택 계산은 전부 selectors/datePicker.ts(dp.yearCells / dp.monthCells)이고, '지금 어느
-// 그리드를 보여줄지'(view)만 이 컴포넌트의 로컬 상태다 — 실제 값(datePickerNav)과 무관한 순수 UI
+// 그리드를 보여줄지'(view)만 이 컴포넌트의 로컬 상태다 — 실제 값(datePickerViewingMonth)과 무관한 순수 UI
 // 전환이기 때문이다. 달력을 닫을 때 naturalHeight를 리셋하는 effect에 얹어 view도 'date'로 되돌린다
 // — 다음에 열 때 항상 날짜 뷰부터 시작한다.
 //
 // 연도 그리드는 4열이고 본문 안에서 자체 overflow-y:auto로 스크롤된다(Dropdown.tsx의 옵션 목록과 같은
-// 패턴). 열릴 때는 지금 보고 있는 연도(dp.yearCells의 isNavYear)가 보이도록 그 셀의 offsetTop을
+// 패턴). 열릴 때는 지금 보고 있는 연도(dp.yearCells의 isViewingYear)가 보이도록 그 셀의 offsetTop을
 // 기준으로 컨테이너 scrollTop을 직접 계산한다 — scrollIntoView는 이 그리드보다 바깥의 스크롤 조상
 // (예: 모바일 바텀시트)까지 함께 움직일 수 있어 쓰지 않는다. offsetTop은 '가장 가까운
 // position:static이 아닌 조상'(offsetParent) 기준이라, yearGridRef 자신에게 position:'relative'를 줘야
@@ -91,7 +91,7 @@ interface DatePickerProps {
 export function DatePicker({ dp }: DatePickerProps) {
   const isMobile = useIsMobile()
   const panelRef = useRef<HTMLDivElement>(null)
-  // 지금 보여주는 그리드 — 값(datePickerNav)과 무관한 순수 UI 전환이라 로컬 상태로 둔다(파일 상단 주석 참고).
+  // 지금 보여주는 그리드 — 값(datePickerViewingMonth)과 무관한 순수 UI 전환이라 로컬 상태로 둔다(파일 상단 주석 참고).
   // 아래 naturalHeight 리셋 effect에서 dp.open이 꺼질 때 항상 'date'로 되돌린다.
   const [view, setView] = useState<PickerView>('date')
   const yearGridRef = useRef<HTMLDivElement>(null)
@@ -111,7 +111,7 @@ export function DatePicker({ dp }: DatePickerProps) {
     if (el) setNaturalHeight(el.scrollHeight)
   }, [dp.open, isMobile])
 
-  // 연도 그리드가 막 열렸을 때, 지금 보고 있는 연도(dp.yearCells의 isNavYear) 셀이 스크롤 상자 안에
+  // 연도 그리드가 막 열렸을 때, 지금 보고 있는 연도(dp.yearCells의 isViewingYear) 셀이 스크롤 상자 안에
   // 보이도록 위치를 맞춘다. scrollIntoView 대신 scrollTop을 직접 계산하는 이유는 파일 상단 주석 참고.
   useLayoutEffect(() => {
     if (view !== 'year') return
@@ -309,7 +309,7 @@ export function DatePicker({ dp }: DatePickerProps) {
                     {dp.yearCells.map((c) => (
                       <button
                         key={c.y}
-                        ref={c.isNavYear ? navYearCellRef : undefined}
+                        ref={c.isViewingYear ? navYearCellRef : undefined}
                         className="mini-hov"
                         onClick={() => {
                           c.pick()

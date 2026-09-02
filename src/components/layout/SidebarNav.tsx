@@ -80,7 +80,7 @@ export function SidebarNav() {
           ))}
         </nav>
         <div
-          onClick={() => setState({ modalOpen: 'account', accountModalView: 'main', withdrawConfirmOpen: false })}
+          onClick={() => setState({ openModal: 'account', accountModalView: 'main', withdrawConfirmOpen: false })}
           title={profileName}
           style={{ position: 'relative', width: 36, height: 36, flex: 'none', cursor: 'pointer' }}
         >

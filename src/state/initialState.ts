@@ -26,15 +26,14 @@ const todayCursor = todayYearMonth()
 export const initialState: AppState = {
   assetTab: 'overview',
   assetClassDetail: null,
-  stockTab: '전체',
+  stockMarketTab: 'all',
   stockGroupTab: 'sector',
   ledgerTab: 'overview',
   ledgerPeriod: 'month',
-  ledgerView: 'calendar',
   ledgerRange: 'month',
 
-  modalOpen: null,
-  accountDetail: null,
+  openModal: null,
+  accountDetailId: null,
   reportOpen: false,
   reportSlide: 0,
   accountModalView: 'main',
@@ -60,7 +59,7 @@ export const initialState: AppState = {
   editingTradeId: null,
   editingExchangeId: null,
 
-  editAccount: null,
+  editingAccountId: null,
   accountForm: BLANK_ACCOUNT_FORM,
   addingCategoryGroup: null,
   addAccountReturnTo: null,
@@ -78,7 +77,7 @@ export const initialState: AppState = {
   editingRecurringId: null,
 
   entryType: 'income',
-  editingTxId: null,
+  editingTransactionId: null,
   categoryDetailId: null,
   entryTabsVisible: false,
   entrySubcategoryId: null,
@@ -99,7 +98,7 @@ export const initialState: AppState = {
   entryDraftRestored: false,
 
   datePickerPicked: {},
-  datePickerNav: {},
+  datePickerViewingMonth: {},
 
   authScreen: 'login',
   authStep: 'form',

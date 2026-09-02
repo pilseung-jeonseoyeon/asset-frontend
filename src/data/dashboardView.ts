@@ -2,12 +2,12 @@
 // GET /assets/distribution?groupBy=INSTITUTION을 화면이 그릴 형태로 바꾼다. Dashboard.tsx가 직접 쓴다.
 //
 // 여기 없는 것과 그 이유:
-// - 억/만 축약 캡션(예: "약 12억 8,450만 원")은 src/utils/format.ts의 formatKoreanAbbrev가 맡는다 —
+// - 억/만 축약 캡션(예: "약 12억 8,450만 원")은 src/utils/format.ts의 formatKoreanUnits가 맡는다 —
 // formatNumber()와 마찬가지로 통화 기호 없는 범용 포맷터라 화면 레이어가 아니라 utils에 둔다.
 // - "7월 이후는 예정 구간" 같은 미래 구간 표기: 서버가 예측값을 주지 않는다.
-// 추이 차트의 y축 눈금 라벨(13억/11억/9억)은 buildTrendYAxisTicks가 formatKoreanAbbrev로 계산한다.
+// 추이 차트의 y축 눈금 라벨(13억/11억/9억)은 buildTrendYAxisTicks가 formatKoreanUnits로 계산한다.
 
-import { formatNumber, formatKoreanAbbrev } from '../utils/format'
+import { formatNumber, formatKoreanUnits } from '../utils/format'
 import { assetClassMetaOf } from './assetsView'
 import type {
   AllocationResponse,
@@ -34,13 +34,13 @@ const RAMP = [
 
 export interface DashboardHeroView {
   totalAssetKrw: number
-  totalFmt: string
+  totalText: string
   /** 이번 정산월 시작일 대비. 음수 가능. 기준 스냅샷이 없으면 null — 배지를 그리지 말 것. */
   monthChangeKrw: number | null
-  monthChangeFmt: string | null
+  monthChangeText: string | null
   /** 올해 1월 1일 대비. 음수 가능. 기준 스냅샷이 없으면 null — 배지를 그리지 말 것. */
   yearChangeKrw: number | null
-  yearChangeFmt: string | null
+  yearChangeText: string | null
   /** 계좌 자체가 없는 진짜 신규 사용자 — 0원을 "자산 0원"으로 단정하지 말고 빈 상태로 안내할 것. */
   isEmpty: boolean
   /**
@@ -53,7 +53,7 @@ export interface DashboardHeroView {
 }
 
 /** 증감액은 부호를 명시적으로 붙인다(히어로/딥카드 배지 규칙). */
-function signedFmt(n: number): string {
+function signedText(n: number): string {
   const sign = n > 0 ? '+' : n < 0 ? '−' : ''
   return `${sign}${formatNumber(Math.abs(n))}`
 }
@@ -73,11 +73,11 @@ export function buildDashboardHero(
 
   return {
     totalAssetKrw,
-    totalFmt: formatNumber(totalAssetKrw),
+    totalText: formatNumber(totalAssetKrw),
     monthChangeKrw: summary.monthChangeKrw,
-    monthChangeFmt: summary.monthChangeKrw === null ? null : signedFmt(summary.monthChangeKrw),
+    monthChangeText: summary.monthChangeKrw === null ? null : signedText(summary.monthChangeKrw),
     yearChangeKrw: summary.yearChangeKrw,
-    yearChangeFmt: summary.yearChangeKrw === null ? null : signedFmt(summary.yearChangeKrw),
+    yearChangeText: summary.yearChangeKrw === null ? null : signedText(summary.yearChangeKrw),
     isEmpty: totalAssetKrw <= 0,
     hasSnapshotHistory,
   }
@@ -164,7 +164,7 @@ export function buildTrendChart(
 /**
  * 추이 차트 왼쪽의 y축 눈금 라벨 3개(위→아래 = 최댓값→최솟값). 그리드선
  * y좌표(6/46/86, buildTrendChart와 동일한 viewBox 92)와 짝을 맞춰 값을 등간격(최대/중간/최소)으로
- * 배치한다. `formatKoreanAbbrev`가 억 단위 미만은 "0"을 돌려주므로(만 원 단위 반올림), 세 값이 전부
+ * 배치한다. `formatKoreanUnits`가 억 단위 미만은 "0"을 돌려주므로(만 원 단위 반올림), 세 값이 전부
  * 그렇게 뭉개지는 소액 구간에서는 원 단위 그대로(`formatNumber`)로 대체해 "0/0/0"이 찍히지 않게 한다.
  * 포인트가 2개 미만이면(선을 그릴 수 없음) null.
  */
@@ -175,18 +175,18 @@ export function buildTrendYAxisTicks(points: TrendPointResponse[]): [string, str
   const max = Math.max(...values)
   const mid = (min + max) / 2
 
-  const abbrevs = [max, mid, min].map((v) => formatKoreanAbbrev(v))
-  const allCollapsed = abbrevs.every((a) => a === '0')
+  const koreanUnitTexts = [max, mid, min].map((v) => formatKoreanUnits(v))
+  const allCollapsed = koreanUnitTexts.every((a) => a === '0')
   return allCollapsed
     ? ([formatNumber(max), formatNumber(mid), formatNumber(min)] as [string, string, string])
-    : (abbrevs as [string, string, string])
+    : (koreanUnitTexts as [string, string, string])
 }
 
 // ---------- 자산 구성 도넛 ----------
 
 export interface DonutLegendItem {
   label: string
-  pct: number
+  percent: number
   color: string
   showLegend: boolean
 }
@@ -228,13 +228,13 @@ export function buildAllocationSegments(allocation: AllocationResponse[]): Donut
   const sorted = [...allocation]
     .filter((a) => a.totalValueKrw > 0)
     .sort((a, b) => b.totalValueKrw - a.totalValueKrw)
-  const pcts = toPercentages(sorted.map((a) => a.totalValueKrw))
+  const percents = toPercentages(sorted.map((a) => a.totalValueKrw))
 
   return sorted.map((a, i) => ({
     // 매핑에 없는 코드가 오면(assetsView.ts assetClassMetaOf 참고) 라벨만 코드값으로 폴백하고
     // 나머지는 그대로 그린다.
     label: assetClassMetaOf(a.assetClass).label,
-    pct: pcts[i],
+    percent: percents[i],
     color: RAMP[Math.min(i, RAMP.length - 1)],
     showLegend: sorted.length < 6 || i < sorted.length - 1,
   }))
@@ -260,7 +260,7 @@ export interface DashboardInstitutionView {
   tokenKey: string
   name: string
   amount: number
-  amountFmt: string
+  amountText: string
 }
 
 /**
@@ -291,7 +291,7 @@ export function buildDashboardInstitutions(
         tokenKey: institution?.icon ?? '',
         name: g.institutionName ?? '미지정',
         amount: g.totalValueKrw,
-        amountFmt: formatNumber(g.totalValueKrw),
+        amountText: formatNumber(g.totalValueKrw),
       }
     })
 }
@@ -304,16 +304,16 @@ export interface AssetGoalView {
   color: string
   /**
    * `null`이면 이 축은 진행률 계산 근거가 없다는 뜻이다(`0`과 구분 — GoalDetail 주석 참고).
-   * 이때는 pct/진행률 바/currentFmt/targetFmt를 그리지 말고 subCaption만 보여줄 것.
+   * 이때는 percent/진행률 바/currentText/targetText를 그리지 말고 subCaption만 보여줄 것.
    */
-  pct: number | null
-  /** 진행률 바 길이. progressPercent는 100을 넘을 수 있어(clamp 안 함) 여기서만 잘라 쓴다. pct가
+  percent: number | null
+  /** 진행률 바 길이. progressPercent는 100을 넘을 수 있어(clamp 안 함) 여기서만 잘라 쓴다. percent가
    * null이면 의미 없는 값(0)이니 hasProgressData로 먼저 분기할 것. */
-  barPct: number
-  currentFmt: string | null
-  targetFmt: string | null
+  barPercent: number
+  currentText: string | null
+  targetText: string | null
   subCaption: string
-  /** `pct !== null`과 동치 — 호출부 가독성을 위한 별도 플래그. */
+  /** `percent !== null`과 동치 — 호출부 가독성을 위한 별도 플래그. */
   hasProgressData: boolean
 }
 
@@ -350,7 +350,7 @@ export function buildAssetGoals(goal: GoalResponse, today: Date = new Date()): A
 
   const annualHasData = goal.annual.progressPercent !== null
   const monthlyHasData = goal.monthly.progressPercent !== null
-  const monthlyTargetFmt = goal.monthly.targetAmount === null ? null : formatNumber(goal.monthly.targetAmount)
+  const monthlyTargetText = goal.monthly.targetAmount === null ? null : formatNumber(goal.monthly.targetAmount)
   const surplus =
     goal.monthly.currentValue === null || goal.monthly.targetAmount === null
       ? null
@@ -361,35 +361,35 @@ export function buildAssetGoals(goal: GoalResponse, today: Date = new Date()): A
       id: 'annual',
       name: '연간 · 총자산',
       color: 'var(--accent)',
-      pct: goal.annual.progressPercent,
-      barPct: annualHasData ? Math.max(0, Math.min(100, goal.annual.progressPercent as number)) : 0,
-      currentFmt: goal.annual.currentValue === null ? null : formatNumber(goal.annual.currentValue),
-      targetFmt: goal.annual.targetAmount === null ? null : formatNumber(goal.annual.targetAmount),
+      percent: goal.annual.progressPercent,
+      barPercent: annualHasData ? Math.max(0, Math.min(100, goal.annual.progressPercent as number)) : 0,
+      currentText: goal.annual.currentValue === null ? null : formatNumber(goal.annual.currentValue),
+      targetText: goal.annual.targetAmount === null ? null : formatNumber(goal.annual.targetAmount),
       hasProgressData: annualHasData,
       subCaption: isAchieved
         ? GOAL_ACHIEVED_CAPTION
         : !annualHasData
           ? GOAL_PROGRESS_UNKNOWN_CAPTION
-          : monthlyTargetFmt === null
+          : monthlyTargetText === null
             ? dDay === null
               ? '월 필요 저축액을 계산할 수 없어요'
               : dDay < 0
                 ? '목표일이 지났어요'
                 : `D−${dDay}`
             : dDay === null
-              ? `월 ${monthlyTargetFmt}원 필요`
+              ? `월 ${monthlyTargetText}원 필요`
               : dDay < 0
-                ? `목표일이 지났어요 · 월 ${monthlyTargetFmt}원 필요`
-                : `D−${dDay} · 월 ${monthlyTargetFmt}원 필요`,
+                ? `목표일이 지났어요 · 월 ${monthlyTargetText}원 필요`
+                : `D−${dDay} · 월 ${monthlyTargetText}원 필요`,
     },
     {
       id: 'monthly',
       name: '월간 · 필요 저축',
       color: 'var(--accent)',
-      pct: goal.monthly.progressPercent,
-      barPct: monthlyHasData ? Math.max(0, Math.min(100, goal.monthly.progressPercent as number)) : 0,
-      currentFmt: goal.monthly.currentValue === null ? null : formatNumber(goal.monthly.currentValue),
-      targetFmt: monthlyTargetFmt,
+      percent: goal.monthly.progressPercent,
+      barPercent: monthlyHasData ? Math.max(0, Math.min(100, goal.monthly.progressPercent as number)) : 0,
+      currentText: goal.monthly.currentValue === null ? null : formatNumber(goal.monthly.currentValue),
+      targetText: monthlyTargetText,
       hasProgressData: monthlyHasData,
       subCaption: isAchieved
         ? GOAL_ACHIEVED_CAPTION

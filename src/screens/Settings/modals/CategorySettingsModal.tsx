@@ -31,7 +31,7 @@ interface DeleteTarget {
 export function CategorySettingsModal() {
   const { state, setState } = useAppState()
   const closeModal = useCloseModal()
-  const isOpen = state.modalOpen === 'categorySettings'
+  const isOpen = state.openModal === 'categorySettings'
 
   const categoriesQuery = useGetCategories(undefined, { enabled: isOpen })
   const postSubcategory = usePostSubcategory()
@@ -60,7 +60,7 @@ export function CategorySettingsModal() {
     setAddError(null)
     postSubcategory.reset()
     deleteSubcategory.reset()
-    setState({ modalOpen: 'custom', addingCategoryGroup: null })
+    setState({ openModal: 'custom', addingCategoryGroup: null })
   }
 
   const startAdd = (key: string) => {
@@ -173,15 +173,15 @@ export function CategorySettingsModal() {
                           </div>
                           <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                              {major.subcategories.map((sub) => (
+                              {major.subcategories.map((subcategory) => (
                                 <span
-                                  key={sub.id}
+                                  key={subcategory.id}
                                   style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--text-mid)', background: 'var(--track)', padding: '5px 10px', borderRadius: 8 }}
                                 >
-                                  {sub.name}
+                                  {subcategory.name}
                                   <span
                                     className="ms"
-                                    onClick={() => requestDelete(major.id, sub.id, sub.name)}
+                                    onClick={() => requestDelete(major.id, subcategory.id, subcategory.name)}
                                     style={{ fontSize: 12, color: 'var(--text-weak)', cursor: 'pointer' }}
                                   >
                                     close

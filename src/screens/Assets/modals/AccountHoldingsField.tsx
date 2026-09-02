@@ -49,14 +49,14 @@ export interface DraftHolding {
    * 유일하지 않다. 리스트 key와 삭제 필터를 stockId 기준으로 두면 한 줄을 지웠을 때 같은 종목의
    * 다른 줄까지 함께 사라진다. 서버로는 나가지 않는 화면 전용 값이다.
    */
-  uid: string
+  rowKey: string
   stockId: number
   stockName: string
   ticker: string
   /** 원시 입력 문자열. 코인은 소수 수량이 흔해 소수점 8자리까지 받는다. */
   quantityStr: string
   /** 원시 입력 문자열. 단위는 시장에서 파생된다(US만 달러). */
-  avgPriceStr: string
+  averagePriceInput: string
   /**
    * 고른 종목의 시장. 서버로는 나가지 않지만(매매·보유 등록은 stockId로 시장을 알아낸다) 이 줄의
    * 수량 단위와 평단가 통화를 결정하므로 줄에 붙여둔다 — 계좌 유형에서 다시 유추할 수 없다.
@@ -89,10 +89,10 @@ function resultsMaxHeight(isMobile: boolean): number {
 // 담은 줄의 로컬 식별자. 모듈 전역 카운터라 모달을 닫았다 열어도 값이 겹치지 않는다(리스트 key로만
 // 쓰이므로 새로고침 뒤 1부터 다시 시작해도 무방하다). Math.random/crypto를 쓰지 않는 이유는 같은
 // 입력에 대해 결과가 항상 같아야 나중에 회귀 테스트를 붙이기 쉽기 때문이다.
-let holdingUidSeq = 0
-function nextHoldingUid(): string {
-  holdingUidSeq += 1
-  return `h${holdingUidSeq}`
+let holdingRowKeySeq = 0
+function nextHoldingRowKey(): string {
+  holdingRowKeySeq += 1
+  return `h${holdingRowKeySeq}`
 }
 
 function unitLabel(market: Market): string {
@@ -140,7 +140,7 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
   const [resultsOpen, setResultsOpen] = useState(false)
   const [pending, setPending] = useState<{ stockId: number; stockName: string; ticker: string; market: Market } | null>(null)
   const [quantityStr, setQuantityStr] = useState('')
-  const [avgPriceStr, setAvgPriceStr] = useState('')
+  const [averagePriceInput, setAveragePriceInput] = useState('')
   // 확정("추가") 버튼을 눌렀을 때만 계산한다 — 입력 도중 빨간 문구가 앞서 뜨지 않게 하는 이 저장소의
   // 검증 관례(AddAccountModal의 nameInvalid와 같은 톤).
   const [rowError, setRowError] = useState<string | null>(null)
@@ -184,7 +184,7 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
   const resetRow = () => {
     setPending(null)
     setQuantityStr('')
-    setAvgPriceStr('')
+    setAveragePriceInput('')
     setRowError(null)
   }
 
@@ -197,7 +197,7 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
       setRowError('수량을 입력해주세요')
       return
     }
-    if (avgPriceStr === '') {
+    if (averagePriceInput === '') {
       setRowError('평균단가를 입력해주세요')
       return
     }
@@ -205,7 +205,7 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
       setRowError(`한 번에 ${MAX_HOLDINGS}개까지 담을 수 있어요`)
       return
     }
-    onChange([...items, { uid: nextHoldingUid(), ...pending, quantityStr, avgPriceStr }])
+    onChange([...items, { rowKey: nextHoldingRowKey(), ...pending, quantityStr, averagePriceInput }])
     resetRow()
     setKeyword('')
     setResultsOpen(false)
@@ -230,7 +230,7 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
         >
           {items.map((h, i) => (
             <div
-              key={h.uid}
+              key={h.rowKey}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '0 6px 0 14px', minHeight: LIST_ROW_HEIGHT,
                 borderTop: i === 0 ? 'none' : '0.5px solid var(--border)',
@@ -242,7 +242,7 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
                 </div>
                 <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>
                   {/* 단위·통화는 블록이 아니라 이 줄의 종목이 정한다 — 한 리스트에 ₩ 줄과 $ 줄이 섞인다. */}
-                  {h.quantityStr}{unitLabel(h.market)} · {priceLabel(h.market, h.avgPriceStr)}
+                  {h.quantityStr}{unitLabel(h.market)} · {priceLabel(h.market, h.averagePriceInput)}
                   {showMarketBadge && ` · ${marketBadge(h.market)}`}
                 </div>
               </div>
@@ -250,7 +250,7 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
                   터치 영역은 44px을 확보한다(docs/mobile.md §5). */}
               <button
                 type="button"
-                onClick={() => onChange(items.filter((x) => x.uid !== h.uid))}
+                onClick={() => onChange(items.filter((x) => x.rowKey !== h.rowKey))}
                 aria-label={`${h.stockName} 삭제`}
                 style={{ width: 44, height: 44, flexShrink: 0, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
               >
@@ -300,9 +300,9 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
                 {pending.market === 'US' ? (
                   <input
                     type="text" inputMode="decimal" placeholder="0.00"
-                    value={avgPriceStr}
+                    value={averagePriceInput}
                     onChange={(e) => {
-                      setAvgPriceStr(sanitizeDecimalInput(e.target.value, 2))
+                      setAveragePriceInput(sanitizeDecimalInput(e.target.value, 2))
                       setRowError(null)
                     }}
                     style={BARE_INPUT_STYLE}
@@ -310,10 +310,10 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
                 ) : (
                   <input
                     type="text" inputMode="numeric" placeholder="0"
-                    value={avgPriceStr ? formatNumber(Number(avgPriceStr)) : ''}
+                    value={averagePriceInput ? formatNumber(Number(averagePriceInput)) : ''}
                     onChange={(e) => {
                       const n = parseAmount(e.target.value)
-                      setAvgPriceStr(n ? String(n) : '')
+                      setAveragePriceInput(n ? String(n) : '')
                       setRowError(null)
                     }}
                     style={BARE_INPUT_STYLE}

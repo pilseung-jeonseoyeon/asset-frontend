@@ -28,7 +28,7 @@ import { BankIcon } from '../../../components/primitives/BankIcon/BankIcon'
 import { useAppState } from '../../../state/AppStateContext'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
-import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate } from '../../../utils/date'
+import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate } from '../../../utils/date'
 import { accountInstitutionMeta, filterHoldingAccounts, marketsOfAccountType } from '../../../data/stocksView'
 import { AccountHoldingsField } from '../../Assets/modals/AccountHoldingsField'
 import type { DraftHolding } from '../../Assets/modals/AccountHoldingsField'
@@ -44,7 +44,7 @@ const NOTE_STYLE: CSSProperties = { fontSize: 11.5, color: 'var(--text-weak)', m
 
 export function AddHoldingsModal() {
   const { state, setState } = useAppState()
-  const isOpen = state.modalOpen === 'addHoldings'
+  const isOpen = state.openModal === 'addHoldings'
 
   const [accountId, setAccountId] = useState<number | null>(null)
   const [holdings, setHoldings] = useState<DraftHolding[]>([])
@@ -84,7 +84,7 @@ export function AddHoldingsModal() {
     setFailureNote(null)
   }
 
-  const ddAccount = useEntityDropdown(
+  const accountDropdown = useEntityDropdown(
     // QuickStockModal의 'stockAcct'와 키를 분리한다 — 두 모달이 같은 openDropdown 키를 다투면
     // 한쪽을 열었을 때 다른 쪽 드롭다운도 함께 열린 것으로 판정된다(QuickStockModal 헤더 주석과 같은 이유).
     'holdingAcct',
@@ -100,24 +100,24 @@ export function AddHoldingsModal() {
     },
   )
   const selectedAccountMeta = selectedAccount ? accountInstitutionMeta(selectedAccount, institutions) : null
-  const ddAccountDisplay = {
-    ...ddAccount,
+  const accountDisplayDropdown = {
+    ...accountDropdown,
     value: selectedAccountMeta
-      ? `${ddAccount.value} · ${selectedAccountMeta.institutionName}`
-      : ddAccount.value || '계좌를 선택하세요',
+      ? `${accountDropdown.value} · ${selectedAccountMeta.institutionName}`
+      : accountDropdown.value || '계좌를 선택하세요',
   }
 
   const todayISO = toISODate(new Date())
   // 미래 매매는 성립하지 않는다 — QuickStockModal의 매수일과 같은 상한을 건다.
-  const dpTradeDate = useDatePicker('addHoldings', isoDateToDisplay(todayISO), isoDateToNav(todayISO), todayISO)
+  const dpTradeDate = useDatePicker('addHoldings', isoDateToDisplay(todayISO), isoDateToViewingMonth(todayISO), todayISO)
 
   if (!isOpen) return null
 
   const resetAndClose = () => {
     setState((prev) => ({
-      modalOpen: null,
+      openModal: null,
       datePickerPicked: { ...prev.datePickerPicked, addHoldings: undefined },
-      datePickerNav: { ...prev.datePickerNav, addHoldings: undefined },
+      datePickerViewingMonth: { ...prev.datePickerViewingMonth, addHoldings: undefined },
       openDropdown: null,
     }))
     setAccountId(null)
@@ -149,7 +149,7 @@ export function AddHoldingsModal() {
       quantity: Number(h.quantityStr) || 0,
       // 평단가는 종목 표시 통화 기준이다(해외=달러, 국내·코인=원화) — AccountHoldingsField가 시장에
       // 맞는 단위로 받아두므로 여기서 환율을 곱하지 않는다.
-      price: Number(h.avgPriceStr) || 0,
+      price: Number(h.averagePriceInput) || 0,
       tradeDate,
     }))
 
@@ -202,7 +202,7 @@ export function AddHoldingsModal() {
                 증권계좌를 먼저 추가해주세요
               </div>
               <button
-                onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'addHoldings', openDropdown: null })}
+                onClick={() => setState({ openModal: 'addAccount', addAccountReturnTo: 'addHoldings', openDropdown: null })}
                 className="mini-hov"
                 style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, padding: '9px 10px', borderRadius: 8, border: 'none', background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
               >
@@ -212,14 +212,14 @@ export function AddHoldingsModal() {
             </div>
           ) : (
             <Dropdown
-              dd={ddAccountDisplay}
+              dropdown={accountDisplayDropdown}
               maxHeight={180}
               footer={
                 <>
                   <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />
                   <button
                     className="mini-hov"
-                    onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'addHoldings', openDropdown: null })}
+                    onClick={() => setState({ openModal: 'addAccount', addAccountReturnTo: 'addHoldings', openDropdown: null })}
                     style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 8, border: 'none', background: 'transparent', fontSize: 12.5, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
                   >
                     <Icon name="add" size={15} />

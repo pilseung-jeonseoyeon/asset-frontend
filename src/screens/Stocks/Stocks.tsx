@@ -24,7 +24,7 @@ import { SegmentedTab } from '../../components/primitives/SegmentedTab/Segmented
 import { Skeleton } from '../../components/primitives/Skeleton/Skeleton'
 import { useAppState } from '../../state/AppStateContext'
 import { stockDeepTabStyle, stockLightTabStyle } from '../../state/selectors/stockTabStyles'
-import { formatNumber, formatKrw, formatKoreanAbbrev } from '../../utils/format'
+import { formatNumber, formatKrw, formatKoreanUnits } from '../../utils/format'
 import { isoDateToDisplay } from '../../utils/date'
 import {
   buildClosedHoldingCards,
@@ -35,11 +35,12 @@ import {
   buildPortfolioSummary,
   buildSectorComposition,
   buildTradeRows,
-  stockTabToMarket,
+  STOCK_MARKET_TAB_LABELS,
+  stockMarketTabToMarket,
   TRADE_HISTORY_LIMIT,
 } from '../../data/stocksView'
 import { useGetMarketIndices } from '@/services/marketIndex'
-import { isFxRateMissing, useGetClosedHoldings, useGetHoldingGroups, useGetHoldings } from '@/services/stock'
+import { isExchangeRateMissing, useGetClosedHoldings, useGetHoldingGroups, useGetHoldings } from '@/services/stock'
 import { useGetExchangeSummary } from '@/services/exchange'
 import { useGetDashboardSummary } from '@/services/dashboard'
 import { useGetTrades } from '@/services/trade'
@@ -58,32 +59,32 @@ const INDEX_TILE_STYLE: CSSProperties = {
   gap: 8,
 }
 // 1억 원 미만 금액에는 축약 캡션을 병기하지 않는다(ds_rules_v2_5.md §4-2) — Dashboard.tsx의
-// AbbrevCaption과 동일 기준.
+// KoreanUnitsCaption과 동일 기준.
 const ABBREV_THRESHOLD = 100_000_000
 
-function TotalValueAbbrevCaption({ amountKrw }: { amountKrw: number }) {
+function TotalValueKoreanUnitsCaption({ amountKrw }: { amountKrw: number }) {
   if (amountKrw < ABBREV_THRESHOLD) return null
   return (
     <div style={{ fontSize: 12, color: 'var(--deep-label)', fontWeight: 500, marginTop: 4 }}>
-      약 {formatKoreanAbbrev(amountKrw)} 원
+      약 {formatKoreanUnits(amountKrw)} 원
     </div>
   )
 }
 
 export function Stocks() {
   const { state, setState } = useAppState()
-  const stockTab = state.stockTab
-  const market = stockTabToMarket(stockTab)
+  const stockMarketTab = state.stockMarketTab
+  const market = stockMarketTabToMarket(stockMarketTab)
 
-  const setStAll = () => setState({ stockTab: '전체' })
-  const setStKr = () => setState({ stockTab: '국내' })
-  const setStUs = () => setState({ stockTab: '해외' })
+  const showAllStocks = () => setState({ stockMarketTab: 'all' })
+  const showDomesticStocks = () => setState({ stockMarketTab: 'domestic' })
+  const showForeignStocks = () => setState({ stockMarketTab: 'foreign' })
 
-  const openBuy = () => setState({ modalOpen: 'quickStock', stockTradeMode: 'buy' })
-  const openSell = () => setState({ modalOpen: 'quickStock', stockTradeMode: 'sell' })
+  const openBuy = () => setState({ openModal: 'quickStock', stockTradeMode: 'buy' })
+  const openSell = () => setState({ openModal: 'quickStock', stockTradeMode: 'sell' })
   // 이미 갖고 있던 종목을 기존 계좌에 한 번에 넣는 진입점 — 매수 모달을 종목 수만큼
   // 여닫지 않아도 되게 한다. AddHoldingsModal 헤더 주석 참고.
-  const openAddHoldings = () => setState({ modalOpen: 'addHoldings' })
+  const openAddHoldings = () => setState({ openModal: 'addHoldings' })
 
   const indicesQuery = useGetMarketIndices()
   const indexViews = buildMarketIndexViews(indicesQuery.indices)
@@ -111,10 +112,10 @@ export function Stocks() {
   // 전량 매도해 청산된 종목 — 보유 종목(GET /stocks/holdings)에는 잡히지 않으므로 별도 섹션으로 보여준다.
   const closedHoldingsQuery = useGetClosedHoldings(market)
   const closedHoldingCards = buildClosedHoldingCards(closedHoldingsQuery.closedHoldings)
-  const closedHoldingsFxMissing = isFxRateMissing(closedHoldingsQuery.error)
-  const closedHoldingsHasError = !!closedHoldingsQuery.error && !closedHoldingsFxMissing
+  const closedHoldingsExchangeRateMissing = isExchangeRateMissing(closedHoldingsQuery.error)
+  const closedHoldingsHasError = !!closedHoldingsQuery.error && !closedHoldingsExchangeRateMissing
 
-  const holdingsHasError = !!holdingsQuery.error && !holdingsQuery.isFxRateMissing
+  const holdingsHasError = !!holdingsQuery.error && !holdingsQuery.isExchangeRateMissing
 
   // 매매 내역 — 청산 종목 섹션 근처에 별도 카드로 보여준다(docs/backend-request.md 4-1). size를
   // 생략해 전 건을 한 페이지로 받아온 뒤, 화면에는 최근 TRADE_HISTORY_LIMIT건만 남기고 그 사실을
@@ -151,14 +152,14 @@ export function Stocks() {
           <div style={EMPTY_TEXT_STYLE}>불러올 수 있는 시장 지표가 없어요</div>
         ) : (
           <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: `repeat(${indexViews.length},1fr)`, gap: 12 }}>
-            {indexViews.map((idx) => (
-              <div key={idx.symbol} style={INDEX_TILE_STYLE}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>{idx.label}</div>
+            {indexViews.map((marketIndex) => (
+              <div key={marketIndex.symbol} style={INDEX_TILE_STYLE}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{marketIndex.label}</div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 15, fontWeight: 700 }}>{idx.valueFmt}</div>
-                  {idx.changePctFmt && (
-                    <div style={{ fontSize: 11, fontWeight: 700, color: idx.positive ? 'var(--up)' : 'var(--down)', marginTop: 1 }}>
-                      {idx.changePctFmt}
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>{marketIndex.valueText}</div>
+                  {marketIndex.changePercentText && (
+                    <div style={{ fontSize: 11, fontWeight: 700, color: marketIndex.positive ? 'var(--up)' : 'var(--down)', marginTop: 1 }}>
+                      {marketIndex.changePercentText}
                     </div>
                   )}
                 </div>
@@ -173,13 +174,13 @@ export function Stocks() {
         <DeepCard style={{ padding: 26, width: '100%', height: '100%', justifyContent: 'flex-start' }} aria-busy={holdingsQuery.isPending}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>주식 포트폴리오 요약</div>
           <div style={{ display: 'flex', borderBottom: '0.5px solid var(--deep-divider)', marginBottom: 22 }}>
-            <button onClick={setStAll} style={stockDeepTabStyle(stockTab === '전체')}>전체</button>
-            <button onClick={setStKr} style={stockDeepTabStyle(stockTab === '국내')}>국내 주식</button>
-            <button onClick={setStUs} style={stockDeepTabStyle(stockTab === '해외')}>해외 주식</button>
+            <button onClick={showAllStocks} style={stockDeepTabStyle(stockMarketTab === 'all')}>전체</button>
+            <button onClick={showDomesticStocks} style={stockDeepTabStyle(stockMarketTab === 'domestic')}>국내 주식</button>
+            <button onClick={showForeignStocks} style={stockDeepTabStyle(stockMarketTab === 'foreign')}>해외 주식</button>
           </div>
           {holdingsQuery.isPending ? (
             <div aria-busy style={EMPTY_TEXT_STYLE_DEEP}>—</div>
-          ) : holdingsQuery.isFxRateMissing ? (
+          ) : holdingsQuery.isExchangeRateMissing ? (
             <div style={EMPTY_TEXT_STYLE_DEEP}>해외 주식 환율 정보가 아직 없어 평가금액을 계산할 수 없어요</div>
           ) : holdingsHasError ? (
             <div style={{ fontSize: 11.5, color: 'var(--deep-down)' }}>{holdingsQuery.error?.message}</div>
@@ -201,29 +202,29 @@ export function Stocks() {
                 <div>
                   <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>총 평가금액</div>
                   <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em' }}>
-                    {portfolioSummary.totalValueFmt ?? '—'}
-                    {portfolioSummary.totalValueFmt && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--deep-label)' }}>원</span>}
+                    {portfolioSummary.totalValueText ?? '—'}
+                    {portfolioSummary.totalValueText && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--deep-label)' }}>원</span>}
                   </div>
-                  <TotalValueAbbrevCaption amountKrw={portfolioSummary.totalValueKrw} />
+                  <TotalValueKoreanUnitsCaption amountKrw={portfolioSummary.totalValueKrw} />
                 </div>
                 <div>
                   <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>총 매수금액</div>
                   <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em' }}>
-                    {portfolioSummary.totalCostFmt ?? '—'}
-                    {portfolioSummary.totalCostFmt && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--deep-label)' }}>원</span>}
+                    {portfolioSummary.totalCostText ?? '—'}
+                    {portfolioSummary.totalCostText && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--deep-label)' }}>원</span>}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>평가손익</div>
                   <div className="dk-accent" style={{ fontSize: 22, fontWeight: 700, marginTop: 6, color: portfolioSummary.pnlPositive ? 'var(--deep-up)' : 'var(--deep-down)', letterSpacing: '-.02em' }}>
-                    {portfolioSummary.pnlFmt ?? '—'}
-                    {portfolioSummary.pnlFmt && <span style={{ fontSize: 13, fontWeight: 600 }}>원</span>}
+                    {portfolioSummary.profitLossText ?? '—'}
+                    {portfolioSummary.profitLossText && <span style={{ fontSize: 13, fontWeight: 600 }}>원</span>}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: 12, color: 'var(--deep-label)' }}>평가 수익률</div>
                   <div className="dk-accent" style={{ fontSize: 22, fontWeight: 700, marginTop: 6, color: portfolioSummary.pnlPositive ? 'var(--deep-up)' : 'var(--deep-down)', letterSpacing: '-.02em' }}>
-                    {portfolioSummary.returnRateFmt ?? '—'}
+                    {portfolioSummary.returnRateText ?? '—'}
                   </div>
                 </div>
               </div>
@@ -246,9 +247,9 @@ export function Stocks() {
                 <span>
                   보유 종목 <b style={{ color: 'var(--deep-value)' }}>{portfolioSummary.holdingCount}종목</b>
                 </span>
-                {portfolioSummary.sharePctFmt && (
+                {portfolioSummary.sharePercentText && (
                   <span>
-                    주식 비중 <b style={{ color: 'var(--deep-value)' }}>총자산의 {portfolioSummary.sharePctFmt}</b>
+                    주식 비중 <b style={{ color: 'var(--deep-value)' }}>총자산의 {portfolioSummary.sharePercentText}</b>
                   </span>
                 )}
                 <span>
@@ -267,7 +268,7 @@ export function Stocks() {
                   버튼은 항상 눌려야 한다 — 등록한 환전을 최소한 확인·삭제는 할 수 있어야 하기
                   때문이다(같은 문서 0-4-6). */}
               <button
-                onClick={() => setState({ modalOpen: 'exchangeHistory', editingExchangeId: null })}
+                onClick={() => setState({ openModal: 'exchangeHistory', editingExchangeId: null })}
                 className="qbtn"
                 style={{
                   fontSize: 11,
@@ -284,7 +285,7 @@ export function Stocks() {
                 내역
               </button>
               <button
-                onClick={() => setState({ modalOpen: 'exchangeAdd' })}
+                onClick={() => setState({ openModal: 'exchangeAdd' })}
                 className="qbtn"
                 style={{
                   fontSize: 11,
@@ -304,7 +305,7 @@ export function Stocks() {
           </div>
           {exchangeSummary.isPending ? (
             <div aria-busy style={{ ...EMPTY_TEXT_STYLE, marginTop: 16 }}>—</div>
-          ) : exchangeSummary.isFxRateMissing ? (
+          ) : exchangeSummary.isExchangeRateMissing ? (
             <div style={{ ...EMPTY_TEXT_STYLE, marginTop: 16 }}>USD 환율 정보가 아직 없어요</div>
           ) : exchangeSummary.error ? (
             <div style={{ ...ERROR_TEXT_STYLE, marginTop: 16 }}>{exchangeSummary.error.message}</div>
@@ -356,9 +357,9 @@ export function Stocks() {
             욱여넣으면 아이폰 폭에서 라벨이 글자 단위로 꺾여 "매/수"처럼 세로로 쪼개진다. 각 버튼에 nowrap을 줘서 꺾이는 대신 줄을 넘기게 한다. */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={setStAll} style={{ ...stockLightTabStyle(stockTab === '전체'), whiteSpace: 'nowrap' }}>전체</button>
-            <button onClick={setStKr} style={{ ...stockLightTabStyle(stockTab === '국내'), whiteSpace: 'nowrap' }}>국내 주식</button>
-            <button onClick={setStUs} style={{ ...stockLightTabStyle(stockTab === '해외'), whiteSpace: 'nowrap' }}>해외 주식</button>
+            <button onClick={showAllStocks} style={{ ...stockLightTabStyle(stockMarketTab === 'all'), whiteSpace: 'nowrap' }}>전체</button>
+            <button onClick={showDomesticStocks} style={{ ...stockLightTabStyle(stockMarketTab === 'domestic'), whiteSpace: 'nowrap' }}>국내 주식</button>
+            <button onClick={showForeignStocks} style={{ ...stockLightTabStyle(stockMarketTab === 'foreign'), whiteSpace: 'nowrap' }}>해외 주식</button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <button
@@ -431,7 +432,7 @@ export function Stocks() {
         </div>
         {holdingsQuery.isPending ? (
           <div aria-busy style={EMPTY_TEXT_STYLE}>—</div>
-        ) : holdingsQuery.isFxRateMissing ? (
+        ) : holdingsQuery.isExchangeRateMissing ? (
           <div style={EMPTY_TEXT_STYLE}>해외 주식 환율 정보가 아직 없어 평가금액을 계산할 수 없어요</div>
         ) : holdingsHasError ? (
           <div style={ERROR_TEXT_STYLE}>{holdingsQuery.error?.message}</div>
@@ -465,26 +466,26 @@ export function Stocks() {
                   {h.priceMissing ? (
                     <>
                       <div style={{ fontSize: 18, fontWeight: 700 }}>
-                        {h.costFmt}
-                        <span style={{ fontSize: 12, color: 'var(--text-weak)', fontWeight: 600 }}>원 · {h.qtyFmt}주</span>
+                        {h.costText}
+                        <span style={{ fontSize: 12, color: 'var(--text-weak)', fontWeight: 600 }}>원 · {h.quantityText}주</span>
                       </div>
                       <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 5 }}>시세를 아직 확보하지 못했어요</div>
                     </>
                   ) : (
                     <>
                       <div style={{ fontSize: 18, fontWeight: 700 }}>
-                        {h.valueFmt}
-                        <span style={{ fontSize: 12, color: 'var(--text-weak)', fontWeight: 600 }}>원 · {h.qtyFmt}주</span>
+                        {h.valueText}
+                        <span style={{ fontSize: 12, color: 'var(--text-weak)', fontWeight: 600 }}>원 · {h.quantityText}주</span>
                       </div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: h.positive ? 'var(--up)' : 'var(--down)', marginTop: 5 }}>
-                        {h.gainFmt ?? '—'}
+                        {h.gainText ?? '—'}
                       </div>
-                      {h.currentPriceFmt && (
+                      {h.currentPriceText && (
                         <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span>현재가 {h.currentPriceFmt}</span>
-                          {h.dayChangePctFmt && (
+                          <span>현재가 {h.currentPriceText}</span>
+                          {h.dayChangePercentText && (
                             <span style={{ fontWeight: 700, color: h.dayChangePositive ? 'var(--up)' : 'var(--down)' }}>
-                              전 영업일 대비 {h.dayChangePctFmt}
+                              전 영업일 대비 {h.dayChangePercentText}
                             </span>
                           )}
                         </div>
@@ -503,7 +504,7 @@ export function Stocks() {
         <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 18 }}>청산 종목</div>
         {closedHoldingsQuery.isPending ? (
           <div aria-busy style={EMPTY_TEXT_STYLE}>—</div>
-        ) : closedHoldingsFxMissing ? (
+        ) : closedHoldingsExchangeRateMissing ? (
           <div style={EMPTY_TEXT_STYLE}>해외 주식 환율 정보가 아직 없어 계산할 수 없어요</div>
         ) : closedHoldingsHasError ? (
           <div style={ERROR_TEXT_STYLE}>{closedHoldingsQuery.error?.message}</div>
@@ -532,13 +533,13 @@ export function Stocks() {
                   <span style={{ fontSize: 11, color: 'var(--text-weak)' }}>{h.sector}</span>
                 </div>
                 {h.ticker && <div style={{ fontSize: 10.5, color: 'var(--text-weak)', marginBottom: 4 }}>{h.ticker}</div>}
-                <div style={{ fontSize: 10.5, color: 'var(--text-weak)', marginBottom: 4 }}>청산일 {h.closedAtFmt}</div>
+                <div style={{ fontSize: 10.5, color: 'var(--text-weak)', marginBottom: 4 }}>청산일 {h.closedAtText}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-mid)', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>원금 {h.principalFmt}원</span>
-                  <span>회수금 {h.proceedsFmt}원</span>
+                  <span>원금 {h.principalText}원</span>
+                  <span>회수금 {h.proceedsText}원</span>
                 </div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: h.positive ? 'var(--up)' : 'var(--down)', marginTop: 8 }}>
-                  {h.gainFmt}
+                  {h.gainText}
                 </div>
               </div>
             ))}
@@ -559,7 +560,7 @@ export function Stocks() {
           <div style={ERROR_TEXT_STYLE}>{tradesQuery.error.message}</div>
         ) : tradeRows.length === 0 ? (
           <div style={EMPTY_TEXT_STYLE}>
-            {stockTab === '전체' ? '매매 기록이 없어요' : `${stockTab} 주식 매매 기록이 없어요`}
+            {stockMarketTab === 'all' ? '매매 기록이 없어요' : `${STOCK_MARKET_TAB_LABELS[stockMarketTab]} 주식 매매 기록이 없어요`}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -567,7 +568,7 @@ export function Stocks() {
               <div
                 key={t.id}
                 className="mini-hov"
-                onClick={() => setState({ modalOpen: 'tradeEdit', editingTradeId: t.id })}
+                onClick={() => setState({ openModal: 'tradeEdit', editingTradeId: t.id })}
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8, cursor: 'pointer' }}
               >
                 <div style={{ fontSize: 11.5, color: 'var(--text-weak)', width: 44, flex: 'none' }}>{t.dateLabel}</div>
@@ -579,7 +580,7 @@ export function Stocks() {
                 </span>
                 {/* 투자 거래는 ds_rules_v2_5.md §10-4에 따라 "이체"로 취급한다 — 등락색·부호 없이
                     무채색(text-strong)으로만 총액을 보여준다. */}
-                <div style={{ fontSize: 13.5, fontWeight: 700, width: 120, textAlign: 'right', color: 'var(--text-strong)' }}>{t.amountFmt}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, width: 120, textAlign: 'right', color: 'var(--text-strong)' }}>{t.amountText}</div>
               </div>
             ))}
           </div>
@@ -602,7 +603,7 @@ export function Stocks() {
           <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginTop: 4 }}>{groupReturnCaption}</div>
           {groupsByTab.isPending ? (
             <div aria-busy style={{ ...EMPTY_TEXT_STYLE, marginTop: 16 }}>—</div>
-          ) : groupsByTab.isFxRateMissing ? (
+          ) : groupsByTab.isExchangeRateMissing ? (
             <div style={{ ...EMPTY_TEXT_STYLE, marginTop: 16 }}>해외 주식 환율 정보가 아직 없어 계산할 수 없어요</div>
           ) : groupsByTab.error ? (
             <div style={{ ...ERROR_TEXT_STYLE, marginTop: 16 }}>{groupsByTab.error.message}</div>
@@ -626,8 +627,8 @@ export function Stocks() {
                 >
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-mid)' }}>{gr.label}</div>
                   {/* 원가가 0이라 수익률을 낼 수 없는 그룹은 가짜 0%가 아니라 계산 불가로 표시한다. */}
-                  <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.01em', color: gr.pctFmt === null ? 'var(--text-weak)' : gr.color }}>
-                    {gr.pctFmt ?? '—'}
+                  <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.01em', color: gr.percentText === null ? 'var(--text-weak)' : gr.color }}>
+                    {gr.percentText ?? '—'}
                   </div>
                 </div>
               ))}
@@ -642,7 +643,7 @@ export function Stocks() {
           </div>
           {sectorGroups.isPending ? (
             <div aria-busy style={EMPTY_TEXT_STYLE}>—</div>
-          ) : sectorGroups.isFxRateMissing ? (
+          ) : sectorGroups.isExchangeRateMissing ? (
             <div style={EMPTY_TEXT_STYLE}>해외 주식 환율 정보가 아직 없어 계산할 수 없어요</div>
           ) : sectorGroups.error ? (
             <div style={ERROR_TEXT_STYLE}>{sectorGroups.error.message}</div>
@@ -657,7 +658,7 @@ export function Stocks() {
                     <div key={seg.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ width: 9, height: 9, borderRadius: 4, background: seg.color }} />
                       <span style={{ color: 'var(--text-mid)', flex: 1 }}>{seg.label}</span>
-                      <b>{seg.pct}%</b>
+                      <b>{seg.percent}%</b>
                     </div>
                   ))}
                 </div>
@@ -665,7 +666,7 @@ export function Stocks() {
               {topSector && (
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: '0.5px solid var(--track)', fontSize: 12.5, color: 'var(--text-mid)' }}>
                   최대 비중 <b style={{ color: 'var(--text-strong)' }}>{topSector.label}</b>{' '}
-                  <b style={{ color: 'var(--text-strong)' }}>{topSector.pct}%</b>
+                  <b style={{ color: 'var(--text-strong)' }}>{topSector.percent}%</b>
                 </div>
               )}
             </>

@@ -72,7 +72,7 @@ export function AccountModal() {
   const [withdrawPw, setWithdrawPw] = useState('')
   const [localWithdrawError, setLocalWithdrawError] = useState<string | null>(null)
 
-  const isOpen = state.modalOpen === 'account'
+  const isOpen = state.openModal === 'account'
 
   // 아래 7개 함수는 원래 조건부 return 다음(모달이 열려 있을 때만 계산)에 있었지만, Esc 핸들러
   // (바로 아래 useEffect)가 참조해야 한다 — useEffect는 Rules of Hooks 때문에 매 렌더 동일한 순서로

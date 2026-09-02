@@ -10,13 +10,13 @@ import { SegmentedTab } from '../../components/primitives/SegmentedTab/Segmented
 import { useAppState } from '../../state/AppStateContext'
 import {
   addDays,
-  firstOwnedWeekMonday,
+  firstMondayBelongingToMonth,
   isoDateToDisplay,
   mondayOf,
   shiftYearMonth,
   toISODate,
   todayYearMonth,
-  weekOwnerYearMonth,
+  monthOfWeek,
   yearMonthLabel,
   yearMonthOf,
 } from '../../utils/date'
@@ -26,7 +26,7 @@ import { useDebouncedValue } from '../../utils/useDebouncedValue'
 import { useIsMobile } from '../../utils/useMediaQuery'
 import {
   buildLedgerCategories,
-  buildLedgerTx,
+  buildLedgerTransactions,
   buildMonthCalendarRows,
   buildPeriodDeltas,
   buildSavingsBars,
@@ -34,14 +34,14 @@ import {
   buildSubscriptionRows,
   buildTransferTotalsByDate,
   buildWeekCalendarRow,
-  computeRecentAvgSavingsRate,
+  computeRecentAverageSavingsRate,
   dayListTitle,
   describeQueryError,
   getLedgerHeroTitle,
   getSavingsRingCopy,
   pickTopIncreaseLabel,
   sumCalendarTotals,
-  TX_TYPE_TO_ENTRY_TYPE,
+  TRANSACTION_TYPE_TO_ENTRY_TYPE,
   weekListTitle,
   weekPeriodLabel,
   type CalendarCell,
@@ -392,7 +392,7 @@ function LedgerOverview() {
   const summary = useGetPeriodSummary(period === 'month' ? 'MONTH' : 'YEAR')
   const rankings = useGetCategoryRankings({})
   const fixed = useGetSubscriptions('FIXED')
-  const subs = useGetSubscriptions('SUBSCRIPTION')
+  const subscriptionsQuery = useGetSubscriptions('SUBSCRIPTION')
   const monthly = useGetMonthlySummaries(today.year)
   const accountsQuery = useGetAccounts()
 
@@ -400,7 +400,7 @@ function LedgerOverview() {
   const summaryErr = describeQueryError(summary.error)
   const rankingsErr = describeQueryError(rankings.error)
   const fixedErr = describeQueryError(fixed.error)
-  const subsErr = describeQueryError(subs.error)
+  const subscriptionsError = describeQueryError(subscriptionsQuery.error)
   const monthlyErr = describeQueryError(monthly.error)
 
   const deltas = summary.data ? buildPeriodDeltas(summary.data, period) : null
@@ -411,24 +411,24 @@ function LedgerOverview() {
   // 서버가 isActive:false도 목록에 그대로 내려주므로(소프트 삭제) activeSubscriptions로 한 번 걸러낸다
   // — 로컬 전용 숨김 목록은 더 이상 쓰지 않는다(DELETE /subscriptions가 실제로 종료 처리한다).
   const fixedRows = buildSubscriptionRows(fixed.activeSubscriptions, accounts)
-  const subRows = buildSubscriptionRows(subs.activeSubscriptions, accounts)
-  const fixedTotalFmt = fixedRows.length ? fmtSum(fixed.activeSubscriptions.map((s) => s.amount)) : '0'
-  const subsTotalFmt = subRows.length ? fmtSum(subs.activeSubscriptions.map((s) => s.amount)) : '0'
+  const subscriptionRows = buildSubscriptionRows(subscriptionsQuery.activeSubscriptions, accounts)
+  const fixedTotalText = fixedRows.length ? formatSum(fixed.activeSubscriptions.map((s) => s.amount)) : '0'
+  const subscriptionsTotalText = subscriptionRows.length ? formatSum(subscriptionsQuery.activeSubscriptions.map((s) => s.amount)) : '0'
   const bars = buildSavingsBars(monthly.summaries, today.month)
-  const recentAvg = computeRecentAvgSavingsRate(bars)
+  const recentAverage = computeRecentAverageSavingsRate(bars)
 
   // 서버에 단일 구독 조회가 없어, 이미 이 화면이 받아둔 목록 행(SubscriptionRow)의
-  // 값을 그대로 폼에 채운다 — sub가 null이면 신규 추가.
-  const openRecur = (recurringType: 'fixed' | 'subscription', sub: SubscriptionRow | null) =>
+  // 값을 그대로 폼에 채운다 — subscription이 null이면 신규 추가.
+  const openRecur = (recurringType: 'fixed' | 'subscription', subscription: SubscriptionRow | null) =>
     setState({
-      modalOpen: 'fixedExpense',
+      openModal: 'fixedExpense',
       recurringType,
-      editingRecurringId: sub?.id ?? null,
-      recurringName: sub?.name ?? '',
-      recurringAmount: sub?.amount ?? 0,
-      recurringSubcategoryId: sub?.subcategoryId ?? null,
-      recurringAccountId: sub?.accountId ?? null,
-      recurringPaymentDay: sub ? `${sub.paymentDay}일` : '25일',
+      editingRecurringId: subscription?.id ?? null,
+      recurringName: subscription?.name ?? '',
+      recurringAmount: subscription?.amount ?? 0,
+      recurringSubcategoryId: subscription?.subcategoryId ?? null,
+      recurringAccountId: subscription?.accountId ?? null,
+      recurringPaymentDay: subscription ? `${subscription.paymentDay}일` : '25일',
       openDropdown: null,
     })
 
@@ -459,17 +459,17 @@ function LedgerOverview() {
           summary.data && (
             <>
               <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
-                <HeroValue label="수입" valueFmt={summary.data.incomeTotal} sign="+" color="var(--deep-up)" delta={deltas?.income ?? null} />
-                <HeroValue label="지출" valueFmt={summary.data.expenseTotal} sign="−" color="var(--deep-down)" delta={deltas?.expense ?? null} />
-                <HeroValue label="저축" valueFmt={summary.data.savingTotal} sign="" color="var(--deep-saving)" delta={deltas?.saving ?? null} />
+                <HeroValue label="수입" valueText={summary.data.incomeTotal} sign="+" color="var(--deep-up)" delta={deltas?.income ?? null} />
+                <HeroValue label="지출" valueText={summary.data.expenseTotal} sign="−" color="var(--deep-down)" delta={deltas?.expense ?? null} />
+                <HeroValue label="저축" valueText={summary.data.savingTotal} sign="" color="var(--deep-saving)" delta={deltas?.saving ?? null} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 22, paddingTop: 18, borderTop: '0.5px solid var(--deep-divider)' }}>
                 <span style={{ fontSize: 12, color: 'var(--deep-label)', fontWeight: 400 }}>저축률</span>
                 <span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>
                   {summary.data.savingsRatePercent === null ? '—' : `${Math.round(summary.data.savingsRatePercent)}%`}
                 </span>
-                {recentAvg !== null && (
-                  <span style={{ fontSize: 11.5, color: 'var(--deep-label)', fontWeight: 400 }}>· 최근 6개월 평균 {recentAvg}%</span>
+                {recentAverage !== null && (
+                  <span style={{ fontSize: 11.5, color: 'var(--deep-label)', fontWeight: 400 }}>· 최근 6개월 평균 {recentAverage}%</span>
                 )}
               </div>
             </>
@@ -512,7 +512,7 @@ function LedgerOverview() {
                   <div
                     key={cat.categoryId}
                     className="mini-hov"
-                    onClick={() => setState({ modalOpen: 'categoryDetail', categoryDetailId: cat.categoryId })}
+                    onClick={() => setState({ openModal: 'categoryDetail', categoryDetailId: cat.categoryId })}
                     style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 8px', borderBottom: '0.5px solid var(--fill-subtle)', borderRadius: 10, cursor: 'pointer' }}
                   >
                     {/* 네 칸의 고정 폭 합(56+92+40+64)에 간격 36을 더하면 288px이라, 좁은 폰
@@ -522,12 +522,12 @@ function LedgerOverview() {
                         여유가 있으면 flex-basis(=width)가 그대로라 지금 보이는 정렬이 유지되고, 좁아지면
                         각 칸이 비례해 줄면서 넘치는 글자는 말줄임으로 잘린다. */}
                     <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-mid)', width: 56, flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.name}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', width: 92, flex: '0 1 auto', minWidth: 0, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.amtFmt}원</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', width: 92, flex: '0 1 auto', minWidth: 0, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.amountText}원</div>
                     <div style={{ flex: 1, height: 7, background: 'var(--track)', borderRadius: 4, minWidth: 24 }}>
-                      <div style={{ height: '100%', width: `${cat.barPct}%`, background: cat.rampColor, borderRadius: 4 }} />
+                      <div style={{ height: '100%', width: `${cat.barPercent}%`, background: cat.rampColor, borderRadius: 4 }} />
                     </div>
                     <span style={{ fontSize: 11, fontWeight: 700, width: 64, flex: '0 1 auto', minWidth: 0, textAlign: 'right', color: 'var(--text-mid)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {cat.isNew ? '신규' : `${cat.changeSign}${cat.changePctFmt}%`}
+                      {cat.isNew ? '신규' : `${cat.changeSign}${cat.changePercentText}%`}
                     </span>
                   </div>
                 ))}
@@ -538,7 +538,7 @@ function LedgerOverview() {
             <Card style={{ padding: 24 }} aria-busy={fixed.isPending}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
                 <div style={{ fontSize: 15, fontWeight: 700 }}>고정 지출</div>
-                {!fixed.isPending && !fixedErr && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-strong)' }}>월 {fixedTotalFmt}원</span>}
+                {!fixed.isPending && !fixedErr && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-strong)' }}>월 {fixedTotalText}원</span>}
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginBottom: 16 }}>주거, 보험 등</div>
               {fixed.isPending ? (
@@ -547,26 +547,26 @@ function LedgerOverview() {
                 <ErrorLine message={fixedErr.message} muted={fixedErr.muted} />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {fixedRows.map((sub) => (
+                  {fixedRows.map((subscription) => (
                     <div
-                      key={sub.id}
+                      key={subscription.id}
                       className="mini-hov"
-                      onClick={() => openRecur('fixed', sub)}
+                      onClick={() => openRecur('fixed', subscription)}
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--fill-subtle)', borderRadius: 10, padding: '14px 16px', cursor: 'pointer' }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                         <span style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-                          <Icon name={sub.icon} size={18} />
+                          <Icon name={subscription.icon} size={18} />
                         </span>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 13.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.name}</div>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subscription.name}</div>
                           <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>
-                            {sub.dayLabel}
-                            {sub.accountLabel && ` · ${sub.accountLabel}`}
+                            {subscription.dayLabel}
+                            {subscription.accountLabel && ` · ${subscription.accountLabel}`}
                           </div>
                         </div>
                       </div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--exp-text)', flex: 'none' }}>−{sub.amtFmt}</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--exp-text)', flex: 'none' }}>−{subscription.amountText}</div>
                     </div>
                   ))}
                   <button
@@ -584,35 +584,35 @@ function LedgerOverview() {
                 </div>
               )}
             </Card>
-            <Card style={{ padding: 24 }} aria-busy={subs.isPending}>
+            <Card style={{ padding: 24 }} aria-busy={subscriptionsQuery.isPending}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
                 <div style={{ fontSize: 15, fontWeight: 700 }}>구독</div>
-                {!subs.isPending && !subsErr && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-strong)' }}>월 {subsTotalFmt}원</span>}
+                {!subscriptionsQuery.isPending && !subscriptionsError && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-strong)' }}>월 {subscriptionsTotalText}원</span>}
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginBottom: 16 }}>음악, OTT 등</div>
-              {subs.isPending ? (
+              {subscriptionsQuery.isPending ? (
                 <LoadingLine />
-              ) : subsErr ? (
-                <ErrorLine message={subsErr.message} muted={subsErr.muted} />
+              ) : subscriptionsError ? (
+                <ErrorLine message={subscriptionsError.message} muted={subscriptionsError.muted} />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {subRows.map((sub) => (
+                  {subscriptionRows.map((subscription) => (
                     <div
-                      key={sub.id}
+                      key={subscription.id}
                       className="mini-hov"
-                      onClick={() => openRecur('subscription', sub)}
+                      onClick={() => openRecur('subscription', subscription)}
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: 10, padding: '10px 8px', cursor: 'pointer' }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                         <span style={{ width: 32, height: 32, borderRadius: 10, background: 'var(--fill-subtle)', color: 'var(--text-mid)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-                          <Icon name={sub.icon} size={17} />
+                          <Icon name={subscription.icon} size={17} />
                         </span>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.name}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>{sub.dayLabel}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subscription.name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>{subscription.dayLabel}</div>
                         </div>
                       </div>
-                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--exp-text)', flex: 'none' }}>−{sub.amtFmt}</div>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--exp-text)', flex: 'none' }}>−{subscription.amountText}</div>
                     </div>
                   ))}
                   <button
@@ -666,7 +666,7 @@ function LedgerOverview() {
                       />
                     </svg>
                     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
-                      <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.02em', color: 'var(--text-strong)', lineHeight: 1 }}>{ring.ratePct}%</div>
+                      <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.02em', color: 'var(--text-strong)', lineHeight: 1 }}>{ring.ratePercent}%</div>
                       <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>저축률</div>
                     </div>
                   </div>
@@ -674,17 +674,17 @@ function LedgerOverview() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ width: 9, height: 9, borderRadius: 4, background: 'var(--sav-fill)', flex: 'none' }} />
                       <span style={{ color: 'var(--text-mid)', flex: 1 }}>저축</span>
-                      <b style={{ color: 'var(--sav-text)' }}>{ring.savingFmt}원</b>
+                      <b style={{ color: 'var(--sav-text)' }}>{ring.savingText}원</b>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ width: 9, flex: 'none' }} />
                       <span style={{ color: 'var(--text-mid)', flex: 1 }}>지출</span>
-                      <b style={{ color: 'var(--text-mid)' }}>{ring.expenseFmt}원</b>
+                      <b style={{ color: 'var(--text-mid)' }}>{ring.expenseText}원</b>
                     </div>
                   </div>
                 </div>
                 <div style={{ marginTop: 14, paddingTop: 12, borderTop: '0.5px solid var(--track)', fontSize: 12.5, color: 'var(--text-mid)' }}>
-                  수입의 <b style={{ color: 'var(--text-strong)' }}>{ring.ratePct}%</b>를 저축했어요
+                  수입의 <b style={{ color: 'var(--text-strong)' }}>{ring.ratePercent}%</b>를 저축했어요
                 </div>
               </>
             )}
@@ -726,7 +726,7 @@ function LedgerOverview() {
                       <g fill="var(--sav-fill)">
                         {bars.map((b) => {
                           if (b.isFuture) return null
-                          const height = (b.pct / 100) * 130
+                          const height = (b.percent / 100) * 130
                           // 배열 인덱스가 아니라 b.month로 x좌표를 고른다 — 서버가 12개월을 다 내려주지
                           // 않는 달(연초 등)에는 인덱스와 월이 어긋나 막대가 엉뚱한 달 자리에 그려진다.
                           const x = BAR_X_POSITIONS[b.month - 1]
@@ -757,15 +757,15 @@ function LedgerOverview() {
   )
 }
 
-function fmtSum(amounts: number[]): string {
+function formatSum(amounts: number[]): string {
   return formatNumber(amounts.reduce((sum, n) => sum + n, 0))
 }
 
 function HeroValue({
-  label, valueFmt, sign, color, delta,
+  label, valueText, sign, color, delta,
 }: {
   label: string
-  valueFmt: number
+  valueText: number
   sign: string
   color: string
   delta: DeltaBadge | null
@@ -775,7 +775,7 @@ function HeroValue({
       <div style={{ fontSize: 12, color: 'var(--deep-label)', fontWeight: 500 }}>{label}</div>
       <div className="dk-accent" style={{ fontSize: 30, fontWeight: 700, marginTop: 8, color, letterSpacing: '-.02em', whiteSpace: 'nowrap' }}>
         {sign}
-        {formatNumber(valueFmt)}
+        {formatNumber(valueText)}
         <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--deep-label)' }}>원</span>
       </div>
       <div style={{ marginTop: 10, minHeight: 24 }}>{delta && <DeltaChip delta={delta} />}</div>
@@ -828,7 +828,7 @@ function LedgerHistory() {
   // 검색 중에는 기간 조건(year·month / from·to)을 전부 빼고 keyword만 보낸다 — 서버가 날짜 조건이
   // 없으면 전체 기간을 조회하므로, "지난번에 그거"를 달을 넘겨가며 찾지 않아도 된다. 달력이 고른
   // 하루도 무시한다(검색이 기간보다 우선).
-  const txQuery = useGetTransactions(
+  const transactionsQuery = useGetTransactions(
     isSearching
       ? { keyword: searchTerm, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] }
       : selectedDate
@@ -850,11 +850,11 @@ function LedgerHistory() {
   )
   const accountsQuery = useGetAccounts()
 
-  const rows = buildLedgerTx(txQuery.data?.content ?? [], accountsQuery.data ?? [])
-  const page = txQuery.data
+  const rows = buildLedgerTransactions(transactionsQuery.data?.content ?? [], accountsQuery.data ?? [])
+  const page = transactionsQuery.data
   const totalPages = page?.totalPages ?? 0
   const currentPage = (page?.number ?? 0) + 1
-  const txErr = describeQueryError(txQuery.error)
+  const transactionsError = describeQueryError(transactionsQuery.error)
   const dailyErr = describeQueryError(dailyQueryA.error ?? dailyQueryB.error)
   const dailyPending = dailyQueryA.isPending || (needsSecondMonth && dailyQueryB.isPending)
   const dailySummaries = needsSecondMonth ? [...dailyQueryA.summaries, ...dailyQueryB.summaries] : dailyQueryA.summaries
@@ -899,7 +899,7 @@ function LedgerHistory() {
   }
   const goToWeek = (delta: number) => {
     const nextAnchor = addDays(weekAnchor, delta * 7)
-    const owner = weekOwnerYearMonth(nextAnchor)
+    const owner = monthOfWeek(nextAnchor)
     setState({ ledgerWeekAnchor: nextAnchor, ledgerYear: owner.year, ledgerMonth: owner.month, ledgerPage: 1, ledgerSelectedDate: null })
   }
   const goToToday = () => {
@@ -913,22 +913,22 @@ function LedgerHistory() {
   // 주간/월간 토글: 상대 뷰가 보던 위치를 최대한 이어받는다. 월간 → 주간은 지금 커서 달이 실제
   // 이번 달이면 오늘이 포함된 주, 아니면 그 달의 첫 주를 기본으로 보여준다(원래 화면과
   // 같은 취지 — 탭을 바꿔도 페이지는 1로 리셋). "그 달의 첫 주"는 반드시 라벨/목록 제목/
-  // switchToMonth와 같은 기준(weekOwnerYearMonth, 목요일 소속 달)으로 골라야 한다 — 달력 격자
+  // switchToMonth와 같은 기준(monthOfWeek, 목요일 소속 달)으로 골라야 한다 — 달력 격자
   // 1행 월요일(firstMondayOfMonthGrid)을 쓰면 그 달이 금·토·일에 시작할 때 소속 달이 전달로
-  // 어긋나 월간→주간→월간 왕복이 제자리로 돌아오지 않는다(firstOwnedWeekMonday 주석 참고).
+  // 어긋나 월간→주간→월간 왕복이 제자리로 돌아오지 않는다(firstMondayBelongingToMonth 주석 참고).
   const switchToWeek = () => {
     const t = todayYearMonth()
     const inCurrentMonth = t.year === cursor.year && t.month === cursor.month
-    const nextAnchor = inCurrentMonth ? mondayOf(toISODate(new Date())) : firstOwnedWeekMonday(cursor.year, cursor.month)
+    const nextAnchor = inCurrentMonth ? mondayOf(toISODate(new Date())) : firstMondayBelongingToMonth(cursor.year, cursor.month)
     setState({ ledgerRange: 'week', ledgerWeekAnchor: nextAnchor, ledgerPage: 1, ledgerSelectedDate: null })
   }
   const switchToMonth = () => {
-    const owner = weekOwnerYearMonth(weekAnchor)
+    const owner = monthOfWeek(weekAnchor)
     setState({ ledgerRange: 'month', ledgerYear: owner.year, ledgerMonth: owner.month, ledgerPage: 1, ledgerSelectedDate: null })
   }
 
   // 새 거래 입력 진입점(캘린더 날짜의 + · 상단 유형별 버튼). 이전에 열려 있던 수정 세션의 잔재
-  // (editingTxId·금액·내용·카테고리·계좌 선택)를 물려받지 않도록 매번 리셋하되, 저장하지 않고 닫아
+  // (editingTransactionId·금액·내용·카테고리·계좌 선택)를 물려받지 않도록 매번 리셋하되, 저장하지 않고 닫아
   // 보관해 둔 같은 거래유형의 초안이 있으면 그것만 되살린다(state/selectors/entryDraft.ts).
   const openNewEntry = (entryType: EntryType, tabsVisible: boolean, dateOverride: string | null) => () =>
     setState(openNewEntryUpdater(entryType, tabsVisible, dateOverride))
@@ -1139,7 +1139,7 @@ function LedgerHistory() {
                     ? weekListTitle(weekAnchor)
                     : `${yearMonthLabel(cursor)} 전체 내역`}
             </div>
-            {txQuery.isFetching && !txQuery.isPending && (
+            {transactionsQuery.isFetching && !transactionsQuery.isPending && (
               <span aria-busy style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>불러오는 중…</span>
             )}
             {selectedDate && (
@@ -1176,10 +1176,10 @@ function LedgerHistory() {
               </>
             )}
           </div>
-          {txQuery.isPending ? (
+          {transactionsQuery.isPending ? (
             <LoadingLine />
-          ) : txErr ? (
-            <ErrorLine message={txErr.message} muted={txErr.muted} />
+          ) : transactionsError ? (
+            <ErrorLine message={transactionsError.message} muted={transactionsError.muted} />
           ) : rows.length === 0 ? (
             <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>
               {isSearching
@@ -1199,8 +1199,8 @@ function LedgerHistory() {
                     // 화면의 '현재 잔액'을 고쳐 새 조정 거래를 만들게 한다.
                     if (t.type === 'ADJUSTMENT') return
                     setState({
-                      modalOpen: 'ledgerEntry',
-                      entryType: TX_TYPE_TO_ENTRY_TYPE[t.type],
+                      openModal: 'ledgerEntry',
+                      entryType: TRANSACTION_TYPE_TO_ENTRY_TYPE[t.type],
                       entryTabsVisible: true,
                       // 서버에 단일 거래 조회(GET /transactions/{id})가 없어, 이미 이 목록 조회로 받아둔
                       // 원본 값(t.accountId/subcategoryId/transferAccountId/amountRaw)을 그대로 채운다.
@@ -1210,10 +1210,10 @@ function LedgerHistory() {
                       entryAccountId: t.type === 'TRANSFER' || t.type === 'SAVING' ? t.transferAccountId : t.accountId,
                       entryWithdrawAccountId: t.type === 'TRANSFER' || t.type === 'SAVING' ? t.accountId : null,
                       entryAmount: t.amountRaw,
-                      entryDescription: t.desc,
+                      entryDescription: t.description,
                       entryMemo: t.memo ?? '',
                       entryDateOverride: isoDateToDisplay(t.isoDate),
-                      editingTxId: t.id,
+                      editingTransactionId: t.id,
                       // 이 모달이 편집하지 않는 필드(외화) — PUT이 전체 교체라 그대로 되돌려 보내야 한다.
                       entryPreserved: {
                         nativeAmount: t.nativeAmount,
@@ -1226,7 +1226,7 @@ function LedgerHistory() {
                 >
                   <div style={{ fontSize: 11.5, color: 'var(--text-weak)', width: 44, flex: 'none' }}>{t.dateLabel}</div>
                   <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.desc}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</div>
                     {t.memo && (
                       <span title={t.memo} style={{ display: 'flex', flex: 'none', color: 'var(--text-weak)' }}>
                         <Icon name="sticky_note_2" size={13} />
@@ -1235,7 +1235,7 @@ function LedgerHistory() {
                   </div>
                   {t.tag && (
                     // 태그는 사용자가 직접 지은 계좌명·소분류명이라 길이 제한이 없다(ledgerView.ts
-                    // buildLedgerTx). flex 아이템의 자동 최소 크기는 내용의 min-content라, nowrap만
+                    // buildLedgerTransactions). flex 아이템의 자동 최소 크기는 내용의 min-content라, nowrap만
                     // 걸고 두면 긴 이름이 이 줄 전체를 화면 밖으로 밀어낸다 — 위 카테고리 랭킹 행과
                     // 같은 방식으로 최대 폭을 정하고 넘치면 말줄임 처리한다(전체 값은 눌러서 여는
                     // 수정 모달에서 볼 수 있다).

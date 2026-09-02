@@ -2,7 +2,7 @@
 // /transactions/summaries/*, /transactions/rankings, /subscriptions, /categories)을 화면·모달이
 // 그릴 형태로 바꾼다.
 //
-// 아래 막대·순위·링 계산(barPct, changePct, changeSign, 램프 색 순서, 저축률 링·막대)은 디자인
+// 아래 막대·순위·링 계산(barPercent, changePercent, changeSign, 램프 색 순서, 저축률 링·막대)은 디자인
 // 시스템 규칙이다(ds_rules_v2_5.md §1-6/§3-1/§3-2) — 임의로 바꾸지 말 것.
 // 모든 숫자가 서버에서 오므로 각 식에는 0으로 나누기·"이전 값이 0" 방어가 붙어 있다
 // (갓 만든 분류는 expenseTotalPrevious가 0이라 그대로 두면 Infinity%가 된다).
@@ -17,7 +17,7 @@ import {
   todayYearMonth,
   weekDates,
   weekIndexInMonth,
-  weekOwnerYearMonth,
+  monthOfWeek,
   type YearMonthCursor,
 } from '../utils/date'
 import type { LedgerPeriod } from '../state/types'
@@ -68,14 +68,14 @@ export const ENTRY_TYPE_TO_CATEGORY_KIND: Record<'income' | 'saving' | 'expense'
  * 서버가 자동으로 만드는 거래라 화면 탭에 대응하는 값이 없다 — 두 표 모두 사용자가 만들 수 있는
  * 4종만 다루고, 목록에 섞여 들어오는 ADJUSTMENT는 읽기 전용으로만 렌더한다(Ledger.tsx 참고).
  */
-export const ENTRY_TYPE_TO_TX_TYPE: Record<'income' | 'expense' | 'saving' | 'transfer', EditableTransactionType> = {
+export const ENTRY_TYPE_TO_TRANSACTION_TYPE: Record<'income' | 'expense' | 'saving' | 'transfer', EditableTransactionType> = {
   income: 'INCOME',
   expense: 'EXPENSE',
   saving: 'SAVING',
   transfer: 'TRANSFER',
 }
 
-export const TX_TYPE_TO_ENTRY_TYPE: Record<EditableTransactionType, 'income' | 'expense' | 'saving' | 'transfer'> = {
+export const TRANSACTION_TYPE_TO_ENTRY_TYPE: Record<EditableTransactionType, 'income' | 'expense' | 'saving' | 'transfer'> = {
   INCOME: 'income',
   EXPENSE: 'expense',
   SAVING: 'saving',
@@ -118,8 +118,8 @@ function buildAmountDelta(
   const sign = up ? '+' : '−'
   let text = `${periodDeltaLabel(period)} 대비 ${sign}${formatNumber(Math.abs(diff))}원`
   if (withPercent && previous !== 0) {
-    const pct = Math.round((diff / previous) * 1000) / 10
-    text += ` (${pct > 0 ? '+' : '−'}${Math.abs(pct).toFixed(1)}%)`
+    const percent = Math.round((diff / previous) * 1000) / 10
+    text += ` (${percent > 0 ? '+' : '−'}${Math.abs(percent).toFixed(1)}%)`
   }
   return makeDeltaBadge(text, up, colorHex)
 }
@@ -157,11 +157,11 @@ export function getSavingsRingCopy(period: LedgerPeriod): { title: string; subti
 // ---------- 저축률 링 게이지 ----------
 
 export interface SavingsRingView {
-  ratePct: number
+  ratePercent: number
   /** SVG strokeDasharray. 링 둘레 100 기준(circumference 100 정규화 — 기존 마크업의 "40 60" 표기와 동일 스케일). */
   dashArray: string
-  savingFmt: string
-  expenseFmt: string
+  savingText: string
+  expenseText: string
 }
 
 /**
@@ -171,12 +171,12 @@ export interface SavingsRingView {
  */
 export function buildSavingsRing(summary: PeriodSummaryResponse): SavingsRingView | null {
   if (summary.incomeTotal === 0 || summary.savingsRatePercent === null) return null
-  const ratePct = Math.max(0, Math.min(100, Math.round(summary.savingsRatePercent)))
+  const ratePercent = Math.max(0, Math.min(100, Math.round(summary.savingsRatePercent)))
   return {
-    ratePct,
-    dashArray: `${ratePct} ${100 - ratePct}`,
-    savingFmt: formatNumber(summary.savingTotal),
-    expenseFmt: formatNumber(summary.expenseTotal),
+    ratePercent,
+    dashArray: `${ratePercent} ${100 - ratePercent}`,
+    savingText: formatNumber(summary.savingTotal),
+    expenseText: formatNumber(summary.expenseTotal),
   }
 }
 
@@ -185,7 +185,7 @@ export function buildSavingsRing(summary: PeriodSummaryResponse): SavingsRingVie
 export interface SavingsBar {
   month: number
   /** 0~100. 미래 월은 0(트랙만 표시). */
-  pct: number
+  percent: number
   isFuture: boolean
   isCurrent: boolean
 }
@@ -196,17 +196,17 @@ export function buildSavingsBars(monthly: MonthlySummaryResponse[], currentMonth
     .sort((a, b) => a.month - b.month)
     .map((m) => {
       const isFuture = m.month > currentMonth
-      const pct = !isFuture && m.incomeTotal > 0 ? Math.max(0, Math.min(100, (m.savingTotal / m.incomeTotal) * 100)) : 0
-      return { month: m.month, pct, isFuture, isCurrent: m.month === currentMonth }
+      const percent = !isFuture && m.incomeTotal > 0 ? Math.max(0, Math.min(100, (m.savingTotal / m.incomeTotal) * 100)) : 0
+      return { month: m.month, percent, isFuture, isCurrent: m.month === currentMonth }
     })
 }
 
 /** ds_rules §3-2: 저축률 차트에 목표선은 없다 — 기준선이 필요하면 "최근 6개월 평균" 캡션 문장으로만 표기. */
-export function computeRecentAvgSavingsRate(bars: SavingsBar[]): number | null {
+export function computeRecentAverageSavingsRate(bars: SavingsBar[]): number | null {
   const elapsed = bars.filter((b) => !b.isFuture)
   const recent = elapsed.slice(-6)
   if (recent.length === 0) return null
-  return Math.round(recent.reduce((sum, b) => sum + b.pct, 0) / recent.length)
+  return Math.round(recent.reduce((sum, b) => sum + b.percent, 0) / recent.length)
 }
 
 // ---------- 전월 대비 분류별 지출 랭킹 ----------
@@ -216,12 +216,12 @@ const RAMP_SCALE = ['var(--ramp-1)', 'var(--ramp-2)', 'var(--ramp-3)', 'var(--ra
 export interface LedgerCategoryRow {
   categoryId: number
   name: string
-  amtFmt: string
-  barPct: number
+  amountText: string
+  barPercent: number
   /** expenseTotalPrevious === 0(신규 카테고리) — 증감률 계산 불가. */
   isNew: boolean
-  changePct: number | null
-  changePctFmt: string | null
+  changePercent: number | null
+  changePercentText: string | null
   changeSign: string
   rampColor: string
 }
@@ -234,16 +234,16 @@ export function buildLedgerCategories(rankings: CategoryRankingResponse[]): Ledg
     .map((r, i) => {
       const prev = r.expenseTotalPrevious
       const isNew = prev === 0
-      const changePct = isNew ? null : Math.round(((r.expenseTotal - prev) / prev) * 1000) / 10
+      const changePercent = isNew ? null : Math.round(((r.expenseTotal - prev) / prev) * 1000) / 10
       return {
         categoryId: r.categoryId,
         name: r.categoryName,
-        amtFmt: formatNumber(r.expenseTotal),
-        barPct: maxAmt > 0 ? Math.round((r.expenseTotal / maxAmt) * 100) : 0,
+        amountText: formatNumber(r.expenseTotal),
+        barPercent: maxAmt > 0 ? Math.round((r.expenseTotal / maxAmt) * 100) : 0,
         isNew,
-        changePct,
-        changePctFmt: changePct === null ? null : Math.abs(changePct).toFixed(1),
-        changeSign: changePct !== null && changePct > 0 ? '+' : '−',
+        changePercent,
+        changePercentText: changePercent === null ? null : Math.abs(changePercent).toFixed(1),
+        changeSign: changePercent !== null && changePercent > 0 ? '+' : '−',
         rampColor: RAMP_SCALE[Math.min(i, RAMP_SCALE.length - 1)],
       }
     })
@@ -251,17 +251,17 @@ export function buildLedgerCategories(rankings: CategoryRankingResponse[]): Ledg
 
 /** 상승 폭이 가장 큰 카테고리 라벨. 신규 카테고리(증감률 없음)나 실제로 증가한 곳이 없으면 null(배지 숨김). */
 export function pickTopIncreaseLabel(rows: LedgerCategoryRow[]): string | null {
-  const candidates = rows.filter((r): r is LedgerCategoryRow & { changePct: number } => r.changePct !== null && r.changePct > 0)
+  const candidates = rows.filter((r): r is LedgerCategoryRow & { changePercent: number } => r.changePercent !== null && r.changePercent > 0)
   if (candidates.length === 0) return null
-  const top = [...candidates].sort((a, b) => b.changePct - a.changePct)[0]
-  return `${top.name} +${top.changePctFmt}%`
+  const top = [...candidates].sort((a, b) => b.changePercent - a.changePercent)[0]
+  return `${top.name} +${top.changePercentText}%`
 }
 
 export function formatCategoryDetailChange(current: number, previous: number): string {
   if (previous === 0) return '신규 지출'
-  const pct = Math.round(((current - previous) / previous) * 1000) / 10
-  const sign = pct > 0 ? '+' : '−'
-  return `전월 대비 ${sign}${Math.abs(pct).toFixed(1)}%`
+  const percent = Math.round(((current - previous) / previous) * 1000) / 10
+  const sign = percent > 0 ? '+' : '−'
+  return `전월 대비 ${sign}${Math.abs(percent).toFixed(1)}%`
 }
 
 // ---------- 구독 · 정기결제 / 고정 지출 ----------
@@ -273,7 +273,7 @@ export interface SubscriptionRow {
   dayLabel: string
   /** institutionName 우선, 없으면 계좌명. 계좌를 못 찾으면 빈 문자열(가짜 값 금지). */
   accountLabel: string
-  amtFmt: string
+  amountText: string
   /** 아래 4개는 표시용이 아니라 수정 모달 프리필 전용 — 서버에 단일 구독 조회가 없어, 이미 이 목록
    * 조회로 받아둔 원본 값을 그대로 재사용한다. */
   amount: number
@@ -305,7 +305,7 @@ export function buildSubscriptionRows(subscriptions: SubscriptionResponse[], acc
       icon: subscriptionIconOf(s.icon),
       dayLabel: `매월 ${s.paymentDay}일`,
       accountLabel: accountLabelOf(s.accountId, accounts),
-      amtFmt: formatNumber(s.amount),
+      amountText: formatNumber(s.amount),
       amount: s.amount,
       paymentDay: s.paymentDay,
       accountId: s.accountId,
@@ -315,12 +315,12 @@ export function buildSubscriptionRows(subscriptions: SubscriptionResponse[], acc
 
 // ---------- 내역(거래 목록) ----------
 
-export interface LedgerTxRow {
+export interface LedgerTransactionRow {
   id: number
   /** 'YYYY-MM-DD' — 수정 모달을 열 때 날짜를 프리필하는 데 쓴다(isoDateToDisplay와 함께). */
   isoDate: string
   dateLabel: string
-  desc: string
+  description: string
   tag: string
   type: TransactionType
   amount: string
@@ -360,7 +360,7 @@ function shortDateLabel(isoDate: string): string {
  * TRANSFER는 subcategoryName이 없고 상대 계좌명도 응답에 없어(transaction.type.ts 주석)
  * 계좌 목록과 transferAccountId로 조인한다. 조인 실패 시 "계좌 이체"로 폴백.
  */
-export function buildLedgerTx(transactions: TransactionResponse[], accounts: AccountResponse[]): LedgerTxRow[] {
+export function buildLedgerTransactions(transactions: TransactionResponse[], accounts: AccountResponse[]): LedgerTransactionRow[] {
   return transactions.map((t) => {
     const sign = t.type === 'INCOME' ? '+' : t.type === 'EXPENSE' ? '−' : ''
     const tag =
@@ -371,7 +371,7 @@ export function buildLedgerTx(transactions: TransactionResponse[], accounts: Acc
       id: t.id,
       isoDate: t.transactionDate,
       dateLabel: shortDateLabel(t.transactionDate),
-      desc: t.description,
+      description: t.description,
       tag,
       type: t.type,
       amount: sign + formatNumber(t.amount),
@@ -485,12 +485,12 @@ export interface CalendarCell {
   highlighted: boolean
 }
 
-function dayLine(kind: 'income' | 'saving' | 'expense' | 'transfer', amt: number): DayLine {
+function dayLine(kind: 'income' | 'saving' | 'expense' | 'transfer', amount: number): DayLine {
   // 이체는 부호를 붙이지 않는다 — 번 돈도 쓴 돈도 아니고 내 계좌 사이를 옮겨간 것이라
   // +/−를 붙이면 수입·지출처럼 읽힌다. 대신 방향 기호(⇄)를 앞에 달아 한눈에 구분되게 한다.
   const sign = kind === 'income' ? '+' : kind === 'expense' ? '−' : kind === 'transfer' ? '⇄ ' : ''
   return {
-    text: sign + formatNumber(amt),
+    text: sign + formatNumber(amount),
     // 이체는 디자인 시스템에 전용 색이 없다(CLAUDE.md 도메인 컨텍스트) — 수입·지출·저축보다
     // 한 톤 낮은 --text-mid로 렌더해 세 종류의 색 대비를 흐리지 않게 한다.
     color:
@@ -592,7 +592,7 @@ export function buildMonthCalendarRows(
 }
 
 /**
- * 주간 뷰의 한 주(월~일, 7칸 고정 — 빈 칸 없음). 소속 달(weekOwnerYearMonth)과 실제 날짜의 달이
+ * 주간 뷰의 한 주(월~일, 7칸 고정 — 빈 칸 없음). 소속 달(monthOfWeek)과 실제 날짜의 달이
  * 다르면(월 경계에 걸친 주) 그 칸만 "M/D"로 표시해 어느 달인지 구분한다.
  */
 export function buildWeekCalendarRow(
@@ -601,7 +601,7 @@ export function buildWeekCalendarRow(
   transferByDate: Map<string, number>,
 ): CalendarCell[] {
   const dates = weekDates(mondayIso)
-  const owner = weekOwnerYearMonth(mondayIso)
+  const owner = monthOfWeek(mondayIso)
   const byDate = new Map(daily.map((d) => [d.date, d]))
   const todayIso = toISODate(new Date())
 
@@ -647,7 +647,7 @@ function formatMonthDay(iso: string): string {
 
 /** 기간 라벨(상단 화살표 옆). 예: '2026년 6월 4주차'. */
 export function weekPeriodLabel(mondayIso: string): string {
-  const { year, month } = weekOwnerYearMonth(mondayIso)
+  const { year, month } = monthOfWeek(mondayIso)
   return `${year}년 ${month}월 ${weekIndexInMonth(mondayIso)}주차`
 }
 
@@ -662,7 +662,7 @@ export function dayListTitle(iso: string): string {
 
 /** 목록 제목. 예: '6월 4주차 (6.22 – 6.28) 내역'. */
 export function weekListTitle(mondayIso: string): string {
-  const { month } = weekOwnerYearMonth(mondayIso)
+  const { month } = monthOfWeek(mondayIso)
   const sunday = addDays(mondayIso, 6)
   return `${month}월 ${weekIndexInMonth(mondayIso)}주차 (${formatMonthDay(mondayIso)} – ${formatMonthDay(sunday)}) 내역`
 }

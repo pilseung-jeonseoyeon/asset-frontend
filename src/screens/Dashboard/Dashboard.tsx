@@ -19,7 +19,7 @@ import { BankIcon } from '../../components/primitives/BankIcon/BankIcon'
 import { DonutChart } from '../../components/primitives/DonutChart/DonutChart'
 import { useAppState } from '../../state/AppStateContext'
 import { useIsMobile } from '../../utils/useMediaQuery'
-import { formatNumber, formatKoreanAbbrev } from '../../utils/format'
+import { formatNumber, formatKoreanUnits } from '../../utils/format'
 import { isoDateToDisplay, todayYearMonth, toISODate } from '../../utils/date'
 import {
   buildAllocationSegments,
@@ -63,7 +63,7 @@ const ABBREV_THRESHOLD = 100_000_000
 // 같은 규칙 — 두 화면의 월 축 표기가 갈라지지 않도록 문자열을 맞춰 둔다).
 const TREND_MONTH_LABELS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
 
-function AbbrevCaption({ amountKrw, deep }: { amountKrw: number; deep?: boolean }) {
+function KoreanUnitsCaption({ amountKrw, deep }: { amountKrw: number; deep?: boolean }) {
   if (Math.abs(amountKrw) < ABBREV_THRESHOLD) return null
   const sign = amountKrw < 0 ? '−' : ''
   const style = deep
@@ -72,7 +72,7 @@ function AbbrevCaption({ amountKrw, deep }: { amountKrw: number; deep?: boolean 
   return (
     <div style={style}>
       약 {sign}
-      {formatKoreanAbbrev(amountKrw)} 원
+      {formatKoreanUnits(amountKrw)} 원
     </div>
   )
 }
@@ -107,8 +107,8 @@ export function Dashboard() {
   const { setState } = useAppState()
   const isMobile = useIsMobile()
 
-  const openAddAccount = () => setState({ quickAddOpen: false, modalOpen: 'addAccount' })
-  const openAddGoal = () => setState({ modalOpen: 'addGoal', addGoalReturnTo: null })
+  const openAddAccount = () => setState({ quickAddOpen: false, openModal: 'addAccount' })
+  const openAddGoal = () => setState({ openModal: 'addGoal', addGoalReturnTo: null })
 
   const summaryQuery = useGetDashboardSummary()
   const allocationQuery = useGetDashboardAllocation()
@@ -141,15 +141,15 @@ export function Dashboard() {
   const hasFutureRange =
     trendChart.futureFromX !== null && trendFutureFromMonth !== null && trendFutureFromMonth <= 12
 
-  let trendPctFmt: string | null = null
+  let trendPercentText: string | null = null
   let trendPositive = true
   if (trendQuery.points.length >= 2) {
     const first = trendQuery.points[0].totalValueKrw
     const last = trendQuery.points[trendQuery.points.length - 1].totalValueKrw
     if (first !== 0) {
-      const pct = ((last - first) / first) * 100
-      trendPositive = pct >= 0
-      trendPctFmt = `${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct).toFixed(1)}%`
+      const percent = ((last - first) / first) * 100
+      trendPositive = percent >= 0
+      trendPercentText = `${percent > 0 ? '+' : percent < 0 ? '−' : ''}${Math.abs(percent).toFixed(1)}%`
     }
   }
 
@@ -266,11 +266,11 @@ export function Dashboard() {
               <div style={{ fontSize: 13, color: 'var(--deep-label)', fontWeight: 500, letterSpacing: '.02em' }}>총 자산</div>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, marginTop: 10 }}>
                 <div style={{ fontSize: 42, fontWeight: 700, letterSpacing: '-.02em', whiteSpace: 'nowrap' }}>
-                  {hero.totalFmt}
+                  {hero.totalText}
                   <span style={{ fontSize: 22, fontWeight: 600, color: 'var(--deep-label)', marginLeft: 2 }}>원</span>
                 </div>
               </div>
-              <AbbrevCaption amountKrw={hero.totalAssetKrw} deep />
+              <KoreanUnitsCaption amountKrw={hero.totalAssetKrw} deep />
               {/* summary 스냅샷이 아직 없으면(계좌 등록 첫날) 증감액을 계산할 근거가 없다 — 0원으로
                   단정하지 않되, 줄이 말없이 사라지면 "올해 자산 현황" 카드와 설명 수준이 어긋나므로
                   같은 톤의 안내 문구로 대체한다(시점을 약속하지 않는다 — 배치 실행 시각 미확정). */}
@@ -318,16 +318,16 @@ export function Dashboard() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                     <div style={{ fontSize: 12.5, fontWeight: 700 }}>{ag.name}</div>
                     {ag.hasProgressData && (
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-strong)' }}>{ag.pct}%</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-strong)' }}>{ag.percent}%</div>
                     )}
                   </div>
                   {ag.hasProgressData ? (
                     <>
                       <div style={{ height: 6, background: 'var(--track)', borderRadius: 4 }}>
-                        <div style={{ height: '100%', width: `${ag.barPct}%`, background: ag.color, borderRadius: 4 }} />
+                        <div style={{ height: '100%', width: `${ag.barPercent}%`, background: ag.color, borderRadius: 4 }} />
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>
-                        {ag.currentFmt} / {ag.targetFmt}원
+                        {ag.currentText} / {ag.targetText}원
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>{ag.subCaption}</div>
                     </>
@@ -358,7 +358,7 @@ export function Dashboard() {
             <div style={{ ...ERROR_TEXT_STYLE, marginTop: 14 }}>{allocationQuery.error?.message}</div>
           ) : !hero || hero.isEmpty ? (
             <EmptyState style={{ marginTop: 14 }} text="계좌를 추가하면 올해 자산 현황을 볼 수 있어요." />
-          ) : !hero.hasSnapshotHistory || hero.yearChangeKrw === null || hero.yearChangeFmt === null ? (
+          ) : !hero.hasSnapshotHistory || hero.yearChangeKrw === null || hero.yearChangeText === null ? (
             // 계좌는 있지만(allocation 실시간 합계로 확인) 스냅샷 이력이 아직 없어 연초 대비 증감을
             // 계산할 근거가 없다 — "계좌를 추가하면"이 아니라 이력이 쌓이면 보인다는 문구로 구분.
             <EmptyState style={{ marginTop: 14 }} text="자산 이력이 쌓이면 올해 자산 현황을 볼 수 있어요." />
@@ -374,9 +374,9 @@ export function Dashboard() {
                   marginTop: 6,
                 }}
               >
-                {hero.yearChangeFmt}원
+                {hero.yearChangeText}원
               </div>
-              <AbbrevCaption amountKrw={hero.yearChangeKrw} />
+              <KoreanUnitsCaption amountKrw={hero.yearChangeKrw} />
               <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400 }}>연초 대비</div>
               <div style={{ marginTop: 14 }}>
                 {trendQuery.isPending ? (
@@ -393,9 +393,9 @@ export function Dashboard() {
                         {isMobile ? '올해 총자산 추이' : '올해 1월~12월 총자산 추이'}
                         {hasFutureRange ? (isMobile ? ` · ${trendFutureFromMonth}월 이후 예정` : ` · ${trendFutureFromMonth}월 이후는 예정 구간`) : ''}
                       </span>
-                      {trendPctFmt && (
+                      {trendPercentText && (
                         <span style={{ fontSize: 11, fontWeight: 700, color: trendPositive ? 'var(--up)' : 'var(--down)' }}>
-                          {trendPctFmt}
+                          {trendPercentText}
                         </span>
                       )}
                     </div>
@@ -484,14 +484,14 @@ export function Dashboard() {
                       <div key={seg.label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                         <span style={{ width: 9, height: 9, borderRadius: 4, background: seg.color }} />
                         <span style={{ color: 'var(--text-mid)', flex: 1 }}>{seg.label}</span>
-                        <b>{seg.pct}%</b>
+                        <b>{seg.percent}%</b>
                       </div>
                     ))}
                 </div>
               </div>
               {topAllocation && (
                 <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '0.5px solid var(--track)', fontSize: 12.5, color: 'var(--text-mid)' }}>
-                  최대 비중 <b style={{ color: 'var(--text-strong)' }}>{topAllocation.label} {topAllocation.pct}%</b>
+                  최대 비중 <b style={{ color: 'var(--text-strong)' }}>{topAllocation.label} {topAllocation.percent}%</b>
                 </div>
               )}
             </>
@@ -509,7 +509,7 @@ export function Dashboard() {
           {!institutionsPending && (institutionsError || dashboardInstitutions.length > 0) && (
             <button
               type="button"
-              onClick={() => setState({ modalOpen: 'institutions' })}
+              onClick={() => setState({ openModal: 'institutions' })}
               style={
                 isMobile
                   ? { border: 'none', background: 'transparent', fontFamily: 'inherit', fontSize: 12, color: 'var(--text-weak)', cursor: 'pointer', display: 'inline-block', padding: '15px 10px', margin: '-15px -10px' }
@@ -531,14 +531,14 @@ export function Dashboard() {
           // 여기서 원하는 모바일(<=767px) 2열 규칙과 달라, 같이 쓰면 !important 우선순위 때문에
           // 모바일 2열이 항상 이겨야 할 규칙에 절대 도달하지 못한다(base.css 참고).
           <div className="rgrid-institutions" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
-            {dashboardInstitutions.map((inst) => (
-              <div key={inst.key} style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 18 }}>
+            {dashboardInstitutions.map((institution) => (
+              <div key={institution.key} style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 18 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>
-                  <BankIcon tokenKey={inst.tokenKey} size={30} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-mid)' }}>{inst.name}</span>
+                  <BankIcon tokenKey={institution.tokenKey} size={30} />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-mid)' }}>{institution.name}</span>
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-.02em' }}>
-                  {inst.amountFmt}
+                  {institution.amountText}
                   <span style={{ fontSize: 12, color: 'var(--text-weak)' }}>원</span>
                 </div>
               </div>

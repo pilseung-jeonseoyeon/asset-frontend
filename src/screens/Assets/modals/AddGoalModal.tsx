@@ -15,7 +15,7 @@ import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker
 import { useAppState } from '../../../state/AppStateContext'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { formatNumber, parseAmount } from '../../../utils/format'
-import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate, yearEndISODate } from '../../../utils/date'
+import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate, yearEndISODate } from '../../../utils/date'
 import { useGetGoal, usePutGoal } from '@/services/goal'
 import { useGetMonthlySummaries } from '@/services/transaction'
 import type { UpsertGoalRequest } from '@/services/goal'
@@ -29,7 +29,7 @@ function moneyInputChange(setter: (n: number) => void) {
 
 export function AddGoalModal() {
   const { state, setState } = useAppState()
-  const isOpen = state.modalOpen === 'addGoal'
+  const isOpen = state.openModal === 'addGoal'
 
   const goalQuery = useGetGoal({}, { enabled: isOpen })
   const { goal, isUnset } = goalQuery
@@ -57,7 +57,7 @@ export function AddGoalModal() {
   // 자정 무렵에도 항상 오늘 기준 값을 쓴다 — 모달을 열어둔 채 자정을 넘기는 경우는 고려하지 않는다.
   const defaultGoalTargetDate = yearEndISODate()
   const goalTargetDateForDisplay = goal?.targetDate ?? defaultGoalTargetDate
-  const ddGoalDate = useDatePicker('goal', isoDateToDisplay(goalTargetDateForDisplay), isoDateToNav(goalTargetDateForDisplay))
+  const goalDateDropdown = useDatePicker('goal', isoDateToDisplay(goalTargetDateForDisplay), isoDateToViewingMonth(goalTargetDateForDisplay))
 
   // 폼 초기값 채우기(예외적으로 허용 — docs/state-management.md "서버 데이터를 AppState로 복사하지
   // 말 것. 단, 폼 초기값을 채우는 것은 예외"). 렌더 도중 setState를 부르면 안 되므로 커밋 이후
@@ -74,7 +74,7 @@ export function AddGoalModal() {
       if (monthlySummaryQuery.isPending) return
       setTargetAmount(0)
       setMonthlyIncome(suggestedMonthlyIncome)
-      // 목표 시점도 표시 중인 기본값(올해 12/31)을 dpPicked에 실제로 채워 넣는다 — 위 ddGoalDate의
+      // 목표 시점도 표시 중인 기본값(올해 12/31)을 dpPicked에 실제로 채워 넣는다 — 위 goalDateDropdown의
       // defaultDisplay는 화면 표시용일 뿐이라, 사용자가 달력을 건드리지 않고 그대로 저장을 누르면
       // handleSave가 읽는 datePickerPicked['goal']이 비어 "목표 시점을 선택해주세요" 오류로 이어진다.
       const [y, m, d] = defaultGoalTargetDate.split('-').map(Number)
@@ -100,10 +100,10 @@ export function AddGoalModal() {
 
   const closeGoalModal = () => {
     setState((prev) => ({
-      modalOpen: prev.addGoalReturnTo,
+      openModal: prev.addGoalReturnTo,
       addGoalReturnTo: null,
       datePickerPicked: { ...prev.datePickerPicked, goal: undefined },
-      datePickerNav: { ...prev.datePickerNav, goal: undefined },
+      datePickerViewingMonth: { ...prev.datePickerViewingMonth, goal: undefined },
       openDropdown: null,
     }))
     // 이 모달은 AppShell에 항상 마운트되어 있어 닫아도 언마운트되지 않는다.
@@ -189,7 +189,7 @@ export function AddGoalModal() {
           </div>
           <div style={{ position: 'relative' }}>
             <div style={LABEL_STYLE}>목표 시점</div>
-            <DatePicker dp={ddGoalDate} />
+            <DatePicker dp={goalDateDropdown} />
             {/* 바로 아래 '월평균 수입'과 똑같이 시스템이 채운 값인데 안내가 없으면, 사용자가 직접 고른
                 날짜로 착각한 채 저장한다. 목표 시점은 '월 필요 저축액' 계산에 그대로 들어가는 값이라
                 근거까지 함께 알린다. 이미 저장된 목표를 여는 경우(!isUnset)는 서버 값이므로 숨긴다. */}

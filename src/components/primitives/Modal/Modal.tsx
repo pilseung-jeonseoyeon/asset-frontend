@@ -333,7 +333,6 @@ export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalPro
 }
 
 // 모달 공용 헤더: 아이콘 사각형 + 제목 + 닫기 버튼.
-// Confirmed against one instance; diff against each modal's own header before reuse (extraction discipline).
 interface ModalHeaderProps {
   icon: string
   title: string

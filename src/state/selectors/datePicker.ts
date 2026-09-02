@@ -1,15 +1,15 @@
-// 날짜 선택 팝오버의 계산 담당. AppState의 `datePickerNav`/`datePickerPicked`/`openDropdown`을 쓴다.
+// 날짜 선택 팝오버의 계산 담당. AppState의 `datePickerViewingMonth`/`datePickerPicked`/`openDropdown`을 쓴다.
 // `open` 플래그는 `dp_` 접두어로 이름공간을 나눈다(useDropdown이 쓰는 평범한 드롭다운 키와 구분).
 //
 // 연도 그리드(yearCells): 개설일·만기일처럼 오늘에서 수십 년 떨어진 날짜를 chevron으로 한 달씩
-// 옮겨 고르는 건 사실상 불가능하다. 연도 목록·연도 셀 강조·연도 선택 시 nav 갱신은 전부 계산이라
+// 옮겨 고르는 건 사실상 불가능하다. 연도 목록·연도 셀 강조·연도 선택 시 viewingMonth 갱신은 전부 계산이라
 // 이 파일(셀렉터)에 두고, '지금 어느 그리드를 보여줄지'라는 순수 UI 전환 상태만 DatePicker.tsx가
 // 로컬 useState로 갖는다('계산은 셀렉터, 렌더는 컴포넌트' 경계 유지).
 // 범위는 오늘 기준 -50년~+50년이고, maxISO가 있으면 그 연도를 상한으로 자른다(매매·환전일처럼
 // 미래가 성립하지 않는 폼). 강조는 실제로 고른 날짜(datePickerPicked)가 아니라 지금 보고 있는 달
-// (datePickerNav.y) 기준이다 — 아직 날짜를 고르지 않았어도 지금 탐색 중인 연도는 알려줘야 한다.
+// (datePickerViewingMonth.y) 기준이다 — 아직 날짜를 고르지 않았어도 지금 탐색 중인 연도는 알려줘야 한다.
 //
-// 월 그리드(monthCells): yearCells와 같은 패턴 — 12칸, 강조는 지금 보고 있는 달(datePickerNav.m)
+// 월 그리드(monthCells): yearCells와 같은 패턴 — 12칸, 강조는 지금 보고 있는 달(datePickerViewingMonth.m)
 // 기준, maxISO가 속한 연도를 보고 있으면 그 이후 달은 날짜 셀의 future 처리와 같은 방식으로
 // 비활성이다. 헤더 라벨도 '2026년 8월' 하나가 아니라 yearLabel('2026년')·monthOnlyLabel('8월')
 // 둘로 나눠 각각 버튼이 된다.
@@ -23,7 +23,7 @@ import type { CSSProperties } from 'react'
 import { useAppState } from '../AppStateContext'
 import { DATE_PICKER_MONTH_NAMES, daysInMonth, firstWeekday } from '../../utils/date'
 
-interface DateNav {
+interface ViewingMonth {
   y: number
   m: number
 }
@@ -36,9 +36,9 @@ interface DateCell {
 
 interface YearCell {
   y: number
-  /** 지금 탐색 중인 연도(datePickerNav.y)와 같은가 — 실제로 고른 날짜(datePickerPicked)가 아니라 nav 기준이다(파일
+  /** 지금 탐색 중인 연도(datePickerViewingMonth.y)와 같은가 — 실제로 고른 날짜(datePickerPicked)가 아니라 viewingMonth 기준이다(파일
    * 상단 주석 참고). 강조 스타일뿐 아니라 연도 그리드를 열 때 스크롤 위치를 맞추는 기준으로도 쓴다. */
-  isNavYear: boolean
+  isViewingYear: boolean
   cellStyle: CSSProperties
   pick: () => void
 }
@@ -46,8 +46,8 @@ interface YearCell {
 interface MonthCell {
   m: number
   label: string
-  /** 지금 보고 있는 달(datePickerNav.m)과 같은가 — yearCells.isNavYear와 같은 기준. */
-  isNavMonth: boolean
+  /** 지금 보고 있는 달(datePickerViewingMonth.m)과 같은가 — yearCells.isViewingYear와 같은 기준. */
+  isViewingMonth: boolean
   cellStyle: CSSProperties
   /** maxISO가 속한 연도를 보고 있을 때 그 이후 달(전부 미래)은 pick이 없다 — 날짜 셀의 future 처리와 동일. */
   pick?: () => void
@@ -75,7 +75,7 @@ export interface DatePickerState {
   /** 오늘 기준 -50년~+50년(maxISO가 있으면 그 연도가 상한) 연도 선택 그리드. 팝오버가 닫혀 있으면
    * 계산 자체를 건너뛰고 빈 배열이다(아래 훅 본문 주석 참고). */
   yearCells: YearCell[]
-  /** 오늘이 속한 연/월로 nav를 되돌린다(maxISO가 있으면 그 상한을 넘지 않게 clamp). 연도 그리드에서
+  /** 오늘이 속한 연/월로 viewingMonth를 되돌린다(maxISO가 있으면 그 상한을 넘지 않게 clamp). 연도 그리드에서
    * 수십 년 전/후로 이동한 뒤 다시 오늘로 돌아오려고 100여 개 목록을 스크롤하지 않아도 되게 한다. */
   goToday: () => void
 }
@@ -93,7 +93,7 @@ const HIDDEN_CELL_STYLE: CSSProperties = {
  * 아직 고른 날짜가 없을 때 달력이 처음 펼쳐지는 달. **상수를 박지 말 것** — 고정하면 시간이
  * 지날수록 모든 달력이 과거의 그 달에서 열린다. 항상 오늘이 속한 달을 계산해서 쓴다.
  */
-function currentNav(): DateNav {
+function viewingMonthOfToday(): ViewingMonth {
   const now = new Date()
   return { y: now.getFullYear(), m: now.getMonth() + 1 }
 }
@@ -106,31 +106,31 @@ function currentNav(): DateNav {
 export function useDatePicker(
   key: string,
   defaultDisplay: string,
-  defaultNav: DateNav = currentNav(),
+  defaultViewingMonth: ViewingMonth = viewingMonthOfToday(),
   maxISO?: string,
 ): DatePickerState {
   const { state, setState } = useAppState()
-  const datePickerNav = state.datePickerNav as Record<string, DateNav>
-  const datePickerPicked = state.datePickerPicked as Record<string, DateNav & { d: number }>
+  const datePickerViewingMonth = state.datePickerViewingMonth as Record<string, ViewingMonth>
+  const datePickerPicked = state.datePickerPicked as Record<string, ViewingMonth & { d: number }>
   const open = state.openDropdown === 'dp_' + key
 
-  const nav = datePickerNav[key] || defaultNav
+  const viewingMonth = datePickerViewingMonth[key] || defaultViewingMonth
   const picked = datePickerPicked[key]
   const value = picked ? `${picked.y}.${String(picked.m).padStart(2, '0')}.${String(picked.d).padStart(2, '0')}` : defaultDisplay
 
   const [maxY, maxM, maxD] = maxISO ? maxISO.split('-').map(Number) : [null, null, null]
-  const isMonthPastMax = maxY !== null && maxM !== null && (nav.y > maxY || (nav.y === maxY && nav.m > maxM))
+  const isMonthPastMax = maxY !== null && maxM !== null && (viewingMonth.y > maxY || (viewingMonth.y === maxY && viewingMonth.m > maxM))
 
-  const dim = daysInMonth(nav.y, nav.m)
-  const startDow = firstWeekday(nav.y, nav.m)
+  const dim = daysInMonth(viewingMonth.y, viewingMonth.m)
+  const startDow = firstWeekday(viewingMonth.y, viewingMonth.m)
   const cells: DateCell[] = []
   for (let i = 0; i < startDow; i++) {
     cells.push({ d: '', cellStyle: HIDDEN_CELL_STYLE })
   }
   for (let d = 1; d <= dim; d++) {
-    const isSel = !!(picked && picked.y === nav.y && picked.m === nav.m && picked.d === d)
+    const isSel = !!(picked && picked.y === viewingMonth.y && picked.m === viewingMonth.m && picked.d === d)
     const isFuture =
-      isMonthPastMax || (maxY !== null && maxM !== null && maxD !== null && nav.y === maxY && nav.m === maxM && d > maxD)
+      isMonthPastMax || (maxY !== null && maxM !== null && maxD !== null && viewingMonth.y === maxY && viewingMonth.m === maxM && d > maxD)
     cells.push({
       d,
       cellStyle: {
@@ -151,7 +151,7 @@ export function useDatePicker(
         ? undefined
         : () =>
             setState((prev) => ({
-              datePickerPicked: { ...prev.datePickerPicked, [key]: { y: nav.y, m: nav.m, d } },
+              datePickerPicked: { ...prev.datePickerPicked, [key]: { y: viewingMonth.y, m: viewingMonth.m, d } },
               openDropdown: null,
             })),
     })
@@ -162,20 +162,20 @@ export function useDatePicker(
   }
 
   // 이미 maxISO가 속한 달을 보고 있으면 그 다음 달은 전부 미래라 이동할 이유가 없다.
-  const nextDisabled = maxY !== null && maxM !== null && nav.y === maxY && nav.m === maxM
+  const nextDisabled = maxY !== null && maxM !== null && viewingMonth.y === maxY && viewingMonth.m === maxM
 
-  // 월 그리드: 지금 보고 있는 연도(nav.y) 안의 12달. maxISO가 속한 연도를 보고 있으면 그 이후 달은
+  // 월 그리드: 지금 보고 있는 연도(viewingMonth.y) 안의 12달. maxISO가 속한 연도를 보고 있으면 그 이후 달은
   // 전부 미래라 비활성(날짜 셀의 future 처리와 같은 스타일·같은 "pick 없음")이다. yearCells와 같은
   // 이유로 팝오버가 열려 있을 때만 계산한다.
   const monthCells: MonthCell[] = []
   if (open) {
     for (let m = 1; m <= 12; m++) {
-      const isNavMonth = m === nav.m
-      const isFuture = maxY !== null && maxM !== null && (nav.y > maxY || (nav.y === maxY && m > maxM))
+      const isViewingMonth = m === viewingMonth.m
+      const isFuture = maxY !== null && maxM !== null && (viewingMonth.y > maxY || (viewingMonth.y === maxY && m > maxM))
       monthCells.push({
         m,
         label: DATE_PICKER_MONTH_NAMES[m - 1],
-        isNavMonth,
+        isViewingMonth,
         cellStyle: {
           borderRadius: 8,
           border: 'none',
@@ -183,16 +183,16 @@ export function useDatePicker(
           fontFamily: 'inherit',
           fontSize: 12,
           fontWeight: 700,
-          background: isNavMonth ? 'var(--accent)' : 'transparent',
-          color: isFuture ? 'var(--text-weak)' : isNavMonth ? '#fff' : 'var(--text-strong)',
+          background: isViewingMonth ? 'var(--accent)' : 'transparent',
+          color: isFuture ? 'var(--text-weak)' : isViewingMonth ? '#fff' : 'var(--text-strong)',
           opacity: isFuture ? 0.45 : 1,
         },
         pick: isFuture
           ? undefined
           : () =>
               setState((prev) => {
-                const currentNav = (prev.datePickerNav as Record<string, DateNav>)[key] || defaultNav
-                return { datePickerNav: { ...prev.datePickerNav, [key]: { y: currentNav.y, m } } }
+                const latestViewingMonth = (prev.datePickerViewingMonth as Record<string, ViewingMonth>)[key] || defaultViewingMonth
+                return { datePickerViewingMonth: { ...prev.datePickerViewingMonth, [key]: { y: latestViewingMonth.y, m } } }
               }),
       })
     }
@@ -216,10 +216,10 @@ export function useDatePicker(
   const yearCells: YearCell[] = []
   if (open) {
     for (let y = minYear; y <= upperYear; y++) {
-      const isNavYear = y === nav.y
+      const isViewingYear = y === viewingMonth.y
       yearCells.push({
         y,
-        isNavYear,
+        isViewingYear,
         cellStyle: {
           padding: '8px 0',
           borderRadius: 8,
@@ -229,16 +229,16 @@ export function useDatePicker(
           fontSize: 12,
           fontWeight: 700,
           textAlign: 'center',
-          background: isNavYear ? 'var(--accent)' : 'transparent',
-          color: isNavYear ? '#fff' : 'var(--text-strong)',
+          background: isViewingYear ? 'var(--accent)' : 'transparent',
+          color: isViewingYear ? '#fff' : 'var(--text-strong)',
         },
         pick: () =>
           setState((prev) => {
-            const currentNav = (prev.datePickerNav as Record<string, DateNav>)[key] || defaultNav
+            const latestViewingMonth = (prev.datePickerViewingMonth as Record<string, ViewingMonth>)[key] || defaultViewingMonth
             // 고른 연도가 maxISO가 속한 연도인데 지금 보던 달이 그 이후 달이면, 전부 미래라 고를 수 있는
             // 날이 하나도 없는 달로 떨어뜨리지 않도록 maxISO가 속한 달로 같이 당겨온다.
-            const m = maxY !== null && maxM !== null && y === maxY && currentNav.m > maxM ? maxM : currentNav.m
-            return { datePickerNav: { ...prev.datePickerNav, [key]: { y, m } } }
+            const m = maxY !== null && maxM !== null && y === maxY && latestViewingMonth.m > maxM ? maxM : latestViewingMonth.m
+            return { datePickerViewingMonth: { ...prev.datePickerViewingMonth, [key]: { y, m } } }
           }),
       })
     }
@@ -248,23 +248,23 @@ export function useDatePicker(
     value,
     open,
     toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'dp_' + key ? null : 'dp_' + key })),
-    yearLabel: `${nav.y}년`,
-    monthOnlyLabel: DATE_PICKER_MONTH_NAMES[nav.m - 1],
+    yearLabel: `${viewingMonth.y}년`,
+    monthOnlyLabel: DATE_PICKER_MONTH_NAMES[viewingMonth.m - 1],
     prevMonth: () =>
       setState((prev) => {
-        const currentNav = (prev.datePickerNav as Record<string, DateNav>)[key] || defaultNav
-        const m = currentNav.m === 1 ? 12 : currentNav.m - 1
-        const y = currentNav.m === 1 ? currentNav.y - 1 : currentNav.y
-        return { datePickerNav: { ...prev.datePickerNav, [key]: { y, m } } }
+        const latestViewingMonth = (prev.datePickerViewingMonth as Record<string, ViewingMonth>)[key] || defaultViewingMonth
+        const m = latestViewingMonth.m === 1 ? 12 : latestViewingMonth.m - 1
+        const y = latestViewingMonth.m === 1 ? latestViewingMonth.y - 1 : latestViewingMonth.y
+        return { datePickerViewingMonth: { ...prev.datePickerViewingMonth, [key]: { y, m } } }
       }),
     nextMonth: nextDisabled
       ? () => {}
       : () =>
           setState((prev) => {
-            const currentNav = (prev.datePickerNav as Record<string, DateNav>)[key] || defaultNav
-            const m = currentNav.m === 12 ? 1 : currentNav.m + 1
-            const y = currentNav.m === 12 ? currentNav.y + 1 : currentNav.y
-            return { datePickerNav: { ...prev.datePickerNav, [key]: { y, m } } }
+            const latestViewingMonth = (prev.datePickerViewingMonth as Record<string, ViewingMonth>)[key] || defaultViewingMonth
+            const m = latestViewingMonth.m === 12 ? 1 : latestViewingMonth.m + 1
+            const y = latestViewingMonth.m === 12 ? latestViewingMonth.y + 1 : latestViewingMonth.y
+            return { datePickerViewingMonth: { ...prev.datePickerViewingMonth, [key]: { y, m } } }
           }),
     nextDisabled,
     cells,
@@ -276,7 +276,7 @@ export function useDatePicker(
         // 없지만(오늘 자체가 상한 근거), 방어적으로 동일한 규칙을 적용해둔다.
         const y = maxY !== null && todayY > maxY ? maxY : todayY
         const m = maxY !== null && maxM !== null && y === maxY && todayM > maxM ? maxM : todayM
-        return { datePickerNav: { ...prev.datePickerNav, [key]: { y, m } } }
+        return { datePickerViewingMonth: { ...prev.datePickerViewingMonth, [key]: { y, m } } }
       }),
   }
 }

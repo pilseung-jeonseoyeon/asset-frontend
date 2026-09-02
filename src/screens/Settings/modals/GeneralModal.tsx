@@ -11,7 +11,7 @@
 // 된다. 프론트는 환율을 직접 다루지 않는다(CLAUDE.md).
 //
 // 모바일(<=767px): 라이트/다크/시스템 토글은 데스크톱 패딩(~24px)이 docs/mobile.md §5의 44px 터치
-// 타깃에 못 미쳐 모바일 변형만 세로로 키운다(데스크톱 패딩은 그대로) — themeBtn 참고.
+// 타깃에 못 미쳐 모바일 변형만 세로로 키운다(데스크톱 패딩은 그대로) — themeButton 참고.
 
 import type { CSSProperties } from 'react'
 import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
@@ -23,7 +23,7 @@ import { useGetUserSettings, usePatchUserSettings } from '@/services/user'
 import type { ThemeSetting } from '../../../utils/theme'
 import type { Currency } from '@/services/common.type'
 
-function themeBtn(active: boolean, isMobile: boolean, disabled: boolean): CSSProperties {
+function themeButton(active: boolean, isMobile: boolean, disabled: boolean): CSSProperties {
   return {
     fontSize: 11.5, fontWeight: 700,
     padding: isMobile ? '11px 10px' : '5px 10px',
@@ -69,7 +69,7 @@ export function GeneralModal() {
   const closeModal = useCloseModal()
   const isMobile = useIsMobile()
 
-  const isOpen = state.modalOpen === 'general'
+  const isOpen = state.openModal === 'general'
   const {
     data: settingsData,
     isPending: isSettingsPending,
@@ -133,9 +133,9 @@ export function GeneralModal() {
             {patchTheme.error && <div style={ERROR_STYLE}>{patchTheme.error.message}</div>}
           </div>
           <div style={{ display: 'flex', background: 'var(--track)', borderRadius: 8, padding: 3, gap: 2 }}>
-            <button disabled={themeDisabled} onClick={() => pickTheme('light')} style={themeBtn(state.theme === 'light', isMobile, themeDisabled)}>라이트</button>
-            <button disabled={themeDisabled} onClick={() => pickTheme('dark')} style={themeBtn(state.theme === 'dark', isMobile, themeDisabled)}>다크</button>
-            <button disabled={themeDisabled} onClick={() => pickTheme('system')} style={themeBtn(state.theme === 'system', isMobile, themeDisabled)}>시스템</button>
+            <button disabled={themeDisabled} onClick={() => pickTheme('light')} style={themeButton(state.theme === 'light', isMobile, themeDisabled)}>라이트</button>
+            <button disabled={themeDisabled} onClick={() => pickTheme('dark')} style={themeButton(state.theme === 'dark', isMobile, themeDisabled)}>다크</button>
+            <button disabled={themeDisabled} onClick={() => pickTheme('system')} style={themeButton(state.theme === 'system', isMobile, themeDisabled)}>시스템</button>
           </div>
         </div>
         <div style={ROW_STYLE}>

@@ -40,9 +40,9 @@ import { Modal } from '../primitives/Modal/Modal'
 
 interface Props {
   children: ReactNode
-  // 크래시한 모달을 "닫힘"으로 되돌리는 AppState 패치. 대부분의 모달은 `state.modalOpen`으로
-  // 열림을 판단하므로 `() => setState({ modalOpen: null, openDropdown: null })`이면 충분하지만,
-  // assetClassDetail/accountDetail/reportOpen처럼 전용 필드로 열림을 판단하는 모달은 호출부(AuthenticatedApp)
+  // 크래시한 모달을 "닫힘"으로 되돌리는 AppState 패치. 대부분의 모달은 `state.openModal`으로
+  // 열림을 판단하므로 `() => setState({ openModal: null, openDropdown: null })`이면 충분하지만,
+  // assetClassDetail/accountDetailId/reportOpen처럼 전용 필드로 열림을 판단하는 모달은 호출부(AuthenticatedApp)
   // 가 그 필드를 대신 넘긴다. 어떤 필드를 닫든 openDropdown도 함께 지워야 한다 — 크래시 시점에 그
   // 모달 안의 드롭다운이 열려 있었다면(state.openDropdown !== null) AuthenticatedApp의 전역 클릭
   // 캐처(z-index 70, 화면 전체를 덮는 스크림)가 닫히지 않고 남아 앱 전체가 클릭 먹통이 된다.

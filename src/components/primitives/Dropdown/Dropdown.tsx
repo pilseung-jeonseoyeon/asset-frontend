@@ -10,7 +10,7 @@
 // 클리핑을 통째로 벗어나 모달 밖으로 넘쳐 떠 있을 수 있다. 폭은 DatePicker(고정 240px)와 달리
 // **트리거 자신의 폭**을 그대로 쓴다 — 기존 데스크톱 스타일이 left:0/right:0으로 필드 폭에
 // 맞춰져 있었으므로 그 겉모습을 유지하는 값이다. 오른쪽 뷰포트 밖으로 나가지 않게 left는 클램프한다.
-// 측정 전(anchor.rect === undefined, dd.open이 막 켜진 첫 렌더)에는 원래의 position:absolute 배치가
+// 측정 전(anchor.rect === undefined, dropdown.open이 막 켜진 첫 렌더)에는 원래의 position:absolute 배치가
 // 폴백으로 남아 팝오버가 스타일 없이 그려지지 않는다.
 //
 // 열림 방향(openAbove)은 패널의 실측 높이(panelRef.scrollHeight를 maxHeight로 clamp한 값)를
@@ -22,7 +22,7 @@
 // key는 o.id가 있으면 그걸, 없으면 o.name으로 폴백한다(계좌처럼 이름이 겹칠 수 있는 목록에서
 // o.name만 쓰면 React key가 충돌한다).
 //
-// 렌더 분기는 옵션 하나 단위가 아니라 **드롭다운 전체(dd.options) 단위**다 — meta/leading을 쓰는
+// 렌더 분기는 옵션 하나 단위가 아니라 **드롭다운 전체(dropdown.options) 단위**다 — meta/leading을 쓰는
 // 옵션이 하나도 없는 목록(가계부 분류·종목·기관·계좌·환전 등)은 display:'block'인 예전 렌더를
 // 그대로 쓴다(줄바꿈 허용, ellipsis 없음). o.name span에 항상 ellipsis를 걸면 '배달음식/야식'처럼
 // 자유 입력 옵션명이 있는 목록에서 줄바꿈되던 이름이 전부 잘린다. 옵션 하나라도 meta/leading을
@@ -44,13 +44,13 @@ import { POPOVER_VIEWPORT_MARGIN, usePopoverAnchor } from '../usePopoverAnchor'
 const LEADING_SLOT_WIDTH = 28
 
 interface DropdownProps {
-  dd: DropdownState
+  dropdown: DropdownState
   maxHeight?: number
   icon?: string
   footer?: ReactNode
 }
 
-export function Dropdown({ dd, maxHeight = 200, icon = 'expand_more', footer }: DropdownProps) {
+export function Dropdown({ dropdown, maxHeight = 200, icon = 'expand_more', footer }: DropdownProps) {
   const isMobile = useIsMobile()
   const panelRef = useRef<HTMLDivElement>(null)
   // 패널의 실측 높이. scrollHeight는 overflow로 잘려 있어도 잘리기 전 전체 높이를 돌려주므로, 아직
@@ -59,16 +59,16 @@ export function Dropdown({ dd, maxHeight = 200, icon = 'expand_more', footer }: 
   // (옵션 목록이 바뀌어 있을 수 있음) 새로 재기 위해 리셋한다.
   const [naturalHeight, setNaturalHeight] = useState<number | undefined>(undefined)
   useLayoutEffect(() => {
-    if (!dd.open) {
+    if (!dropdown.open) {
       setNaturalHeight(undefined)
       return
     }
     const el = panelRef.current
     if (el) setNaturalHeight(Math.min(el.scrollHeight, maxHeight))
-  }, [dd.open, dd.options.length, isMobile, maxHeight])
+  }, [dropdown.open, dropdown.options.length, isMobile, maxHeight])
 
-  // 모바일·데스크톱 둘 다 position:fixed 앵커링이 필요해 dd.open만으로 활성화한다(위 헤더 주석 참고).
-  const anchor = usePopoverAnchor(dd.open, naturalHeight)
+  // 모바일·데스크톱 둘 다 position:fixed 앵커링이 필요해 dropdown.open만으로 활성화한다(위 헤더 주석 참고).
+  const anchor = usePopoverAnchor(dropdown.open, naturalHeight)
   const panelMaxHeight = anchor.maxHeight !== undefined ? Math.min(maxHeight, anchor.maxHeight) : maxHeight
   // 데스크톱: 트리거의 화면 좌표에 트리거와 같은 폭으로 앵커링하되, 오른쪽 뷰포트 밖으로 넘치지 않게
   // 클램프한다. top/bottom은 anchor.style(모바일 풀블리드용)이 이미 같은 GAP 공식으로 계산해둔 값을
@@ -86,26 +86,26 @@ export function Dropdown({ dd, maxHeight = 200, icon = 'expand_more', footer }: 
         overflowY: 'auto' as const,
       }
     : undefined
-  // 목록 전체(dd.options) 단위 분기 — 위 헤더 주석 참고.
-  const hasExtra = dd.options.some((o) => o.meta || o.leading)
-  const hasLeading = dd.options.some((o) => o.leading)
+  // 목록 전체(dropdown.options) 단위 분기 — 위 헤더 주석 참고.
+  const hasExtra = dropdown.options.some((o) => o.meta || o.leading)
+  const hasLeading = dropdown.options.some((o) => o.leading)
 
   return (
     <>
-      {/* minWidth:0 3곳(트리거 flex 컨테이너 + 아래 span) — 계좌 드롭다운처럼 dd.value가 "기관명 ·
+      {/* minWidth:0 3곳(트리거 flex 컨테이너 + 아래 span) — 계좌 드롭다운처럼 dropdown.value가 "기관명 ·
           계좌명"으로 길어질 수 있는 호출부가 좁은 flex:1 열(QuickStockModal 계좌/매수일 반반)에 있으면,
           minWidth:0이 없는 flex item은 내용 크기 밑으로 줄어들지 않아 두 줄로 꺾여 옆 필드보다 트리거가
           커진다. ellipsis로 자르려면 컨테이너부터 span까지 min-width 체인을 0으로 열어줘야
-          한다 — dd.value가 짧은 기존 드롭다운은 애초에 줄바꿈될 만큼 길지 않아 겉모습이 그대로다. */}
+          한다 — dropdown.value가 짧은 기존 드롭다운은 애초에 줄바꿈될 만큼 길지 않아 겉모습이 그대로다. */}
       <div
         ref={anchor.anchorRef}
-        onClick={dd.toggle}
+        onClick={dropdown.toggle}
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '0.5px solid var(--border)', borderRadius: 10, padding: '13px 16px', cursor: 'pointer', minWidth: 0 }}
       >
-        <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dd.value}</span>
+        <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dropdown.value}</span>
         <Icon name={icon} size={20} color="var(--text-weak)" style={{ flex: 'none' }} />
       </div>
-      {dd.open && (
+      {dropdown.open && (
         <div
           ref={panelRef}
           onClick={stopPropagation}
@@ -122,7 +122,7 @@ export function Dropdown({ dd, maxHeight = 200, icon = 'expand_more', footer }: 
           {/* meta/leading을 하나도 안 쓰는 목록은 예전 렌더(display:'block', 줄바꿈 허용)를 그대로
               쓰고, 하나라도 쓰는 목록만 새 2줄 레이아웃 + ellipsis + leading 스페이서를 적용한다
               (hasExtra/hasLeading은 위에서 목록 전체 기준으로 미리 계산해둔다). */}
-          {dd.options.map((o) =>
+          {dropdown.options.map((o) =>
             !hasExtra ? (
               <button
                 key={o.id ?? o.name}

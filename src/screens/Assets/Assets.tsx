@@ -10,7 +10,7 @@ import { Card } from '../../components/primitives/Card/Card'
 import { Treemap } from '../../components/primitives/Treemap/Treemap'
 import { useAppState } from '../../state/AppStateContext'
 import { useIsMobile } from '../../utils/useMediaQuery'
-import { buildAssetCats, buildLiquidityView, buildMapTiers, liquidityMonthsOfExpense, pickNearestMaturity } from '../../data/assetsView'
+import { buildAssetClassCards, buildLiquidityView, buildMapTiers, liquidityMonthsOfExpense, pickNearestMaturity } from '../../data/assetsView'
 import { useGetAccounts } from '@/services/account'
 import { useGetAssetDistributionByClass, useGetAssetLiquidity } from '@/services/asset'
 import { useGetPeriodSummary } from '@/services/transaction'
@@ -41,7 +41,7 @@ export function Assets() {
   const liquidity = useGetAssetLiquidity()
 
   const accounts = accountsQuery.data ?? []
-  const assetCats = buildAssetCats(distribution.groups, accounts)
+  const assetClassCards = buildAssetClassCards(distribution.groups, accounts)
   const mapBlocks = buildMapTiers(distribution.groups, (assetClass) => setState({ assetClassDetail: assetClass }))
   // 서버는 6개 자산군을 항상 고정 배열로 내려준다(계좌가 하나도 없어도 totalValueKrw:0인 빈 항목들이 옴).
   // groups.length만으로는 "데이터 없음"을 판별할 수 없어 합계 금액까지 함께 확인한다.
@@ -63,7 +63,7 @@ export function Assets() {
     ? liquidityMonthsOfExpense(liquidityView.liquidAmt, periodSummaryQuery.data?.expenseTotal ?? null)
     : null
 
-  const openAddAccount = () => setState({ quickAddOpen: false, modalOpen: 'addAccount' })
+  const openAddAccount = () => setState({ quickAddOpen: false, openModal: 'addAccount' })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -89,7 +89,7 @@ export function Assets() {
           <EmptyAccountsState onAdd={openAddAccount} />
         ) : (
           <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
-            {assetCats.map((ac) => (
+            {assetClassCards.map((ac) => (
               <button
                 key={ac.id}
                 className="dkblk-hov"
@@ -103,7 +103,7 @@ export function Assets() {
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-mid)' }}>{ac.name}</span>
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-.02em' }}>
-                  {ac.totalFmt}
+                  {ac.totalText}
                   <span style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 600 }}>원</span>
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-mid)', marginTop: 3 }}>계좌 {ac.count}개</div>
@@ -116,7 +116,7 @@ export function Assets() {
                 항목이 낄 자리가 없고, 서버 값만 그리는 게 이 저장소 규칙이다. */}
             <button
               className="dkblk-hov"
-              onClick={() => setState({ modalOpen: 'realEstateSoon' })}
+              onClick={() => setState({ openModal: 'realEstateSoon' })}
               style={{ textAlign: 'left', cursor: 'pointer', background: 'var(--fill-subtle)', border: '0.5px solid var(--border)', borderRadius: 10, padding: 18, fontFamily: 'inherit', color: 'var(--text-strong)' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>
@@ -179,8 +179,8 @@ export function Assets() {
           ) : (
             <>
               <div style={{ display: 'flex', height: 16, borderRadius: 8, overflow: 'hidden', background: 'var(--track)', marginTop: 18 }}>
-                <div style={{ width: `${liquidityView.liquidPct}%`, background: 'var(--accent)' }} />
-                <div style={{ width: `${liquidityView.lockedPct}%`, background: 'var(--ramp-4)' }} />
+                <div style={{ width: `${liquidityView.liquidPercent}%`, background: 'var(--accent)' }} />
+                <div style={{ width: `${liquidityView.lockedPercent}%`, background: 'var(--ramp-4)' }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 18, flex: 1, justifyContent: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--fill-subtle)', borderRadius: 10, padding: '14px 16px' }}>
@@ -190,8 +190,8 @@ export function Assets() {
                     <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 2 }}>파킹통장 등</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>{liquidityView.liquidPct}%</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 2 }}>{liquidityView.liquidAmtFmt}원</div>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{liquidityView.liquidPercent}%</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 2 }}>{liquidityView.liquidAmountText}원</div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--fill-subtle)', borderRadius: 10, padding: '14px 16px' }}>
@@ -201,8 +201,8 @@ export function Assets() {
                     <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 2 }}>적금·락업 등</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>{liquidityView.lockedPct}%</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 2 }}>{liquidityView.lockedAmtFmt}원</div>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{liquidityView.lockedPercent}%</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 2 }}>{liquidityView.lockedAmountText}원</div>
                   </div>
                 </div>
               </div>

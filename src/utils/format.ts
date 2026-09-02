@@ -40,7 +40,7 @@ export function formatCurrencyAmount(n: number, currency: Currency): string {
  * 102,000,000 → "1억 200만"
  * 1,500,000,000,000 → "1조 5,000억"
  */
-export function formatKoreanAbbrev(n: number): string {
+export function formatKoreanUnits(n: number): string {
   const abs = Math.abs(Math.round(n))
   let jo = Math.floor(abs / 1_000_000_000_000)
   let eok = Math.floor((abs % 1_000_000_000_000) / 100_000_000)

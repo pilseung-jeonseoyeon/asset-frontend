@@ -36,7 +36,7 @@ const PAY_DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => `${i + 1}일`)
 
 export function FixedExpenseModal() {
   const { state, setState } = useAppState()
-  const isOpen = state.modalOpen === 'fixedExpense'
+  const isOpen = state.openModal === 'fixedExpense'
   const isEditing = state.editingRecurringId !== null
 
   const categoriesQuery = useGetCategories('EXPENSE', { enabled: isOpen })
@@ -47,13 +47,13 @@ export function FixedExpenseModal() {
   const deleteSub = useDeleteSubscription()
 
   const effectiveRecurAccountId = state.recurringAccountId ?? accounts[0]?.id ?? null
-  const ddRecurPayMethod = useEntityDropdown(
+  const recurringPaymentMethodDropdown = useEntityDropdown(
     'recurPayMethod', accounts, (a) => a.id, (a) => a.name,
     effectiveRecurAccountId, (id) => setState({ recurringAccountId: id }),
   )
   const recurDateDefault = isoDateToDisplay(toISODate(new Date()))
   const [recurNavY, recurNavM] = recurDateDefault.split('.').map(Number)
-  const ddRecurDate = useDatePicker('recur', recurDateDefault, { y: recurNavY, m: recurNavM })
+  const recurringDateDropdown = useDatePicker('recur', recurDateDefault, { y: recurNavY, m: recurNavM })
 
   const [nameInvalid, setNameInvalid] = useState(false)
   const [amountInvalid, setAmountInvalid] = useState(false)
@@ -75,26 +75,26 @@ export function FixedExpenseModal() {
   // "필수값 누락"으로 거부한다 — 화면에 보이는 값을 실제 제출값으로도 채운다.
   const submitSubcategoryId = state.recurringSubcategoryId ?? effectiveSubcategory?.id ?? null
 
-  const ddRecurCatMajor: DropdownState = {
+  const recurringMajorCategoryDropdown: DropdownState = {
     value: effectiveCategory?.name ?? '',
-    open: state.openDropdown === 'recurCatMajor',
-    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'recurCatMajor' ? null : 'recurCatMajor' })),
+    open: state.openDropdown === 'recurringMajorCategory',
+    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'recurringMajorCategory' ? null : 'recurringMajorCategory' })),
     options: categories.map((c) => ({
       name: c.name,
       pick: () => setState({ recurringSubcategoryId: c.subcategories[0]?.id ?? null, openDropdown: null }),
     })),
   }
-  const ddRecurCatSub: DropdownState = {
+  const recurringSubcategoryDropdown: DropdownState = {
     value: effectiveSubcategory?.name ?? '',
-    open: state.openDropdown === 'recurCatSub',
-    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'recurCatSub' ? null : 'recurCatSub' })),
+    open: state.openDropdown === 'recurringSubcategory',
+    toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'recurringSubcategory' ? null : 'recurringSubcategory' })),
     options: subOptions.map((s) => ({
       name: s.name,
       pick: () => setState({ recurringSubcategoryId: s.id, openDropdown: null }),
     })),
   }
   const recurPayDayDisplay = state.recurringPaymentDay || '25일'
-  const ddRecurPayDay: DropdownState = {
+  const recurringPaymentDayDropdown: DropdownState = {
     value: recurPayDayDisplay,
     open: state.openDropdown === 'recurringPaymentDay',
     toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'recurringPaymentDay' ? null : 'recurringPaymentDay' })),
@@ -111,7 +111,7 @@ export function FixedExpenseModal() {
 
   const resetAndClose = () => {
     setState((prev) => ({
-      modalOpen: null,
+      openModal: null,
       editingRecurringId: null,
       recurringName: '',
       recurringAmount: 0,
@@ -120,7 +120,7 @@ export function FixedExpenseModal() {
       recurringPaymentDay: '25일',
       datePickerPicked: { ...prev.datePickerPicked, recur: undefined },
       // dpNav도 함께 지운다 — 안 지우면 지난 세션에 넘겨둔 달이 남아 다음에 열 때 엉뚱한 달이 펼쳐진다.
-      datePickerNav: { ...prev.datePickerNav, recur: undefined },
+      datePickerViewingMonth: { ...prev.datePickerViewingMonth, recur: undefined },
       openDropdown: null,
     }))
     // 이 모달은 AppShell에 항상 마운트되어 있어 닫아도 언마운트되지 않는다. 로컬 확인/검증 상태와
@@ -271,10 +271,10 @@ export function FixedExpenseModal() {
           ) : (
             <div style={{ display: 'flex', gap: 14 }}>
               <div style={{ flex: 1, position: 'relative' }}>
-                <Dropdown dd={ddRecurCatMajor} maxHeight={200} />
+                <Dropdown dropdown={recurringMajorCategoryDropdown} maxHeight={200} />
               </div>
               <div style={{ flex: 1, position: 'relative' }}>
-                <Dropdown dd={ddRecurCatSub} maxHeight={200} />
+                <Dropdown dropdown={recurringSubcategoryDropdown} maxHeight={200} />
               </div>
             </div>
           )}
@@ -284,7 +284,7 @@ export function FixedExpenseModal() {
         <div>
           <div style={LABEL_STYLE}>결제일</div>
           <div style={{ position: 'relative' }}>
-            <Dropdown dd={ddRecurPayDay} maxHeight={200} />
+            <Dropdown dropdown={recurringPaymentDayDropdown} maxHeight={200} />
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>
             매월 반복돼요(주·년 단위는 아직 지원하지 않아요).
@@ -301,7 +301,7 @@ export function FixedExpenseModal() {
         {!isEditing && (
           <div style={{ position: 'relative' }}>
             <div style={LABEL_STYLE}>시작 날짜 (선택)</div>
-            <DatePicker dp={ddRecurDate} />
+            <DatePicker dp={recurringDateDropdown} />
           </div>
         )}
 
@@ -312,7 +312,7 @@ export function FixedExpenseModal() {
               <span style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>등록된 계좌가 없어요</span>
               <button
                 className="mini-hov"
-                onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'fixedExpense', openDropdown: null })}
+                onClick={() => setState({ openModal: 'addAccount', addAccountReturnTo: 'fixedExpense', openDropdown: null })}
                 style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 8, border: 'none', background: 'transparent', fontSize: 12, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
               >
                 <Icon name="add" size={14} />
@@ -321,14 +321,14 @@ export function FixedExpenseModal() {
             </div>
           ) : (
             <Dropdown
-              dd={ddRecurPayMethod}
+              dropdown={recurringPaymentMethodDropdown}
               maxHeight={220}
               footer={
                 <>
                   <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />
                   <button
                     className="mini-hov"
-                    onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'fixedExpense', openDropdown: null })}
+                    onClick={() => setState({ openModal: 'addAccount', addAccountReturnTo: 'fixedExpense', openDropdown: null })}
                     style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 8, border: 'none', background: 'transparent', fontSize: 12.5, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
                   >
                     <Icon name="add" size={15} />

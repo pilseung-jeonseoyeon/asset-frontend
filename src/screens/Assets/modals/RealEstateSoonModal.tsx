@@ -17,10 +17,10 @@ import { useAppState } from '../../../state/AppStateContext'
 
 export function RealEstateSoonModal() {
   const { state, setState } = useAppState()
-  const isOpen = state.modalOpen === 'realEstateSoon'
+  const isOpen = state.openModal === 'realEstateSoon'
 
   // 다른 모달과 같은 관례로 openDropdown도 함께 지운다(AuthenticatedApp 주석 참고).
-  const close = () => setState({ modalOpen: null, openDropdown: null })
+  const close = () => setState({ openModal: null, openDropdown: null })
 
   if (!isOpen) return null
 

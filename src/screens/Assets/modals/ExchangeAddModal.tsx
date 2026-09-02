@@ -22,7 +22,7 @@ import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { formatNumber, sanitizeDecimalInput } from '../../../utils/format'
-import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate } from '../../../utils/date'
+import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate } from '../../../utils/date'
 import { ApiError } from '@/services/api'
 import { useGetAccounts } from '@/services/account'
 import { usePostExchange } from '@/services/exchange'
@@ -42,7 +42,7 @@ function sideTabStyle(active: boolean): CSSProperties {
 export function ExchangeAddModal() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
-  const isOpen = state.modalOpen === 'exchangeAdd'
+  const isOpen = state.openModal === 'exchangeAdd'
   // 좁은 폭에서 Dropdown/DatePicker 팝오버가 옆 칼럼 밖으로 잘리는 것을 막기 위해 세로로 쌓는다.
   const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
 
@@ -57,7 +57,7 @@ export function ExchangeAddModal() {
   const accounts = accountsQuery.data ?? []
   const postExchange = usePostExchange()
 
-  const ddAccount = useEntityDropdown(
+  const accountDropdown = useEntityDropdown(
     'exchangeAcct',
     accounts,
     (a) => a.id,
@@ -68,19 +68,19 @@ export function ExchangeAddModal() {
       setAccountMissing(false)
     },
   )
-  const ddAccountDisplay = { ...ddAccount, value: ddAccount.value || '계좌를 선택하세요' }
+  const accountDisplayDropdown = { ...accountDropdown, value: accountDropdown.value || '계좌를 선택하세요' }
 
   const todayISO = toISODate(new Date())
   // 미래 환전은 성립하지 않는다(docs/backend-request.md 0-4-5) — 서버 검증이 없어 프론트에서 막는다.
-  const dpExchangeDate = useDatePicker('exchangeDate', isoDateToDisplay(todayISO), isoDateToNav(todayISO), todayISO)
+  const dpExchangeDate = useDatePicker('exchangeDate', isoDateToDisplay(todayISO), isoDateToViewingMonth(todayISO), todayISO)
 
   if (!isOpen) return null
 
   const resetAndClose = () => {
     setState((prev) => ({
-      modalOpen: null,
+      openModal: null,
       datePickerPicked: { ...prev.datePickerPicked, exchangeDate: undefined },
-      datePickerNav: { ...prev.datePickerNav, exchangeDate: undefined },
+      datePickerViewingMonth: { ...prev.datePickerViewingMonth, exchangeDate: undefined },
       openDropdown: null,
     }))
     setSide('BUY')
@@ -185,7 +185,7 @@ export function ExchangeAddModal() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>등록된 계좌가 없어요</div>
                 <button
-                  onClick={() => setState({ modalOpen: 'addAccount', addAccountReturnTo: 'exchangeAdd', openDropdown: null })}
+                  onClick={() => setState({ openModal: 'addAccount', addAccountReturnTo: 'exchangeAdd', openDropdown: null })}
                   className="mini-hov"
                   style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, padding: '9px 10px', borderRadius: 8, border: 'none', background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
                 >
@@ -194,7 +194,7 @@ export function ExchangeAddModal() {
                 </button>
               </div>
             ) : (
-              <Dropdown dd={ddAccountDisplay} maxHeight={180} />
+              <Dropdown dropdown={accountDisplayDropdown} maxHeight={180} />
             )}
             {accountMissing && !accountId && <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>계좌를 선택해주세요</div>}
           </div>

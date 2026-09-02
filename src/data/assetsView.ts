@@ -3,14 +3,14 @@
 //
 // 아래 buildMapTiers의 병합/티어/램프 규칙(5% '기타' 병합, 15%/6% 티어 경계, 램프 색 순서,
 // 상위 3개 흰 글자)은 디자인 시스템 규칙이다(ds_rules_v2_5 §1-6) — 임의로 바꾸지 말 것.
-// `pct`는 서버가 주지 않아 여기서 totalValueKrw / 합계로 계산하며 0으로 나누는 경우를 막는다.
+// `percent`는 서버가 주지 않아 여기서 totalValueKrw / 합계로 계산하며 0으로 나누는 경우를 막는다.
 // 자산군별 수익률은 어떤 API도 주지 않으므로 다루지 않는다.
 
 import type { TreemapBlock } from '../components/primitives/Treemap/Treemap'
 import { formatNumber, formatCurrencyAmount } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
 import { toPercentages } from './dashboardView'
-import type { LedgerTxRow } from './ledgerView'
+import type { LedgerTransactionRow } from './ledgerView'
 import type { TradeRowView } from './stocksView'
 import type { AccountDetailResponse, AccountResponse } from '@/services/account'
 import type { AssetClassGroup, LockedAccount } from '@/services/asset'
@@ -157,8 +157,8 @@ export const ASSET_CLASS_ORDER: AssetClass[] = [
 
 /** 목록에 없는 값(서버가 새 AssetClass를 추가한 경우)은 버리지 않고 맨 뒤로 보낸다. */
 function assetClassOrderIndex(assetClass: AssetClass): number {
-  const idx = ASSET_CLASS_ORDER.indexOf(assetClass)
-  return idx === -1 ? ASSET_CLASS_ORDER.length : idx
+  const index = ASSET_CLASS_ORDER.indexOf(assetClass)
+  return index === -1 ? ASSET_CLASS_ORDER.length : index
 }
 
 const RAMP = ['var(--ramp-1)', 'var(--ramp-2)', 'var(--ramp-3)', 'var(--ramp-4)', 'var(--ramp-5)', 'var(--ramp-6)']
@@ -169,22 +169,22 @@ function assetClassLabel(g: AssetClassGroup): string {
 
 // ---------- 자산 구성 카테고리 카드 ----------
 
-export interface AssetCatAccount {
+export interface AssetClassCardAccount {
   accountId: number
   name: string
-  inst: string
-  amt: number
-  amtFmt: string
+  institutionName: string
+  amount: number
+  amountText: string
 }
 
-export interface AssetCat {
+export interface AssetClassCard {
   id: AssetClass
   name: string
   icon: string
   color: string
   count: number
-  totalFmt: string
-  accounts: AssetCatAccount[]
+  totalText: string
+  accounts: AssetClassCardAccount[]
 }
 
 /** accountId → institutionName 조인. 계좌를 못 찾으면 빈 문자열(가짜 값 금지). */
@@ -192,7 +192,7 @@ function institutionNameOf(accountId: number, accounts: AccountResponse[]): stri
   return accounts.find((a) => a.id === accountId)?.institutionName ?? ''
 }
 
-export function buildAssetCats(groups: AssetClassGroup[], accounts: AccountResponse[]): AssetCat[] {
+export function buildAssetClassCards(groups: AssetClassGroup[], accounts: AccountResponse[]): AssetClassCard[] {
   return [...groups]
     .sort((a, b) => assetClassOrderIndex(a.assetClass) - assetClassOrderIndex(b.assetClass))
     .map((g) => {
@@ -203,16 +203,16 @@ export function buildAssetCats(groups: AssetClassGroup[], accounts: AccountRespo
         icon: meta.icon,
         color: meta.color,
         count: g.accounts.length,
-        totalFmt: formatNumber(g.totalValueKrw),
+        totalText: formatNumber(g.totalValueKrw),
         // 카테고리 내부 계좌는 금액 내림차순 — ①의 카테고리 순서 규칙과는 별개다.
         accounts: [...g.accounts]
           .sort((a, b) => b.valueKrw - a.valueKrw)
           .map((a) => ({
             accountId: a.accountId,
             name: a.accountName,
-            inst: institutionNameOf(a.accountId, accounts),
-            amt: a.valueKrw,
-            amtFmt: formatNumber(a.valueKrw),
+            institutionName: institutionNameOf(a.accountId, accounts),
+            amount: a.valueKrw,
+            amountText: formatNumber(a.valueKrw),
           })),
       }
     })
@@ -225,10 +225,10 @@ interface MapBlockSeed {
   assetClass?: AssetClass
   label: string
   icon: string
-  amt: number
-  pct: number
+  amount: number
+  percent: number
   isEtc?: boolean
-  subs?: string[]
+  subLabels?: string[]
 }
 
 export function buildMapTiers(
@@ -236,24 +236,24 @@ export function buildMapTiers(
   onOpen: (assetClass: AssetClass) => void,
 ): TreemapBlock[] {
   const total = groups.reduce((sum, g) => sum + g.totalValueKrw, 0)
-  const withPct = groups.map((g) => ({
+  const withPercent = groups.map((g) => ({
     assetClass: g.assetClass,
     label: assetClassLabel(g),
     icon: assetClassMetaOf(g.assetClass).icon,
-    amt: g.totalValueKrw,
-    // 서버가 pct를 내려주지 않아 여기서 계산한다. 전체 합이 0이면 0으로 나누기 방어.
-    pct: total > 0 ? (g.totalValueKrw / total) * 100 : 0,
+    amount: g.totalValueKrw,
+    // 서버가 percent를 내려주지 않아 여기서 계산한다. 전체 합이 0이면 0으로 나누기 방어.
+    percent: total > 0 ? (g.totalValueKrw / total) * 100 : 0,
   }))
 
   // 서버는 6분류를 값이 0인 것까지 항상 내려준다(카드는 "0원 · 계좌 0개"를 보여줘야 하므로 그게 맞다).
   // 하지만 맵에서는 0원 블록이 그릴 넓이가 없어, '기타'로 묶이면 툴팁 목록만 의미 없이 길어진다
   // (실기에서 "국내주식·해외주식·예적금·연금·기타"가 전부 0원인 채로 나열됐다). 맵에서만 걷어낸다.
-  const drawable = withPct.filter((b) => b.amt > 0)
-  const small = drawable.filter((b) => b.pct < 5)
+  const drawable = withPercent.filter((b) => b.amount > 0)
+  const small = drawable.filter((b) => b.percent < 5)
   // 5% 미만이 하나뿐이면 '기타'로 묶지 않는다 — 묶어봐야 한 항목짜리 익명 블록이 될 뿐이고,
   // 이름을 그대로 보여주는 편이 정확하다(묶음의 목적은 자잘한 여러 개를 합치는 것이다).
   const mergeSmall = small.length > 1
-  const main = mergeSmall ? drawable.filter((b) => b.pct >= 5) : drawable
+  const main = mergeSmall ? drawable.filter((b) => b.percent >= 5) : drawable
   const etcRaw = mergeSmall ? small : []
 
   const seeds: MapBlockSeed[] = main.map((b) => ({
@@ -261,32 +261,32 @@ export function buildMapTiers(
     assetClass: b.assetClass,
     label: b.label,
     icon: b.icon,
-    amt: b.amt,
-    pct: b.pct,
+    amount: b.amount,
+    percent: b.percent,
   }))
   if (etcRaw.length) {
     seeds.push({
       id: 'etc',
       label: '기타',
       icon: 'more_horiz',
-      amt: etcRaw.reduce((sum, b) => sum + b.amt, 0),
-      pct: etcRaw.reduce((sum, b) => sum + b.pct, 0),
+      amount: etcRaw.reduce((sum, b) => sum + b.amount, 0),
+      percent: etcRaw.reduce((sum, b) => sum + b.percent, 0),
       isEtc: true,
-      subs: etcRaw.map((b) => b.label),
+      subLabels: etcRaw.map((b) => b.label),
     })
   }
 
-  seeds.sort((a, b) => b.pct - a.pct)
+  seeds.sort((a, b) => b.percent - a.percent)
 
   return seeds.map((b, bi) => {
-    const tier = b.pct >= 15 ? 'full' : b.pct >= 6 ? 'medium' : 'icon'
+    const tier = b.percent >= 15 ? 'full' : b.percent >= 6 ? 'medium' : 'icon'
     return {
       id: b.id,
       label: b.label,
       icon: b.icon,
-      amtFmt: formatNumber(b.amt),
-      pct: Math.round(b.pct),
-      widthPct: b.pct,
+      amountText: formatNumber(b.amount),
+      percent: Math.round(b.percent),
+      widthPercent: b.percent,
       tint: RAMP[Math.min(bi, RAMP.length - 1)],
       fg: bi < 3 ? '#FFFFFF' : 'var(--text-strong)',
       accent: 'var(--text-strong)',
@@ -294,7 +294,7 @@ export function buildMapTiers(
       showIconOnly: tier === 'icon',
       cursor: b.isEtc ? 'default' : 'pointer',
       isEtc: b.isEtc,
-      subs: b.subs,
+      subLabels: b.subLabels,
       open: b.isEtc ? undefined : () => onOpen(b.assetClass as AssetClass),
     }
   })
@@ -303,12 +303,12 @@ export function buildMapTiers(
 // ---------- 유동성 뷰 ----------
 
 export interface LiquidityView {
-  liquidPct: number
-  lockedPct: number
+  liquidPercent: number
+  lockedPercent: number
   /** 원 단위 그대로 — liquidityMonthsOfExpense 등 추가 계산이 필요한 호출부용. */
   liquidAmt: number
-  liquidAmtFmt: string
-  lockedAmtFmt: string
+  liquidAmountText: string
+  lockedAmountText: string
 }
 
 /**
@@ -318,13 +318,13 @@ export interface LiquidityView {
 export function buildLiquidityView(liquidAccounts: { balance: number }[], lockedAccounts: { balance: number }[]): LiquidityView {
   const liquidSum = liquidAccounts.reduce((sum, a) => sum + a.balance, 0)
   const lockedSum = lockedAccounts.reduce((sum, a) => sum + a.balance, 0)
-  const [liquidPct, lockedPct] = toPercentages([liquidSum, lockedSum])
+  const [liquidPercent, lockedPercent] = toPercentages([liquidSum, lockedSum])
   return {
-    liquidPct,
-    lockedPct,
+    liquidPercent,
+    lockedPercent,
     liquidAmt: liquidSum,
-    liquidAmtFmt: formatNumber(liquidSum),
-    lockedAmtFmt: formatNumber(lockedSum),
+    liquidAmountText: formatNumber(liquidSum),
+    lockedAmountText: formatNumber(lockedSum),
   }
 }
 
@@ -480,7 +480,7 @@ export interface AccountActivityRow {
   key: string
   isoDate: string
   dateLabel: string
-  desc: string
+  description: string
   tag: string
   /** 통화 기호·단위까지 이미 붙은 최종 표기('700,000원' / '$1,101.75'). 호출부가 '원'을 덧붙이지 말 것 —
    * 해외 종목 매매는 달러라 '원'을 붙이면 틀린 금액이 된다. */
@@ -495,17 +495,17 @@ export interface AccountActivityRow {
 const TRADE_AMOUNT_COLOR = 'var(--text-strong)'
 
 export function buildAccountActivity(
-  txRows: LedgerTxRow[],
+  transactionRows: LedgerTransactionRow[],
   tradeRows: TradeRowView[],
   limit: number,
 ): AccountActivityRow[] {
-  const fromTx: AccountActivityRow[] = txRows.map((t) => ({
+  const fromTx: AccountActivityRow[] = transactionRows.map((t) => ({
     // key에 접두사를 붙인다 — 거래 id와 매매 id는 서로 다른 테이블이라 값이 겹칠 수 있고,
     // 겹치면 React가 두 줄을 같은 항목으로 보고 한 줄만 그린다.
     key: `tx-${t.id}`,
     isoDate: t.isoDate,
     dateLabel: t.dateLabel,
-    desc: t.desc,
+    description: t.description,
     tag: t.tag,
     amountText: `${t.amount}원`,
     amountColor: t.amountColor,
@@ -514,9 +514,9 @@ export function buildAccountActivity(
     key: `trade-${t.id}`,
     isoDate: t.isoDate,
     dateLabel: t.dateLabel,
-    desc: t.stockName,
+    description: t.stockName,
     tag: t.tag,
-    amountText: t.amountFmt,
+    amountText: t.amountText,
     amountColor: TRADE_AMOUNT_COLOR,
   }))
   return [...fromTx, ...fromTrade]

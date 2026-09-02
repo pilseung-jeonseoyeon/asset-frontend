@@ -23,7 +23,7 @@ import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { formatNumber, formatKrw, sanitizeDecimalInput } from '../../../utils/format'
-import { isoDateToDisplay, isoDateToNav, pickedToISODate, toISODate } from '../../../utils/date'
+import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate } from '../../../utils/date'
 import { ApiError } from '@/services/api'
 import { useGetAccounts } from '@/services/account'
 import { useDeleteExchange, useGetExchanges, usePutExchange } from '@/services/exchange'
@@ -49,7 +49,7 @@ function sideLabel(side: ForeignExchangeSide): string {
 export function ExchangeHistoryModal() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
-  const isOpen = state.modalOpen === 'exchangeHistory'
+  const isOpen = state.openModal === 'exchangeHistory'
   const editingId = state.editingExchangeId
   const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
 
@@ -81,7 +81,7 @@ export function ExchangeHistoryModal() {
   const dpExchangeDate = useDatePicker(
     'exchangeEditDate',
     isoDateToDisplay(editing?.exchangedAt ?? todayISO),
-    isoDateToNav(editing?.exchangedAt ?? null),
+    isoDateToViewingMonth(editing?.exchangedAt ?? null),
     todayISO,
   )
 
@@ -100,7 +100,7 @@ export function ExchangeHistoryModal() {
     setDeleteConfirmOpen(false)
     setState((prev) => ({
       datePickerPicked: { ...prev.datePickerPicked, exchangeEditDate: undefined },
-      datePickerNav: { ...prev.datePickerNav, exchangeEditDate: undefined },
+      datePickerViewingMonth: { ...prev.datePickerViewingMonth, exchangeEditDate: undefined },
     }))
     putReset()
     deleteReset()
@@ -110,10 +110,10 @@ export function ExchangeHistoryModal() {
 
   const closeModal = () => {
     setState((prev) => ({
-      modalOpen: null,
+      openModal: null,
       editingExchangeId: null,
       datePickerPicked: { ...prev.datePickerPicked, exchangeEditDate: undefined },
-      datePickerNav: { ...prev.datePickerNav, exchangeEditDate: undefined },
+      datePickerViewingMonth: { ...prev.datePickerViewingMonth, exchangeEditDate: undefined },
       openDropdown: null,
     }))
     setSide('BUY')
@@ -131,7 +131,7 @@ export function ExchangeHistoryModal() {
     setState((prev) => ({
       editingExchangeId: null,
       datePickerPicked: { ...prev.datePickerPicked, exchangeEditDate: undefined },
-      datePickerNav: { ...prev.datePickerNav, exchangeEditDate: undefined },
+      datePickerViewingMonth: { ...prev.datePickerViewingMonth, exchangeEditDate: undefined },
     }))
     setSyncedId(null)
     setAmountMissing(false)

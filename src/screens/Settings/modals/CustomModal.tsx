@@ -32,7 +32,7 @@ const MONTH_START_DAYS = Array.from({ length: 28 }, (_, i) => i + 1)
 export function CustomModal() {
   const { state, setState } = useAppState()
   const closeModal = useCloseModal()
-  const isOpen = state.modalOpen === 'custom'
+  const isOpen = state.openModal === 'custom'
   const { settings, data: settingsData, error: settingsError } = useGetUserSettings({ enabled: isOpen })
   const patchSettings = usePatchUserSettings()
   // GeneralModal.tsx와 같은 이유로 독립 인스턴스를 쓴다 — 월 시작일 저장과 D-Day 토글을 겹쳐서
@@ -62,7 +62,7 @@ export function CustomModal() {
 
   const goalRows = !isGoalUnset && goal ? buildAssetGoals(goal) : []
 
-  const ddMonthStart = {
+  const monthStartDropdown = {
     value: `${settings.monthStartDay}일`,
     open: state.openDropdown === 'monthStart',
     toggle: () => setState((prev) => ({ openDropdown: prev.openDropdown === 'monthStart' ? null : 'monthStart' })),
@@ -89,7 +89,7 @@ export function CustomModal() {
           </div>
           <button
             className="qbtn"
-            onClick={() => setState({ modalOpen: 'categorySettings' })}
+            onClick={() => setState({ openModal: 'categorySettings' })}
             style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '8px 13px', borderRadius: 10, border: 'none', background: 'var(--track)', color: 'var(--text-strong)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'transform .12s' }}
           >
             관리
@@ -113,18 +113,18 @@ export function CustomModal() {
           </div>
           <div style={{ position: 'relative' }}>
             <div
-              onClick={ddMonthStart.toggle}
+              onClick={monthStartDropdown.toggle}
               style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 700, color: 'var(--text-mid)', background: 'var(--track)', padding: '7px 12px', borderRadius: 8, cursor: 'pointer' }}
             >
-              {ddMonthStart.value}
+              {monthStartDropdown.value}
               <Icon name="expand_more" size={16} color="var(--text-weak)" />
             </div>
-            {ddMonthStart.open && (
+            {monthStartDropdown.open && (
               <div
                 onClick={(e) => e.stopPropagation()}
                 style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow-pop)', padding: 6, zIndex: 95, maxHeight: 200, overflow: 'auto', minWidth: 100 }}
               >
-                {ddMonthStart.options.map((o) => (
+                {monthStartDropdown.options.map((o) => (
                   <button
                     key={o.name}
                     className="mini-hov"
@@ -146,7 +146,7 @@ export function CustomModal() {
             </div>
             <button
               className="qbtn"
-              onClick={() => setState({ modalOpen: 'addGoal', addGoalReturnTo: 'custom' })}
+              onClick={() => setState({ openModal: 'addGoal', addGoalReturnTo: 'custom' })}
               style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'transform .12s' }}
             >
               <Icon name="edit" size={15} />
@@ -171,16 +171,16 @@ export function CustomModal() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                     <div style={{ fontSize: 12.5, fontWeight: 700 }}>{ag.name}</div>
                     {ag.hasProgressData && (
-                      <div style={{ fontSize: 12, fontWeight: 700, color: ag.color }}>{ag.pct}%</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: ag.color }}>{ag.percent}%</div>
                     )}
                   </div>
                   {ag.hasProgressData ? (
                     <>
                       <div style={{ height: 7, background: 'var(--track)', borderRadius: 4 }}>
-                        <div style={{ height: '100%', width: `${ag.barPct}%`, background: ag.color, borderRadius: 4 }} />
+                        <div style={{ height: '100%', width: `${ag.barPercent}%`, background: ag.color, borderRadius: 4 }} />
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>
-                        {ag.currentFmt} / {ag.targetFmt}원
+                        {ag.currentText} / {ag.targetText}원
                       </div>
                     </>
                   ) : null}

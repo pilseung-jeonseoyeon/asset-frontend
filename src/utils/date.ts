@@ -46,9 +46,9 @@ export function yearMonthLabel({ year, month }: YearMonthCursor): string {
 
 /** Date → 'YYYY-MM-DD' (서버 LocalDate 포맷). 로컬 타임존 기준이라 toISOString을 쓰지 않는다. */
 export function toISODate(d: Date): string {
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${mm}-${dd}`
+  const monthText = String(d.getMonth() + 1).padStart(2, '0')
+  const dayText = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${monthText}-${dayText}`
 }
 
 // --- DatePicker(state/selectors/datePicker.ts) ↔ 서버 LocalDate 변환 -------
@@ -65,8 +65,8 @@ export function isoDateToDisplay(iso: string): string {
   return iso.replaceAll('-', '.')
 }
 
-/** 'YYYY-MM-DD' → useDatePicker의 defaultNav({y,m}). 파싱 실패 시 undefined(훅 자체 기본값 사용). */
-export function isoDateToNav(iso: string | null): { y: number; m: number } | undefined {
+/** 'YYYY-MM-DD' → useDatePicker의 defaultViewingMonth({y,m}). 파싱 실패 시 undefined(훅 자체 기본값 사용). */
+export function isoDateToViewingMonth(iso: string | null): { y: number; m: number } | undefined {
   if (!iso) return undefined
   const [y, m] = iso.split('-').map(Number)
   if (!y || !m) return undefined
@@ -110,13 +110,13 @@ export function yearMonthOf(iso: string): YearMonthCursor {
  * 것과 같은 방식으로, 이 주의 목요일이 속한 달을 그 주의 "소속 달"로 본다(정산월이 아니라 달력월
  * 기준 — 위 절 설명 참고).
  */
-export function weekOwnerYearMonth(mondayIso: string): YearMonthCursor {
+export function monthOfWeek(mondayIso: string): YearMonthCursor {
   return yearMonthOf(addDays(mondayIso, 3))
 }
 
 /** 소속 달의 월요일 시작 달력 격자에서 이 주가 몇 번째 행(1-base)인지. */
 export function weekIndexInMonth(mondayIso: string): number {
-  const { year, month } = weekOwnerYearMonth(mondayIso)
+  const { year, month } = monthOfWeek(mondayIso)
   const startDow = firstWeekday(year, month)
   const firstRowMonday = addDays(`${year}-${String(month).padStart(2, '0')}-01`, -startDow)
   const diffDays = Math.round(
@@ -126,31 +126,31 @@ export function weekIndexInMonth(mondayIso: string): number {
 }
 
 /** 소속 달의 달력 격자 1행이 시작하는 월요일('YYYY-MM-DD'). weekIndexInMonth의 "몇 번째 행"
- * 계산 기준이며, 아래 firstOwnedWeekMonday의 내부 후보 계산에도 쓰인다. */
+ * 계산 기준이며, 아래 firstMondayBelongingToMonth의 내부 후보 계산에도 쓰인다. */
 export function firstMondayOfMonthGrid(year: number, month: number): string {
   const startDow = firstWeekday(year, month)
   return addDays(`${year}-${String(month).padStart(2, '0')}-01`, -startDow)
 }
 
 /**
- * (year, month)를 "소속 달"(weekOwnerYearMonth, 목요일 기준)로 갖는 가장 이른 주의 월요일.
+ * (year, month)를 "소속 달"(monthOfWeek, 목요일 기준)로 갖는 가장 이른 주의 월요일.
  *
  * 달력 격자 1행(firstMondayOfMonthGrid)은 그 달이 금·토·일에 시작하면 목요일이 전달에 걸려
  * "소속 달"이 실제로는 전달이 되어버린다(예: 2026년 2월은 일요일 시작 → 격자 1행 월요일은
  * 1월 26일이고, 그 주 목요일인 1월 29일은 1월 소속). switchToWeek(월간→주간 전환 시 기본 주
  * 선택)이 이 격자-1행 기준을 쓰면, 라벨/목록 제목/switchToMonth가 공통으로 쓰는 소속 달 기준
- * (weekOwnerYearMonth)과 서로 다른 답을 내 "2월 보다가 주간 전환 → 1월로 표시 → 다시 월간 전환
+ * (monthOfWeek)과 서로 다른 답을 내 "2월 보다가 주간 전환 → 1월로 표시 → 다시 월간 전환
  * → 1월로 이동"하는 왕복 불일치가 생긴다.
  *
- * 이를 막기 위해 "월간 → 주간 기본 주"도 반드시 weekOwnerYearMonth 기준으로 통일한다: 달의 1일이
+ * 이를 막기 위해 "월간 → 주간 기본 주"도 반드시 monthOfWeek 기준으로 통일한다: 달의 1일이
  * 속한 주가 이미 이 달 소속이면 그 주를, 아니면(1일이 금/토/일이라 그 주가 전달 소속이면) 다음
- * 주를 반환한다 — 이렇게 고르면 반환값의 weekOwnerYearMonth가 항상 (year, month)와 정확히
+ * 주를 반환한다 — 이렇게 고르면 반환값의 monthOfWeek가 항상 (year, month)와 정확히
  * 일치하므로 월간→주간→월간 왕복이 항상 제자리로 돌아온다.
  */
-export function firstOwnedWeekMonday(year: number, month: number): string {
+export function firstMondayBelongingToMonth(year: number, month: number): string {
   const day1 = `${year}-${String(month).padStart(2, '0')}-01`
   const candidate = mondayOf(day1)
-  const owner = weekOwnerYearMonth(candidate)
+  const owner = monthOfWeek(candidate)
   return owner.year === year && owner.month === month ? candidate : addDays(candidate, 7)
 }
 

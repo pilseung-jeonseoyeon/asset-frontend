@@ -17,7 +17,7 @@
 // 가상자산 현재 잔액 + 보유 코인(CRYPTO)
 // 연금·기타 현재 잔액
 // 이율·개설일·만기일 행은 DatePicker 팝오버가 잘리지 않도록 단독 전체 폭 행에 둔다. 그리고
-// resetAndClose에서 datePickerPicked/datePickerNav 키를 지운다 — 이 모달은 AppShell에 항상 마운트돼
+// resetAndClose에서 datePickerPicked/datePickerViewingMonth 키를 지운다 — 이 모달은 AppShell에 항상 마운트돼
 // 있어 닫아도 언마운트되지 않으므로, 안 지우면 다시 열었을 때 지난 날짜가 남는다.
 //
 // 보유 종목은 CreateAccountRequest.holdings로 **계좌와 한 번에** 전송한다. 서버가 각 줄을 등록일(KST)
@@ -77,7 +77,7 @@ import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
 import { formatNumber, parseAmount, sanitizeDecimalInput } from '../../../utils/format'
-import { isoDateToDisplay, isoDateToNav, pickedToISODate } from '../../../utils/date'
+import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate } from '../../../utils/date'
 import { ASSET_CLASS_META, ASSET_CLASS_ORDER, assetClassFormPreset, assetClassOfAccountType } from '../../../data/assetsView'
 import { describeQueryError } from '../../../data/ledgerView'
 import { AccountHoldingsField } from './AccountHoldingsField'
@@ -86,7 +86,7 @@ import { ConnectAccountView } from './ConnectAccountView'
 import { providerLabelsFor, providersFor } from '../../../data/connectionView'
 import { useGetInstitutions } from '@/services/institution'
 import { usePostAccount } from '@/services/account'
-import { isFxRateMissing } from '@/services/stock'
+import { isExchangeRateMissing } from '@/services/stock'
 import type { CreateAccountRequest } from '@/services/account'
 import type { AssetClass, Currency, Market } from '@/services/common.type'
 
@@ -163,7 +163,7 @@ const CONNECT_BANNER_STYLE: CSSProperties = {
 export function AddAccountModal() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
-  const isOpen = state.modalOpen === 'addAccount'
+  const isOpen = state.openModal === 'addAccount'
   const form = state.accountForm
   const institutionsQuery = useGetInstitutions({ enabled: isOpen })
   const institutions = institutionsQuery.data ?? []
@@ -193,7 +193,7 @@ export function AddAccountModal() {
   const institutionRef = useRef<HTMLDivElement>(null)
   const maturityRef = useRef<HTMLDivElement>(null)
 
-  const ddInstitution = useEntityDropdown(
+  const institutionDropdown = useEntityDropdown(
     'addAcctInst',
     institutions,
     (i) => i.id,
@@ -207,11 +207,11 @@ export function AddAccountModal() {
   )
   // 서버 기관 목록 뒤에 프론트가 직접 붙이는 '없음' 옵션 — 어느 기관에도 속하지 않는 자산용
   // (파일 상단 주석 참고). 서버에 존재하는 기관이 아니므로 id는 문자열 sentinel을 쓴다.
-  const ddInstitutionDisplay = {
-    ...ddInstitution,
-    value: institutionNone ? '없음' : ddInstitution.value || '금융기관을 선택하세요',
+  const institutionDisplayDropdown = {
+    ...institutionDropdown,
+    value: institutionNone ? '없음' : institutionDropdown.value || '금융기관을 선택하세요',
     options: [
-      ...ddInstitution.options,
+      ...institutionDropdown.options,
       {
         id: 'none',
         name: '없음',
@@ -229,12 +229,12 @@ export function AddAccountModal() {
   const dpOpened = useDatePicker(
     'addAccountOpened',
     form.openedAt ? isoDateToDisplay(form.openedAt) : '선택 안 함',
-    isoDateToNav(form.openedAt),
+    isoDateToViewingMonth(form.openedAt),
   )
   const dpMaturity = useDatePicker(
     'addAccountMaturity',
     form.maturityDate ? isoDateToDisplay(form.maturityDate) : '선택 안 함',
-    isoDateToNav(form.maturityDate),
+    isoDateToViewingMonth(form.maturityDate),
   )
 
   // 자산 유형 칩은 서버 값(type)에서 역산한다 — AssetCategoryModal이 프리셋을 미리 넣어준 채로 열려도
@@ -267,13 +267,13 @@ export function AddAccountModal() {
 
   const resetAndClose = () => {
     setState((prev) => ({
-      modalOpen: prev.addAccountReturnTo,
+      openModal: prev.addAccountReturnTo,
       addAccountReturnTo: null,
       accountForm: BLANK_ACCOUNT_FORM,
       // 날짜는 폼이 아니라 datePickerPicked/dpNav에 남는다 — 여기서 지우지 않으면 다음에 "계좌 추가"를 열었을
       // 때 지난 개설일·만기일이 그대로 보인다.
       datePickerPicked: { ...prev.datePickerPicked, addAccountOpened: undefined, addAccountMaturity: undefined },
-      datePickerNav: { ...prev.datePickerNav, addAccountOpened: undefined, addAccountMaturity: undefined },
+      datePickerViewingMonth: { ...prev.datePickerViewingMonth, addAccountOpened: undefined, addAccountMaturity: undefined },
       openDropdown: null,
       // 연동 서브뷰도 함께 접는다 — 남겨두면 다음에 "계좌 추가"를 열었을 때 계좌 폼이 아니라
       // 지난번 연동 화면이 그대로 뜬다(이 모달은 닫아도 언마운트되지 않는다).
@@ -312,7 +312,7 @@ export function AddAccountModal() {
         ? {}
         : {
             datePickerPicked: { ...prev.datePickerPicked, addAccountOpened: undefined, addAccountMaturity: undefined },
-            datePickerNav: { ...prev.datePickerNav, addAccountOpened: undefined, addAccountMaturity: undefined },
+            datePickerViewingMonth: { ...prev.datePickerViewingMonth, addAccountOpened: undefined, addAccountMaturity: undefined },
           }),
     }))
     // 종목은 시장(KR/US/CRYPTO)에 종속돼 있어 유형이 바뀌면 의미가 없다 — 아래 requestAssetClass가
@@ -388,7 +388,7 @@ export function AddAccountModal() {
               // 평단가는 종목 표시 통화 기준이다 — 해외(US)는 달러, 국내·코인은 원화. 한 계좌에
               // 국내·해외가 섞이므로 줄마다 단위가 다를 수 있다. AccountHoldingsField가 각 줄의
               // 시장에 맞는 단위로 입력받아 두므로 여기서 환산하지 않는다.
-              price: Number(h.avgPriceStr) || 0,
+              price: Number(h.averagePriceInput) || 0,
             })),
           }
         : {}),
@@ -423,7 +423,7 @@ export function AddAccountModal() {
           <button type="button" onClick={() => void institutionsQuery.refetch()} style={RETRY_BTN_STYLE}>다시 시도</button>
         </div>
       ) : (
-        <Dropdown dd={ddInstitutionDisplay} maxHeight={220} />
+        <Dropdown dropdown={institutionDisplayDropdown} maxHeight={220} />
       )}
       {showInstitutionError && <div style={FIELD_ERROR_STYLE}>금융기관을 선택해주세요</div>}
     </div>
@@ -659,7 +659,7 @@ export function AddAccountModal() {
           // FX_RATE_NOT_FOUND(422)는 서버 장애가 아니라 "그 통화 환율 고시가 아직 없음"이다 — 달러 계좌를
           // 만들 때만 나며, 사용자가 잘못한 게 아니므로 빨간 에러가 아니라 회색 안내로 렌더한다
           // (docs/api-conventions.md "에러가 아닌 실패"). 그 외 실패는 서버 message를 그대로 보여준다.
-          isFxRateMissing(postAccount.error) ? (
+          isExchangeRateMissing(postAccount.error) ? (
             <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>
               아직 오늘 환율이 들어오지 않아 해외주식 계좌를 만들 수 없어요. 잠시 뒤에 다시 시도해주세요
             </div>

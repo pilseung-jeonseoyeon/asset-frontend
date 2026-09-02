@@ -5,7 +5,7 @@
 // (dasharray는 '{비중} {100-비중}', dashoffset은 앞 조각들의 누적값을 음수로).
 
 interface DonutSegment {
-  pct: number
+  percent: number
   color: string // e.g. 'var(--ramp-1)'
 }
 
@@ -21,7 +21,7 @@ export function DonutChart({ segments, size = 126 }: DonutChartProps) {
       <circle cx="21" cy="21" r="15.915" fill="none" style={{ stroke: 'var(--track)' }} strokeWidth="7" />
       {segments.map((seg, i) => {
         const offset = -cumulative
-        cumulative += seg.pct
+        cumulative += seg.percent
         return (
           <circle
             key={i}
@@ -31,7 +31,7 @@ export function DonutChart({ segments, size = 126 }: DonutChartProps) {
             fill="none"
             style={{ stroke: seg.color }}
             strokeWidth="7"
-            strokeDasharray={`${seg.pct} ${100 - seg.pct}`}
+            strokeDasharray={`${seg.percent} ${100 - seg.percent}`}
             strokeDashoffset={offset}
             transform="rotate(-90 21 21)"
           />

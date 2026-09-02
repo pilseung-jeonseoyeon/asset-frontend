@@ -28,14 +28,14 @@ const RETRY_BTN_STYLE: CSSProperties = {
 
 export function InstitutionsModal() {
   const { state, setState } = useAppState()
-  const isOpen = state.modalOpen === 'institutions'
+  const isOpen = state.openModal === 'institutions'
 
   const distribution = useGetAssetDistributionByInstitution({ enabled: isOpen })
   const institutionsQuery = useGetInstitutions({ enabled: isOpen })
 
   if (!isOpen) return null
 
-  const closeModal = () => setState({ modalOpen: null })
+  const closeModal = () => setState({ openModal: null })
 
   const isPending = distribution.isPending || institutionsQuery.isPending
   const err = describeQueryError(distribution.error) ?? describeQueryError(institutionsQuery.error)
@@ -65,19 +65,19 @@ export function InstitutionsModal() {
           {rows.length === 0 && (
             <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>{DASHBOARD_INSTITUTIONS_EMPTY_TEXT}</div>
           )}
-          {rows.map((inst) => (
+          {rows.map((institution) => (
             <div
-              key={inst.key}
+              key={institution.key}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '0.5px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                <BankIcon tokenKey={inst.tokenKey} size={32} />
+                <BankIcon tokenKey={institution.tokenKey} size={32} />
                 <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {inst.name}
+                  {institution.name}
                 </span>
               </div>
               <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '-.02em', textAlign: 'right', flex: 'none' }}>
-                {inst.amountFmt}
+                {institution.amountText}
                 <span style={{ fontSize: 11, color: 'var(--text-weak)', fontWeight: 600 }}>원</span>
               </div>
             </div>
