@@ -14,6 +14,18 @@
   `{domain}.hook.ts`, `{domain}.type.ts`처럼 단수형으로 씁니다. 여러 도메인이 공유하는 파일
   (`src/services/api.ts`, `src/services/api.types.ts` 등)은 도메인 접두어가 없는 공용 파일이라
   이 규칙 대상이 아닙니다 — `src/state/types.ts`도 같은 이유로 복수형입니다.
+- **`getXxx`는 HTTP GET 서비스 함수 전용**입니다(`getAccounts`, `getTransactions`). 서버를 부르지 않는 순수
+  조회 헬퍼는 `xxxOf`/`xxxFor`로 씁니다(`assetClassMetaOf`, `institutionNameOf`, `providersFor`) — 이름만 보고
+  네트워크 호출 여부를 구분하기 위해서입니다.
+- **줄임말을 쓰지 않습니다.** 한 번 더 생각해야 읽히는 이름은 그대로 풀어 씁니다. 특히 아래는 이미 한 번
+  정리한 것이라 되살리지 마세요:
+  `Tx`→`Transaction`(이 앱엔 `Transfer`도 있어 헷갈림), `Cat`→`Category` 또는 `AssetClass`, `Fx`→`ExchangeRate`/`ForeignCurrency`,
+  `Avg`→`Average`, `Amt`→`Amount`, `Pct`→`Percent`, `Qty`→`Quantity`, `Fmt`→`Text`(포맷된 표시 문자열), `Btn`→`Button`,
+  `inst`→`institution`, `idx`→`index`, `desc`→`description`, `sub`→`subcategory`/`subscription`, `dd`→`dropdown`.
+  예외는 서버 응답 필드명(`avgCostPrice`, `weightedAvgRate`, `fxAutoRefresh`)과 한 줄짜리 콜백의 `e`/`(a, b)`/`prev`뿐입니다.
+- **상태 필드는 값의 정체가 보이게** 짓습니다. 열린 모달 이름을 담으면 `openModal`(boolean처럼 읽히는 `modalOpen` 금지),
+  수정 대상 서버 id를 담으면 `editingXxxId`, 상세 모달 대상 id는 `xxxDetailId`. 허용 값이 정해진 문자열은 `string`이 아니라
+  리터럴 유니언 타입(`StockMarketTab`, `ConnectView`)으로 선언합니다.
 
 ## import 순서
 

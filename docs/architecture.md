@@ -100,7 +100,7 @@ src/
                          — index.css에서 이 순서 그대로 import한다
 
   utils/                 format.ts(formatNumber, formatKrw, formatCurrencyAmount,
-                         formatKoreanAbbrev), deltaBadge.ts(makeDeltaBadge/hexToRgba),
+                         formatKoreanUnits), deltaBadge.ts(makeDeltaBadge/hexToRgba),
                          theme.ts(useApplyTheme), date.ts, download.ts,
                          useMediaQuery.ts(useIsMobile), useDebouncedValue.ts,
                          notificationTime.ts
@@ -115,7 +115,7 @@ src/
   디자인 시스템 규칙은 `data/{screen}View.ts`에 둡니다. 반대로 `data/`는 페칭하지 않습니다.
 - **모달은 `AuthenticatedApp`에 항상 마운트**되어 있고(현재 라우트와 무관하게 전부 마운트된다)
   닫아도 언마운트되지 않습니다. 그래서 모달을 닫을
-  때 로컬 `useState`, mutation의 `.reset()`, `openDropdown`, 해당 `datePickerPicked`/`datePickerNav`
+  때 로컬 `useState`, mutation의 `.reset()`, `openDropdown`, 해당 `datePickerPicked`/`datePickerViewingMonth`
   키를 직접
   초기화해야 합니다 — 안 하면 이전 세션의 확인창·에러가 다음에 열 때 그대로 남습니다.
   같은 이유로 열려 있지 않은 모달이 요청을 쏘지 않도록 fetch 훅에 `enabled` 가드를 겁니다.

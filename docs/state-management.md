@@ -9,7 +9,7 @@
 
 | 상태 종류 | 위치 | 예시 |
 |---|---|---|
-| 화면 내 인터랙션 / 폼 입력값 | `AppState` (reducer + Context, `useAppState()`) | `modalOpen`, `openDropdown`, 각종 탭/입력 필드 |
+| 화면 내 인터랙션 / 폼 입력값 | `AppState` (reducer + Context, `useAppState()`) | `openModal`, `openDropdown`, 각종 탭/입력 필드 |
 | 5개 메뉴 화면 간 최상위 네비게이션 | URL (`react-router-dom`, `docs/architecture.md` 참고) | `/dashboard` `/assets` `/stocks` `/ledger` `/settings` |
 | 서버에서 받아온 데이터의 캐시·로딩·에러 | React Query (`useQuery`/`useMutation`) | API 연동 시 목록/상세 조회 결과 |
 | 화면 트리와 무관하게 여러 곳이 동시에 읽고 써야 하는 전역 상태 | Zustand (`src/stores/`) | 인증 토큰·로그인 상태(`useAuthStore`) |
