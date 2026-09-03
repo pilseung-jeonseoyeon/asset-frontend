@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Monit iOS splash source</title>
+    <!-- public/pwa/splash/*.png(iOS 홈 화면 앱 시작 화면)의 "원본"이다. 앱 번들에 포함되지 않는다.
+
+         왜 필요한가: 홈 화면 아이콘으로 전체화면(standalone) 앱을 열면 페이지가 뜨기 전까지
+         iOS가 <link rel="apple-touch-startup-image">를 보여준다. 이게 없으면 흰 화면이다.
+         iOS는 기종별 화면 크기(device-width/height/pixel-ratio)가 정확히 일치하는 이미지만 쓰므로
+         기종 수만큼 PNG를 만든다 — 목록과 생성은 generate.sh 가 맡는다.
+
+         모양은 src/components/layout/BootScreen.tsx 와 같다(--canvas 바탕 가운데 40px 로고).
+         스플래시 → 부팅 화면으로 넘어갈 때 화면이 바뀌는 느낌이 없도록 일부러 똑같이 맞췄다.
+         로고 도형은 public/favicon.svg / MonitLogo.tsx 와 동일하다 — 로고가 바뀌면 여기도 고친다.
+         색은 tokens.css의 --canvas(라이트 #F4F5F7 / 다크 #17181C)와 같아야 한다.
+
+         쿼리:  ?scale=3       기기 픽셀 비율(로고 40px × scale 로 그린다)
+                ?dark=1        다크 변형(바탕색 + 다크 로고) -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f4f5f7;
+      }
+      body.dark {
+        background: #17181c;
+      }
+      svg {
+        display: block;
+        width: 40px;
+        height: 40px;
+      }
+      .logo-dark,
+      body.dark .logo-light {
+        display: none;
+      }
+      body.dark .logo-dark {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <svg class="logo-light" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="splash-ov-l" gradientUnits="userSpaceOnUse" x1="38.48" y1="62.89" x2="47.46" y2="53.91">
+          <stop offset="0" stop-color="#6761CD" stop-opacity="0" />
+          <stop offset="1" stop-color="#6761CD" stop-opacity=".76" />
+        </linearGradient>
+        <clipPath id="splash-clip-l"><rect width="100" height="100" rx="24.26" ry="24.26" /></clipPath>
+      </defs>
+      <rect width="100" height="100" rx="24.26" ry="24.26" fill="#2A2E5C" />
+      <path d="M47.75 44.92 L47.75 91.8 L0.88 91.8 Z" fill="url(#splash-ov-l)" clip-path="url(#splash-clip-l)" />
+      <circle cx="78.22" cy="27.15" r="5.57" fill="#6979F8" />
+      <g fill="none" stroke="#FFFFFF" stroke-width="14.16" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18.95 67.38 L40.62 45.61" />
+        <path d="M48.63 67.38 L71.48 45.61 L73.54 67.38" />
+      </g>
+    </svg>
+    <svg class="logo-dark" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="splash-bg-d" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#3A3F75" />
+          <stop offset="1" stop-color="#1E2359" />
+        </linearGradient>
+        <linearGradient id="splash-ov-d" gradientUnits="userSpaceOnUse" x1="38.48" y1="62.89" x2="47.46" y2="53.91">
+          <stop offset="0" stop-color="#6761CD" stop-opacity="0" />
+          <stop offset="1" stop-color="#6761CD" stop-opacity=".76" />
+        </linearGradient>
+        <clipPath id="splash-clip-d"><rect width="100" height="100" rx="24.26" ry="24.26" /></clipPath>
+      </defs>
+      <rect width="100" height="100" rx="24.26" ry="24.26" fill="url(#splash-bg-d)" />
+      <path d="M47.75 44.92 L47.75 91.8 L0.88 91.8 Z" fill="url(#splash-ov-d)" clip-path="url(#splash-clip-d)" />
+      <circle cx="78.22" cy="27.15" r="5.57" fill="#6979F8" />
+      <g fill="none" stroke="#FFFFFF" stroke-width="14.16" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18.95 67.38 L40.62 45.61" />
+        <path d="M48.63 67.38 L71.48 45.61 L73.54 67.38" />
+      </g>
+      <rect x=".5" y=".5" width="99" height="99" rx="23.76" ry="23.76" fill="none" stroke="#FFFFFF" stroke-opacity=".08" stroke-width="1" />
+    </svg>
+    <script>
+      var q = new URLSearchParams(location.search)
+      var scale = Number(q.get('scale')) || 1
+      if (q.get('dark') === '1') document.body.classList.add('dark')
+      document.querySelectorAll('svg').forEach(function (el) {
+        el.style.width = el.style.height = 40 * scale + 'px'
+      })
+    </script>
+  </body>
+</html>

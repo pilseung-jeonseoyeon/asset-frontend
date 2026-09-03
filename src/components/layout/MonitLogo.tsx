@@ -2,7 +2,8 @@
 // 좌표·두께·색은 규격 그대로이고 width/height만 사이드바 크기(40px)로 맞춘다.
 // 라이트/다크 전환은 base.css의 .monit-logo-light / .monit-logo-dark 표시 규칙을 그대로 쓴다.
 // SidebarNav에서 떼어낸 이유는 부팅 로딩 화면(AppShell)이 똑같은 심볼을 재사용하게 하기 위함이다 —
-// 복사본이 두 벌이면 한쪽만 바뀐다.
+// 복사본이 두 벌이면 한쪽만 바뀐다. 같은 도형이 public/favicon.svg, scripts/og-image, scripts/app-icon
+// (홈 화면 아이콘 PNG 원본)에도 있으니 도형을 고치면 그쪽도 함께 고친다.
 //
 // 그라데이션·clipPath의 id는 useId()로 인스턴스마다 다르게 만든다. 정적 id로는 충돌한다 —
 // AppShell의 <Suspense fallback={<BootScreen/>}>는 라우트 전환 중 기존 트리를 DOM에 남긴 채

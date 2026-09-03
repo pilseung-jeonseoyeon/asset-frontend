@@ -80,8 +80,18 @@ function isDarkTheme(theme: ThemeSetting): boolean {
   return theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 }
 
+// <meta name="theme-color"> 값 — 안드로이드 상태바·앱 전환 화면 색(홈 화면 추가로 열었을 때).
+// tokens.css의 --canvas(라이트 #F4F5F7 / 다크 #17181C)와 같아야 한다. CSS 변수는 meta에 못 쓰므로
+// 여기서 직접 갈아끼운다. 초기값은 index.html의 meta 태그에 라이트 색으로 박혀 있다.
+const THEME_COLOR_LIGHT = '#F4F5F7'
+const THEME_COLOR_DARK = '#17181C'
+
 function applyTheme(theme: ThemeSetting): void {
-  document.documentElement.classList.toggle('theme-dark', isDarkTheme(theme))
+  const dark = isDarkTheme(theme)
+  document.documentElement.classList.toggle('theme-dark', dark)
+  document
+    .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    ?.setAttribute('content', dark ? THEME_COLOR_DARK : THEME_COLOR_LIGHT)
 }
 
 /** Applies `theme` to <html> on every change, and re-applies on OS theme change while `theme === 'system'`. */

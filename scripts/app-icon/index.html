@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Monit app icon source (1024x1024)</title>
+    <!-- public/pwa/*.png(홈 화면 아이콘)의 "원본"이다. scripts/og-image/index.html과 같은 방식 —
+         앱 번들에 포함되지 않고, 손으로 헤드리스 크롬 스크린샷을 찍어 PNG를 뽑는다.
+
+         왜 PNG가 따로 필요한가: iOS "홈 화면에 추가"는 SVG 파비콘을 쓰지 않고
+         <link rel="apple-touch-icon">이 가리키는 PNG만 쓴다. 이 태그가 없으면 <title> 첫 글자로
+         회색 "M" 타일을 만들어 버린다. 안드로이드도 manifest.webmanifest의 PNG 아이콘을 쓴다.
+
+         왜 파비콘과 도형이 조금 다른가:
+         - 둥근 모서리가 없다(꽉 찬 정사각형). iOS는 자체 곡률로 깎고 안드로이드는 런처마다
+           원·사각으로 마스킹하므로, 파비콘처럼 둥근 모서리+투명 여백을 넣으면 iOS에서 이중으로
+           깎여 검은 테두리가 생긴다.
+         - 심볼(M 획과 공 점)을 0.88배로 중앙 축소했다. 안드로이드 maskable 아이콘은 중앙 원
+           지름 80% 안에 있어야 잘리지 않는데, 원본 좌표의 공 점(78,27 r5.57)이 그 원 바깥에
+           걸치기 때문이다.
+
+         다시 뽑는 법 (저장소 루트에서):
+           1) pnpm dev
+           2) "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+                --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
+                --window-size=1024,1024 --virtual-time-budget=2000 \
+                --screenshot=/tmp/monit-icon-1024.png \
+                "http://localhost:5173/scripts/app-icon/index.html"
+           3) sips -z 180 180 /tmp/monit-icon-1024.png --out public/pwa/apple-touch-icon.png
+              sips -z 192 192 /tmp/monit-icon-1024.png --out public/pwa/icon-192.png
+              sips -z 512 512 /tmp/monit-icon-1024.png --out public/pwa/icon-512.png
+              (sips는 macOS 기본 내장 도구. 1024 원본은 저장소에 넣지 않는다.)
+           4) 결과 PNG를 눈으로 확인 — 남색이 네 모서리까지 꽉 차 있어야 한다.
+
+         주의:
+         - 로고 도형은 public/favicon.svg 와 동일하다. 로고가 바뀌면 네 곳(파비콘, MonitLogo.tsx,
+           scripts/og-image/index.html, 이 파일)을 함께 고쳐야 한다.
+         - iOS는 홈 화면 아이콘을 캐시한다. 배포 후 기존 아이콘을 지우고 다시 추가해야 새 것이 보인다. -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        width: 1024px;
+        height: 1024px;
+        overflow: hidden;
+        background: #2a2e5c;
+      }
+      svg {
+        display: block;
+        width: 1024px;
+        height: 1024px;
+      }
+    </style>
+  </head>
+  <body>
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="monit-icon-ov" gradientUnits="userSpaceOnUse" x1="38.48" y1="62.89" x2="47.46" y2="53.91">
+          <stop offset="0" stop-color="#6761CD" stop-opacity="0" />
+          <stop offset="1" stop-color="#6761CD" stop-opacity=".76" />
+        </linearGradient>
+        <clipPath id="monit-icon-clip"><rect width="100" height="100" /></clipPath>
+      </defs>
+      <rect width="100" height="100" fill="#2A2E5C" />
+      <!-- 심볼 전체를 중심 기준 0.88배. 그림자 삼각형은 축소돼도 가장자리까지 닿도록 꼭짓점을
+           바깥(110)으로 빼고 정사각형으로 잘라낸다. -->
+      <g transform="translate(50 50) scale(.88) translate(-50 -50)" clip-path="url(#monit-icon-clip)">
+        <path d="M47.75 44.92 L47.75 110 L-20 110 Z" fill="url(#monit-icon-ov)" />
+        <circle cx="78.22" cy="27.15" r="5.57" fill="#6979F8" />
+        <g fill="none" stroke="#FFFFFF" stroke-width="14.16" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18.95 67.38 L40.62 45.61" />
+          <path d="M48.63 67.38 L71.48 45.61 L73.54 67.38" />
+        </g>
+      </g>
+    </svg>
+  </body>
+</html>

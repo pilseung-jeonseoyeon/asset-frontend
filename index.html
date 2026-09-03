@@ -3,7 +3,59 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover: 홈 화면에서 전체화면(standalone)으로 열렸을 때 env(safe-area-inset-*)가
+         실제 값을 갖게 한다. 하단탭·바텀시트가 이미 이 값으로 홈 인디케이터를 피한다(docs/mobile.md). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- 홈 화면에 추가(PWA). iOS는 SVG 파비콘을 홈 아이콘으로 쓰지 않고 apple-touch-icon PNG만 쓴다 —
+         이 태그가 없으면 <title> 첫 글자로 회색 "M" 타일을 만든다. 안드로이드는 manifest의 PNG를 쓴다.
+         PNG 원본과 다시 뽑는 법은 scripts/app-icon/index.html 상단 주석.
+         *-web-app-capable=yes 는 주소창 없는 전체화면으로 여는 설정이다. 이 모드는 사파리와
+         쿠키·저장소가 분리되므로 홈 화면에서 처음 열 때 로그인을 한 번 다시 해야 한다(의도된 동작).
+         status-bar-style=default 는 iOS가 상태바를 직접 그리고 웹뷰는 그 아래서 시작한다는 뜻 —
+         상단 safe-area 패딩을 따로 넣지 않아도 된다.
+         theme-color 는 안드로이드 상태바·앱 전환 화면 색이다. 라이트 --canvas 값을 초기값으로
+         두고, 테마가 바뀌면 src/utils/theme.ts의 applyTheme이 content를 갈아끼운다.
+         /pwa/ 와 manifest.webmanifest 는 vercel.json rewrite 예외에 들어가 있어야 한다. -->
+    <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Monit" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="theme-color" content="#F4F5F7" />
+
+    <!-- iOS 시작 화면(스플래시). 전체화면 앱을 열 때 페이지가 뜨기 전까지 iOS가 보여주는 이미지다 —
+         없으면 흰 화면. iOS는 device-width/height/pixel-ratio가 정확히 일치하는 것만 쓰므로 기종별로
+         한 장씩 있고, 라이트/다크는 시스템 설정(prefers-color-scheme)을 따른다(앱 내 테마 설정과
+         어긋날 수 있는 건 감수 — 이 시점엔 아직 우리 코드가 실행되지 않는다).
+         모양은 BootScreen과 같다. 원본은 scripts/splash/index.html, 아래 태그와 PNG 24장은
+         scripts/splash/generate.sh 가 함께 만든다 — 기종을 더하거나 로고가 바뀌면 그 스크립트를
+         다시 돌려 이 블록을 통째로 갈아끼운다(손으로 고치지 말 것). -->
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1320x2868-light.png" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1320x2868-dark.png" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1206x2622-light.png" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1206x2622-dark.png" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1290x2796-light.png" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1290x2796-dark.png" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1179x2556-light.png" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1179x2556-dark.png" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1284x2778-light.png" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1284x2778-dark.png" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1170x2532-light.png" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1170x2532-dark.png" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1125x2436-light.png" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1125x2436-dark.png" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1242x2688-light.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1242x2688-dark.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-828x1792-light.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-828x1792-dark.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-750x1334-light.png" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-750x1334-dark.png" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1242x2208-light.png" media="screen and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1242x2208-dark.png" media="screen and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1260x2736-light.png" media="screen and (device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/splash-1260x2736-dark.png" media="screen and (device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" />
     <!-- Source: secret/Asset Manager v14.dc.html L13-16 — 원본은 여기서 CDN 스타일시트 2개를 직접
          링크했지만, 폰트는 public/fonts/ 에 두고 우리 도메인에서 서빙하는 방식으로 바꿨다.
          @font-face 선언과 그 이유는 src/styles/fonts.css 헤더 주석 참고.

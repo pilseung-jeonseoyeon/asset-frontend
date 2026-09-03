@@ -108,3 +108,30 @@
 - 4열 그리드(대시보드 하단 카드)는 1열이면 지나치게 길어진다 → 모바일 **2열**.
 - 가로로 넓은 표·리스트는 잘라내지 말고 `overflow-x: auto` 래퍼로 감싼다.
 - 금액은 `--text-strong` 크기를 줄이기보다 줄바꿈·축약(§4-2)을 우선한다.
+
+## 7. 홈 화면에 추가(PWA)
+
+사파리·크롬의 "홈 화면에 추가"로 설치하면 모닛 로고 아이콘이 생기고, 눌렀을 때 **주소창 없는
+전체화면(standalone)** 으로 열린다(2026-09-03 사용자 결정).
+
+- 파일: `index.html`의 `apple-touch-icon`·`manifest`·`*-web-app-capable`·`theme-color` 태그,
+  `public/manifest.webmanifest`, 아이콘 PNG `public/pwa/`(180·192·512). PNG 원본과 다시 뽑는
+  명령은 `scripts/app-icon/index.html` 상단 주석. 로고를 바꾸면 파비콘·`MonitLogo.tsx`·
+  og-image·app-icon 네 곳을 같이 고친다.
+- 새 정적 파일을 `public/`에 추가하면 `vercel.json` rewrite 예외에도 넣어야 한다 — 빠지면
+  `index.html`로 덮여 HTML이 응답된다.
+- 전체화면 모드는 사파리와 **쿠키·저장소가 분리**된다. 홈 화면에서 처음 열 때 로그인을 한 번
+  다시 해야 하는 것은 버그가 아니다(refresh 쿠키가 없어서 `anonymous`로 시작).
+- 상태바는 `apple-mobile-web-app-status-bar-style=default` — iOS가 그리고 웹뷰는 그 아래서
+  시작하므로 상단 safe-area 패딩은 넣지 않는다. 하단은 `viewport-fit=cover` 덕에
+  `env(safe-area-inset-bottom)`이 실제 값을 갖고, §2·§4의 하단탭·시트가 이미 그 값을 쓴다.
+- `theme-color`(안드로이드 상태바 색)는 `src/utils/theme.ts`의 `applyTheme`이 테마에 맞춰
+  `--canvas` 색으로 갈아끼운다.
+- iOS는 홈 화면 아이콘을 캐시한다. 아이콘을 바꿔 배포하면 기존 아이콘을 지우고 다시 추가해야 한다.
+- **시작 화면(스플래시)**: 전체화면 앱이 뜨기 전까지 iOS가 보여주는 이미지. `BootScreen`과 같은
+  모양(`--canvas` 바탕 + 가운데 40px 로고)으로 기종별·라이트/다크별 PNG 24장을 미리 만들어
+  `public/pwa/splash/`에 두고 `index.html`의 `apple-touch-startup-image` 태그 24개로 연결했다.
+  원본은 `scripts/splash/index.html`, 전체 생성은 `scripts/splash/generate.sh`(dev 서버를 띄운
+  채 실행) — 로고가 바뀌거나 새 기종을 추가할 땐 스크립트를 다시 돌려 태그 블록을 통째로
+  갈아끼운다(손으로 한 장씩 고치지 말 것). 라이트/다크는 `prefers-color-scheme`(iOS 시스템
+  설정)을 따르며, 이 시점엔 로그인 전이라 앱 내 테마 설정과 다를 수 있다.
