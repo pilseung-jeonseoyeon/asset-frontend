@@ -14,6 +14,17 @@ body {
   padding: 0
 }
 
+/* 부팅 시(BootScreen/AuthenticatedApp 로딩/Auth) 전체화면 세로 중앙 정렬용. 인라인 style 객체는
+   같은 속성을 두 번 못 쓰므로(min-height 중복 불가) 클래스로 뺐다. 100dvh(실제 보이는 뷰포트
+   높이)를 우선 쓰고, 미지원 브라우저는 100vh로 폴백한다 — 아이폰 홈 화면 추가(전체화면) 진입
+   직후 iOS가 안전영역/뷰포트 높이를 한 박자 늦게 확정하면서 100vh 값이 한 번 바뀌는데, 그 순간
+   로고가 중앙에서 살짝 아래로 튀어 보이는 문제가 있었다(2026-09-03). 100dvh는 iOS가 실제 보이는
+   높이를 즉시 반영해 이 튐이 없다. */
+.full-height-center {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 body {
   font-family: 'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif;
   background: var(--canvas);

@@ -11,9 +11,9 @@ export function BootScreen() {
     <div
       aria-busy="true"
       aria-label="불러오는 중"
+      className="full-height-center"
       style={{
         display: 'flex',
-        minHeight: '100vh',
         width: '100%',
         alignItems: 'center',
         justifyContent: 'center',

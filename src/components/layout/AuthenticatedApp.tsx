@@ -80,7 +80,7 @@ export function AuthenticatedApp() {
       {state.openDropdown && (
         <div onClick={() => setState({ openDropdown: null })} style={{ position: 'fixed', inset: 0, zIndex: 70 }} />
       )}
-      <div style={{ display: 'flex', minHeight: '100vh', width: '100%', background: 'var(--canvas)' }}>
+      <div className="full-height-center" style={{ display: 'flex', width: '100%', background: 'var(--canvas)' }}>
         {!isMobile && <SidebarNav />}
         <main
           style={{

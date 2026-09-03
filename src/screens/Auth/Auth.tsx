@@ -97,7 +97,7 @@ export function Auth() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', width: '100%', background: 'var(--canvas)' }}>
+    <div className="full-height-center" style={{ display: 'flex', width: '100%', background: 'var(--canvas)' }}>
       <aside className="auth-brand" style={{ width: '42%', maxWidth: 520, flex: 'none', padding: 18, display: 'flex' }}>
         <div
           className="deep-card"
