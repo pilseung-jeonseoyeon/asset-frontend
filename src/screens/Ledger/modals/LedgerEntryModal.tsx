@@ -34,6 +34,7 @@ import { useEntityDropdown, type DropdownState } from '../../../state/selectors/
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { isoDateToDisplay, pickedToISODate, recentMonthsRange, toISODate } from '../../../utils/date'
 import { formatNumber, parseAmount } from '../../../utils/format'
+import { readLastUsedAccounts, storeLastUsedAccounts } from '../../../utils/ledgerLastAccounts'
 import { captureEntryDraft } from '../../../state/selectors/entryDraft'
 import { ENTRY_TYPE_TO_CATEGORY_KIND, ENTRY_TYPE_TO_TRANSACTION_TYPE, buildEntrySuggestions, findSubcategoryById } from '../../../data/ledgerView'
 import type { EntrySuggestion } from '../../../data/ledgerView'
@@ -100,7 +101,14 @@ export function LedgerEntryModal() {
   const [sameAccountInvalid, setSameAccountInvalid] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
-  const effectiveWithdrawAccountId = state.entryWithdrawAccountId ?? accounts[0]?.id ?? null
+  // 계좌 기본값의 우선순위: 사용자가 이 폼에서 고른 것(state) → 이 기기에서 같은 유형으로 마지막에
+  // 저장한 계좌(utils/ledgerLastAccounts, 새 거래일 때만 — 수정은 거래 자체의 계좌가 state로 들어온다)
+  // → 첫 계좌. 기억된 계좌가 그사이 삭제됐으면 목록에 없으므로 건너뛴다. state에 써 넣지 않고
+  // 폴백으로만 두는 이유는 ledgerLastAccounts.ts 상단 주석 참고(초안 규칙과 충돌).
+  const remembered = isOpen && !isEditing ? readLastUsedAccounts(entryType) : null
+  const isKnownAccount = (id: number | null | undefined): id is number => id != null && accounts.some((a) => a.id === id)
+  const rememberedWithdrawAccountId = remembered && isKnownAccount(remembered.withdrawAccountId) ? remembered.withdrawAccountId : null
+  const effectiveWithdrawAccountId = state.entryWithdrawAccountId ?? rememberedWithdrawAccountId ?? accounts[0]?.id ?? null
   const withdrawAccountDropdown = useEntityDropdown(
     'withdrawAcct', accounts, (a) => a.id, (a) => a.name,
     effectiveWithdrawAccountId,
@@ -109,9 +117,16 @@ export function LedgerEntryModal() {
   // 저축·이체는 출금 계좌와 상대 계좌가 반드시 달라야 한다. 둘 다 기본값을 accounts[0]으로 잡으면
   // 폼을 열자마자 같은 계좌로 충돌해 첫 저장이 항상 "같은 계좌예요" 에러로 막힌다 — 상대 계좌 기본값은
   // 출금 계좌와 다른 첫 계좌로 잡는다(계좌가 하나뿐이면 notEnoughAccounts가 이미 저장 자체를 막는다).
-  const entryAccountFallbackId = needsTransferAccount
-    ? (accounts.find((a) => a.id !== effectiveWithdrawAccountId)?.id ?? accounts[0]?.id ?? null)
-    : (accounts[0]?.id ?? null)
+  // 기억된 상대 계좌도 같은 이유로 출금 계좌와 같으면 쓰지 않는다.
+  const rememberedEntryAccountId =
+    remembered && isKnownAccount(remembered.accountId) && (!needsTransferAccount || remembered.accountId !== effectiveWithdrawAccountId)
+      ? remembered.accountId
+      : null
+  const entryAccountFallbackId =
+    rememberedEntryAccountId ??
+    (needsTransferAccount
+      ? (accounts.find((a) => a.id !== effectiveWithdrawAccountId)?.id ?? accounts[0]?.id ?? null)
+      : (accounts[0]?.id ?? null))
   const effectiveEntryAccountId = state.entryAccountId ?? entryAccountFallbackId
   const ledgerEntryAccountDropdown = useEntityDropdown(
     'ledgerEntryAcct', accounts, (a) => a.id, (a) => a.name,
@@ -307,6 +322,15 @@ export function LedgerEntryModal() {
     const picked = state.datePickerPicked['entry'] as { y: number; m: number; d: number } | undefined
     const transactionDate = picked ? pickedToISODate(picked) : entryDateDisplay.replaceAll('.', '-')
     const type = ENTRY_TYPE_TO_TRANSACTION_TYPE[entryType]
+    // 새 거래가 저장되면 이 유형의 계좌를 기기에 기억해 다음 입력의 기본값으로 쓴다(위 폴백 주석).
+    // 수정(updateTransaction)은 기억하지 않는다 — 옛 거래를 고치는 건 "요즘 쓰는 계좌"가 아니다.
+    const onCreateSuccess = () => {
+      storeLastUsedAccounts(entryType, {
+        accountId: effectiveEntryAccountId,
+        withdrawAccountId: needsTransferAccount ? effectiveWithdrawAccountId : null,
+      })
+      closeDiscardingDraft()
+    }
 
     // PUT은 전체 교체다. 이 모달이 편집하지 않는 필드(외화 nativeAmount/nativeCurrency)를 다시
     // 실어 보내지 않으면 금액만 고쳐 저장해도 원래 값이 null로 지워진다. 값이 없던 거래는 키 자체를
@@ -337,7 +361,7 @@ export function LedgerEntryModal() {
       if (isEditing) {
         updateTransaction.mutate({ id: state.editingTransactionId as number, body }, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
       } else {
-        createTransaction.mutate(body, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
+        createTransaction.mutate(body, { onSuccess: onCreateSuccess, onError: handleMutationError })
       }
       return
     }
@@ -359,7 +383,7 @@ export function LedgerEntryModal() {
       if (isEditing) {
         updateTransaction.mutate({ id: state.editingTransactionId as number, body }, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
       } else {
-        createTransaction.mutate(body, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
+        createTransaction.mutate(body, { onSuccess: onCreateSuccess, onError: handleMutationError })
       }
       return
     }
@@ -370,7 +394,7 @@ export function LedgerEntryModal() {
     if (isEditing) {
       updateTransaction.mutate({ id: state.editingTransactionId as number, body }, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
     } else {
-      createTransaction.mutate(body, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
+      createTransaction.mutate(body, { onSuccess: onCreateSuccess, onError: handleMutationError })
     }
   }
 

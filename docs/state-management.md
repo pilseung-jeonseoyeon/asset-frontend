@@ -24,6 +24,12 @@
 테마는 서버 설정(`theme`)이 소유하고, `AppState.theme`은 렌더용 미러, `localStorage('monit.theme')`는
 부팅 FOUC 방지 캐시입니다.
 
+`localStorage`는 이렇게 **서버 정본의 캐시나 순수 편의 힌트**에만 씁니다(키는 모두 `monit.` 접두어,
+접근 실패는 전부 try/catch로 삼킴). 현재 키: `monit.theme`(테마 힌트), `monit.seenSession`(재방문
+여부), `monit.ledger.lastAccounts`(가계부 입력 폼의 거래유형별 마지막 사용 계좌 id —
+`src/utils/ledgerLastAccounts.ts`, 2026-09-03 추가. 서버에 두지 않은 이유와 "AppState에 쓰지 않고
+드롭다운 폴백으로만 적용"하는 이유는 그 파일 상단 주석). 토큰·금액·이름 같은 값은 절대 넣지 않습니다.
+
 ### Zustand는 좁은 예외입니다
 
 Zustand는 `AppState`로 표현하기 어려운, **화면 트리와 무관하게 여러 곳에서 동시에 읽고 써야

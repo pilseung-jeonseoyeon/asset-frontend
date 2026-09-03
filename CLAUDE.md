@@ -99,7 +99,8 @@ src/
                          formatKoreanUnits), deltaBadge.ts(makeDeltaBadge/hexToRgba),
                          theme.ts(useApplyTheme), date.ts, download.ts,
                          useMediaQuery.ts(useIsMobile), useDebouncedValue.ts,
-                         notificationTime.ts
+                         notificationTime.ts, ledgerLastAccounts.ts(가계부 입력 폼의
+                         거래유형별 마지막 사용 계좌 — localStorage 힌트)
 ```
 
 - 화면 컴포넌트는 `useAppState()`와 `@/services/{domain}`의 훅을 직접 호출하는 단순한 구조입니다 — container/presenter 분리나 `App`으로부터의 prop drilling이 없습니다.
