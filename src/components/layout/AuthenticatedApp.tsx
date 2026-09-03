@@ -86,7 +86,13 @@ export function AuthenticatedApp() {
           style={{
             flex: 1,
             minWidth: 0,
-            padding: isMobile ? '18px 16px calc(64px + env(safe-area-inset-bottom) + 20px)' : '30px 40px 56px',
+            // 전체화면(standalone) 앱은 status-bar-style=black-translucent라 웹 콘텐츠가 상태바
+            // 뒤까지 깔린다(index.html 주석 참고) — 상단도 safe-area만큼 밀어야 시계·배터리
+            // 아이콘과 헤더 로고가 겹치지 않는다. 일반 브라우저 탭에서는 env(...)가 0이라 원래
+            // padding(18px)만 적용된다.
+            padding: isMobile
+              ? 'calc(18px + env(safe-area-inset-top)) 16px calc(64px + env(safe-area-inset-bottom) + 20px)'
+              : '30px 40px 56px',
           }}
         >
           <Header />

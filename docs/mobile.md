@@ -122,8 +122,14 @@
   `index.html`로 덮여 HTML이 응답된다.
 - 전체화면 모드는 사파리와 **쿠키·저장소가 분리**된다. 홈 화면에서 처음 열 때 로그인을 한 번
   다시 해야 하는 것은 버그가 아니다(refresh 쿠키가 없어서 `anonymous`로 시작).
-- 상태바는 `apple-mobile-web-app-status-bar-style=default` — iOS가 그리고 웹뷰는 그 아래서
-  시작하므로 상단 safe-area 패딩은 넣지 않는다. 하단은 `viewport-fit=cover` 덕에
+- 상태바는 `apple-mobile-web-app-status-bar-style=black-translucent` — 상태바를 투명하게
+  웹 콘텐츠 위에 겹쳐 그리고, 웹 콘텐츠는 상태바 뒤까지 화면 전체 높이를 차지한다. 스플래시
+  이미지도 항상 화면 전체 높이 기준으로 로고를 중앙에 그리므로, 웹 콘텐츠도 같은 기준(전체 높이)
+  이어야 스플래시 → 실제 페이지로 넘어갈 때 로고 위치가 안 튄다(2026-09-03 확인 — `default`였을
+  때는 웹 콘텐츠가 상태바 아래부터 시작해 스플래시보다 로고가 아래로 어긋나 보였다). 대신 콘텐츠가
+  상태바 뒤까지 깔리므로, 화면 맨 위에 오는 요소(헤더, `Auth` 폼)는 `env(safe-area-inset-top)`
+  만큼 여백을 더해야 시계·배터리 아이콘과 안 겹친다 — `AuthenticatedApp.tsx`의 모바일 main
+  padding, `Auth.tsx`의 main padding 참고. 하단은 `viewport-fit=cover` 덕에
   `env(safe-area-inset-bottom)`이 실제 값을 갖고, §2·§4의 하단탭·시트가 이미 그 값을 쓴다.
 - `theme-color`(안드로이드 상태바 색)는 `src/utils/theme.ts`의 `applyTheme`이 테마에 맞춰
   `--canvas` 색으로 갈아끼운다.

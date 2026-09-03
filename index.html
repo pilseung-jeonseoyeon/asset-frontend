@@ -12,8 +12,14 @@
          PNG 원본과 다시 뽑는 법은 scripts/app-icon/index.html 상단 주석.
          *-web-app-capable=yes 는 주소창 없는 전체화면으로 여는 설정이다. 이 모드는 사파리와
          쿠키·저장소가 분리되므로 홈 화면에서 처음 열 때 로그인을 한 번 다시 해야 한다(의도된 동작).
-         status-bar-style=default 는 iOS가 상태바를 직접 그리고 웹뷰는 그 아래서 시작한다는 뜻 —
-         상단 safe-area 패딩을 따로 넣지 않아도 된다.
+         status-bar-style=black-translucent 는 상태바를 투명하게 웹 콘텐츠 위에 겹쳐 그리고,
+         웹 콘텐츠는 화면 전체(상태바 뒤까지) 높이를 차지한다는 뜻이다 — apple-touch-startup-image
+         스플래시도 항상 화면 전체 높이를 기준으로 중앙에 로고를 그리므로, 두 화면이 같은 기준으로
+         계산돼야 스플래시 → 실제 페이지로 넘어갈 때 로고 위치가 어긋나지 않는다(2026-09-03,
+         default였을 때는 웹 콘텐츠가 상태바 아래부터 시작해 로고가 살짝 아래로 튀어 보였다).
+         이 모드에서는 콘텐츠가 상태바 뒤까지 깔리므로, 헤더처럼 화면 맨 위에 붙는 요소는
+         env(safe-area-inset-top)만큼 여백을 더해 시계·배터리 아이콘과 겹치지 않게 해야 한다
+         (AuthenticatedApp.tsx의 모바일 main padding 참고).
          theme-color 는 안드로이드 상태바·앱 전환 화면 색이다. 라이트 --canvas 값을 초기값으로
          두고, 테마가 바뀌면 src/utils/theme.ts의 applyTheme이 content를 갈아끼운다.
          /pwa/ 와 manifest.webmanifest 는 vercel.json rewrite 예외에 들어가 있어야 한다. -->
@@ -22,7 +28,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Monit" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#F4F5F7" />
 
     <!-- iOS 시작 화면(스플래시). 전체화면 앱을 열 때 페이지가 뜨기 전까지 iOS가 보여주는 이미지다 —

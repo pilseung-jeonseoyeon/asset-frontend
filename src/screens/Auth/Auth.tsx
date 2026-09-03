@@ -157,7 +157,18 @@ export function Auth() {
         </div>
       </aside>
 
-      <main style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 28px' }}>
+      <main
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          // status-bar-style=black-translucent라 콘텐츠가 상태바 뒤까지 깔린다(index.html 주석) —
+          // 폼이 화면보다 길어 위로 스크롤될 때 맨 위 줄이 시계·배터리 아이콘에 가리지 않게 한다.
+          padding: 'calc(40px + env(safe-area-inset-top)) 28px 40px',
+        }}
+      >
         <div style={{ width: '100%', maxWidth: 404 }}>
           {state.authScreen === 'login' && <LoginForm />}
           {state.authScreen === 'signup' && <SignupForm />}
