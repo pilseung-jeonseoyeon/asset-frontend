@@ -92,21 +92,23 @@ export function Assets() {
             {assetClassCards.map((ac) => (
               <button
                 key={ac.id}
-                className="dkblk-hov"
+                className="dkblk-hov aclass-card"
                 onClick={() => setState({ assetClassDetail: ac.id })}
                 style={{ textAlign: 'left', cursor: 'pointer', background: 'var(--fill-subtle)', border: '0.5px solid var(--border)', borderRadius: 10, padding: 18, fontFamily: 'inherit', color: 'var(--text-strong)' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>
+                <div className="aclass-head" style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>
                   <span style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--surface)', color: ac.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
                     <Icon name={ac.icon} size={17} />
                   </span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-mid)' }}>{ac.name}</span>
+                  <span title={ac.name} style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-mid)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ac.name}</span>
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-.02em' }}>
-                  {ac.totalText}
-                  <span style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 600 }}>원</span>
+                <div className="aclass-value">
+                  <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {ac.totalText}
+                    <span style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 600 }}>원</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-mid)', marginTop: 3 }}>계좌 {ac.count}개</div>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-mid)', marginTop: 3 }}>계좌 {ac.count}개</div>
               </button>
             ))}
             {/* 부동산: 서버에 자산군이 아직 없어 계좌를 붙일 수 없다(RealEstateSoonModal 주석 참고).
@@ -115,22 +117,25 @@ export function Assets() {
                 맵(트리맵) 뷰와 대시보드 도넛에는 넣지 않는다: 둘은 비중을 그리는 화면이라 금액 없는
                 항목이 낄 자리가 없고, 서버 값만 그리는 게 이 저장소 규칙이다. */}
             <button
-              className="dkblk-hov"
+              className="dkblk-hov aclass-card"
               onClick={() => setState({ openModal: 'realEstateSoon' })}
               style={{ textAlign: 'left', cursor: 'pointer', background: 'var(--fill-subtle)', border: '0.5px solid var(--border)', borderRadius: 10, padding: 18, fontFamily: 'inherit', color: 'var(--text-strong)' }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>
+              <div className="aclass-head" style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>
                 <span style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
                   <Icon name="home" size={17} />
                 </span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-mid)' }}>부동산</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-mid)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>부동산</span>
               </div>
               {/* 다른 카드의 금액(18px)+계좌 수(11px) 두 줄과 높이를 맞추려 배지 아래에 안내 줄을 둔다 —
-                  그리드 한 칸만 짧으면 줄이 어긋나 보인다. 배지 규격은 Dashboard/AccountModal과 동일. */}
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-weak)', background: 'var(--track)', borderRadius: 8, padding: '5px 10px', display: 'inline-block' }}>
-                준비 중
+                  그리드 한 칸만 짧으면 줄이 어긋나 보인다. 배지 규격은 Dashboard/AccountModal과 동일.
+                  모바일 가로 배치(.aclass-value)에서도 같은 이유로 두 줄 구조를 유지한다. */}
+              <div className="aclass-value">
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-weak)', background: 'var(--track)', borderRadius: 8, padding: '5px 10px', display: 'inline-block', whiteSpace: 'nowrap' }}>
+                  준비 중
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-mid)', marginTop: 6 }}>곧 등록할 수 있어요</div>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-mid)', marginTop: 6 }}>곧 등록할 수 있어요</div>
             </button>
           </div>
         )}
