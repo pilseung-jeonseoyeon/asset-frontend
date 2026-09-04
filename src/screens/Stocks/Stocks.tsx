@@ -294,10 +294,17 @@ export function Stocks() {
                   일부 종목은 시세를 아직 확보하지 못해 총 매수금액·평가금액·손익 계산에서 제외했어요
                 </div>
               )}
+              {/* 이 메타 행에는 **실제 수치만** 넣는다. 예전에 있던 '평단가 가중평균'은 값이 아니라
+                  계산 방식 설명이라 옆의 두 항목과 같은 위계(<b> + --deep-value)로 놓이면 지표처럼 읽힌다 —
+                  게다가 실제 평단가 숫자는 이 카드가 계산하지도 않는다(buildPortfolioSummary에 해당 필드 없음).
+                  '가중평균 기준'이라는 안내는 아래 보유 종목 표의 열 제목('평단가 (가중평균)')이 이미 담당한다.
+                  flexWrap은 아이폰 폭(375px)에서 두 항목이 한 줄에 눌려 카드 밖으로 밀리는 것을 막는다. */}
               <div
                 style={{
                   display: 'flex',
+                  flexWrap: 'wrap',
                   gap: 24,
+                  rowGap: 8,
                   marginTop: 22,
                   paddingTop: 18,
                   borderTop: '0.5px solid var(--deep-divider)',
@@ -306,16 +313,13 @@ export function Stocks() {
                 }}
               >
                 <span>
-                  보유 종목 <b style={{ color: 'var(--deep-value)' }}>{portfolioSummary.holdingCount}종목</b>
+                  보유 종목 <b style={{ color: 'var(--deep-value)' }}>{portfolioSummary.holdingCount}개</b>
                 </span>
                 {portfolioSummary.sharePercentText && (
                   <span>
-                    주식 비중 <b style={{ color: 'var(--deep-value)' }}>총자산의 {portfolioSummary.sharePercentText}</b>
+                    총자산 대비 비중 <b style={{ color: 'var(--deep-value)' }}>{portfolioSummary.sharePercentText}</b>
                   </span>
                 )}
-                <span>
-                  평단가 <b style={{ color: 'var(--deep-value)' }}>가중평균</b>
-                </span>
               </div>
             </>
           )}
