@@ -14,6 +14,8 @@
 
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
+import { sheetStickyHeaderStyle } from '../../../components/primitives/Modal/sheetHeader'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useAppState } from '../../../state/AppStateContext'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
 import { assetClassFormPreset, buildAssetClassCards } from '../../../data/assetsView'
@@ -23,6 +25,7 @@ import { useGetAssetDistributionByClass } from '@/services/asset'
 import { useGetConnections } from '@/services/connection'
 
 export function AssetCategoryModal() {
+  const isMobile = useIsMobile()
   const { state, setState } = useAppState()
   const isOpen = state.assetClassDetail !== null
   const distribution = useGetAssetDistributionByClass({ enabled: isOpen })
@@ -47,7 +50,7 @@ export function AssetCategoryModal() {
 
   return (
     <Modal onClose={closeAssetCat} zIndex={80} width={500} panelStyle={{ maxHeight: '86vh', overflow: 'auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, ...sheetStickyHeaderStyle(isMobile, 20) }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
           <span style={{ width: 38, height: 38, borderRadius: 8, background: 'var(--track)', color: selectedAssetClass.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Icon name={selectedAssetClass.icon} size={20} />

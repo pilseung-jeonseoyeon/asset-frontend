@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { useIsMobile } from '../../../utils/useMediaQuery'
+import { sheetStickyHeaderStyle } from './sheetHeader'
 import { useAppState } from '../../../state/AppStateContext'
 
 interface ModalProps {
@@ -221,7 +222,8 @@ export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalPro
     ? {
         background: 'var(--surface)',
         borderRadius: '10px 10px 0 0',
-        padding: '20px 18px calc(20px + env(safe-area-inset-bottom))',
+        // 위 패딩이 0인 이유는 아래 그래버 sticky 블록 주석 참고(그 20px는 그 블록이 대신 갖는다).
+        padding: '0 18px calc(20px + env(safe-area-inset-bottom))',
         width: '100%',
         maxWidth: '100%',
         maxHeight: '88vh',
@@ -249,7 +251,8 @@ export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalPro
         width: '100%',
         borderRadius: '10px 10px 0 0',
         maxHeight: '88vh',
-        padding: '20px 18px calc(20px + env(safe-area-inset-bottom))',
+        // 위 패딩이 0인 이유는 아래 그래버 sticky 블록 주석 참고(그 20px는 그 블록이 대신 갖는다).
+        padding: '0 18px calc(20px + env(safe-area-inset-bottom))',
       }
     : undefined
 
@@ -314,17 +317,37 @@ export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalPro
         {isMobile && (
           // flexShrink:0 matters for callers whose panelStyle makes the panel itself a flex container
           // (currently only TermsDetailOverlay, via `display:'flex', flexDirection:'column'`) — without it,
-          // this 4px bar is a shrinkable flex item like any other, and once panel content forces the
+          // this block is a shrinkable flex item like any other, and once panel content forces the
           // maxHeight clamp to kick in, shrinkage gets distributed by flex-basis share and this shrinks
           // right along with everything else (down to ~2px, not 0, but visibly squashed). The other 15
           // Modal callers leave panelStyle's `display` at the block default, so the grabber isn't a flex
           // item there and this has no effect on them.
           // 이 바 자체에 리스너를 붙이지 않는다 — 4px짜리 막대만 잡으라고 하면 너무 작다.
           // 스와이프는 패널 전체에서 받고(useSheetSwipeDown), 이 바는 "내릴 수 있다"는 표시다.
+          //
+          // 바깥 div는 sticky 블록이다. 시트 안 목록을 스크롤해도 그래버와 (바로 아래 sheetStickyHeaderStyle을
+          // 쓰는) 헤더가 위에 남아야 하기 때문이다 — 예전에는 둘 다 같이 밀려 올라가서 목록이 긴 모달은
+          // 닫기(X) 버튼을 보려고 맨 위까지 다시 올려야 했다. 음수 마진으로 패널 패딩(20px 18px) 밖까지
+          // 번지게 해, 스크롤된 내용이 이 블록의 위·옆으로 비쳐 보이지 않게 한다.
+          // 이 블록의 총 높이(20 + 4 + 14)가 SHEET_GRABBER_BLOCK_PX이고, 헤더는 그만큼 아래에 붙는다.
+          //
+          // 패널의 위 패딩 20px을 이 블록의 padding-top으로 옮긴 이유: sticky 요소는 부모의 **content
+          // box** 위로는 올라가지 못해서, 패널에 padding-top이 남아 있으면 이 블록이 그만큼 아래에 멈춘다.
+          // 그러면 그 20px 띠로 스크롤되는 목록이 그래버 위쪽에 비쳐 보인다(실제로 그렇게 보였다).
           <div
             aria-hidden="true"
-            style={{ width: 36, height: 4, borderRadius: 999, background: 'var(--border)', margin: '0 auto 14px', flexShrink: 0 }}
-          />
+            style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 4,
+              flexShrink: 0,
+              background: 'var(--surface)',
+              margin: '0 -18px',
+              padding: '20px 18px 14px',
+            }}
+          >
+            <div style={{ width: 36, height: 4, borderRadius: 999, background: 'var(--border)', margin: '0 auto' }} />
+          </div>
         )}
         {children}
       </div>
@@ -340,8 +363,9 @@ interface ModalHeaderProps {
 }
 
 export function ModalHeader({ icon, title, onClose }: ModalHeaderProps) {
+  const isMobile = useIsMobile()
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, ...sheetStickyHeaderStyle(isMobile) }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
         <span
           style={{

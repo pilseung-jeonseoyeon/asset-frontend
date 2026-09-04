@@ -11,6 +11,8 @@ import { useEffect, useState } from 'react'
 import type { ChangeEvent, CSSProperties } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
+import { sheetStickyHeaderStyle } from '../../../components/primitives/Modal/sheetHeader'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker'
 import { useAppState } from '../../../state/AppStateContext'
 import { useDatePicker } from '../../../state/selectors/datePicker'
@@ -28,6 +30,7 @@ function moneyInputChange(setter: (n: number) => void) {
 }
 
 export function AddGoalModal() {
+  const isMobile = useIsMobile()
   const { state, setState } = useAppState()
   const isOpen = state.openModal === 'addGoal'
 
@@ -154,7 +157,7 @@ export function AddGoalModal() {
       {!!state.openDropdown && (
         <div onClick={() => setState({ openDropdown: null })} style={{ position: 'absolute', inset: 0, zIndex: 94 }} />
       )}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, ...sheetStickyHeaderStyle(isMobile) }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
           <span style={{ width: 38, height: 38, borderRadius: 8, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="flag" size={20} />

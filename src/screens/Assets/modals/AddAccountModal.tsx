@@ -69,6 +69,7 @@ import { useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
+import { SHEET_GRABBER_BLOCK_PX } from '../../../components/primitives/Modal/sheetHeader'
 import { Dropdown } from '../../../components/primitives/Dropdown/Dropdown'
 import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker'
 import { useAppState } from '../../../state/AppStateContext'
@@ -431,9 +432,11 @@ export function AddAccountModal() {
 
   // 스크롤해도 닫기 버튼과 유형 칩이 항상 보이게 패널 위쪽에 고정한다(파일 상단 주석 참고).
   // 좌우 음수 마진으로 패널 패딩만큼 밖으로 번지게 해서, 스크롤된 내용이 옆으로 비쳐 보이지 않게 한다.
+  // 모바일에서는 Modal이 그래버를 top:0에 sticky로 붙여두므로, 그 블록 높이만큼 아래에 붙인다 —
+  // top:0으로 두면 이 헤더가 그래버 블록 뒤로 들어가 윗부분이 잘린다.
   const gutter = isMobile ? 18 : 30
   const stickyTopStyle: CSSProperties = {
-    position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface)',
+    position: 'sticky', top: isMobile ? SHEET_GRABBER_BLOCK_PX : 0, zIndex: 2, background: 'var(--surface)',
     margin: `0 ${-gutter}px 18px`, padding: `2px ${gutter}px 14px`,
   }
   // 저장 버튼은 다른 17개 모달과 마찬가지로 콘텐츠 맨 끝에 둔다. 한때 하단에도 sticky를 걸어봤으나,

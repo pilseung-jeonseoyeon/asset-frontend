@@ -9,6 +9,8 @@ import { useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
+import { sheetStickyHeaderStyle } from '../../../components/primitives/Modal/sheetHeader'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useAppState } from '../../../state/AppStateContext'
 import { useCloseModal } from '../../../state/selectors/modal'
 import { CATEGORY_KIND_LABELS, CATEGORY_KIND_ORDER } from '../../../data/ledgerView'
@@ -29,6 +31,7 @@ interface DeleteTarget {
 }
 
 export function CategorySettingsModal() {
+  const isMobile = useIsMobile()
   const { state, setState } = useAppState()
   const closeModal = useCloseModal()
   const isOpen = state.openModal === 'categorySettings'
@@ -114,7 +117,7 @@ export function CategorySettingsModal() {
 
   return (
     <Modal onClose={closeAndReset} zIndex={80} width={560} panelStyle={{ maxHeight: '86vh', overflow: 'auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, ...sheetStickyHeaderStyle(isMobile, 8) }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
           <button
             onClick={backToCustom}

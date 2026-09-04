@@ -30,6 +30,8 @@
 import { useState } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
+import { sheetStickyHeaderStyle } from '../../../components/primitives/Modal/sheetHeader'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useAppState } from '../../../state/AppStateContext'
 import { buildAccountActivity, buildAccountBalanceView, buildAccountDetailHeader } from '../../../data/assetsView'
 import {
@@ -61,6 +63,7 @@ interface SyncNote {
 }
 
 export function AccountDetailModal() {
+  const isMobile = useIsMobile()
   const { state, setState } = useAppState()
   const accountId = state.accountDetailId
   const isOpen = accountId !== null
@@ -175,7 +178,7 @@ export function AccountDetailModal() {
         </>
       ) : (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, gap: 12, ...sheetStickyHeaderStyle(isMobile) }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
               <span style={{ width: 38, height: 38, borderRadius: 8, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
                 <Icon name="account_balance" size={20} />

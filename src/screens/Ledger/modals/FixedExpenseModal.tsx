@@ -13,6 +13,8 @@ import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
+import { sheetStickyHeaderStyle } from '../../../components/primitives/Modal/sheetHeader'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 import { Dropdown } from '../../../components/primitives/Dropdown/Dropdown'
 import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker'
 import { SegmentedTab } from '../../../components/primitives/SegmentedTab/SegmentedTab'
@@ -35,6 +37,7 @@ const ERROR_STYLE: CSSProperties = { fontSize: 11.5, color: 'var(--down)', margi
 const PAY_DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => `${i + 1}일`)
 
 export function FixedExpenseModal() {
+  const isMobile = useIsMobile()
   const { state, setState } = useAppState()
   const isOpen = state.openModal === 'fixedExpense'
   const isEditing = state.editingRecurringId !== null
@@ -200,7 +203,7 @@ export function FixedExpenseModal() {
       {!!state.openDropdown && (
         <div onClick={() => setState({ openDropdown: null })} style={{ position: 'absolute', inset: 0, zIndex: 94 }} />
       )}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, ...sheetStickyHeaderStyle(isMobile) }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
           <span style={{ width: 38, height: 38, borderRadius: 8, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="event_repeat" size={20} />

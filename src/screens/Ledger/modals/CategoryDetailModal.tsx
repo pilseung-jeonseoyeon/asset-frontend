@@ -4,12 +4,15 @@
 
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
+import { sheetStickyHeaderStyle } from '../../../components/primitives/Modal/sheetHeader'
+import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useAppState } from '../../../state/AppStateContext'
 import { formatNumber } from '../../../utils/format'
 import { describeQueryError, formatCategoryDetailChange } from '../../../data/ledgerView'
 import { useGetCategoryDetail } from '@/services/transaction'
 
 export function CategoryDetailModal() {
+  const isMobile = useIsMobile()
   const { state, setState } = useAppState()
   const isOpen = state.openModal === 'categoryDetail'
   const detail = useGetCategoryDetail(state.categoryDetailId, {}, { enabled: isOpen })
@@ -48,7 +51,7 @@ export function CategoryDetailModal() {
       ) : (
         detail.data && (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, ...sheetStickyHeaderStyle(isMobile, 6) }}>
               <div style={{ fontSize: 16.5, fontWeight: 700 }}>{detail.data.categoryName} 상세</div>
               <button
                 onClick={closeCategoryDetail}
