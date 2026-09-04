@@ -6,7 +6,7 @@
 //
 // 설계: docs/superpowers/specs/2026-08-29-byok-connection-design.md
 
-import type { ConnectionProvider, SyncResponse } from '@/services/connection'
+import type { ConnectionProvider, ConnectionResponse, SyncResponse } from '@/services/connection'
 import type { AssetClass } from '@/services/common.type'
 
 /**
@@ -168,4 +168,20 @@ export function describeSync(result: SyncResponse, noun = '매매'): SyncSummary
   if (result.skipped > 0) notes.push(`이미 등록돼 있던 ${result.skipped.toLocaleString('ko-KR')}건은 건너뛰었어요.`)
   if (result.rejected > 0) notes.push(`검증에 걸려 등록하지 못한 ${result.rejected.toLocaleString('ko-KR')}건이 있어요.`)
   return { headline, detail: notes.length > 0 ? notes.join(' ') : null }
+}
+
+/**
+ * 이 계좌에 붙어 있는 연동. 없으면 null.
+ *
+ * ConnectionResponse.accountId는 **첫 동기화 전이면 null**이다. 그래서 `c.accountId === accountId`만
+ * 비교하면 안 되고(accountId 인자가 null일 일은 없지만, 계약이 바뀌어 optional이 되면 아직 계좌가
+ * 없는 연동들이 전부 같은 계좌에 붙은 것처럼 보인다) null을 먼저 걸러낸다.
+ *
+ * 목록이 4~5건 수준이라 매 렌더 find로 충분하다 — 맵을 만들어 캐싱할 만큼의 크기가 아니다.
+ */
+export function connectionOfAccount(
+  connections: ConnectionResponse[],
+  accountId: number,
+): ConnectionResponse | null {
+  return connections.find((c) => c.accountId !== null && c.accountId === accountId) ?? null
 }

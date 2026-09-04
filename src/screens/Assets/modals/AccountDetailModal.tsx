@@ -27,17 +27,38 @@
 // 척 그리면 틀린 숫자가 된다. 자산군 단위 그래프는 AssetCategoryModal이 쓴다.
 // 백엔드에 계좌별 추이(accountId 필터)가 생기면 그때 이 자리에 선 그래프를 만든다.
 
+import { useState } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
 import { buildAccountActivity, buildAccountBalanceView, buildAccountDetailHeader } from '../../../data/assetsView'
+import {
+  connectionOfAccount,
+  describeConnectionError,
+  describeSync,
+  tradeNounFor,
+} from '../../../data/connectionView'
 import { buildLedgerTransactions, describeQueryError } from '../../../data/ledgerView'
 import { buildTradeRows, marketsOfAccountType } from '../../../data/stocksView'
+import { formatNotificationTime } from '../../../utils/notificationTime'
+import { ApiError } from '@/services/api'
 import { useGetAccount, useGetAccounts } from '@/services/account'
+import { useGetConnections, usePostConnectionSync } from '@/services/connection'
 import { useGetTransactions } from '@/services/transaction'
 import { useGetTrades } from '@/services/trade'
 
 const RECENT_TX_SIZE = 5
+
+/**
+ * 가져오기 결과 한 줄. accountId를 함께 들고 있는 이유: 이 모달은 계좌를 바꿔 열어도 언마운트되지
+ * 않고 accountDetailId만 갈아끼운다. 계좌 id를 안 붙이면 A계좌에서 본 결과 문구가 B계좌를 열었을 때
+ * 그대로 남아 "이 계좌를 방금 가져온" 것처럼 읽힌다.
+ */
+interface SyncNote {
+  accountId: number
+  text: string
+  isError: boolean
+}
 
 export function AccountDetailModal() {
   const { state, setState } = useAppState()
@@ -59,10 +80,21 @@ export function AccountDetailModal() {
   )
   // TRANSFER 거래의 상대 계좌명 조인용(ledgerView.buildLedgerTransactions가 요구하는 인자).
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })
+  // 이 계좌에 붙은 API 키 연동이 있는지. 실패해도 화면을 막지 않는다 — 연동 칸이 안 뜰 뿐이다.
+  const connectionsQuery = useGetConnections({ enabled: isOpen })
+  const postSync = usePostConnectionSync()
+  const [syncNote, setSyncNote] = useState<SyncNote | null>(null)
 
   if (!isOpen) return null
 
-  const closeAccount = () => setState({ accountDetailId: null })
+  // 모달은 닫아도 언마운트되지 않으므로(architecture.md '레이어 간 규칙') 로컬 state와 mutation을
+  // 직접 되돌린다 — 안 하면 같은 계좌를 다시 열었을 때 지난번 가져오기 결과가 방금 일어난 일처럼
+  // 다시 뜨고, 진행 중이던 요청의 '가져오는 중…'이 다음 계좌 화면까지 따라온다.
+  const closeAccount = () => {
+    setSyncNote(null)
+    postSync.reset()
+    setState({ accountDetailId: null })
+  }
 
   const detail = accountQuery.data
   const account = detail?.account
@@ -77,6 +109,41 @@ export function AccountDetailModal() {
   const activityRows = buildAccountActivity(transactionRows, tradeRows, RECENT_TX_SIZE)
   // 둘 중 하나만 실패해도 나머지는 보여준다 — 매매를 못 불러왔다고 가계부 거래까지 감출 이유가 없다.
   const activityError = transactionsQuery.error ?? tradesQuery.error
+
+  const connection = connectionOfAccount(connectionsQuery.connections, accountId)
+  const note = syncNote?.accountId === accountId ? syncNote : null
+  // postSync는 이 모달 인스턴스에 하나뿐이라 isPending만 보면 "아무 계좌나 가져오는 중"이 된다.
+  // 계좌 A를 가져오는 도중 B를 열면 B의 버튼이 누른 적도 없이 잠긴 채로 보이므로,
+  // 진행 중인 요청이 정말 이 연동의 것인지(variables) 함께 확인한다.
+  const isSyncing = postSync.isPending && connection !== null && postSync.variables === connection.id
+
+  /**
+   * 이 계좌의 연동 가져오기. 성공하면 usePostConnectionSync가 account·asset·trade·stock·dashboard
+   * 캐시를 넓게 무효화하므로(hook 주석) 이 모달의 잔액과 거래내역도 알아서 새로 그려진다.
+   */
+  const runSync = () => {
+    if (!connection || postSync.isPending) return // 다른 계좌 요청이 도는 중에도 새로 쏘지 않는다
+    setSyncNote(null)
+    postSync.mutate(connection.id, {
+      onSuccess: (result) => {
+        const summary = describeSync(result, tradeNounFor(connection.provider))
+        setSyncNote({
+          accountId,
+          text: summary.detail ? `${summary.headline} ${summary.detail}` : summary.headline,
+          isError: false,
+        })
+      },
+      onError: (e) => {
+        const text =
+          e instanceof ApiError
+            ? describeConnectionError(e.code, e.message)
+            : e instanceof Error
+              ? e.message
+              : '가져오기에 실패했어요.'
+        setSyncNote({ accountId, text, isError: true })
+      },
+    })
+  }
 
   return (
     <Modal onClose={closeAccount} zIndex={90} width={560} panelStyle={{ maxHeight: '86vh', overflow: 'auto' }}>
@@ -158,6 +225,56 @@ export function AccountDetailModal() {
               </div>
             )}
           </div>
+
+          {/* 연동 계좌에만 뜨는 칸. 설정 → 데이터 관리에도 같은 '가져오기'가 있지만, 사용자가
+              내역을 확인하는 자리는 여기다 — 비어 보이는 계좌를 열어놓고 설정 화면까지 찾아 들어가
+              가져오기를 눌러야 한다면 그 경로를 아무도 못 찾는다. 연동 '해제'는 여기 두지 않는다:
+              되돌릴 수 없는 동작이라 관리 화면 한 곳에만 있어야 실수로 눌리지 않는다. */}
+          {connection && (
+            <div style={{ marginBottom: 18, padding: 13, borderRadius: 10, background: 'var(--fill-subtle)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+                  <Icon name="link" size={16} />
+                </span>
+                <div style={{ flex: 1, minWidth: 130 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)' }}>
+                    {connection.providerDescription} 연동
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>
+                    {connection.lastSyncedAt
+                      ? `마지막 가져오기 ${formatNotificationTime(connection.lastSyncedAt)}`
+                      : '아직 가져오지 않았어요'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="qbtn"
+                  onClick={runSync}
+                  disabled={postSync.isPending}
+                  aria-busy={isSyncing}
+                  style={{ border: '0.5px solid var(--border)', background: 'var(--surface)', borderRadius: 8, padding: '8px 12px', minHeight: 36, fontSize: 11.5, fontWeight: 700, color: 'var(--text-mid)', cursor: 'pointer', fontFamily: 'inherit', flex: 'none', opacity: postSync.isPending ? 0.6 : 1 }}
+                >
+                  {isSyncing ? '가져오는 중…' : '가져오기'}
+                </button>
+              </div>
+              {/* 기관 API를 실제로 호출하는 요청이라 응답까지 최대 30초를 준다(connection.service.ts).
+                  스피너 없이 버튼 글자만 바뀌면 몇 초 안에 "멈춘 건가?" 싶어지므로, 기다려야 하는
+                  동작이라는 것을 진행 중에만 한 줄로 알려준다. */}
+              {isSyncing && (
+                <div style={{ fontSize: 11.5, lineHeight: 1.6, color: 'var(--text-weak)' }}>
+                  기관에서 내역을 받아오는 중이에요. 최대 30초쯤 걸릴 수 있어요.
+                </div>
+              )}
+              {note && (
+                <div
+                  role={note.isError ? 'alert' : 'status'}
+                  style={{ fontSize: 11.5, lineHeight: 1.6, color: note.isError ? 'var(--down)' : 'var(--text-strong)' }}
+                >
+                  {note.text}
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>최근 거래내역</div>
           {transactionsQuery.isPending || (hasTrades && tradesQuery.isPending) ? (

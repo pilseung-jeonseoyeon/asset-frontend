@@ -17,14 +17,19 @@ import { Modal } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
 import { assetClassFormPreset, buildAssetClassCards } from '../../../data/assetsView'
+import { connectionOfAccount } from '../../../data/connectionView'
 import { useGetAccounts } from '@/services/account'
 import { useGetAssetDistributionByClass } from '@/services/asset'
+import { useGetConnections } from '@/services/connection'
 
 export function AssetCategoryModal() {
   const { state, setState } = useAppState()
   const isOpen = state.assetClassDetail !== null
   const distribution = useGetAssetDistributionByClass({ enabled: isOpen })
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })
+  // 연동 배지용. 실패해도 화면을 막지 않는다 — 배지가 안 붙을 뿐이고, 계좌 목록 자체는 이 응답과
+  // 무관하다. 그래서 accountsQuery와 달리 에러 문구를 따로 띄우지 않는다.
+  const connectionsQuery = useGetConnections({ enabled: isOpen })
 
   // 다른 18개 모달과 동일하게, 훅 호출(위 두 줄) 다음 파생 계산(아래 buildAssetClassCards)보다 먼저
   // isOpen 가드를 둔다. `enabled: isOpen`은 리페치만 막을 뿐 캐시 데이터는 계속 흘러들어오므로(같은
@@ -73,31 +78,48 @@ export function AssetCategoryModal() {
             이 카테고리에 등록된 계좌가 없어요.
           </div>
         )}
-        {selectedAssetClass.accounts.map((ca) => (
-          <div
-            key={ca.accountId}
-            className="mini-hov"
-            style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8 }}
-          >
-            <button
-              onClick={() => setState({ accountDetailId: ca.accountId })}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, border: 'none', background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', color: 'inherit' }}
+        {selectedAssetClass.accounts.map((ca) => {
+          const connection = connectionOfAccount(connectionsQuery.connections, ca.accountId)
+          return (
+            <div
+              key={ca.accountId}
+              className="mini-hov"
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8 }}
             >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700 }}>{ca.name}</div>
-                <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>{ca.institutionName}</div>
-              </div>
-              <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{ca.amountText}원</div>
-            </button>
-            <button
-              onClick={() => setState({ editingAccountId: ca.accountId, openModal: 'editAccount' })}
-              title="계좌 수정"
-              style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: 'var(--track)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flex: 'none' }}
-            >
-              <Icon name="edit" size={16} color="var(--text-mid)" />
-            </button>
-          </div>
-        ))}
+              <button
+                onClick={() => setState({ accountDetailId: ca.accountId })}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, border: 'none', background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', color: 'inherit' }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ca.name}</div>
+                    {/* 연동 배지: 이 계좌가 기관 API로 자동 갱신된다는 표시. 기관명은 툴팁이 아니라
+                        title로만 두고 배지 자체는 '연동' 두 글자로 고정한다 — 계좌 이름이 긴 경우가
+                        많아 배지까지 길어지면 이름이 먼저 잘린다. */}
+                    {connection && (
+                      <span
+                        title={`${connection.providerDescription} 연동`}
+                        style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-soft)', borderRadius: 6, padding: '2px 7px', flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, lineHeight: 1.4 }}
+                      >
+                        <Icon name="link" size={11} />
+                        연동
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>{ca.institutionName}</div>
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{ca.amountText}원</div>
+              </button>
+              <button
+                onClick={() => setState({ editingAccountId: ca.accountId, openModal: 'editAccount' })}
+                title="계좌 수정"
+                style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: 'var(--track)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flex: 'none' }}
+              >
+                <Icon name="edit" size={16} color="var(--text-mid)" />
+              </button>
+            </div>
+          )
+        })}
         <button
           className="qbtn"
           onClick={() =>
