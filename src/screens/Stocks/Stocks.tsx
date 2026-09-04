@@ -15,6 +15,7 @@
 // '매매 내역' 섹션과 '외화 자산' 카드의 '내역' 진입점이 있어야 오입력한 매매·환전을 되돌릴 수 있다 —
 // 지우지 말 것.
 
+import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
 import { Card } from '../../components/primitives/Card/Card'
@@ -26,6 +27,8 @@ import { useAppState } from '../../state/AppStateContext'
 import { stockDeepTabStyle, stockLightTabStyle } from '../../state/selectors/stockTabStyles'
 import { formatNumber, formatKrw, formatKoreanUnits } from '../../utils/format'
 import { isoDateToDisplay } from '../../utils/date'
+import { useIsMobile } from '../../utils/useMediaQuery'
+import type { MarketIndexView } from '../../data/stocksView'
 import {
   buildClosedHoldingCards,
   buildGroupReturns,
@@ -58,6 +61,49 @@ const INDEX_TILE_STYLE: CSSProperties = {
   justifyContent: 'space-between',
   gap: 8,
 }
+/** 전광판이 지표 하나를 머무르는 시간(ms). 라벨·값·변동률 세 덩이를 읽기에 충분한 길이. */
+const TICKER_INTERVAL_MS = 3500
+
+/**
+ * 모바일 전용 시장 지표 전광판 — 지표 4개를 한 줄에서 번갈아 보여준다.
+ *
+ * 좁은 화면에서 타일 4개는 접어도 화면 높이를 100px 넘게 먹는데, 시장 지표는 이 화면의 주인공이
+ * 아니라 곁눈질로 확인하는 정보다. 제목 옆 한 줄로 줄이고 값만 돌린다(토스증권 '관심' 화면의
+ * 달러 환율 줄과 같은 방식).
+ */
+function MarketIndexTicker({ views }: { views: MarketIndexView[] }) {
+  const [cursor, setCursor] = useState(0)
+
+  useEffect(() => {
+    // 지표가 하나뿐이면 돌릴 것이 없다 — 타이머를 걸지 않는다.
+    if (views.length <= 1) return
+    const timer = window.setInterval(() => setCursor((v) => v + 1), TICKER_INTERVAL_MS)
+    return () => window.clearInterval(timer)
+  }, [views.length])
+
+  // cursor는 계속 커지고 읽을 때 나머지를 취한다 — 지표 개수가 줄어드는 응답이 와도 인덱스가
+  // 범위를 벗어나지 않는다(길이 0이면 아래 가드가 받는다).
+  const current = views.length > 0 ? views[cursor % views.length] : undefined
+  if (!current) return null
+
+  return (
+    // aria-live를 걸지 않는다: 3.5초마다 스스로 바뀌는 곁눈질용 정보라, 읽어주면 화면을 읽는
+    // 사용자에게 계속 끼어드는 소음이 된다.
+    <div className="mindex-ticker" style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, overflow: 'hidden' }}>
+      {/* key를 심볼로 둬서 값이 바뀔 때마다 노드가 새로 마운트되고 등장 애니메이션이 다시 돈다. */}
+      <div key={current.symbol} className="mindex-ticker-item" style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-weak)', whiteSpace: 'nowrap' }}>{current.label}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>{current.valueText}</span>
+        {current.changePercentText && (
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: current.positive ? 'var(--up)' : 'var(--down)', whiteSpace: 'nowrap' }}>
+            {current.changePercentText}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // 1억 원 미만 금액에는 축약 캡션을 병기하지 않는다(ds_rules_v2_5.md §4-2) — Dashboard.tsx의
 // KoreanUnitsCaption과 동일 기준.
 const ABBREV_THRESHOLD = 100_000_000
@@ -73,6 +119,7 @@ function TotalValueKoreanUnitsCaption({ amountKrw }: { amountKrw: number }) {
 
 export function Stocks() {
   const { state, setState } = useAppState()
+  const isMobile = useIsMobile()
   const stockMarketTab = state.stockMarketTab
   const market = stockMarketTabToMarket(stockMarketTab)
 
@@ -88,6 +135,8 @@ export function Stocks() {
 
   const indicesQuery = useGetMarketIndices()
   const indexViews = buildMarketIndexViews(indicesQuery.indices)
+  // 모바일은 타일 그리드 대신 제목 옆 한 줄 전광판으로 대체한다(MarketIndexTicker 주석).
+  const showIndexTicker = isMobile && !indicesQuery.isPending && !indicesQuery.error && indexViews.length > 0
 
   // 이 화면의 전체/국내/해외 탭은 딥 카드(포트폴리오 요약)와 보유 종목 그리드가 공유한다 — 소스에서도
   // 두 블록이 같은 stockTab을 읽는다.
@@ -129,17 +178,29 @@ export function Stocks() {
           '—' 한 줄이 아니라 실제 카드와 같은 자리·같은 높이의 스켈레톤을 깔아, 값이 도착해도 아래
           블록들이 밀려 내려가지 않게 한다. */}
       <Card style={{ padding: '16px 20px' }} aria-busy={indicesQuery.isPending}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        {/* 모바일에서는 이 헤더 한 줄이 카드의 전부다 — 아래 그리드를 그리지 않으므로 여백도 두지 않는다.
+            불러오는 중에도 전광판과 같은 자리에 같은 높이의 스켈레톤을 둬서, 값이 도착해도 아래
+            블록이 밀려 내려가지 않게 한다(데스크톱 그리드와 같은 이유). */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: isMobile ? 0 : 10 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flex: 'none' }}>
             <div style={{ fontSize: 15, fontWeight: 700 }}>시장 지표</div>
           </div>
+          {isMobile && indicesQuery.isPending && <Skeleton width={150} height={15} />}
+          {showIndexTicker && <MarketIndexTicker views={indexViews} />}
         </div>
-        {indicesQuery.isPending ? (
-          <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: `repeat(${MARKET_INDEX_COUNT},1fr)`, gap: 12 }}>
+        {isMobile ? (
+          // 모바일에서 남는 것은 실패·빈 상태 문구뿐이다(값이 있으면 위 전광판이 대신한다).
+          indicesQuery.error ? (
+            <div style={{ ...ERROR_TEXT_STYLE, marginTop: 8 }}>{indicesQuery.error.message}</div>
+          ) : !indicesQuery.isPending && indexViews.length === 0 ? (
+            <div style={{ ...EMPTY_TEXT_STYLE, marginTop: 8 }}>불러올 수 있는 시장 지표가 없어요</div>
+          ) : null
+        ) : indicesQuery.isPending ? (
+          <div className="rgrid-indices" style={{ display: 'grid', gridTemplateColumns: `repeat(${MARKET_INDEX_COUNT},1fr)`, gap: 12 }}>
             {Array.from({ length: MARKET_INDEX_COUNT }, (_, i) => (
-              <div key={i} style={INDEX_TILE_STYLE}>
+              <div key={i} className="mindex-tile" style={INDEX_TILE_STYLE}>
                 <Skeleton width={54} height={13} />
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
+                <div className="mindex-value" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
                   <Skeleton width={74} height={15} />
                   <Skeleton width={38} height={11} />
                 </div>
@@ -151,11 +212,11 @@ export function Stocks() {
         ) : indexViews.length === 0 ? (
           <div style={EMPTY_TEXT_STYLE}>불러올 수 있는 시장 지표가 없어요</div>
         ) : (
-          <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: `repeat(${indexViews.length},1fr)`, gap: 12 }}>
+          <div className="rgrid-indices" style={{ display: 'grid', gridTemplateColumns: `repeat(${indexViews.length},1fr)`, gap: 12 }}>
             {indexViews.map((marketIndex) => (
-              <div key={marketIndex.symbol} style={INDEX_TILE_STYLE}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>{marketIndex.label}</div>
-                <div style={{ textAlign: 'right' }}>
+              <div key={marketIndex.symbol} className="mindex-tile" style={INDEX_TILE_STYLE}>
+                <div className="mindex-label" style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{marketIndex.label}</div>
+                <div className="mindex-value" style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 15, fontWeight: 700 }}>{marketIndex.valueText}</div>
                   {marketIndex.changePercentText && (
                     <div style={{ fontSize: 11, fontWeight: 700, color: marketIndex.positive ? 'var(--up)' : 'var(--down)', marginTop: 1 }}>

@@ -105,6 +105,55 @@ body {
   }
 }
 
+/* 주식 화면 '시장 지표' 타일 — 데스크톱은 지표 수만큼 가로로 늘어서지만(인라인 grid-template-columns),
+   좁은 화면에서 .rgrid-cards를 쓰면 4개가 1열로 쌓여 카드 하나가 화면 절반을 먹었다. 2열로 접어
+   높이를 절반으로 줄인다.
+   **실제로 이 규칙이 보이는 구간은 768~900px(태블릿)뿐이다** — 767px 이하에서는 Stocks.tsx가
+   그리드 대신 한 줄 전광판(MarketIndexTicker)을 그리므로 이 타일들이 아예 렌더되지 않는다.
+   그래도 900px에 맞춰 둔다: 전광판을 쓰지 않는 구간에 1열로 길게 늘어진 타일이 남으면 안 된다.
+   2열에서는 타일 안도 세로로 쌓는다: 폭이 절반이 된 타일에 이름과 값을 좌우로 벌려 두면
+   'NASDAQ 26,509.76'처럼 긴 조합이 320px 화면에서 넘친다. 이름을 값 위로 올리면 한 줄에 하나씩만
+   들어가 어떤 지표에서도 안전하다.
+   인라인 style로 선언된 값(align-items, gap, text-align, font-size)을 덮어야 해서 !important가 필요하다.
+   .rgrid-cards와 함께 쓰지 않는다(74~80행 주석의 !important 함정). */
+@media (max-width:900px) {
+  .rgrid-indices {
+    grid-template-columns: repeat(2,1fr) !important
+  }
+  .mindex-tile {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 2px !important
+  }
+  /* 이름이 값보다 커 보이면 위계가 뒤집힌다 — 세로로 쌓는 동안만 캡션 크기로 낮춘다. */
+  .mindex-tile > .mindex-label {
+    font-size: 11.5px !important;
+    font-weight: 600 !important;
+    color: var(--text-weak) !important
+  }
+  .mindex-tile > .mindex-value {
+    text-align: left !important;
+    align-items: flex-start !important
+  }
+}
+
+/* 시장 지표 전광판(모바일) — 값이 바뀔 때마다 아래에서 살짝 밀려 올라오며 나타난다. 페이드만
+   주면 숫자만 조용히 바뀌어서 "지금 다른 지표로 넘어갔다"는 신호가 약하다. */
+@keyframes mindex-ticker-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px)
+  }
+  to {
+    opacity: 1;
+    transform: none
+  }
+}
+
+.mindex-ticker-item {
+  animation: mindex-ticker-in .32s ease
+}
+
 /* Dashboard "주요 자산 보관처" 카드 그리드 전용 — .rgrid-cards의 <=900px:1fr 규칙을 공유하면 앱의
    단일 모바일 브레이크포인트(<=767px, docs/mobile.md)에서 의도한 2열이 그 !important에 가려져
    전혀 적용되지 않는다(두 규칙이 같은 요소에 걸리면 나중에 선언된 쪽이 이기므로, 이 클래스는
@@ -179,6 +228,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent) !importa
 .asset-2col > *,
 .rgrid-outer > *,
 .rgrid-cards > *,
+.rgrid-indices > *,
 .rgrid-institutions > * {
   min-width: 0
 }
@@ -259,7 +309,8 @@ html.theme-dark .monit-logo-dark { display: block }
 
 @media (prefers-reduced-motion: reduce) {
   .sheet-up,
-  .sheet-right {
+  .sheet-right,
+  .mindex-ticker-item {
     animation: none
   }
 
