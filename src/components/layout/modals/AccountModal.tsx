@@ -5,10 +5,13 @@
 // 로그아웃 버튼은 usePostLogout()에 연결되어 있다 — 실패해도 클라이언트 세션은 끊는다
 // (auth.hook.ts의 usePostLogout onSettled 주석 참고), 되돌리기 쉬운 동작이라 확인 모달은 두지 않는다.
 //
-// 모바일(<=767px, docs/mobile.md §4): 이 모달은 공용 primitives/Modal을 쓰지 않는
-// 예외라(ReportOverlay와 함께 둘뿐) 바텀시트 전환을 여기서 다시 구현한다 — 모양은 Modal.tsx와
-// 같다: flex-end 스크림, radius 10px 10px 0 0, 최대 높이 88vh, 하단 세이프 에어리어 여백,
-// 위쪽 그래버, 아래에서 올라오는 슬라이드.
+// 모바일(<=767px, docs/mobile.md §4-1): 이 모달만 **오른쪽에서 밀려 나오는 서랍**이다
+// (2026-09-04 사용자 요청 — 헤더 우측 아바타에서 열리니 그쪽에서 나오는 게 자연스럽다).
+// 다른 모달은 전부 아래에서 올라오는 바텀시트다. 공용 primitives/Modal을 쓰지 않는 예외라
+// (ReportOverlay와 함께 둘뿐) 전환을 여기서 직접 구현한다: 스크림 오른쪽 정렬, 폭 88%(최대
+// 420px)로 왼쪽에 뒤 화면이 살짝 보이고, radius 10px 0 0 10px, 화면 전체 높이, 위아래 세이프
+// 에어리어 여백, .sheet-right 슬라이드(base.css). 그래버(위쪽 손잡이)는 아래로 미는 시트가
+// 아니라서 두지 않는다 — 닫기는 X 버튼과 왼쪽 빈 곳 누르기.
 
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
@@ -32,6 +35,10 @@ const ROW_STYLE: CSSProperties = {
 }
 
 const LABEL_STYLE: CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 7 }
+
+/** ROW_STYLE 행의 왼쪽 텍스트 묶음. flex 기본값(min-width:auto)이면 긴 설명이 줄어들지 않고
+ *  오른쪽 배지·버튼을 밀어 쪼개므로, 줄어드는 쪽을 이쪽으로 못박는다. */
+const ROW_TEXT_STYLE: CSSProperties = { minWidth: 0 }
 
 /** UserProfileRes.passwordChangedAt(Instant, 'Z' suffix)을 "YYYY.MM.DD"로. */
 function formatChangedAtDate(iso: string): string {
@@ -265,27 +272,32 @@ export function AccountModal() {
         inset: 0,
         background: 'var(--overlay-scrim)',
         display: 'flex',
-        alignItems: isMobile ? 'flex-end' : 'center',
-        justifyContent: 'center',
+        alignItems: isMobile ? 'stretch' : 'center',
+        justifyContent: isMobile ? 'flex-end' : 'center',
         zIndex: 80,
         padding: isMobile ? 0 : 24,
       }}
     >
       <div
         onClick={stopPropagation}
-        className={isMobile ? 'sheet-up' : undefined}
+        className={isMobile ? 'sheet-right' : undefined}
         style={
           isMobile
             ? {
                 position: 'relative',
                 background: 'var(--surface)',
-                borderRadius: '10px 10px 0 0',
-                padding: '20px 18px calc(20px + env(safe-area-inset-bottom))',
-                width: '100%',
-                maxWidth: '100%',
-                maxHeight: '88vh',
+                borderRadius: '10px 0 0 10px',
+                // 전체화면(standalone)에서는 서랍이 상태바 뒤까지 올라오므로 위쪽도 세이프 에어리어를
+                // 더한다(docs/mobile.md §7) — 일반 브라우저 탭에서는 env가 0이라 20px 그대로다.
+                padding: 'calc(20px + env(safe-area-inset-top)) 18px calc(20px + env(safe-area-inset-bottom))',
+                width: '88%',
+                maxWidth: 420,
+                height: '100%',
                 overflowY: 'auto',
                 boxShadow: 'var(--shadow-modal)',
+                // 로그아웃·탈퇴를 서랍 맨 아래에 붙이기 위한 세로 flex(아래 marginTop:auto 참고).
+                display: 'flex',
+                flexDirection: 'column',
               }
             : {
                 position: 'relative',
@@ -300,14 +312,8 @@ export function AccountModal() {
               }
         }
       >
-        {isMobile && (
-          <div
-            aria-hidden="true"
-            style={{ width: 36, height: 4, borderRadius: 999, background: 'var(--border)', margin: '0 auto 14px' }}
-          />
-        )}
         {isAccountMain && (
-          <div>
+          <div style={isMobile ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : undefined}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
                 <span
@@ -367,9 +373,9 @@ export function AccountModal() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', ...(isMobile ? { flex: 1, minHeight: 0 } : null) }}>
               <div style={ROW_STYLE}>
-                <div>
+                <div style={ROW_TEXT_STYLE}>
                   <div style={{ fontSize: 13.5, fontWeight: 600 }}>이름</div>
                   <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>가계부 · 알림에 표시되는 이름</div>
                 </div>
@@ -392,10 +398,10 @@ export function AccountModal() {
                 </button>
               </div>
               <div style={ROW_STYLE}>
-                <div>
+                <div style={ROW_TEXT_STYLE}>
                   <div style={{ fontSize: 13.5, fontWeight: 600 }}>프로필 이미지</div>
                   <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>
-                    이름 첫 글자 기반 기본 이미지 · 커스텀 프로필은 추후 지원 예정
+                    커스텀 프로필은 추후 지원 예정
                   </div>
                 </div>
                 <span
@@ -406,13 +412,17 @@ export function AccountModal() {
                     background: 'var(--track)',
                     borderRadius: 8,
                     padding: '5px 10px',
+                    // 좁은 폭(모바일 서랍 88%)에서 "준비" / "중"으로 쪼개지지 않게 한다 —
+                    // 옆의 '변경' 버튼들과 같은 원칙이다. 줄어드는 쪽은 왼쪽 설명 텍스트다.
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
                   준비 중
                 </span>
               </div>
               <div style={ROW_STYLE}>
-                <div>
+                <div style={ROW_TEXT_STYLE}>
                   <div style={{ fontSize: 13.5, fontWeight: 600 }}>비밀번호 변경</div>
                   {/* passwordChangedAt이 null이면(가입 후 한 번도 안 바꿈) 날짜 대신 규칙 안내를
                       보여주고, 값이 있으면 "마지막 변경 YYYY.MM.DD"로 보여준다. */}
@@ -442,7 +452,7 @@ export function AccountModal() {
                 </button>
               </div>
               <div style={ROW_STYLE}>
-                <div>
+                <div style={ROW_TEXT_STYLE}>
                   <div style={{ fontSize: 13.5, fontWeight: 600 }}>가족 연동</div>
                   <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>
                     개인 자산과 공유 자산을 나눠서 관리
@@ -456,59 +466,69 @@ export function AccountModal() {
                     background: 'var(--track)',
                     borderRadius: 8,
                     padding: '5px 10px',
+                    // 좁은 폭(모바일 서랍 88%)에서 "준비" / "중"으로 쪼개지지 않게 한다 —
+                    // 옆의 '변경' 버튼들과 같은 원칙이다. 줄어드는 쪽은 왼쪽 설명 텍스트다.
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
                   준비 중
                 </span>
               </div>
-              <div style={ROW_STYLE}>
-                <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>로그아웃</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>이 기기에서 계정을 해제합니다</div>
+              {/* 로그아웃·탈퇴는 일상 조회 항목이 아니라 되돌리기 어려운 동작이라 한 묶음으로 뺐다.
+                  모바일 서랍은 화면 전체 높이라 목록 아래가 크게 비는데, marginTop:auto로 이 묶음을
+                  맨 아래에 붙이면 그 빈 곳이 자연스러운 여백이 되고 위 항목들과도 구분된다
+                  (2026-09-04 사용자 결정). 데스크톱 모달은 높이가 내용에 맞춰지므로 영향이 없다. */}
+              <div style={{ display: 'flex', flexDirection: 'column', ...(isMobile ? { marginTop: 'auto' } : null) }}>
+                <div style={ROW_STYLE}>
+                  <div style={ROW_TEXT_STYLE}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>로그아웃</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>이 기기에서 계정을 해제합니다</div>
+                  </div>
+                  <button
+                    onClick={doLogout}
+                    disabled={logoutMutation.isPending}
+                    aria-busy={logoutMutation.isPending}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: 'var(--text-strong)',
+                      background: 'var(--surface)',
+                      border: '0.5px solid var(--border)',
+                      borderRadius: 8,
+                      padding: '7px 13px',
+                      cursor: logoutMutation.isPending ? 'default' : 'pointer',
+                      fontFamily: 'inherit',
+                      whiteSpace: 'nowrap',
+                      opacity: logoutMutation.isPending ? 0.7 : 1,
+                    }}
+                  >
+                    {logoutMutation.isPending ? '로그아웃 중…' : '로그아웃'}
+                  </button>
                 </div>
-                <button
-                  onClick={doLogout}
-                  disabled={logoutMutation.isPending}
-                  aria-busy={logoutMutation.isPending}
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: 'var(--text-strong)',
-                    background: 'var(--surface)',
-                    border: '0.5px solid var(--border)',
-                    borderRadius: 8,
-                    padding: '7px 13px',
-                    cursor: logoutMutation.isPending ? 'default' : 'pointer',
-                    fontFamily: 'inherit',
-                    whiteSpace: 'nowrap',
-                    opacity: logoutMutation.isPending ? 0.7 : 1,
-                  }}
-                >
-                  {logoutMutation.isPending ? '로그아웃 중…' : '로그아웃'}
-                </button>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 0' }}>
-                <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>탈퇴</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>계정과 모든 기록을 삭제합니다</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 0' }}>
+                  <div style={ROW_TEXT_STYLE}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>탈퇴</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>계정과 모든 기록을 삭제합니다</div>
+                  </div>
+                  <button
+                    onClick={openWithdrawConfirm}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: 'var(--exp-text)',
+                      background: 'var(--surface)',
+                      border: '0.5px solid var(--border)',
+                      borderRadius: 8,
+                      padding: '7px 13px',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    탈퇴
+                  </button>
                 </div>
-                <button
-                  onClick={openWithdrawConfirm}
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: 'var(--exp-text)',
-                    background: 'var(--surface)',
-                    border: '0.5px solid var(--border)',
-                    borderRadius: 8,
-                    padding: '7px 13px',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  탈퇴
-                </button>
               </div>
             </div>
           </div>

@@ -193,6 +193,17 @@ html.theme-dark .monit-logo-dark { display: block }
     to { transform: translateY(0) }
   }
 
+  /* 오른쪽에서 밀려 나오는 서랍 — 현재는 계정 모달(AccountModal) 하나만 쓴다
+     (2026-09-04 사용자 요청, docs/mobile.md §4-1). 시간·이징은 .sheet-up과 같은 값. */
+  .sheet-right {
+    animation: sheet-right-in .22s cubic-bezier(.2, .7, .3, 1)
+  }
+
+  @keyframes sheet-right-in {
+    from { transform: translateX(100%) }
+    to { transform: translateX(0) }
+  }
+
   /* Minimum touch target (docs/mobile.md §5) — grows the invisible hit area of small controls without
      changing how they look. Needs !important to beat the element's own inline style, same as the other
      mobile overrides above (.rgrid-outer / .auth-brand). */
@@ -213,7 +224,8 @@ html.theme-dark .monit-logo-dark { display: block }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sheet-up {
+  .sheet-up,
+  .sheet-right {
     animation: none
   }
 
