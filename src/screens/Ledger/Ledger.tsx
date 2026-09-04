@@ -312,9 +312,11 @@ function CalendarCellView({
 }
 
 /**
- * 수입·지출·저축·이체 빠른 입력 버튼. 원래 '내역' 탭 툴바에만 있었는데, 가계부에 들어오면 항상
- * '개요' 탭이 먼저 떠서 지출 하나 적는 데 탭 전환이 한 번씩 더 들었다(사용자 요청).
- * 두 탭이 공유하도록 화면 최상단 세그탭 옆으로 올렸다.
+ * 수입·지출·저축·이체 빠른 입력 버튼. 두 탭 모두에서 바로 눌러야 해서(가계부에 들어오면 항상
+ * '개요' 탭이 먼저 떠 지출 하나 적는 데 탭 전환이 한 번씩 더 들었다 — 사용자 요청) 개요·내역
+ * 양쪽에 둔다. 다만 놓이는 줄이 다르다: 개요는 화면 최상단 세그탭 옆, 내역은 달력 툴바 줄
+ * 오른쪽 끝이다. 내역에서 최상단에 두면 주간/월간 줄이 사이에 끼어 달력과 한 줄 떨어져
+ * 보였다(사용자 요청 — "달력하고 붙어 있으면 좋겠다").
  */
 function EntryQuickButtons() {
   const { setState } = useAppState()
@@ -364,7 +366,7 @@ export function Ledger() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
-      {/* 서브 세그먼트 탭 + 빠른 입력 버튼. 좁은 화면에서는 버튼이 아랫줄로 접힌다. */}
+      {/* 서브 세그먼트 탭 + (개요 탭일 때만) 빠른 입력 버튼. 좁은 화면에서는 버튼이 아랫줄로 접힌다. */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', background: 'var(--track)', borderRadius: 10, padding: 4, gap: 2, width: 'fit-content' }}>
           <SegmentedTab active={state.ledgerTab === 'overview'} onClick={() => setState({ ledgerTab: 'overview' })}>
@@ -374,7 +376,9 @@ export function Ledger() {
             내역
           </SegmentedTab>
         </div>
-        <EntryQuickButtons />
+        {/* 내역 탭에서는 이 버튼이 달력 툴바 줄로 내려간다(LedgerHistory) — 여기 두면 주간/월간
+            줄이 사이에 끼어 달력과 떨어져 보인다. 개요 탭에는 달력이 없어 그대로 둔다. */}
+        {state.ledgerTab === 'overview' && <EntryQuickButtons />}
       </div>
 
       {state.ledgerTab === 'overview' && <LedgerOverview />}
@@ -951,7 +955,9 @@ function LedgerHistory() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+      {/* 기간 툴바 + 빠른 입력 버튼. 버튼을 달력 카드 바로 위 줄 오른쪽 끝에 붙여 둔다(사용자 요청).
+          좁은 화면에서는 flexWrap으로 버튼 묶음이 통째로 아랫줄에 접힌다. */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', background: 'var(--track)', borderRadius: 10, padding: 4, gap: 2 }}>
             <SegmentedTab active={isWeek} onClick={switchToWeek}>
@@ -989,6 +995,7 @@ function LedgerHistory() {
             오늘로 이동
           </button>
         </div>
+        <EntryQuickButtons />
       </div>
 
       {/* 캘린더뷰 */}
@@ -1158,7 +1165,10 @@ function LedgerHistory() {
                   <Icon name="close" size={13} />
                   {isWeek ? '이 주 전체' : '이 달 전체'}
                 </button>
-                {/* 예전에 달력 칸 클릭이 하던 "그날 거래 추가"의 모바일 경로 — 데스크톱 칸의 + 아이콘과 같은 동작. */}
+                {/* 예전에 달력 칸 클릭이 하던 "그날 거래 추가"의 모바일 경로 — 데스크톱 칸의 + 아이콘과 같은 동작.
+                    모바일에서는 제목+칩 다음 줄로 밀리는데, 거기서 marginLeft:auto로 오른쪽에 붙이면
+                    빈 줄에 혼자 떠 있는 것처럼 어긋나 보인다(2026-09-04 실기기 확인) — 줄 전체를 채우는
+                    버튼으로 만들어 아래 목록과 왼쪽 끝을 맞춘다. 데스크톱은 한 줄에 다 들어가므로 그대로 둔다. */}
                 <button
                   type="button"
                   onClick={openDayEntry(selectedDate)}
@@ -1167,7 +1177,9 @@ function LedgerHistory() {
                     display: 'flex', alignItems: 'center', gap: 4, minHeight: 44, padding: '0 10px',
                     borderRadius: 8, border: 'none', background: 'var(--accent-soft)', color: 'var(--accent)',
                     fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                    marginLeft: 'auto',
+                    ...(isMobile
+                      ? { width: '100%', justifyContent: 'center', marginLeft: 0 }
+                      : { marginLeft: 'auto' }),
                   }}
                 >
                   <Icon name="add" size={14} />
