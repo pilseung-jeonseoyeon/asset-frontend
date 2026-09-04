@@ -2,8 +2,8 @@
 // AppShell.tsx에서 떼어내 lazy 청크로 갈랐다(AppShell.tsx 헤더 참고) — 처음 오거나 로그아웃한
 // 방문자는 이 파일을 내려받지 않는다.
 //
-// 모바일 껍데기(<=767px, docs/mobile.md §2): SidebarNav 대신 고정 BottomTabNav를 쓰고
-// `main`의 padding을 줄여 자리를 만든다.
+// 모바일 껍데기(<=767px, docs/mobile.md §2): SidebarNav 대신 떠 있는 BottomTabNav를 쓰고
+// `main`의 padding을 줄여 자리를 만든다. 하단 92px = 탭바 60 + 아래로 띄운 12 + 숨통 20.
 //
 // 라우팅: 메뉴 5개는 실제 URL이다(docs/architecture.md '라우팅'). 경로의 정본은 NAV_ITEMS
 // (navItems.ts)이고 SidebarNav/BottomTabNav와 공유한다. 아래 SCREEN_COMPONENTS는 각 항목의
@@ -91,7 +91,7 @@ export function AuthenticatedApp() {
             // 아이콘과 헤더 로고가 겹치지 않는다. 일반 브라우저 탭에서는 env(...)가 0이라 원래
             // padding(18px)만 적용된다.
             padding: isMobile
-              ? 'calc(18px + env(safe-area-inset-top)) 16px calc(64px + env(safe-area-inset-bottom) + 20px)'
+              ? 'calc(18px + env(safe-area-inset-top)) 16px calc(92px + env(safe-area-inset-bottom))'
               : '30px 40px 56px',
           }}
         >

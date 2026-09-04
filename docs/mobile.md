@@ -25,18 +25,25 @@
 |---|---|---|
 | 좌측 `SidebarNav` | 렌더 | **렌더하지 않음** |
 | 하단 `BottomTabNav` | 렌더하지 않음 | 렌더 |
-| `main` padding | `30px 40px 56px` | `18px 16px calc(64px + env(safe-area-inset-bottom) + 20px)` |
+| `main` padding | `30px 40px 56px` | `18px 16px calc(92px + env(safe-area-inset-bottom))` |
 
-하단 여백은 고정된 탭바에 콘텐츠가 가리지 않도록 탭바 높이만큼 확보한 값이다.
+하단 여백은 떠 있는 탭바에 콘텐츠가 가리지 않도록 확보한 값이다 — `92px = 탭바 60 + 아래로 띄운 12 + 숨통 20`.
 
 ## 3. 하단 탭바 (`BottomTabNav`)
 
-- `position: fixed; left/right/bottom: 0; z-index: 50`
+**화면 좌우·아래에서 띄운 알약 모양으로 콘텐츠 위에 떠 있다**(2026-09-04 사용자 결정 —
+"요즘 앱처럼 아래에 섬처럼 떠 있는 형태"). 예전에는 화면 좌우 끝까지 붙은 각진 바였다.
+
+- `position: fixed; left/right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); z-index: 50`
   → 헤더 드롭다운 스크림(55)·메뉴(60)·전역 스크림(70)·모달(80+)보다 항상 아래.
-- 높이 `64px` + `padding-bottom: env(safe-area-inset-bottom)` (아이폰 홈 인디케이터 영역)
-- `background: var(--surface)`, `border-top: 0.5px solid var(--border)` (§6-1)
-- 모서리 곡률 없음 — 화면 좌우 끝까지 붙는 바라 곡률 대상이 아니다.
-  (§5의 "메뉴(내비)바 10px"는 카드 형태인 데스크톱 사이드바에 적용된다.)
+  아래 여백은 아이폰 홈 인디케이터(`env`) 위로 12px 더 띄운 값이다.
+- 높이 `60px`
+- `background: var(--surface)`, `border: 0.5px solid var(--border)` 사방 (§6-1),
+  `box-shadow: var(--shadow-pop)` (§6-2 기존 토큰 — 새 그림자 값을 만들지 않는다)
+- 모서리 곡률 `999px`(완전한 반원 끝). **§5에 없는 값이라 하단 탭바에만 두는 예외다** —
+  2026-09-04 사용자가 이 형태를 명시적으로 선택했다. 다시 각지게 되돌리자는 이야기가 나오면
+  이 결정부터 확인한다. (§5의 "메뉴(내비)바 10px"는 카드 형태인 데스크톱 사이드바에 적용된다.)
+- `overflow: hidden` — 항목이 높이 100%를 채우므로 알약 곡률 밖으로 삐져나오지 않게 자른다.
 - 항목 5개는 `SidebarNav`의 `NAV_ITEMS`를 그대로 재사용한다. 아이콘 `22px`, 라벨 `10.5px/600`.
 - 활성 `var(--accent)` / 비활성 `var(--text-weak)`. 활성 표시는 색으로만 한다(1-8 데이터 색 금지와 무관).
 - 각 항목의 터치 영역은 최소 `44x44px`.
