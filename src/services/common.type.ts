@@ -47,8 +47,12 @@ export type AssetClass =
   | 'ETC'
 
 /**
- * 거래 유형. ADJUSTMENT(잔액 조정)는 계좌 잔액을 정정할 때 **서버가 자동으로 만드는** 거래라
- * 응답에만 나온다 — 사용자가 직접 만들 수 없으므로 요청에는 EditableTransactionType을 쓴다.
+ * 거래 유형. ADJUSTMENT(잔액 조정)는 계좌 잔액 정정·매매 예수금 정산 때 **서버가 자동으로 만드는**
+ * 거래라 사용자가 직접 만들 수 없다 — 요청에는 EditableTransactionType을 쓴다.
+ *
+ * **가계부 목록(GET /transactions)에도 수지 집계에도 나오지 않는다**(서버가 제외한다 — 라이브
+ * OpenAPI). 계좌 잔액·총자산에만 반영된다. 그래서 화면에서 조정 거래를 볼 수 있는 곳은 없다.
+ * 유니언에 남겨 두는 것은 서버 enum을 그대로 반영하기 위해서다.
  */
 export type TransactionType = 'INCOME' | 'EXPENSE' | 'SAVING' | 'TRANSFER' | 'ADJUSTMENT'
 

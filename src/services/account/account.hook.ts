@@ -86,9 +86,10 @@ export function useDeleteAccount() {
 }
 
 /**
- * 잔액 정정은 계좌 PATCH와 달리 차액만큼 ADJUSTMENT 거래를 원장에 새로 만든다 — 가계부(거래 목록·
- * 요약)까지 무효화해야 새 조정 거래가 바로 보인다. 기관은 활성 계좌 보유 여부가 바뀌지 않으므로
- * (계좌 자체는 그대로 유지) useInvalidateAccount와 달리 포함하지 않는다.
+ * 잔액 정정이 바꾸는 것은 계좌 잔액과 총자산뿐이다. 차액만큼 ADJUSTMENT 거래가 생기기는 하지만
+ * 서버가 그 유형을 가계부 목록·수지 집계에서 모두 제외하므로(account.type.ts 참고) 가계부 쿼리는
+ * 무효화하지 않는다 — 화면에 바뀌는 것이 없는데 다시 받아올 이유가 없다. 기관은 활성 계좌 보유
+ * 여부가 바뀌지 않으므로(계좌 자체는 그대로 유지) useInvalidateAccount와 달리 포함하지 않는다.
  */
 function useInvalidateAccountBalance() {
   const queryClient = useQueryClient()
@@ -96,7 +97,6 @@ function useInvalidateAccountBalance() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.account.all() })
     void queryClient.invalidateQueries({ queryKey: queryKeys.asset.all() })
     void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() })
-    void queryClient.invalidateQueries({ queryKey: queryKeys.transaction.all() })
   }
 }
 

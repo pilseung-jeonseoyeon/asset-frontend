@@ -147,8 +147,12 @@ export interface UpdateAccountRequest {
 
 /**
  * PATCH /accounts/{accountId}/balance. 잔액은 파생값이라 직접 덮어쓰지 않고, 서버가 현재 잔액과의
- * 차액만큼 ADJUSTMENT(잔액 조정) 거래를 원장에 자동 생성해 맞춘다(순저축·저축률 집계 제외, 총자산에는
- * 반영). 이미 그 금액이면 거래를 만들지 않고 그대로 응답한다(멱등) — OpenAPI(AdjustBalanceReq) 확인.
+ * 차액만큼 ADJUSTMENT(잔액 조정) 거래를 자동 생성해 맞춘다. 이미 그 금액이면 거래를 만들지 않고
+ * 그대로 응답한다(멱등) — OpenAPI(AdjustBalanceReq) 확인.
+ *
+ * **이 조정 거래는 사용자에게 보이지 않는다**: "가계부 거래 목록·수지 집계에서 빠지지만 총자산에는
+ * 반영된다"(라이브 OpenAPI). 즉 정정 후 달라지는 것은 계좌 잔액과 총자산뿐이고 가계부 내역에는
+ * 아무것도 생기지 않는다 — 화면 문구에서 '가계부에 기록된다'고 말하면 안 된다.
  *
  * **거절 조건은 통화(currency)가 아니라 외화 예수금 유무다**(OpenAPI 설명 확인):
  * "외화 예수금 원금(initialBalanceUsd)이 있는 계좌는 원금만 환율을 타고 조정 거래는 원화로 굳어

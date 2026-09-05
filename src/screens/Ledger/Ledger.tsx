@@ -1205,10 +1205,11 @@ function LedgerHistory() {
                   key={t.key}
                   className="mini-hov"
                   onClick={() => {
-                    // 잔액 조정(ADJUSTMENT)은 계좌 잔액을 정정할 때 **서버가 자동으로 만드는** 거래라
-                    // 사용자가 고칠 수 없다(서버도 ADJUSTMENT_NOT_ALLOWED로 거부한다). 편집 모달을 열면
-                    // 저장 시점에야 에러가 나므로 아예 열지 않는다 — 잔액을 다시 맞추려면 계좌 수정
-                    // 화면의 '현재 잔액'을 고쳐 새 조정 거래를 만들게 한다.
+                    // 잔액 조정(ADJUSTMENT)은 계좌 잔액 정정·매매 예수금 정산 때 **서버가 자동으로
+                    // 만드는** 거래라 사용자가 고칠 수 없다(서버도 ADJUSTMENT_NOT_ALLOWED로 거부한다).
+                    // 현재 서버는 이 유형을 목록 응답에서 제외하므로 여기까지 오지 않지만, 계약이
+                    // 바뀌어 섞여 들어와도 저장 시점에 에러가 나는 편집 모달이 열리지 않도록 방어로
+                    // 남겨 둔다 — 잔액을 다시 맞추려면 계좌 수정 화면의 '현재 잔액'을 고친다.
                     if (t.type === 'ADJUSTMENT') return
                     setState({
                       openModal: 'ledgerEntry',

@@ -410,10 +410,13 @@ export function EditAccountModal() {
                   />
                 </div>
               )}
-              {/* 잔액을 실제 값과 다르게 정정하면 서버가 차액만큼 가계부에 조정 거래를 자동으로 남긴다
-                  (사용자가 놀라지 않도록 저장 전에 미리 알려준다). 값을 실제로 바꿨을 때는 색을 한 단계
-                  올려(--text-weak → --text-mid) 훑고 지나치기 쉬운 문제를 줄인다 — 확인
-                  모달까지는 단순 수정이 번거로워지므로 과하다고 판단해 별도로 만들지 않았다. */}
+              {/* 잔액을 실제 값과 다르게 정정하면 서버가 차액만큼 ADJUSTMENT(잔액 조정) 거래를 만들지만,
+                  그 거래는 **가계부 목록·수지 집계 어디에도 나타나지 않는다**(GET /transactions가 제외한다).
+                  그래서 여기서 '가계부에 기록된다'고 알리면 사용자가 있지도 않은 내역을 찾게 되므로,
+                  화면에는 "얼마가 달라지는가"만 알린다 — 0을 하나 더 붙이는 실수를 잡아주는 안전장치다.
+                  확인 모달까지는 단순 수정이 번거로워지므로 과하다고 판단해 별도로 만들지 않았다.
+                  값을 안 바꿨을 때는 안내가 없지만, 빈 자리를 한 줄만큼 잡아 둬서(아래 마지막 갈래)
+                  입력하는 순간 아래 블록이 위아래로 튀지 않게 한다. */}
               {hasForeignCurrencyDeposit ? (
                 <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>
                   {/* balanceKrw(예수금 합계)는 달러 예수금과 원화 예수금을 합쳐 환산한 값이라(파일 상단
@@ -434,11 +437,15 @@ export function EditAccountModal() {
                 </div>
               ) : balanceKrwInput !== null && balanceKrwInput !== account.balanceKrw ? (
                 <div style={{ fontSize: 11.5, color: 'var(--text-mid)', fontWeight: 600, marginTop: 6 }}>
-                  {`${balanceKrwInput > account.balanceKrw ? '+' : '−'}${formatNumber(Math.abs(balanceKrwInput - account.balanceKrw))}원 차액이 가계부에 조정 거래로 자동 기록돼요`}
+                  {balanceKrwInput > account.balanceKrw
+                    ? `+${formatNumber(balanceKrwInput - account.balanceKrw)}원 늘어나요`
+                    : `−${formatNumber(account.balanceKrw - balanceKrwInput)}원 줄어들어요`}
                 </div>
               ) : (
-                <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>
-                  실제 잔액과 다르면 차액만큼 가계부에 조정 거래가 자동으로 남아요
+                // 안내할 내용이 없을 때도 같은 글꼴로 한 줄을 비워 둔다 — 그냥 지우면 사용자가 금액을
+                // 입력하는 순간 위 갈래가 나타나며 아래 예수금 블록이 통째로 밀린다.
+                <div aria-hidden style={{ fontSize: 11.5, marginTop: 6, visibility: 'hidden' }}>
+                  &nbsp;
                 </div>
               )}
             </div>

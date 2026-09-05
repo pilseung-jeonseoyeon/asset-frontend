@@ -66,7 +66,12 @@ export const ENTRY_TYPE_TO_CATEGORY_KIND: Record<'income' | 'saving' | 'expense'
 /**
  * EntryType(화면 탭 값) ↔ TransactionType(서버 값). ADJUSTMENT(잔액 조정)는 계좌 잔액을 정정할 때
  * 서버가 자동으로 만드는 거래라 화면 탭에 대응하는 값이 없다 — 두 표 모두 사용자가 만들 수 있는
- * 4종만 다루고, 목록에 섞여 들어오는 ADJUSTMENT는 읽기 전용으로만 렌더한다(Ledger.tsx 참고).
+ * 4종만 다룬다.
+ *
+ * **현재 서버는 ADJUSTMENT를 GET /transactions 응답에서 아예 제외한다**("가계부 거래가 아니라
+ * 목록에서 제외한다" — 라이브 OpenAPI). 그래도 이 파일과 Ledger.tsx의 ADJUSTMENT 처리(중립색,
+ * 읽기 전용)는 남겨 둔다 — 매매 예수금 정산도 같은 유형을 만들고, 서버가 나중에 내려주기 시작해도
+ * 화면이 깨지지 않아야 하기 때문이다.
  */
 export const ENTRY_TYPE_TO_TRANSACTION_TYPE: Record<'income' | 'expense' | 'saving' | 'transfer', EditableTransactionType> = {
   income: 'INCOME',
@@ -347,8 +352,9 @@ const TX_TYPE_COLOR: Record<TransactionType, string> = {
   EXPENSE: 'var(--exp-text)',
   SAVING: 'var(--sav-text)',
   TRANSFER: 'var(--text-strong)',
-  // 잔액 조정은 수입도 지출도 아니다(순저축·저축률 집계에서 빠지고 총자산에만 반영된다) — 이체와
-  // 마찬가지로 전용 색 없이 중립색으로 둔다.
+  // 잔액 조정은 수입도 지출도 아니다(수지 집계에서 빠지고 총자산에만 반영된다) — 이체와 마찬가지로
+  // 전용 색 없이 중립색으로 둔다. 현재 서버는 목록에서 제외하므로 실제로는 쓰이지 않지만,
+  // Record가 TransactionType 전부를 요구하고 방어용으로도 필요해 남겨 둔다.
   ADJUSTMENT: 'var(--text-strong)',
 }
 
