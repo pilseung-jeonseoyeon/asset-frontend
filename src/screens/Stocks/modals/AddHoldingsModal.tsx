@@ -29,7 +29,8 @@ import { useAppState } from '../../../state/AppStateContext'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate } from '../../../utils/date'
-import { accountInstitutionMeta, filterHoldingAccounts, marketsOfAccountType } from '../../../data/stocksView'
+import { accountInstitutionLabel, accountInstitutionMeta } from '../../../data/accountView'
+import { filterHoldingAccounts, marketsOfAccountType } from '../../../data/stocksView'
 import { AccountHoldingsField } from '../../Assets/modals/AccountHoldingsField'
 import type { DraftHolding } from '../../Assets/modals/AccountHoldingsField'
 import { useGetAccounts } from '@/services/account'
@@ -99,13 +100,14 @@ export function AddHoldingsModal() {
       return meta ? <BankIcon tokenKey={meta.tokenKey} size={28} /> : undefined
     },
   )
+  // 트리거에도 소속 기관을 함께 보여준다 — 계좌명은 좁은 열에서 ellipsis로 잘리지만 기관명은
+  // 아래 보조 줄에 따로 있어 "어느 기관 계좌를 골랐는지"는 항상 확인된다(Dropdown.tsx selectedMeta).
+  // 기관을 매칭하지 못한 계좌도 accountInstitutionLabel이 '기관 없음'을 돌려주므로 선택에 따라
+  // 트리거 높이가 흔들리지 않는다.
   const selectedAccountMeta = selectedAccount ? accountInstitutionMeta(selectedAccount, institutions) : null
-  const accountDisplayDropdown = {
-    ...accountDropdown,
-    value: selectedAccountMeta
-      ? `${accountDropdown.value} · ${selectedAccountMeta.institutionName}`
-      : accountDropdown.value || '계좌를 선택하세요',
-  }
+  const accountDisplayDropdown = { ...accountDropdown, value: accountDropdown.value || '계좌를 선택하세요' }
+  const selectedAccountLabel = accountInstitutionLabel(selectedAccount, institutions)
+  const selectedAccountIcon = selectedAccountMeta ? <BankIcon tokenKey={selectedAccountMeta.tokenKey} size={24} /> : undefined
 
   const todayISO = toISODate(new Date())
   // 미래 매매는 성립하지 않는다 — QuickStockModal의 매수일과 같은 상한을 건다.
@@ -214,6 +216,8 @@ export function AddHoldingsModal() {
             <Dropdown
               dropdown={accountDisplayDropdown}
               maxHeight={180}
+              selectedMeta={selectedAccountLabel}
+              selectedLeading={selectedAccountIcon}
               footer={
                 <>
                   <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />

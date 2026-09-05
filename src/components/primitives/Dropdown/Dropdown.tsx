@@ -43,14 +43,31 @@ import { POPOVER_VIEWPORT_MARGIN, usePopoverAnchor } from '../usePopoverAnchor'
 // BankIcon size=28을 쓰므로 그 값을 그대로 슬롯 폭으로 삼는다.
 const LEADING_SLOT_WIDTH = 28
 
+// 트리거가 1줄이든 2줄이든 같은 높이를 유지하기 위한 값. 1줄(13.5px 텍스트 + 상하 13px 패딩)의
+// 실측 높이에 맞춘 것으로, 2줄일 때는 위 padding을 7px로 줄여 이 높이 안에 두 줄이 들어간다.
+const TRIGGER_MIN_HEIGHT = 45
+// 2줄 트리거에서 아이콘(BankIcon)이 없는 선택값도 텍스트 시작선을 맞추기 위한 스페이서 폭.
+// 옵션 목록(LEADING_SLOT_WIDTH=28)보다 작은 것은 트리거 아이콘을 24px로 쓰기 때문이다.
+const TRIGGER_LEADING_SLOT_WIDTH = 24
+
 interface DropdownProps {
   dropdown: DropdownState
   maxHeight?: number
   icon?: string
   footer?: ReactNode
+  /**
+   * 트리거(닫힌 상태)에서 선택값 아래 작게 보여줄 보조 한 줄(예: 계좌의 소속 기관명).
+   * 넘기면 트리거가 2줄 레이아웃으로 바뀐다 — 계좌명이 좁은 열에서 ellipsis로 잘려도 "어느 기관
+   * 계좌인지"는 항상 보이게 하기 위한 것이다(옵션 목록의 meta와 같은 정보를 트리거에도 맞춘 것).
+   * 기관이 없는 계좌도 빈 문자열이 아니라 '기관 없음' 같은 문구를 넘겨 트리거 높이가 선택에 따라
+   * 들쭉날쭉해지지 않게 한다.
+   */
+  selectedMeta?: string
+  /** 트리거의 선택값 앞에 붙는 아이콘(예: BankIcon). selectedMeta와 함께 2줄 레이아웃을 켠다. */
+  selectedLeading?: ReactNode
 }
 
-export function Dropdown({ dropdown, maxHeight = 200, icon = 'expand_more', footer }: DropdownProps) {
+export function Dropdown({ dropdown, maxHeight = 200, icon = 'expand_more', footer, selectedMeta, selectedLeading }: DropdownProps) {
   const isMobile = useIsMobile()
   const panelRef = useRef<HTMLDivElement>(null)
   // 패널의 실측 높이. scrollHeight는 overflow로 잘려 있어도 잘리기 전 전체 높이를 돌려주므로, 아직
@@ -89,6 +106,10 @@ export function Dropdown({ dropdown, maxHeight = 200, icon = 'expand_more', foot
   // 목록 전체(dropdown.options) 단위 분기 — 위 헤더 주석 참고.
   const hasExtra = dropdown.options.some((o) => o.meta || o.leading)
   const hasLeading = dropdown.options.some((o) => o.leading)
+  // 트리거 2줄 레이아웃 여부. 호출부가 selectedMeta/selectedLeading 중 하나라도 넘기면 켠다 —
+  // 계좌가 기관 없는 계좌라 둘 다 비더라도, 같은 드롭다운이 선택에 따라 1줄/2줄을 오가지 않도록
+  // 호출부는 항상 selectedMeta를 넘기는 것을 전제로 한다(위 prop 주석 참고).
+  const twoLine = selectedMeta !== undefined || selectedLeading !== undefined
 
   return (
     <>
@@ -100,9 +121,22 @@ export function Dropdown({ dropdown, maxHeight = 200, icon = 'expand_more', foot
       <div
         ref={anchor.anchorRef}
         onClick={dropdown.toggle}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '0.5px solid var(--border)', borderRadius: 10, padding: '13px 16px', cursor: 'pointer', minWidth: 0 }}
+        title={dropdown.value || undefined}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: twoLine ? 10 : 0,
+          border: '0.5px solid var(--border)', borderRadius: 10, cursor: 'pointer', minWidth: 0,
+          // 2줄이어도 한 줄 필드(DatePicker 등)와 나란히 놓았을 때 높이가 어긋나지 않도록 세로
+          // 패딩을 줄이고 최소 높이를 고정한다 — 같은 행의 옆 칸과 아랫변을 맞추기 위한 값이다.
+          padding: twoLine ? '7px 16px' : '13px 16px', minHeight: TRIGGER_MIN_HEIGHT, boxSizing: 'border-box',
+        }}
       >
-        <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dropdown.value}</span>
+        {twoLine && (selectedLeading ?? <span style={{ width: TRIGGER_LEADING_SLOT_WIDTH, flex: 'none' }} />)}
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, flex: 1 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dropdown.value}</span>
+          {twoLine && selectedMeta && (
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--text-weak)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedMeta}</span>
+          )}
+        </span>
         <Icon name={icon} size={20} color="var(--text-weak)" style={{ flex: 'none' }} />
       </div>
       {dropdown.open && (

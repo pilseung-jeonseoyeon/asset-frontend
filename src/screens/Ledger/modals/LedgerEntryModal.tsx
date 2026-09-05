@@ -42,7 +42,10 @@ import { ENTRY_TYPE_TO_CATEGORY_KIND, ENTRY_TYPE_TO_TRANSACTION_TYPE, buildEntry
 import type { EntrySuggestion } from '../../../data/ledgerView'
 import type { AppState, EntryType } from '../../../state/types'
 import { ApiError } from '@/services/api'
-import { useGetAccounts } from '@/services/account'
+import { useGetAccounts, type AccountResponse } from '@/services/account'
+import { useGetInstitutions } from '@/services/institution'
+import { BankIcon } from '../../../components/primitives/BankIcon/BankIcon'
+import { accountInstitutionLabel, accountInstitutionMeta } from '../../../data/accountView'
 import { useGetCategories } from '@/services/category'
 import { useDeleteTransaction, useGetTransactions, usePostTransaction, usePutTransaction } from '@/services/transaction'
 import type { CreateTransactionRequest, UpdateTransactionRequest } from '@/services/transaction'
@@ -85,6 +88,13 @@ export function LedgerEntryModal() {
   const categoriesQuery = useGetCategories(categoryKind, { enabled: isOpen && !!categoryKind })
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })
   const accounts = accountsQuery.data ?? []
+  // 계좌 드롭다운에 소속 기관(아이콘 + 기관명)을 함께 보여주기 위한 조인 대상.
+  // 기관 목록은 React Query 캐시를 다른 화면과 공유하므로 모달을 열 때마다 다시 받지 않는다.
+  const institutions = useGetInstitutions({ enabled: isOpen }).data ?? []
+  const accountLeadingIcon = (a: AccountResponse, size: number) => {
+    const meta = accountInstitutionMeta(a, institutions)
+    return meta ? <BankIcon tokenKey={meta.tokenKey} size={size} /> : undefined
+  }
   const createTransaction = usePostTransaction()
   const updateTransaction = usePutTransaction()
   const removeTransaction = useDeleteTransaction()
@@ -116,6 +126,8 @@ export function LedgerEntryModal() {
     'withdrawAcct', accounts, (a) => a.id, (a) => a.name,
     effectiveWithdrawAccountId,
     (id) => { setState({ entryWithdrawAccountId: id }); setSameAccountInvalid(false) },
+    (a) => accountInstitutionMeta(a, institutions)?.institutionName,
+    (a) => accountLeadingIcon(a, 28),
   )
   // 저축·이체는 출금 계좌와 상대 계좌가 반드시 달라야 한다. 둘 다 기본값을 accounts[0]으로 잡으면
   // 폼을 열자마자 같은 계좌로 충돌해 첫 저장이 항상 "같은 계좌예요" 에러로 막힌다 — 상대 계좌 기본값은
@@ -135,7 +147,13 @@ export function LedgerEntryModal() {
     'ledgerEntryAcct', accounts, (a) => a.id, (a) => a.name,
     effectiveEntryAccountId,
     (id) => { setState({ entryAccountId: id }); setSameAccountInvalid(false) },
+    (a) => accountInstitutionMeta(a, institutions)?.institutionName,
+    (a) => accountLeadingIcon(a, 28),
   )
+  // 트리거의 보조 줄·아이콘. 계좌명은 좁은 열에서 잘리지만 기관명은 아래 줄에 따로 남아 "어느
+  // 기관 계좌를 골랐는지"는 항상 보인다(Dropdown.tsx selectedMeta 주석 참고).
+  const withdrawAccount = accounts.find((a) => a.id === effectiveWithdrawAccountId)
+  const entryAccount = accounts.find((a) => a.id === effectiveEntryAccountId)
   const entryDateDefault = isoDateToDisplay(toISODate(new Date()))
   const entryDateDisplay = state.entryDateOverride || entryDateDefault
   const [entryNavY, entryNavM] = entryDateDisplay.split('.').map(Number)
@@ -581,7 +599,12 @@ export function LedgerEntryModal() {
         {entryShowWithdraw && (
           <div style={{ position: 'relative' }}>
             <div style={LABEL_STYLE}>출금계좌</div>
-            <Dropdown dropdown={withdrawAccountDropdown} maxHeight={180} />
+            <Dropdown
+              dropdown={withdrawAccountDropdown}
+              maxHeight={180}
+              selectedMeta={accountInstitutionLabel(withdrawAccount, institutions)}
+              selectedLeading={withdrawAccount && accountLeadingIcon(withdrawAccount, 24)}
+            />
             {notEnoughAccounts ? (
               <div style={{ fontSize: 12.5, color: 'var(--text-weak)', marginTop: 6 }}>
                 계좌가 하나뿐이라 등록할 수 없어요. 서로 다른 두 계좌가 필요해요.
@@ -598,6 +621,8 @@ export function LedgerEntryModal() {
             <Dropdown
               dropdown={ledgerEntryAccountDropdown}
               maxHeight={180}
+              selectedMeta={accountInstitutionLabel(entryAccount, institutions)}
+              selectedLeading={entryAccount && accountLeadingIcon(entryAccount, 24)}
               footer={
                 <>
                   <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />

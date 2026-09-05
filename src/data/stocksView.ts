@@ -24,12 +24,10 @@
 import type { StockBuyMarket, StockMarketTab } from '../state/types'
 import { formatNumber, formatKrw, formatCurrencyAmount } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
-import { findBankInstitution } from '../design/bank-institutions'
 import type { ClosedHoldingResponse, HoldingGroupResponse, HoldingResponse } from '@/services/stock'
 import type { MarketIndexResponse } from '@/services/marketIndex'
 import type { TradeResponse } from '@/services/trade'
 import type { AccountResponse } from '@/services/account'
-import type { InstitutionResponse } from '@/services/institution'
 import type { AccountType, Currency, Market } from '@/services/common.type'
 
 // ---------- 시장/심볼 ↔ 한글 라벨 ----------
@@ -435,29 +433,6 @@ export function marketsOfAccountType(type: AccountType): Market[] {
 /** 종목·코인을 담을 수 있는 계좌만(주식·가상자산) — 시장 구분 없이 전부. */
 export function filterHoldingAccounts(accounts: AccountResponse[]): AccountResponse[] {
   return accounts.filter((a) => marketsOfAccountType(a.type).length > 0)
-}
-
-export interface AccountInstitutionMeta {
-  tokenKey: string
-  institutionName: string
-}
-
-/**
- * QuickStockModal 계좌 드롭다운에 "이 계좌가 어느 기관 것인지"를 함께 보여주기 위한 조인.
- * AccountResponse.institutionId로 GET /institutions 응답을 찾아 그 기관의
- * icon(tokenKey)이 BANK_INSTITUTIONS 마스터(design/bank-institutions.ts)에 실제로 등록된 값일 때만
- * 매칭으로 본다 — institutionName은 있는데 기관에 아이콘을 아직 안 골랐거나(icon: null) BankIcon이
- * 모르는 값이면, 어설프게 기본 아이콘(pillar)으로 채우지 않고 계좌명만 보여준다(호출부 결정). null을
- * 돌려주면 호출부는 아이콘·보조줄 없이 이름만 렌더한다.
- */
-export function accountInstitutionMeta(
-  account: AccountResponse,
-  institutions: InstitutionResponse[],
-): AccountInstitutionMeta | null {
-  if (!account.institutionName || account.institutionId === null) return null
-  const institution = institutions.find((i) => i.id === account.institutionId)
-  if (!institution?.icon || !findBankInstitution(institution.icon)) return null
-  return { tokenKey: institution.icon, institutionName: account.institutionName }
 }
 
 // ---------- 매매 내역 ----------

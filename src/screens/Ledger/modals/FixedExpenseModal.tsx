@@ -25,7 +25,10 @@ import { isoDateToDisplay, pickedToISODate, toISODate } from '../../../utils/dat
 import { formatNumber, parseAmount } from '../../../utils/format'
 import { findSubcategoryById } from '../../../data/ledgerView'
 import { ApiError } from '@/services/api'
-import { useGetAccounts } from '@/services/account'
+import { useGetAccounts, type AccountResponse } from '@/services/account'
+import { useGetInstitutions } from '@/services/institution'
+import { BankIcon } from '../../../components/primitives/BankIcon/BankIcon'
+import { accountInstitutionLabel, accountInstitutionMeta } from '../../../data/accountView'
 import { useGetCategories } from '@/services/category'
 import { useDeleteSubscription, usePostSubscription, usePutSubscription } from '@/services/subscription'
 import type { CreateSubscriptionRequest, UpdateSubscriptionRequest } from '@/services/subscription'
@@ -49,11 +52,22 @@ export function FixedExpenseModal() {
   const putSub = usePutSubscription()
   const deleteSub = useDeleteSubscription()
 
+  // 계좌 드롭다운에 소속 기관(아이콘 + 기관명)을 함께 보여주기 위한 조인 대상.
+  // 기관 목록은 React Query 캐시를 다른 화면과 공유하므로 모달을 열 때마다 다시 받지 않는다.
+  const institutions = useGetInstitutions({ enabled: isOpen }).data ?? []
+  const accountLeadingIcon = (a: AccountResponse, size: number) => {
+    const meta = accountInstitutionMeta(a, institutions)
+    return meta ? <BankIcon tokenKey={meta.tokenKey} size={size} /> : undefined
+  }
   const effectiveRecurAccountId = state.recurringAccountId ?? accounts[0]?.id ?? null
   const recurringPaymentMethodDropdown = useEntityDropdown(
     'recurPayMethod', accounts, (a) => a.id, (a) => a.name,
     effectiveRecurAccountId, (id) => setState({ recurringAccountId: id }),
+    (a) => accountInstitutionMeta(a, institutions)?.institutionName,
+    (a) => accountLeadingIcon(a, 28),
   )
+  // 트리거 보조 줄 — 계좌명이 잘려도 기관은 아래 줄에 남는다(Dropdown.tsx selectedMeta).
+  const recurAccount = accounts.find((a) => a.id === effectiveRecurAccountId)
   const recurDateDefault = isoDateToDisplay(toISODate(new Date()))
   const [recurNavY, recurNavM] = recurDateDefault.split('.').map(Number)
   const recurringDateDropdown = useDatePicker('recur', recurDateDefault, { y: recurNavY, m: recurNavM })
@@ -326,6 +340,8 @@ export function FixedExpenseModal() {
             <Dropdown
               dropdown={recurringPaymentMethodDropdown}
               maxHeight={220}
+              selectedMeta={accountInstitutionLabel(recurAccount, institutions)}
+              selectedLeading={recurAccount && accountLeadingIcon(recurAccount, 24)}
               footer={
                 <>
                   <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />

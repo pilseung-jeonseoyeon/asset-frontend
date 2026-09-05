@@ -40,7 +40,8 @@ import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { formatNumber, sanitizeDecimalInput } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate } from '../../../utils/date'
-import { accountInstitutionMeta, buyMarketToMarket, filterTradeAccounts, marketToCurrency, sortHoldingsByReturn } from '../../../data/stocksView'
+import { accountInstitutionLabel, accountInstitutionMeta } from '../../../data/accountView'
+import { buyMarketToMarket, filterTradeAccounts, marketToCurrency, sortHoldingsByReturn } from '../../../data/stocksView'
 import { ApiError } from '@/services/api'
 import { useGetAccounts } from '@/services/account'
 import { useGetInstitutions } from '@/services/institution'
@@ -140,20 +141,15 @@ export function QuickStockModal() {
       return meta ? <BankIcon tokenKey={meta.tokenKey} size={28} /> : undefined
     },
   )
-  // 트리거에도 소속 기관을 알 수 있게 "계좌명 · 기관명"으로 붙인다 — 옵션 목록처럼 아이콘까지 넣으면
-  // Dropdown.tsx의 트리거(텍스트 한 줄 + expand_more 아이콘) 구조를 이 호출부만을 위해 바꿔야 해서,
-  // 트리거 높이를 다른 필드와 맞춘 채로 기관을 알리는 더 단순한 방법을 택했다. 계좌명을 앞에 두는 이유:
-  // ellipsis는 뒤쪽부터 잘리므로 "기관명 · 계좌명" 순서면 폭이 좁을 때 정작 계좌를 구분하는 이름이
-  // 잘린다 — 옵션 목록에서 이미 계좌명이 주 정보(굵은 1줄)·기관명이 보조(작은 2줄)인 것과
-  // 같은 우선순위를 트리거에도 맞춘다.
+  // 트리거에도 소속 기관을 함께 보여준다 — 계좌명은 좁은 열에서 ellipsis로 잘리지만 기관명은
+  // 아래 보조 줄에 따로 있어 "어느 기관 계좌를 골랐는지"는 항상 확인된다(Dropdown.tsx selectedMeta).
+  // 기관을 매칭하지 못한 계좌도 accountInstitutionLabel이 '기관 없음'을 돌려주므로 선택에 따라
+  // 트리거 높이가 흔들리지 않는다.
   const selectedAccount = accountId !== null ? accounts.find((a) => a.id === accountId) : undefined
   const selectedAccountMeta = selectedAccount ? accountInstitutionMeta(selectedAccount, institutions) : null
-  const accountDisplayDropdown = {
-    ...accountDropdown,
-    value: selectedAccountMeta
-      ? `${accountDropdown.value} · ${selectedAccountMeta.institutionName}`
-      : accountDropdown.value || '계좌를 선택하세요',
-  }
+  const accountDisplayDropdown = { ...accountDropdown, value: accountDropdown.value || '계좌를 선택하세요' }
+  const selectedAccountLabel = accountInstitutionLabel(selectedAccount, institutions)
+  const selectedAccountIcon = selectedAccountMeta ? <BankIcon tokenKey={selectedAccountMeta.tokenKey} size={24} /> : undefined
 
   const todayISO = toISODate(new Date())
   // 미래 매매는 성립하지 않는다(docs/backend-request.md 0-4-5) — 서버 검증이 없어 프론트에서 막는다.
@@ -524,6 +520,8 @@ export function QuickStockModal() {
               <Dropdown
                 dropdown={accountDisplayDropdown}
                 maxHeight={180}
+                selectedMeta={selectedAccountLabel}
+                selectedLeading={selectedAccountIcon}
                 footer={
                   <>
                     <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />

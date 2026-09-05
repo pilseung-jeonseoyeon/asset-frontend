@@ -24,7 +24,10 @@ import { useDatePicker } from '../../../state/selectors/datePicker'
 import { formatNumber, sanitizeDecimalInput } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate } from '../../../utils/date'
 import { ApiError } from '@/services/api'
-import { useGetAccounts } from '@/services/account'
+import { useGetAccounts, type AccountResponse } from '@/services/account'
+import { useGetInstitutions } from '@/services/institution'
+import { BankIcon } from '../../../components/primitives/BankIcon/BankIcon'
+import { accountInstitutionLabel, accountInstitutionMeta } from '../../../data/accountView'
 import { usePostExchange } from '@/services/exchange'
 import type { CreateExchangeRequest } from '@/services/exchange'
 import type { ForeignExchangeSide } from '@/services/common.type'
@@ -56,6 +59,13 @@ export function ExchangeAddModal() {
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })
   const accounts = accountsQuery.data ?? []
   const postExchange = usePostExchange()
+  // 계좌 드롭다운에 소속 기관(아이콘 + 기관명)을 함께 보여주기 위한 조인 대상.
+  // 기관 목록은 React Query 캐시를 다른 화면과 공유하므로 모달을 열 때마다 다시 받지 않는다.
+  const institutions = useGetInstitutions({ enabled: isOpen }).data ?? []
+  const accountLeadingIcon = (a: AccountResponse, size: number) => {
+    const meta = accountInstitutionMeta(a, institutions)
+    return meta ? <BankIcon tokenKey={meta.tokenKey} size={size} /> : undefined
+  }
 
   const accountDropdown = useEntityDropdown(
     'exchangeAcct',
@@ -67,8 +77,12 @@ export function ExchangeAddModal() {
       setAccountId(id)
       setAccountMissing(false)
     },
+    (a) => accountInstitutionMeta(a, institutions)?.institutionName,
+    (a) => accountLeadingIcon(a, 28),
   )
   const accountDisplayDropdown = { ...accountDropdown, value: accountDropdown.value || '계좌를 선택하세요' }
+  // 트리거 보조 줄 — 계좌명이 좁은 열에서 잘려도 기관은 아래 줄에 남는다(Dropdown.tsx selectedMeta).
+  const selectedAccount = accountId !== null ? accounts.find((a) => a.id === accountId) : undefined
 
   const todayISO = toISODate(new Date())
   // 미래 환전은 성립하지 않는다(docs/backend-request.md 0-4-5) — 서버 검증이 없어 프론트에서 막는다.
@@ -194,7 +208,12 @@ export function ExchangeAddModal() {
                 </button>
               </div>
             ) : (
-              <Dropdown dropdown={accountDisplayDropdown} maxHeight={180} />
+              <Dropdown
+                dropdown={accountDisplayDropdown}
+                maxHeight={180}
+                selectedMeta={accountInstitutionLabel(selectedAccount, institutions)}
+                selectedLeading={selectedAccount && accountLeadingIcon(selectedAccount, 24)}
+              />
             )}
             {accountMissing && !accountId && <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>계좌를 선택해주세요</div>}
           </div>
