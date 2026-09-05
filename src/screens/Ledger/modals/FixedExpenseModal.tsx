@@ -273,10 +273,10 @@ export function FixedExpenseModal() {
             <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>등록된 카테고리가 없어요. 설정에서 먼저 소분류를 추가해주세요.</div>
           ) : (
             <div style={{ display: 'flex', gap: 14 }}>
-              <div style={{ flex: 1, position: 'relative' }}>
+              <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
                 <Dropdown dropdown={recurringMajorCategoryDropdown} maxHeight={200} />
               </div>
-              <div style={{ flex: 1, position: 'relative' }}>
+              <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
                 <Dropdown dropdown={recurringSubcategoryDropdown} maxHeight={200} />
               </div>
             </div>

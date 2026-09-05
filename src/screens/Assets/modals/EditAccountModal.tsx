@@ -357,7 +357,7 @@ export function EditAccountModal() {
             {nameInvalid && <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>계좌 이름을 입력해주세요</div>}
           </div>
           <div style={fieldRowStyle}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={LABEL_STYLE}>금융기관</div>
               {/* 자산 유형과 같은 이유로 읽기 전용이다(파일 상단 주석 참고). 기관을 지정하지 않은
                   계좌(현금 등)는 서버가 institutionName을 null로 내려주므로 '없음'으로 보여준다 —

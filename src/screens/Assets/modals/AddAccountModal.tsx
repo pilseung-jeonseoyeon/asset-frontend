@@ -414,7 +414,7 @@ export function AddAccountModal() {
   )
 
   const institutionField = (
-    <div ref={institutionRef} style={{ flex: 1, position: 'relative' }}>
+    <div ref={institutionRef} style={{ flex: 1, minWidth: 0, position: 'relative' }}>
       <div style={LABEL_STYLE}>금융기관</div>
       {institutionsQuery.isPending ? (
         <div aria-busy style={{ ...FIELD_BORDER_STYLE, fontSize: 13.5, color: 'var(--text-weak)' }}>—</div>

@@ -171,10 +171,12 @@ export function DatePicker({ dp }: DatePickerProps) {
       <div
         ref={anchor.anchorRef}
         onClick={dp.toggle}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '0.5px solid var(--border)', borderRadius: 10, padding: '13px 16px', cursor: 'pointer' }}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, border: '0.5px solid var(--border)', borderRadius: 10, padding: '13px 16px', cursor: 'pointer', minWidth: 0 }}
       >
-        <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>{dp.value}</span>
-        <Icon name="calendar_month" size={20} color="var(--text-weak)" />
+        {/* minWidth:0 + ellipsis: 좁은 화면에서 계좌 드롭다운과 반반으로 놓이는 호출부(가계부 입력·환전·매매)가
+            있어, 열이 날짜 텍스트보다 좁아져도 트리거가 칸 밖으로 삐져나가지 않게 막는다. */}
+        <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dp.value}</span>
+        <Icon name="calendar_month" size={20} color="var(--text-weak)" style={{ flex: 'none' }} />
       </div>
       {dp.open && (
         <div

@@ -175,7 +175,7 @@ export function ExchangeAddModal() {
           </div>
         )}
         <div style={fieldRowStyle}>
-          <div style={{ flex: 1, position: 'relative' }}>
+          <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
             <div style={LABEL_STYLE}>계좌</div>
             {accountsQuery.isPending ? (
               <div aria-busy style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
@@ -198,7 +198,7 @@ export function ExchangeAddModal() {
             )}
             {accountMissing && !accountId && <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>계좌를 선택해주세요</div>}
           </div>
-          <div style={{ flex: 1, position: 'relative' }}>
+          <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
             <div style={LABEL_STYLE}>환전일</div>
             <DatePicker dp={dpExchangeDate} />
           </div>

@@ -566,10 +566,10 @@ export function LedgerEntryModal() {
               <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>등록된 카테고리가 없어요. 설정에서 먼저 소분류를 추가해주세요.</div>
             ) : (
               <div style={{ display: 'flex', gap: 14 }}>
-                <div style={{ flex: 1, position: 'relative' }}>
+                <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
                   <Dropdown dropdown={entryMajorCategoryDropdown} maxHeight={200} />
                 </div>
-                <div style={{ flex: 1, position: 'relative' }}>
+                <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
                   <Dropdown dropdown={entrySubcategoryDropdown} maxHeight={200} />
                 </div>
               </div>
@@ -593,7 +593,7 @@ export function LedgerEntryModal() {
         )}
 
         <div style={{ display: 'flex', gap: 14 }}>
-          <div style={{ flex: 1, position: 'relative' }}>
+          <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
             <div style={LABEL_STYLE}>{ledgerEntryAcctLabel}</div>
             <Dropdown
               dropdown={ledgerEntryAccountDropdown}
@@ -614,7 +614,7 @@ export function LedgerEntryModal() {
             />
             {transferAccountErrorMessage && <div style={ERROR_STYLE}>{transferAccountErrorMessage}</div>}
           </div>
-          <div style={{ flex: 1, position: 'relative' }}>
+          <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
             <div style={LABEL_STYLE}>날짜</div>
             <DatePicker dp={entryDateDropdown} />
           </div>

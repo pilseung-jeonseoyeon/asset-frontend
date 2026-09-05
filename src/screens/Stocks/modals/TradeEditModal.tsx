@@ -156,14 +156,14 @@ export function TradeEditModal() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div style={fieldRowStyle}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={LABEL_STYLE}>종목</div>
               <div style={LOCKED_FIELD_STYLE}>
                 {trade.stockName}
                 {trade.ticker && ` (${trade.ticker})`}
               </div>
             </div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={LABEL_STYLE}>거래 유형</div>
               <div style={LOCKED_FIELD_STYLE}>
                 {trade.side === 'BUY' ? '매수' : '매도'} · {MARKET_LABELS[trade.market]}

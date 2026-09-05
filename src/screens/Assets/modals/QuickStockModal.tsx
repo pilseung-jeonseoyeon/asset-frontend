@@ -541,7 +541,7 @@ export function QuickStockModal() {
             )}
             {accountMissing && !accountId && <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>계좌를 선택해주세요</div>}
           </div>
-          <div style={{ flex: 1, position: 'relative' }}>
+          <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
             <div style={LABEL_STYLE}>{stockDateLabel}</div>
             <DatePicker dp={dpTradeDate} />
           </div>
