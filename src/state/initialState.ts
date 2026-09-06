@@ -36,6 +36,7 @@ export const initialState: AppState = {
   openModal: null,
   accountDetailId: null,
   reportOpen: false,
+  reportPeriod: null,
   reportSlide: 0,
   accountModalView: 'main',
   withdrawConfirmOpen: false,

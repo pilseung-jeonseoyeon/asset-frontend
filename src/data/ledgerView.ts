@@ -216,7 +216,9 @@ export function computeRecentAverageSavingsRate(bars: SavingsBar[]): number | nu
 
 // ---------- 전월 대비 분류별 지출 랭킹 ----------
 
-const RAMP_SCALE = ['var(--ramp-1)', 'var(--ramp-2)', 'var(--ramp-3)', 'var(--ramp-4)', 'var(--ramp-5)', 'var(--ramp-6)']
+// 지출 순위 막대 색. 월간 리포트(reportView.ts)의 지출 상위 3개 막대도 이 배열을 그대로 써서
+// 가계부·대시보드·리포트 세 곳의 순위 색이 갈라지지 않게 한다.
+export const RAMP_SCALE = ['var(--ramp-1)', 'var(--ramp-2)', 'var(--ramp-3)', 'var(--ramp-4)', 'var(--ramp-5)', 'var(--ramp-6)']
 
 export interface LedgerCategoryRow {
   categoryId: number

@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '../queryKeys'
-import type { AccountType, DateRange } from '../common.type'
+import type { AccountType, DateRange, YearMonth } from '../common.type'
 import {
   getDashboardAllocation,
   getDashboardSummary,
   getDashboardTrend,
+  getMonthlyReport,
 } from './dashboard.service'
 import type { TrendUnit } from './dashboard.type'
 
@@ -42,4 +43,17 @@ export function useGetDashboardAllocation(options?: QueryOptions) {
     enabled: options?.enabled,
   })
   return { ...query, allocation: query.data ?? [] }
+}
+
+/**
+ * 월간 리포트. `period`를 생략하면 현재 정산월(서버가 결정). 리포트 오버레이가 닫혀 있는 동안은
+ * `enabled: false`로 두어 대시보드 진입마다 불필요한 계산 요청이 나가지 않게 한다 — 서버가 매 요청
+ * 시 과거 시점 총자산을 되돌려 계산하는 무거운 조회다(dashboard.type.ts 주석).
+ */
+export function useGetMonthlyReport(period?: YearMonth, options?: QueryOptions) {
+  return useQuery({
+    queryKey: queryKeys.dashboard.report(period),
+    queryFn: () => getMonthlyReport(period),
+    enabled: options?.enabled,
+  })
 }

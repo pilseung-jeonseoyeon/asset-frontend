@@ -1,9 +1,10 @@
 import { api, unwrap } from '../api'
 import type { ApiResponse } from '../api.types'
-import type { AccountType, DateRange } from '../common.type'
+import type { AccountType, DateRange, YearMonth } from '../common.type'
 import type {
   AllocationResponse,
   DashboardSummaryResponse,
+  MonthlyReportResponse,
   TrendPointResponse,
   TrendUnit,
 } from './dashboard.type'
@@ -35,4 +36,18 @@ export async function getDashboardTrend(
 
 export async function getDashboardAllocation() {
   return unwrap(await api.get<ApiResponse<AllocationResponse[]>>('/dashboard/allocation'))
+}
+
+/**
+ * 월간 리포트. `period`를 생략(또는 year·month 둘 다 생략)하면 서버가 **현재 정산월**을 대상으로
+ * 잡고, 응답의 reportYear/reportMonth로 어느 달인지 알려준다 — 프론트는 "현재 정산월"이 달력
+ * 몇 월인지 직접 계산하지 않는다(monthStartDay 경계 계산은 서버 몫).
+ */
+export async function getMonthlyReport(period?: YearMonth) {
+  return unwrap(
+    await api.get<ApiResponse<MonthlyReportResponse>>('/dashboard/reports', {
+      // period가 undefined면 axios가 파라미터를 싣지 않는다 → 현재 정산월.
+      params: period,
+    }),
+  )
 }

@@ -93,7 +93,7 @@
   기준 상자가 되어 `usePopoverAnchor` 팝오버가 엉뚱한 자리에 붙는다.
   React의 `onTouchMove`는 루트에 passive로 붙어 `preventDefault`가 통하지 않으므로(배경 스크롤·
   당겨서 새로고침을 막아야 한다) 패널에 `{ passive: false }` 네이티브 리스너를 직접 붙인다.
-  `ReportOverlay`·`AccountModal`은 공용 `Modal`을 쓰지 않아 이 제스처가 없다.
+  `ReportOverlay`·`AccountModal`은 공용 `Modal`을 쓰지 않아 이 제스처가 없다(`ReportOverlay`는 대신 좌우 스와이프로 장을 넘긴다).
 - **내부 팝오버(드롭다운·달력)는 `usePopoverAnchor`로 띄운다.** 시트는 세로 스크롤 때문에
   `overflow-y: auto`이고 데스크톱 모달도 대부분 `panelStyle`로 `overflow: auto`를 덮어써서,
   `position: absolute` 팝오버는 양쪽 모두에서 잘린다. `src/components/primitives/usePopoverAnchor.ts`가

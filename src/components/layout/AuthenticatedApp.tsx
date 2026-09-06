@@ -181,7 +181,7 @@ export function AuthenticatedApp() {
       <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="자산 보관처">
         <InstitutionsModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={resetModalState({ reportOpen: false })} zIndex={90} title="월간 리포트">
+      <ModalErrorBoundary onReset={resetModalState({ reportOpen: false, reportPeriod: null, reportSlide: 0 })} zIndex={90} title="월간 리포트">
         <ReportOverlay />
       </ModalErrorBoundary>
       <ModalErrorBoundary onReset={resetModalState({ accountDetailId: null })} zIndex={90} title="계좌 상세">

@@ -75,7 +75,7 @@ src/
                          같은 디자인 시스템 규칙이 여기 산다
     assetsView.ts, dashboardView.ts, ledgerView.ts, stocksView.ts
                              mock*.ts는 전부 삭제됐다 — 화면이 그리는 데이터는 모두 서버에서 온다
-                             (아직 하드코딩으로 남은 화면은 Assets/modals/ReportOverlay.tsx 하나뿐)
+                             (하드코딩으로 남은 화면 없음 — ReportOverlay도 2026-09-06 서버 연결)
 
   design/                bank-institutions.ts(금융기관 마스터 테이블),
                          bank-archetypes.ts(공용 SVG 아이콘) — BankIcon에 사용

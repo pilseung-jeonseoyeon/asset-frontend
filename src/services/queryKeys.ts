@@ -96,6 +96,9 @@ export const queryKeys = {
     trend: (range: DateRange, unit: 'DAY' | 'MONTH', type?: AccountType) =>
       ['dashboard', 'trend', { ...range, unit, type }] as const,
     allocation: () => ['dashboard', 'allocation'] as const,
+    // period가 없으면 '현재 정산월' — 규칙 3(정산월 의존 쿼리는 { year, month }를 키에 포함)을 지키되,
+    // 현재 달은 서버가 정하므로 키에는 'current' 표식만 둔다.
+    report: (period?: YearMonth) => ['dashboard', 'report', period ?? 'current'] as const,
   },
   notification: {
     all: () => ['notification'] as const,

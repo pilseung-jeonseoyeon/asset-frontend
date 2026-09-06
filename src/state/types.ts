@@ -4,7 +4,7 @@
 // 각 폼의 로컬 useState에 두는 이유는 screens/Auth/*Form.tsx 헤더 주석 참고.
 
 import type { DashboardLayout } from '../utils/dashboardLayout'
-import type { AccountType, AssetClass, Currency } from '@/services/common.type'
+import type { AccountType, AssetClass, Currency, YearMonth } from '@/services/common.type'
 
 export type Screen = 'dashboard' | 'asset' | 'stock' | 'ledger' | 'settings'
 export type AssetTab = 'overview' | 'accounts' | 'goals'
@@ -88,6 +88,9 @@ export interface AppState {
   /** 계좌 상세 모달 대상 accountId. null이면 닫혀 있음(AccountDetailModal). */
   accountDetailId: number | null
   reportOpen: boolean
+  /** 리포트 오버레이가 보고 있는 정산월. null이면 '현재 정산월'(서버가 결정 — 열 때마다 null로 리셋). */
+  reportPeriod: YearMonth | null
+  /** 리포트 스토리 카드의 현재 장(0~4). 열 때 0으로 리셋. */
   reportSlide: number
   accountModalView: AccountModalView
   withdrawConfirmOpen: boolean
