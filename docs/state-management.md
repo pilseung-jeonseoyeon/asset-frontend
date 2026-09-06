@@ -28,7 +28,10 @@
 접근 실패는 전부 try/catch로 삼킴). 현재 키: `monit.theme`(테마 힌트), `monit.seenSession`(재방문
 여부), `monit.ledger.lastAccounts`(가계부 입력 폼의 거래유형별 마지막 사용 계좌 id —
 `src/utils/ledgerLastAccounts.ts`, 2026-09-03 추가. 서버에 두지 않은 이유와 "AppState에 쓰지 않고
-드롭다운 폴백으로만 적용"하는 이유는 그 파일 상단 주석). 토큰·금액·이름 같은 값은 절대 넣지 않습니다.
+드롭다운 폴백으로만 적용"하는 이유는 그 파일 상단 주석), `monit.dashboardLayout`(대시보드 카드 배치
+A · B · C — `src/utils/dashboardLayout.ts`, 2026-09-06 추가. 서버 설정에 대응 필드가 없어 **이 기기
+전용**이고 `AppState.dashboardLayout`이 렌더용 미러다. 서버 필드가 생기면 테마와 같은 구조로 바꾼다).
+토큰·금액·이름 같은 값은 절대 넣지 않습니다.
 
 ### Zustand는 좁은 예외입니다
 

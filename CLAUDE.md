@@ -56,6 +56,7 @@
 - **데이터는 서버에서 옵니다.** axios + React Query 기반 API 레이어가 `src/services/{domain}/`에 도메인별로 있고(`auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification` `export` `import` `connection`), 자산·가계부·주식 화면과 헤더 알림·자산 목표는 조회와 생성/수정/삭제가 모두 실제 API에 연결되어 있습니다. `import`(가계부 엑셀 가져오기)는 **한 행이라도 틀리면 전부 등록하지 않는(전체 롤백)** 서버 계약이라, 결과 화면도 "N건 등록" 아니면 "틀린 행 목록" 둘 중 하나입니다 — 계약은 `docs/excel-import.md`.
   `connection`(증권사·거래소 API 키 연동, BYOK)은 사용자가 기관에서 직접 발급받은 키를 등록하면 서버가 그 키로 기관 API를 대신 호출하는 구조입니다. **첫 동기화가 계좌를 자동 생성**하므로 등록 진입점은 계좌 추가 모달 안(자산 유형이 주식·가상자산일 때만 뜨는 점선 배너 → `ConnectAccountView`)에 있고, 목록·재동기화·해제는 설정 → 데이터 관리 및 백업(`ConnectionsSection`)에 있습니다. 지원 기관은 `UPBIT`·`TOSS_INVEST`·`KB_SECURITIES`·`KIWOOM` 4종이고 표기 규칙은 `src/data/connectionView.ts`가 정본입니다. **앱 시크릿은 응답에 절대 내려오지 않아 수정 API가 없습니다**(바꾸려면 해제 후 재등록). **KB증권은 백엔드가 동기화를 아직 구현하지 않아 칩이 '준비 중'으로 비활성**입니다(`PROVIDER_META.supported`). 에러는 `CONNECTION_*` 코드 5종을 `describeConnectionError`가 문구로 바꿉니다 — 특히 키 오류와 허용 IP 미등록이 같은 코드로 오므로 둘 다 짚어야 합니다. 기관별 발급 절차는 별도 가이드 페이지(`CONNECTION_GUIDE_URL`)에 있습니다 — 계약과 남은 확인 사항은 `docs/superpowers/specs/2026-08-29-byok-connection-design.md`.
   **아직 목업인 곳은 월간 리포트 오버레이(`ReportOverlay.tsx`) 한 곳뿐입니다.** 대시보드 화면은 서버 통신(`src/services/dashboard`)과 뷰모델 변환(`src/data/dashboardView.ts`)을 거쳐 실제 API에 연결되어 있습니다(`mockDashboard.ts`는 삭제됨).
+  **대시보드는 카드 배치가 3종(A 기본 · B 추이 캔버스 · C 이번 달 흐름)입니다**(2026-09-06). 설정 → 일반의 "대시보드 레이아웃"에서 고르고, 값은 서버가 아니라 이 기기 `localStorage`(`monit.dashboardLayout`, `src/utils/dashboardLayout.ts`)에만 저장됩니다 — 서버 설정에 필드가 없기 때문이며, 생기면 테마처럼 "서버 정본 + 캐시"로 바꿉니다. 구조는 `src/screens/Dashboard/`의 `cards/*`(카드 하나가 한 파일, **자기 데이터 훅을 직접 부른다**) · `hooks/*`(총자산 판정·추이 계산 등 카드끼리 공유하는 계산) · `layouts/DashboardLayout{A,B,C}.tsx`(배치만) · `Dashboard.tsx`(스위치)입니다. 새 카드를 만들 때 이 규칙을 지키면 어느 레이아웃에서든 그대로 재사용됩니다. C안의 가계부 카드(수입·지출·저축, 월별 저축률, 지출 순위, 고정 지출)는 **가계부 화면과 같은 색·규격**을 써야 합니다 — 대시보드가 가계부와 다른 색을 쓰면 사용자가 바로 알아챕니다(2026-09-06 지적). 디자인 시안은 claude.ai 캔버스 "Monit 대시보드 레이아웃".
 - 진입점: `src/main.tsx`가 `BrowserRouter` → `QueryClientProvider` → `AppStateProvider`로 감싼 `App`을 `index.html`의 `#root`에 마운트합니다. `src/index.css`는 `fonts.css` → `tokens.css` → `bank-tokens.css` → `base.css` 순으로 import합니다. `App.tsx`는 현재 테마를 적용(`useApplyTheme`)한 뒤 `AppShell`을 렌더링합니다. 화면 전환은 더 이상 `state.screen`이 아니라 `AuthenticatedApp.tsx`의 `<Routes>`가 담당합니다(경로 목록은 `navItems.ts`의 `NAV_ITEMS`를 사이드바/하단탭과 공유).
 - `tsconfig.json`은 project references 구조입니다: `src/`는 `tsconfig.app.json`, Vite 설정은 `tsconfig.node.json`을 사용합니다. 전체 빌드는 항상 `tsc -b`로 실행하세요(단순 `tsc` 아님).
 
@@ -92,12 +93,14 @@ src/
                            layout/modals/(AccountModal — 전역 계정 오버레이)
   screens/               최상위 화면별 폴더: Auth, Dashboard, Assets, Stocks, Ledger, Settings
                          (Auth는 useAuthStore().status === 'anonymous'일 때만 렌더됨)
+                         Dashboard는 cards/(카드 단위) · hooks/(공유 계산) · layouts/(A·B·C 배치)로 나뉜다
   styles/                fonts.css(웹폰트), tokens.css(디자인 토큰, 라이트/다크),
                          bank-tokens.css(기관별 색상),
                          base.css(리셋 + 지정된 hover/media 클래스만)
   utils/                 format.ts(formatNumber, formatKrw, formatCurrencyAmount,
                          formatKoreanUnits), deltaBadge.ts(makeDeltaBadge/hexToRgba),
-                         theme.ts(useApplyTheme), date.ts, download.ts,
+                         theme.ts(useApplyTheme), dashboardLayout.ts(대시보드 배치 A·B·C —
+                         localStorage 전용), date.ts, download.ts,
                          useMediaQuery.ts(useIsMobile), useDebouncedValue.ts,
                          notificationTime.ts, ledgerLastAccounts.ts(가계부 입력 폼의
                          거래유형별 마지막 사용 계좌 — localStorage 힌트)

@@ -3,6 +3,7 @@
 // 맞춰져 있다(src/screens/Auth/ 참고). 비밀번호 문자열은 의도적으로 이 형태에 넣지 않는다 —
 // 각 폼의 로컬 useState에 두는 이유는 screens/Auth/*Form.tsx 헤더 주석 참고.
 
+import type { DashboardLayout } from '../utils/dashboardLayout'
 import type { AccountType, AssetClass, Currency } from '@/services/common.type'
 
 export type Screen = 'dashboard' | 'asset' | 'stock' | 'ledger' | 'settings'
@@ -104,6 +105,9 @@ export interface AppState {
   // theme
   theme: 'light' | 'dark' | 'system'
   amountsHidden: boolean
+  /** 대시보드 카드 배치(A 기본 · B 추이 캔버스 · C 이번 달 흐름). 이 기기의 localStorage에만
+   * 저장된다(src/utils/dashboardLayout.ts). */
+  dashboardLayout: DashboardLayout
 
   // stock entry
   /** 신규 종목 등록 시 선택한 섹터 칩. 빈 문자열이면 미선택(전송하지 않음) — 절대 기본값을 채우지

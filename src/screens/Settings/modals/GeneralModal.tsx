@@ -4,7 +4,8 @@
 // 실패 롤백은 이 화면이 하지 않는다 — pickTheme 안 주석 참고.
 // - 기준 통화: 서버 값을 읽기 전용으로 보여준다. USD를 골라도 대시보드 등 모든 응답이 원화 고정
 // 필드(totalAssetKrw 등)라 화면 금액이 하나도 바뀌지 않으므로(다통화 표기 미지원, 백엔드 요청
-// 항목), 드롭다운 대신 '대시보드 레이아웃' 행이 이미 쓰는 '추후 업데이트' 배지를 붙인다.
+// 항목), 드롭다운 대신 '추후 업데이트' 배지를 붙인다.
+// - 대시보드 레이아웃(A · B · C): 서버 필드가 없어 localStorage 전용(src/utils/dashboardLayout.ts).
 //
 // '환율 자동 갱신' 행은 화면에서 뺐다(켜고 끄는 의미가 없다는 사용자 판단). 서버 설정 필드
 // (UserSettingsRes.fxAutoRefresh)와 PATCH 계약은 그대로 있으니 다시 노출하려면 행 하나만 되살리면
@@ -17,9 +18,11 @@ import type { CSSProperties } from 'react'
 import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
 import { useCloseModal } from '../../../state/selectors/modal'
+import { DASHBOARD_LAYOUT_LABELS, storeDashboardLayout } from '../../../utils/dashboardLayout'
 import { storeTheme, toThemeType } from '../../../utils/theme'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useGetUserSettings, usePatchUserSettings } from '@/services/user'
+import type { DashboardLayout } from '../../../utils/dashboardLayout'
 import type { ThemeSetting } from '../../../utils/theme'
 import type { Currency } from '@/services/common.type'
 
@@ -63,6 +66,7 @@ const VALUE_PILL_STYLE: CSSProperties = {
 }
 
 const CURRENCY_LABELS: Record<Currency, string> = { KRW: 'KRW ₩', USD: 'USD $' }
+const DASHBOARD_LAYOUT_ORDER: DashboardLayout[] = ['A', 'B', 'C']
 
 export function GeneralModal() {
   const { state, setState } = useAppState()
@@ -102,6 +106,11 @@ export function GeneralModal() {
   const controlsDisabled = !settingsData || isSettingsPending
   const themeDisabled = controlsDisabled || patchTheme.isPending
 
+  const pickDashboardLayout = (next: DashboardLayout) => {
+    setState({ dashboardLayout: next })
+    storeDashboardLayout(next)
+  }
+
   const pickTheme = (next: ThemeSetting) => {
     setState({ theme: next }) // 즉시 반영 — 서버 응답을 기다리면 눌러도 화면이 안 바뀌는 것처럼 보인다.
     storeTheme(next)
@@ -133,9 +142,9 @@ export function GeneralModal() {
             {patchTheme.error && <div style={ERROR_STYLE}>{patchTheme.error.message}</div>}
           </div>
           <div style={{ display: 'flex', background: 'var(--track)', borderRadius: 8, padding: 3, gap: 2 }}>
-            <button disabled={themeDisabled} onClick={() => pickTheme('light')} style={themeButton(state.theme === 'light', isMobile, themeDisabled)}>라이트</button>
-            <button disabled={themeDisabled} onClick={() => pickTheme('dark')} style={themeButton(state.theme === 'dark', isMobile, themeDisabled)}>다크</button>
-            <button disabled={themeDisabled} onClick={() => pickTheme('system')} style={themeButton(state.theme === 'system', isMobile, themeDisabled)}>시스템</button>
+            <button disabled={themeDisabled} aria-pressed={state.theme === 'light'} onClick={() => pickTheme('light')} style={themeButton(state.theme === 'light', isMobile, themeDisabled)}>라이트</button>
+            <button disabled={themeDisabled} aria-pressed={state.theme === 'dark'} onClick={() => pickTheme('dark')} style={themeButton(state.theme === 'dark', isMobile, themeDisabled)}>다크</button>
+            <button disabled={themeDisabled} aria-pressed={state.theme === 'system'} onClick={() => pickTheme('system')} style={themeButton(state.theme === 'system', isMobile, themeDisabled)}>시스템</button>
           </div>
         </div>
         <div style={ROW_STYLE}>
@@ -149,20 +158,35 @@ export function GeneralModal() {
             </span>
             {/* 다른 통화를 골라도 대시보드 등 모든 응답이 원화 단일 필드라 화면이 하나도 안
                 바뀐다 — 통화 전환을 실제로 구현하려면 백엔드가 응답에 적용 환율을 함께 내려줘야
-                한다. 그때까지는 대시보드 레이아웃 행과 동일한 "추후 업데이트" 배지로 표시한다. */}
+                한다. 그때까지는 "추후 업데이트" 배지로 표시한다. */}
             <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-mid)', background: 'var(--fill-subtle)', padding: '4px 9px', borderRadius: 8 }}>
               추후 업데이트
             </span>
           </div>
         </div>
+        {/* 대시보드 레이아웃 — 서버 설정에 필드가 없어 이 기기 localStorage에만 저장한다
+            (src/utils/dashboardLayout.ts). 그래서 테마와 달리 서버 조회 실패와 무관하게 항상
+            누를 수 있고, 누르는 즉시 AppState에 반영돼 대시보드로 돌아가면 바로 바뀌어 있다. */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 0' }}>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 600 }}>대시보드 레이아웃</div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>A · B · C 중 기본값</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>
+              {DASHBOARD_LAYOUT_ORDER.map((layout) => `${layout} ${DASHBOARD_LAYOUT_LABELS[layout]}`).join(' · ')}
+            </div>
           </div>
-          <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-mid)', background: 'var(--fill-subtle)', padding: '4px 9px', borderRadius: 8 }}>
-            추후 업데이트
-          </span>
+          <div style={{ display: 'flex', background: 'var(--track)', borderRadius: 8, padding: 3, gap: 2 }}>
+            {DASHBOARD_LAYOUT_ORDER.map((layout) => (
+              <button
+                key={layout}
+                onClick={() => pickDashboardLayout(layout)}
+                aria-pressed={state.dashboardLayout === layout}
+                title={DASHBOARD_LAYOUT_LABELS[layout]}
+                style={{ ...themeButton(state.dashboardLayout === layout, isMobile, false), minWidth: isMobile ? 44 : 34 }}
+              >
+                {layout}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </Modal>

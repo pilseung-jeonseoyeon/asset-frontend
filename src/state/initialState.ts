@@ -1,6 +1,7 @@
 // AppState의 기본값 — 앱을 처음 열었을 때의 상태.
 
 import { mondayOf, todayYearMonth, toISODate } from '../utils/date'
+import { readStoredDashboardLayout } from '../utils/dashboardLayout'
 import { readStoredTheme } from '../utils/theme'
 import type { AccountForm } from './types'
 import type { AppState } from './types'
@@ -49,6 +50,7 @@ export const initialState: AppState = {
   // AppState가 어긋나지 않게 한다(2단계 참고). 로그인 후에는 useSyncUserTheme이 서버 값으로 덮는다.
   theme: readStoredTheme(),
   amountsHidden: true,
+  dashboardLayout: readStoredDashboardLayout(),
 
   // 빈 문자열 = 미선택. 기본값을 채우면 사용자가 칩을 한 번도 안 눌러도 그 값이 조용히 전송된다
   // (docs/backend-request.md 5-1 — 과거 '반도체' 하드코딩 버그).
