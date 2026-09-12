@@ -24,10 +24,17 @@
 - `src/services/queryKeys.ts` — React Query 키 중앙 레지스트리(`queryKeys`)
 - `src/services/queryClient.ts` — React Query `QueryClient`, `src/main.tsx`에서
   `QueryClientProvider`로 `AppStateProvider` 바깥을 감싸는 중
-- `VITE_API_BASE_URL` 환경변수로 baseURL 주입 (`.env`에 설정 — `.env`는 git에 커밋되지 않음.
-  `import.meta.env` 타입은 `src/vite-env.d.ts`에 선언). **경로 버전 `/api/v1`을 baseURL에
-  포함**시키므로 서비스 함수에서는 `/accounts`처럼 버전 없이 씁니다.
-  로컬 기본값: `VITE_API_BASE_URL=http://localhost:8080/api/v1`
+- `VITE_API_BASE_URL` 환경변수로 baseURL 주입(`import.meta.env` 타입은 `src/vite-env.d.ts`에 선언).
+  **경로 버전 `/api/v1`을 baseURL에 포함**시키므로 서비스 함수에서는 `/accounts`처럼 버전 없이 씁니다.
+  - **개발 모드(`pnpm dev`)**: 변수가 비어 있으면 코드 기본값 `/api/v1`(상대 경로, `api.ts`의
+    `API_BASE_URL`)을 쓰고, 모든 요청은 `vite.config.ts`의 프록시(`/api` → 백엔드)를 탑니다. 그래서
+    **`.env` 파일 없이도** 화면이 뜹니다. 프록시 대상은 `VITE_DEV_PROXY_TARGET`이고 기본값은
+    **운영 API(`https://api.monit.io.kr`)** 입니다. 로컬 백엔드로 개발할 때는 `.env.local`(gitignore됨)에
+    `VITE_DEV_PROXY_TARGET=http://localhost:8080` 한 줄을 넣으세요. 프록시를 쓰는 이유는 브라우저가
+    같은 출처로만 요청하게 해서 백엔드 CORS·쿠키 SameSite 설정과 무관하게 refresh 쿠키 로그인 유지가
+    되게 하려는 것입니다. **로컬 `.env`에 절대 URL을 넣으면 프록시를 건너뛰고 직접 부르게 되니**
+    개발 중에는 `VITE_API_BASE_URL`을 비워 두세요.
+  - **프로덕션 빌드(`pnpm build`)**: 배포 환경(Vercel) 대시보드의 `VITE_API_BASE_URL`(절대 URL)을 씁니다.
 
 ## Axios 인스턴스 설정 패턴
 

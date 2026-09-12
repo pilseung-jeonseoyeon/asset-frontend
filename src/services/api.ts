@@ -17,7 +17,15 @@ export class ApiError extends Error {
   }
 }
 
-const baseURL = import.meta.env.VITE_API_BASE_URL
+/**
+ * API 기본 주소. VITE_API_BASE_URL이 비어 있으면 상대 경로 `/api/v1`을 쓴다 — 개발 서버(pnpm dev)가
+ * `/api`를 백엔드(기본: 운영 API)로 프록시하므로(vite.config.ts) `.env` 파일 없이도 화면이 뜬다.
+ * 배포 빌드는 Vercel 환경변수의 절대 URL을 쓴다. 절대 URL을 넣으면 브라우저가 프록시를 거치지 않고
+ * 직접 부르므로, 로컬 개발에서는 이 변수를 비워 두는 게 기본이다.
+ */
+export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
+const baseURL = API_BASE_URL
 
 export const api = axios.create({
   baseURL,

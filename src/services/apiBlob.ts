@@ -11,7 +11,7 @@
 // 때문에 export → import 방향으로 가져다 쓰지 않고 api.ts 옆에 둔다.
 
 import axios, { isAxiosError } from 'axios'
-import { ApiError, refreshAccessToken } from './api'
+import { API_BASE_URL, ApiError, refreshAccessToken } from './api'
 import { useAuthStore } from '@/stores/auth'
 import type { ApiErrorPayload } from './api.types'
 
@@ -32,7 +32,7 @@ interface DownloadBlobOptions {
 }
 
 const blobClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: API_BASE_URL,
   timeout: 20000,
   withCredentials: true,
   responseType: 'blob',

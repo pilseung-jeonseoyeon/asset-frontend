@@ -119,6 +119,17 @@ pnpm lint          # oxlint (.oxlintrc.json — react/typescript/oxc 플러그�
 pnpm preview       # 프로덕션 빌드 미리보기
 ```
 
+**개발 서버는 기본으로 운영 API에 붙습니다**(2026-09-12). `VITE_API_BASE_URL`이 비어 있으면 코드
+기본값이 상대 경로 `/api/v1`(`src/services/api.ts`의 `API_BASE_URL`)이고, `vite.config.ts`의 프록시가
+`/api` 요청을 `VITE_DEV_PROXY_TARGET`(기본 `https://api.monit.io.kr`)으로 대신 보냅니다 — 백엔드를
+로컬에 띄우지 않는 동료도 **`.env` 파일 없이** `git pull` → `pnpm dev`만으로 화면을 볼 수 있게 한
+결정입니다. 브라우저는 같은 출처로만 요청하므로 백엔드 CORS·쿠키 SameSite 설정 없이도 refresh 쿠키
+로그인 유지가 됩니다. **그만큼 로컬 화면의 등록·삭제가 운영 DB를 실제로 바꿉니다** — 테스트 계정으로
+쓰세요. 로컬 백엔드로 개발할 때는 `.env.local`(gitignore됨)에 `VITE_DEV_PROXY_TARGET=http://localhost:8080`
+한 줄을 넣습니다. 로컬 `.env`에 절대 URL을 넣으면 프록시를 건너뛰니 개발 중에는 비워 두세요.
+`.env.development` 같은 커밋되는 env 파일은 만들지 않습니다(2026-09-12 사용자 결정). 자세한 건
+`docs/api-conventions.md`.
+
 테스트 러너는 아직 구성되어 있지 않습니다. 러너가 생기기 전까지는, 빌드가 깨끗하게 통과하고(`pnpm build`), 린트가 깨끗하고(`pnpm lint`), 실행 중인 개발 서버(`pnpm dev`)에서 직접 확인했을 때만 변경이 "완료"된 것으로 취급하세요 — 코드를 정적으로 읽은 것만으로 UI 변경이 동작한다고 단정하지 마세요.
 
 ## 도메인 컨텍스트
