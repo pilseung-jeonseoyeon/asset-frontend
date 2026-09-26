@@ -22,8 +22,10 @@ export function useUploadImportFile() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ kind, file }: { kind: ImportKind; file: File }) => uploadImportFile(kind, file),
-    onSuccess: (result) => {
+    onSuccess: (result, { kind }) => {
       if (result.importedCount === 0) return
+      // 계좌 가져오기는 계좌 목록·기관 보유 여부도 바꾼다.
+      if (kind === 'accounts') void queryClient.invalidateQueries({ queryKey: queryKeys.institution.all() })
       void queryClient.invalidateQueries({ queryKey: queryKeys.transaction.all() })
       void queryClient.invalidateQueries({ queryKey: queryKeys.account.all() })
       void queryClient.invalidateQueries({ queryKey: queryKeys.asset.all() })

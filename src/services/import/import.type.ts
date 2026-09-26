@@ -15,7 +15,8 @@
 // 파일 자체를 못 읽거나(IMPORT_FILE_UNREADABLE) 행이 없거나(IMPORT_ROWS_EMPTY) 5,000행을 넘으면
 // (IMPORT_ROW_LIMIT_EXCEEDED) 200이 아니라 공통 에러 봉투(ApiError)로 온다.
 
-export type ImportKind = 'transactions'
+/** accounts: 계좌 일괄 등록(POST /import/excel/accounts) — 응답 모양(importedCount + errors, 전체 롤백)은 거래와 같다. */
+export type ImportKind = 'transactions' | 'accounts'
 
 /** 실패한 엑셀 한 행. `rowNumber`는 엑셀 화면에 보이는 번호 그대로(헤더가 1행, 첫 데이터는 2행). */
 export interface ImportRowError {

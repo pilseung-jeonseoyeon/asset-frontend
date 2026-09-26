@@ -6,11 +6,13 @@ import type { ImportKind, ImportTransactionsResult } from './import.type'
 
 const IMPORT_PATHS: Record<ImportKind, string> = {
   transactions: '/import/excel/transactions',
+  accounts: '/import/excel/accounts',
 }
 
 // 서버가 Content-Disposition으로 주는 이름(transactions_template.xlsx)과 같은 폴백. 헤더를 못 읽었을 때만 쓴다.
 const IMPORT_TEMPLATE_FALLBACK_FILENAME: Record<ImportKind, string> = {
   transactions: 'transactions_template.xlsx',
+  accounts: 'accounts_template.xlsx',
 }
 
 /**

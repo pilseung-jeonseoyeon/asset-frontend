@@ -5,6 +5,9 @@
 // 'N건 등록' 또는 '틀린 행 목록 + 고쳐서 다시 올리기' 둘 중 하나다 — 계약은 docs/excel-import.md.
 // - '전체 내역 내보내기'(GET /export/excel/transactions, GET /export/excel/trades): 눌러서 거래/매매
 // 중 하나를 고르는 인라인 드롭다운(CustomModal.tsx의 월 시작일 드롭다운과 같은 수동 구현 패턴).
+// 가져오기·내보내기 모두 '계좌'도 다룬다(2026-09-26 — /import/excel/accounts, /export/excel/accounts). 계좌
+// 내보내기 파일은 가져오기 양식과 같은 열이라 그대로 다시 올릴 수 있다. 거래·매매 내보내기는 기간(전체 ·
+// 올해 · 최근 3개월 · 최근 1개월)을 고를 수 있고, 계좌 내보내기는 기간 개념이 없어 항상 전체다.
 // 나머지 2개(백업/복원·초기화)는 대응 API가 없어 '추후 업데이트' 배지로 왜 눌러도 반응이 없는지
 // 드러낸다 — 배지 없는 장식 버튼으로 두면 고장으로 읽힌다.
 //
@@ -20,7 +23,10 @@ import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
 import { useCloseModal } from '../../../state/selectors/modal'
 import { useDownloadExportFile } from '@/services/export'
-import type { ExportKind } from '@/services/export'
+import type { ExportFileParams, ExportKind } from '@/services/export'
+import type { ImportKind } from '@/services/import'
+import { SegmentedTab } from '../../../components/primitives/SegmentedTab/SegmentedTab'
+import { recentMonthsRange, toISODate } from '../../../utils/date'
 import { useDownloadImportTemplate, useUploadImportFile } from '@/services/import'
 import { ConnectionsSection } from './ConnectionsSection'
 
@@ -66,7 +72,26 @@ const PANEL_BTN_BASE_STYLE: CSSProperties = {
 const EXPORT_OPTIONS: { kind: ExportKind; label: string }[] = [
   { kind: 'transactions', label: '가계부 거래 내역' },
   { kind: 'trades', label: '주식 매매 내역' },
+  { kind: 'accounts', label: '계좌 목록' },
 ]
+
+type ExportRange = 'all' | 'thisYear' | 'recent3' | 'recent1'
+const EXPORT_RANGES: { id: ExportRange; label: string }[] = [
+  { id: 'all', label: '전체 기간' },
+  { id: 'thisYear', label: '올해' },
+  { id: 'recent3', label: '최근 3개월' },
+  { id: 'recent1', label: '최근 1개월' },
+]
+
+/** 거래·매매 내보내기의 기간 → 서버 from/to. 전체 기간이면 둘 다 생략한다. */
+function exportRangeParams(range: ExportRange): ExportFileParams | undefined {
+  if (range === 'all') return undefined
+  if (range === 'thisYear') return { from: `${new Date().getFullYear()}-01-01`, to: toISODate(new Date()) }
+  return recentMonthsRange(range === 'recent3' ? 3 : 1)
+}
+
+// 계좌 양식(서버 '계좌' 시트 A~J열) — 양식을 받기 전에도 무엇을 채우는지 알 수 있게 적어둔다.
+const ACCOUNT_IMPORT_COLUMNS = '계좌명 · 유형 · 통화 · 기관 · 원화예수금 · 달러예수금 · 연이율(%) · 개설일 · 만기일 · 즉시현금화'
 
 // 양식 1번 시트의 A~I 열 순서(서버 IMPORT_TRANSACTION_HEADERS, docs/excel-import.md) — 양식을 내려받기 전에도
 // 무엇을 채워야 하는지 알 수 있게 적어둔다. 이름은 양식 2번 시트("등록된 이름")에 있는 것과 같아야 한다.
@@ -117,6 +142,8 @@ export function DataModal() {
   const template = useDownloadImportTemplate()
   const upload = useUploadImportFile()
   const [importOpen, setImportOpen] = useState(false)
+  const [importKind, setImportKind] = useState<ImportKind>('transactions')
+  const [exportRange, setExportRange] = useState<ExportRange>('all')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const isOpen = state.openModal === 'data'
@@ -131,6 +158,8 @@ export function DataModal() {
     template.reset()
     upload.reset()
     setImportOpen(false)
+    setImportKind('transactions')
+    setExportRange('all')
     setState({ openDropdown: null })
     closeModal()
   }
@@ -141,7 +170,7 @@ export function DataModal() {
   const runExport = (kind: ExportKind) => {
     setState({ openDropdown: null })
     download.reset()
-    download.mutate({ kind })
+    download.mutate({ kind, params: kind === 'accounts' ? undefined : exportRangeParams(exportRange) })
   }
 
   const handleFilePicked = (e: ChangeEvent<HTMLInputElement>) => {
@@ -151,7 +180,7 @@ export function DataModal() {
     if (!file) return
     template.reset()
     upload.reset()
-    upload.mutate({ kind: 'transactions', file })
+    upload.mutate({ kind: importKind, file })
   }
 
   const importBusy = template.isPending || upload.isPending
@@ -177,7 +206,7 @@ export function DataModal() {
             </span>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: 700 }}>엑셀로 가져오기</div>
-              <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>XLSX · 모닛 양식으로 가계부 거래 일괄 등록</div>
+              <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>XLSX · 모닛 양식으로 가계부 거래나 계좌를 일괄 등록</div>
             </div>
             <Icon name={importOpen ? 'expand_less' : 'expand_more'} size={18} color="var(--text-weak)" />
           </button>
@@ -188,6 +217,29 @@ export function DataModal() {
                 display: 'flex', flexDirection: 'column', gap: 10,
               }}
             >
+              <div style={{ display: 'flex', background: 'var(--track)', borderRadius: 8, padding: 4, gap: 2 }}>
+                {([['transactions', '가계부 거래'], ['accounts', '계좌']] as const).map(([k, label]) => (
+                  <SegmentedTab
+                    key={k}
+                    active={importKind === k}
+                    onClick={() => {
+                      setImportKind(k)
+                      upload.reset()
+                      template.reset()
+                    }}
+                    style={{ flex: 1 }}
+                  >
+                    {label}
+                  </SegmentedTab>
+                ))}
+              </div>
+              {importKind === 'accounts' ? (
+                <div style={{ fontSize: 11.5, color: 'var(--text-mid)', lineHeight: 1.6 }}>
+                  양식을 내려받아 A열부터 <b style={{ color: 'var(--text-strong)' }}>{ACCOUNT_IMPORT_COLUMNS}</b> 순서로 채운 뒤 올려주세요.
+                  유형·기관은 양식의 &lsquo;{IMPORT_REFERENCE_SHEET}&rsquo; 시트에 있는 이름과 같아야 해요. 계좌 목록 내보내기로 받은 파일도
+                  그대로 올릴 수 있어요. 한 줄이라도 틀리면 전체가 등록되지 않아요.
+                </div>
+              ) : (<>
               <div style={{ fontSize: 11.5, color: 'var(--text-mid)', lineHeight: 1.6 }}>
                 양식을 내려받아 A열부터 <b style={{ color: 'var(--text-strong)' }}>{IMPORT_COLUMNS}</b> 순서로 채운 뒤 올려주세요.
                 계좌·분류는 양식의 &lsquo;{IMPORT_REFERENCE_SHEET}&rsquo; 시트에 있는 이름과 같아야 해요.
@@ -214,6 +266,7 @@ export function DataModal() {
                   </Fragment>
                 ))}
               </div>
+              </>)}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   type="button"
@@ -221,7 +274,7 @@ export function DataModal() {
                   onClick={() => {
                     upload.reset()
                     template.reset()
-                    template.mutate('transactions')
+                    template.mutate(importKind)
                   }}
                   disabled={importBusy}
                   aria-busy={template.isPending}
@@ -252,7 +305,7 @@ export function DataModal() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   onChange={handleFilePicked}
                   style={{ display: 'none' }}
                   aria-hidden
@@ -263,7 +316,7 @@ export function DataModal() {
               {upload.error && <div role="alert" style={ERROR_TEXT_STYLE}>{upload.error.message}</div>}
               {result && result.errors.length === 0 && (
                 <div role="status" style={{ fontSize: 12, color: 'var(--text-mid)', lineHeight: 1.6 }}>
-                  <b style={{ color: 'var(--text-strong)' }}>{result.importedCount.toLocaleString('ko-KR')}건</b> 등록했어요
+                  <b style={{ color: 'var(--text-strong)' }}>{result.importedCount.toLocaleString('ko-KR')}{importKind === 'accounts' ? '개 계좌' : '건'}</b>{importKind === 'accounts' ? '를' : '을'} 등록했어요
                 </div>
               )}
               {result && result.errors.length > 0 && (
@@ -275,8 +328,9 @@ export function DataModal() {
                   </div>
                   {/* 실패 행이 많을 수 있어 목록만 안에서 스크롤한다 — 모달 본문이 끝없이 길어지지 않게. */}
                   <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, maxHeight: 160, overflowY: 'auto', fontSize: 11.5 }}>
-                    {result.errors.map((f) => (
-                      <li key={`${f.rowNumber}-${f.code}`} style={{ display: 'flex', gap: 8, padding: '3px 0' }}>
+                    {/* 한 행에 같은 코드 오류가 둘일 수 있어 key에 순번을 붙인다. */}
+                    {result.errors.map((f, i) => (
+                      <li key={`${f.rowNumber}-${f.code}-${i}`} style={{ display: 'flex', gap: 8, padding: '3px 0' }}>
                         <span style={{ color: 'var(--text-weak)', flex: 'none', minWidth: 36 }}>{f.rowNumber}행</span>
                         <span style={{ color: 'var(--text-strong)' }}>{f.message}</span>
                       </li>
@@ -313,7 +367,7 @@ export function DataModal() {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: 700 }}>전체 내역 내보내기</div>
               <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>
-                {download.isPending ? '내보내는 중…' : 'XLSX · 가계부 거래 또는 주식 매매'}
+                {download.isPending ? '내보내는 중…' : 'XLSX · 가계부 거래 · 주식 매매 · 계좌 목록'}
               </div>
             </div>
             <Icon name="expand_more" size={18} color="var(--text-weak)" />
@@ -327,6 +381,27 @@ export function DataModal() {
                 zIndex: 95,
               }}
             >
+              {/* 거래·매매 내보내기 기간. 계좌 목록은 기간이 없어 이 선택과 무관하다. */}
+              <div role="group" aria-label="내보낼 기간" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '4px 4px 8px', borderBottom: '0.5px solid var(--track)', marginBottom: 4 }}>
+                {EXPORT_RANGES.map((r) => {
+                  const active = exportRange === r.id
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setExportRange(r.id)}
+                      style={{
+                        padding: '5px 10px', borderRadius: 8, fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+                        border: active ? '0.5px solid var(--accent)' : '0.5px solid var(--border)',
+                        background: active ? 'var(--accent)' : 'var(--surface)', color: active ? '#fff' : 'var(--text-mid)',
+                      }}
+                    >
+                      {r.label}
+                    </button>
+                  )
+                })}
+              </div>
               {EXPORT_OPTIONS.map((opt) => (
                 <button
                   key={opt.kind}
@@ -336,6 +411,7 @@ export function DataModal() {
                   style={EXPORT_OPTION_BTN_STYLE}
                 >
                   {opt.label}
+                  {opt.kind === 'accounts' && <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-weak)', marginLeft: 6 }}>기간과 무관 · 등록 시점 원금</span>}
                 </button>
               ))}
             </div>
