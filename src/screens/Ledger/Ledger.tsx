@@ -571,7 +571,7 @@ function LedgerOverview() {
                           </div>
                         </div>
                       </div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--exp-text)', flex: 'none' }}>−{subscription.amountText}</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--exp-text)', flex: 'none' }}>{subscription.amountText}원</div>
                     </div>
                   ))}
                   <button
@@ -617,7 +617,7 @@ function LedgerOverview() {
                           <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>{subscription.dayLabel}</div>
                         </div>
                       </div>
-                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--exp-text)', flex: 'none' }}>−{subscription.amountText}</div>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--exp-text)', flex: 'none' }}>{subscription.amountText}원</div>
                     </div>
                   ))}
                   <button

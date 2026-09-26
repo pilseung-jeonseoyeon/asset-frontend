@@ -123,7 +123,7 @@ export function UpcomingSubscriptionsCard() {
                 <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 2 }}>{row.upcomingDateLabel}</div>
               </div>
               <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--exp-text)', flex: 'none' }}>
-                −{row.amountText}
+                {row.amountText}
                 <span style={{ fontSize: 11, color: 'var(--text-weak)', fontWeight: 600, marginLeft: 2 }}>원</span>
               </div>
             </div>
