@@ -33,7 +33,8 @@ interface DownloadBlobOptions {
 
 const blobClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 20000,
+  // 전체 기간 내보내기는 거래가 많으면 20초를 넘길 수 있어 넉넉히 준다(2026-09-26).
+  timeout: 60000,
   withCredentials: true,
   responseType: 'blob',
 })

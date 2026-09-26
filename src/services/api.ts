@@ -179,16 +179,36 @@ api.interceptors.response.use(
     // 엑셀 내보내기처럼 responseType:'blob'인 요청은 실패 시에도 body가 Blob이라
     // 여기서 code/message를 읽을 수 없다. 해당 기능은 이 인스턴스를 쓰지 말고 별도 처리할 것.
     const payload = error.response?.data
-    return Promise.reject(
-      new ApiError(
-        payload?.error?.code ?? 'NETWORK_ERROR',
-        // 서버 message는 이미 완성된 한국어 문장이므로 그대로 노출한다.
-        payload?.error?.message ?? error.message,
-        status,
-      ),
-    )
+    const code: string = payload?.error?.code ?? 'NETWORK_ERROR'
+    // 서버 message는 이미 완성된 한국어 문장이므로 그대로 노출한다 — 단 입력 검증 실패(INVALID_INPUT)는
+    // '요청 값이 올바르지 않습니다. (description)'처럼 필드 이름이 영어로 붙어 와서 사람이 읽을 말로 바꾼다.
+    const message: string = payload?.error?.message ?? error.message
+    return Promise.reject(new ApiError(code, code === 'INVALID_INPUT' ? friendlyInvalidInputMessage(message) : message, status))
   },
 )
+
+// 서버 필드 이름 → 화면 이름. 목록에 없는 필드는 서버 원문을 그대로 둔다(추측해서 틀린 이름을 대지 않는다).
+const INVALID_INPUT_FIELD_LABELS: Record<string, string> = {
+  description: '내용',
+  memo: '메모',
+  name: '이름',
+  amount: '금액',
+  balance: '잔액',
+  price: '단가',
+  quantity: '수량',
+  rate: '환율',
+  targetAmount: '목표 금액',
+  targetDate: '목표 시점',
+  monthlyIncome: '월평균 수입',
+}
+
+/** '요청 값이 올바르지 않습니다. (description)' → '내용을 다시 확인해주세요 — 길이나 형식이 맞지 않아요'. */
+export function friendlyInvalidInputMessage(message: string): string {
+  const field = /\(([A-Za-z.[\]0-9]+)\)\s*$/.exec(message)?.[1]
+  const key = field?.split(/[.[]/).pop()?.replace(']', '')
+  const label = key ? INVALID_INPUT_FIELD_LABELS[key] : undefined
+  return label ? `${label} 입력을 다시 확인해주세요 — 길이나 형식이 맞지 않아요` : message
+}
 
 // data가 없는 성공 응답(204/Void)을 서비스 함수마다 검사하지 않도록 하는 헬퍼.
 // 204를 기대하는 DELETE 계열은 unwrap을 쓰지 않고 api.delete만 호출한다.

@@ -28,6 +28,11 @@ export function formatCurrencyAmount(n: number, currency: Currency): string {
   return n.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+/** '$300.00' / '−$99,699.00' — 음수 부호(U+2212)를 $ 앞에 둔다('$ -20'처럼 보이지 않게). */
+export function formatUsd(n: number): string {
+  return `${n < 0 ? '−' : ''}$${formatCurrencyAmount(Math.abs(n), 'USD')}`
+}
+
 /**
  * 조/억/만 단위 한국식 축약. 반올림은 만 원 단위(ds_rules §4-2)이고 0인 단위는 생략한다.
  * 부호와 "약 "/" 원" 접두·접미사는 호출부가 붙인다(formatNumber와 동일하게 통화 문자열을 포함하지 않음).
@@ -69,6 +74,18 @@ export function formatKoreanUnits(n: number): string {
  * 금액 입력은 `value={formatNumber(n)}` + `onChange={(e) => setAmount(parseAmount(e.target.value))}` 조합으로
  * 쓴다. DOM value를 직접 조작하지 않는다(controlled 유지).
  */
+/**
+ * 원화 금액 입력의 상한(1조 원 미만). 서버 금액은 int64라 이보다 훨씬 크게 받지만, 개인 가계부에서 이 이상은
+ * 입력 실수이고, 16자리를 넘으면 JS 숫자가 끝자리를 잃어 입력과 다른 금액이 보이고 저장된다
+ * (12345678901234567890 → 12,345,678,901,234,570,000, 2026-09-26 통합테스트). 서버도 상한 검증을 넣을
+ * 예정이다 — 서버 값이 정해지면 이 상수를 그 값에 맞춘다.
+ */
+export const MAX_KRW_AMOUNT = 999_999_999_999
+export const MAX_KRW_AMOUNT_MESSAGE = '금액은 1조 원 미만으로 입력해주세요'
+/** 달러 금액 입력의 상한(10억 달러 미만, 센트 포함). MAX_KRW_AMOUNT와 같은 이유다. */
+export const MAX_USD_AMOUNT = 999_999_999.99
+export const MAX_USD_AMOUNT_MESSAGE = '금액은 10억 달러 미만으로 입력해주세요'
+
 export function parseAmount(input: string): number {
   const digits = input.replace(/[^0-9]/g, '')
   return digits ? Number(digits) : 0
