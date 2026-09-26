@@ -35,23 +35,20 @@
 // 칩만이 아니라 헤더를 통째로 고정하는 게 중요하다: X 버튼이 스크롤 밖으로 나가면 모바일에서 닫을
 // 수단이 줄어든다. 하단(저장 버튼)은 고정하지 않는다 — 이유는 아래 footerStyle 주석 참고.
 //
-// 통화 선택 UI는 없다 — 저장 시 보내는 currency는 항상 'KRW'다. 서버 계약상 currency는 금액 필드의
-// 단위가 아니라 **표기용**이고(AccountRes.currency 설명), 달러 예수금은 통화와 무관하게
-// initialBalanceUsd라는 별도 필드로 나간다. 주식 칩 하나가 국내·해외를 함께 담으므로 '이 계좌는 달러
-// 계좌'라고 단정할 근거도 없다.
+// 계좌에는 표시 통화가 없다(2026-09-26 계약 변경) — 통화 선택 UI도 없다. 잔액은 통화별 줄 목록
+// (initialBalances: [{ currency, amount }])으로 보낸다.
 //
 // 잔액 입력은 자산 유형에 따라 갈린다. 주식 칩은 실제 증권사 계좌처럼 **달러 예수금과 원화 예수금이
 // 동시에** 있을 수 있어(환전 전 원화) 이 칩만 입력칸이 두 개고 둘 다 선택 입력이다. 두 칸은 환산
 // 관계가 아니라 서로 다른 돈이므로 하나를 고치면 다른 쪽이 바뀌는 로직을 넣지 않는다. 저장 시 두 값을
-// initialBalanceUsd(달러)/initialBalanceKrw(원화)로 함께 싣는다 — **필드명이 initialBalanceNative가
-// 아니다**(그 이름은 서버 계약에 존재한 적이 없고, 그대로 보내면 달러 예수금이 조용히 누락된다.
-// account.type.ts 주석 참고).
-// initialBalanceUsd를 보낼 수 있는 계좌는 '외화 표시 계좌 **또는 주식·가상자산 계좌**'라 원화 표기
-// 주식 계좌도 해당한다. 다만 그 밖의 원화 계좌가 보내면 400 INITIAL_BALANCE_CURRENCY_MISMATCH이므로
-// **실제로 달러를 입력했을 때만** 싣는다 — 0을 굳이 보내 서버 검증을 건드릴 이유가 없다.
+// KRW 줄·USD 줄로 함께 싣는다. **금액이 0인 줄은 싣지 않는다** — 서버가 0을 무시하긴 하지만, 두 통화를
+// 보낼 수 있는 건 주식·가상자산 계좌뿐이라(그 밖은 400 INITIAL_BALANCE_SINGLE_CURRENCY_ONLY) 빈 줄을
+// 굳이 보내 서버 검증을 건드릴 이유가 없다.
+// 원화 줄은 서버에서 등록일 날짜의 '초기 잔액' 조정 거래로 남는다(가계부 목록·수지 집계에는 안 보이고
+// 잔액·총자산에만 반영). 기준일(initialBalanceDate)은 보내지 않아 등록일이 된다.
 //
-// 환율은 프론트가 다루지 않는다. 서버가 외화 원금을 그대로 보관하고 원화 평가액은 기준일 환율로 매번
-// 환산한다 — 프론트가 환율을 곱하면 이중 환산이 된다. 그래서 환율 입력칸도, 환산 미리보기도 없다.
+// 환율은 프론트가 다루지 않는다. 서버가 달러 금액을 그대로 보관하고 원화 평가액은 조회 시점 환율로
+// 매번 환산한다 — 프론트가 환율을 곱하면 이중 환산이 된다. 그래서 환율 입력칸도, 환산 미리보기도 없다.
 //
 // 금융기관은 반드시 '고르는' 항목이다 — 계좌 이름과 같은 인라인 오류 패턴(필드 아래 var(--down) 문구)
 // 으로 미선택 저장을 막는다. 단, 고를 수 있는 값에는 목록 맨 아래의 **'없음'**이 포함된다. 서버도
@@ -88,8 +85,8 @@ import { providerLabelsFor, providersFor } from '../../../data/connectionView'
 import { useGetInstitutions } from '@/services/institution'
 import { usePostAccount } from '@/services/account'
 import { isExchangeRateMissing } from '@/services/stock'
-import type { CreateAccountRequest } from '@/services/account'
-import type { AssetClass, Currency, Market } from '@/services/common.type'
+import type { CreateAccountRequest, InitialBalanceRequest } from '@/services/account'
+import type { AssetClass, Market } from '@/services/common.type'
 
 /**
  * 자산 유형(칩) → 이 유형이 쓰는 필드. 화면 규칙이라 도메인 레이어(assetsView)가 아니라 이 모달이
@@ -184,7 +181,7 @@ export function AddAccountModal() {
   const [pendingAssetClass, setPendingAssetClass] = useState<AssetClass | null>(null)
   // 이자율은 AppState에 숫자(interestRate)로 보관하지만, 입력칸이 보여주는 값은 이 문자열이다.
   // 숫자를 그대로 되비추면 "2." 상태가 Number()→String()을 지나며 "2"로 접혀 소수점을 아예 못 찍는다
-  // (확인 — 2.1을 입력하면 21이 됐다). 달러 예수금(initialBalanceUsd)이 문자열인 것과 같은 이유다.
+  // (확인 — 2.1을 입력하면 21이 됐다). 달러 입력값(initialBalanceUsd)이 문자열인 것과 같은 이유다.
   const [interestRateStr, setInterestRateStr] = useState('')
 
   // 검증에 걸린 첫 필드로 화면을 옮기기 위한 참조. 이 폼은 종목을 몇 개만 담아도 화면 몇 배 길이가
@@ -242,10 +239,6 @@ export function AddAccountModal() {
   // 항상 지금 폼 상태와 일치하는 칩이 선택돼 보인다.
   const selectedAssetClass = assetClassOfAccountType(form.type)
   const fields = formFieldsOf(selectedAssetClass)
-  // 실제로 전송할 통화. form.currency를 곧이곧대로 읽지 않는 이유는 파일 상단 주석 참고.
-  // 표기용 통화는 항상 원화다(파일 상단 "통화 선택 UI는 없다" 단락 참고) — 달러 예수금은 통화와
-  // 무관하게 initialBalanceUsd로 따로 나간다.
-  const accountCurrency: Currency = 'KRW'
   const usdAmount = Number(form.initialBalanceUsd) || 0
 
   // 필드 옆 빨간 문구와 저장 버튼 위 요약이 같은 근거를 보도록 한 벌로 계산한다. 만기일은 플래그만
@@ -362,14 +355,17 @@ export function AddAccountModal() {
     const openedPicked = state.datePickerPicked['addAccountOpened'] as { y: number; m: number; d: number } | undefined
     const openedAt = openedPicked ? pickedToISODate(openedPicked) : (form.openedAt ?? undefined)
 
+    // 주식은 달러 예수금과 원화 예수금이 서로 다른 돈이라 둘 다 싣는다 — 파일 상단 주석 참고.
+    // 금액이 0인 통화는 줄 자체를 빼서 서버의 통화 검증을 건드리지 않는다.
+    const initialBalances: InitialBalanceRequest[] = [
+      ...(form.initialBalanceKrw > 0 ? [{ currency: 'KRW' as const, amount: form.initialBalanceKrw }] : []),
+      ...(fields.usdBalance && usdAmount > 0 ? [{ currency: 'USD' as const, amount: usdAmount }] : []),
+    ]
+
     const body: CreateAccountRequest = {
       name: form.name.trim(),
       type: form.type,
-      currency: accountCurrency,
-      initialBalanceKrw: form.initialBalanceKrw,
-      // 주식은 달러 예수금과 원화 예수금이 서로 다른 돈이라 둘 다 싣는다 — 파일 상단 주석 참고.
-      // 달러 칸을 비웠으면 필드 자체를 빼서 서버의 통화 검증을 건드리지 않는다(0을 보낼 이유가 없다).
-      ...(fields.usdBalance && usdAmount > 0 ? { initialBalanceUsd: usdAmount } : {}),
+      ...(initialBalances.length > 0 ? { initialBalances } : {}),
       isLiquid: form.isLiquid,
       // '없음'이면 institutionId를 아예 싣지 않는다(서버 스펙: "현금 등 무기관 자산은 생략한다").
       ...(form.institutionId !== null ? { institutionId: form.institutionId } : {}),

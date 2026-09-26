@@ -1,28 +1,25 @@
 import type { AccountType, Currency } from '../common.type'
 
-// balanceKrw·initialBalanceKrw·totalPrincipalKrw는 원화(KRW) 정수다. balanceKrw는 저장값이 아니라 매
-// 요청 원장(스냅샷·매매·환전)에서 재계산된 값이다 — 프론트에서 다시 계산하지 말 것.
+// 백엔드 계약 변경(2026-09-26, 라이브 OpenAPI AccountRes 대조): 잔액이 통화별 목록 `balances`로
+// 바뀌었다. 예전의 cashKrw·cashUsd·cashUsdKrw·usdKrwRate·initialBalanceKrw·initialBalanceUsd·
+// totalPrincipalKrw·currency는 **모두 사라졌다** — 되살리지 말 것. 계좌 표시 통화(currency) 개념 자체가
+// 없어졌고, 한 계좌가 원화·달러 예수금을 함께 가지는지는 balances에 달러 줄이 있는지로 안다.
 //
-// 백엔드 계약 변경(OpenAPI AccountRes 확인): 한 계좌가 원화 예수금(initialBalanceKrw)과
-// 외화 예수금(initialBalanceUsd)을 동시에 가질 수 있다. 둘 다 등록 시점에 사용자가 입력한 원금
-// 그대로이며 서버가 환율로 유도하지 않는다(구 계약의 principalKrw/principalNative는 존재하지 않는다).
-// balanceKrw는 원화 예수금 + 외화 예수금의 조회 시점 환율 환산액 + 원장 증감이라, 환율이 움직이면
-// 함께 움직인다. initialBalanceKrw는 그중 원화 예수금 원금만을 뜻하므로, 외화 계좌에서
-// balanceKrw - initialBalanceKrw를 "환차익"으로 계산하면 안 된다(원장 증감과 외화 환산분이 섞여 있다).
-//
-// **필드명 주의**: 외화 예수금은 요청·응답 모두 `initialBalanceUsd`다. 한때 프론트가 쓰던
-// `initialBalanceNative`라는 이름은 서버 계약에 존재한 적이 없다(라이브 OpenAPI 대조로
-// 확인) — 그 이름으로 보내면 달러 예수금이 조용히 누락된다. '원금 대비 +N%' 배지의 기준값은
-// initialBalanceKrw가 아니라 **totalPrincipalKrw**다(외화분까지 같은 시점 환율로 환산해 더한 값).
-//
-// 백엔드 계약 변경(라이브 OpenAPI AccountRes/AccountDetailRes 대조):
-// 1) AccountRes에 **현재** 예수금이 통화별로 실렸다 — cashKrw / cashUsd / cashUsdKrw / usdKrwRate.
-// `balanceKrw = cashKrw + cashUsdKrw`이므로 화면에 원화·달러 두 줄과 합계를 그릴 때 이 세 값만
-// 쓰면 되고, 환율을 프론트가 곱하거나 balanceKrw ÷ 환율로 역산할 필요가 없어졌다.
-// **표시에는 initialBalance~(등록 시점)가 아니라 cash~(현재)를 쓴다** — OpenAPI 설명의 지시다.
-// 목록(GET /accounts)에도 같이 내려오므로 계좌 카드에서도 쓸 수 있다.
-// 2) **GET /accounts/{id}만** 응답 모양이 AccountDetailRes로 한 겹 감싸졌다(아래). 목록·생성·수정·
-// 잔액정정 네 엔드포인트는 여전히 AccountRes를 그대로 돌려준다 — 감싼 건 상세 하나뿐이다.
+// balanceKrw는 저장값이 아니라 매 요청 원장에서 재계산된 값이다 — 프론트에서 다시 계산하지 말 것.
+// 원화 줄은 초기 잔액 조정 거래(ADJUSTMENT)를 포함한 가계부 거래 합산이고, 달러 줄은 조회 시점
+// 환율로 환산되므로 환율이 움직이면 amountKrw와 balanceKrw도 함께 움직인다.
+
+/** 통화별 잔액 한 줄. 원화 줄은 환율이 없고 amount와 amountKrw가 같다. */
+export interface AccountBalanceResponse {
+  currency: Currency
+  /** 그 통화 기준 잔액 — KRW는 정수, USD는 소수 둘째 자리까지 */
+  amount: number
+  /** 원화 환산액(원). 서버가 환산해 준 값이므로 프론트가 amount × exchangeRate를 다시 계산하지
+   * 않는다(이중 환산·반올림 어긋남 방지). */
+  amountKrw: number
+  /** 환산에 쓴 환율(원/통화) — 원화 줄은 null. 표기용(“1달러 = N원 기준”)이다. */
+  exchangeRate: number | null
+}
 
 export interface AccountResponse {
   id: number
@@ -30,36 +27,10 @@ export interface AccountResponse {
   type: AccountType
   institutionId: number | null
   institutionName: string | null
-  /** 현재 잔액(원) = 원화 예수금 + 외화 예수금의 기준일 환율 환산액 + 원장 증감. 보유 종목 평가액은
-   * 포함하지 않는다. KRW 정수(Long). */
+  /** 통화별 잔액 — 원화 줄이 항상 먼저 오고, 달러 예수금이 있으면 달러 줄이 뒤에 온다. */
+  balances: AccountBalanceResponse[]
+  /** 잔액 총액(원) = balances의 amountKrw 합계. 보유 종목 평가액은 포함하지 않는다. */
   balanceKrw: number
-  /** 현재 원화 예수금(원) = 등록 시점 원화 예수금 + 가계부 거래 증감. 국내 종목 매매 정산도 가계부
-   * 조정 거래로 들어와 여기 반영된다. 화면에 "원화 예수금"으로 보여줄 값은 initialBalanceKrw가
-   * 아니라 이것이다. */
-  cashKrw: number
-  /** 현재 달러 예수금(달러) — 달러 예수금이 아예 없으면 null. 화면에 "달러 예수금"으로 보여줄 값. */
-  cashUsd: number | null
-  /** 달러 예수금의 원화 환산액(원) — 달러 예수금이 없으면 null. 서버가 조회 시점 환율로 환산해 준
-   * 값이므로 프론트가 cashUsd × usdKrwRate를 다시 계산하지 않는다(이중 환산·반올림 어긋남 방지). */
-  cashUsdKrw: number | null
-  /** 환산에 쓴 달러 환율 — 달러 예수금이 없으면 환율을 읽지 않아 null. 표기용(“1달러 = N원 기준”)이며
-   * 이 값으로 프론트가 금액을 계산하지 않는다. */
-  usdKrwRate: number | null
-  /** 등록 시점 원금의 원화 환산 총액(원) = 원화 예수금 + 외화 예수금의 기준일 환율 환산액.
-   * balanceKrw와 같은 시점 환율을 쓰므로 '원금 대비 +N%' 배지는 이 값을 기준으로 낸다. */
-  totalPrincipalKrw: number
-  /** 등록 시점 원화 예수금 원금(원) — 원화분만이며, 외화분은 initialBalanceUsd에 따로 있다. */
-  initialBalanceKrw: number
-  /**
-   * 이름은 '등록 시점'이지만 OpenAPI 설명은 "현재 달러 예수금 — 등록 시점 값에서 시작해
-   * 달러 종목 매매 정산이 증감시킨다. cashUsd와 같은 값이며 **표시에는 cashUsd를 쓴다**"로 바뀌었다.
-   * 이름과 설명이 어긋나 있으므로(백엔드 확인 대기) **화면에 그리지 않는다** — 달러 예수금 표시는
-   * 전부 cashUsd로 한다. 이 필드는 "이 계좌가 외화 예수금을 가진 계좌인가"를 판별하는 용도로만 쓴다
-   * (잔액 정정 가능 여부 — 서버가 이 필드 기준으로 400을 낸다, AdjustBalanceRequest 주석 참고).
-   * 달러 예수금이 없으면 null.
-   */
-  initialBalanceUsd: number | null
-  currency: Currency
   /** 연 이율(%) — 해당 없으면 null */
   interestRate: number | null
   /** 개설일/취득일 — 'YYYY-MM-DD' 또는 null */
@@ -105,23 +76,28 @@ export interface CreateAccountHoldingRequest {
   price: number
 }
 
+/** 통화별 초기 잔액. 같은 통화는 한 번만 보낸다. */
+export interface InitialBalanceRequest {
+  currency: Currency
+  /** 그 통화 기준 금액 — KRW는 정수(소수면 400 INITIAL_BALANCE_KRW_NOT_INTEGER), USD는 소수 둘째 자리까지 */
+  amount: number
+}
+
 export interface CreateAccountRequest {
   institutionId?: number
   /** 1~100자 */
   name: string
   type: AccountType
-  /** 계좌 표시 통화. */
-  currency: Currency
-  /** 등록 시점 원화 예수금 원금(원) — KRW 계좌는 원금 전체, 외화 계좌는 아직 환전하지 않은 원화
-   * 예수금(둘 다 있을 수 있는 실제 증권사 해외주식 계좌를 반영한 것).
-   * 생략하면 0. 0 이상 정수(음수는 400 INVALID_INPUT). */
-  initialBalanceKrw?: number
-  /** 등록 시점 외화 예수금 원금(달러, 소수점 둘째 자리까지). 보낼 수 있는 계좌는 **외화 표시 계좌
-   * 또는 주식·가상자산 계좌**다(라이브 OpenAPI 설명) — 원화 표시 증권계좌도 환전 전
-   * 원화와 환전한 달러를 함께 가지므로 여기 해당한다. 그 밖의 원화 계좌가 보내면 400
-   * INITIAL_BALANCE_CURRENCY_MISMATCH("원화 계좌는 외화 원금을 가질 수 없습니다"). initialBalanceKrw와
-   * 함께 보낼 수도, 한쪽만 보낼 수도 있다 — 둘은 서로 다른 돈이라 합산되지 않는다. */
-  initialBalanceUsd?: number
+  /**
+   * 통화별 초기 잔액. KRW 줄은 initialBalanceDate(생략 시 등록일) 날짜의 초기 잔액 조정 거래
+   * (ADJUSTMENT)로 남고 — 가계부 목록·수지 집계에서는 빠지고 잔액·총자산에만 반영된다 — USD 줄은
+   * 계좌의 달러 예수금이 된다. 같은 통화를 두 번 보내면 400 INITIAL_BALANCE_CURRENCY_DUPLICATE,
+   * **주식·가상자산이 아닌 계좌가 두 통화를 보내면 400 INITIAL_BALANCE_SINGLE_CURRENCY_ONLY**다.
+   * 생략하거나 금액이 0이면 거래를 만들지 않는다.
+   */
+  initialBalances?: InitialBalanceRequest[]
+  /** 원화 초기 잔액의 기준일('YYYY-MM-DD') — 초기 잔액 조정 거래의 거래일이 된다. 생략하면 등록일. */
+  initialBalanceDate?: string
   interestRate?: number
   openedAt?: string
   maturityDate?: string
@@ -134,13 +110,15 @@ export interface CreateAccountRequest {
   holdings?: CreateAccountHoldingRequest[]
 }
 
-/** PATCH. currency / 등록 시점 원금 / openedAt은 수정 불가라 여기에 없다. */
+/** PATCH — 보내지 않은 필드는 유지, null로 보내면 지운다(institutionId는 null이면 기관 연결 해제).
+ * 초기 잔액은 수정 대상이 아니다(잔액은 PATCH .../balance로 정정한다). */
 export interface UpdateAccountRequest {
-  institutionId?: number
+  institutionId?: number | null
   name?: string
   type?: AccountType
-  interestRate?: number
-  maturityDate?: string
+  interestRate?: number | null
+  openedAt?: string | null
+  maturityDate?: string | null
   isLiquid?: boolean
   sortOrder?: number
 }
@@ -154,15 +132,12 @@ export interface UpdateAccountRequest {
  * 반영된다"(라이브 OpenAPI). 즉 정정 후 달라지는 것은 계좌 잔액과 총자산뿐이고 가계부 내역에는
  * 아무것도 생기지 않는다 — 화면 문구에서 '가계부에 기록된다'고 말하면 안 된다.
  *
- * **거절 조건은 통화(currency)가 아니라 외화 예수금 유무다**(OpenAPI 설명 확인):
- * "외화 예수금 원금(initialBalanceUsd)이 있는 계좌는 원금만 환율을 타고 조정 거래는 원화로 굳어
- * 다음 날 잔액이 다시 어긋나므로 400 BALANCE_ADJUSTMENT_NOT_SUPPORTED_FOR_FX로 막는다. 통화가
- * USD여도 아직 환전 전이라 외화 원금이 없으면 정정할 수 있다."
- * 프론트는 이 앱이 계좌를 항상 currency:'KRW'로 등록하기 때문에 특히 주의해야 한다 — 달러 예수금이
- * 있는 주식 계좌도 통화는 KRW라, currency로 판단하면 정정 칸을 열어줬다가 저장 시점에 400을 맞는다.
+ * **달러 예수금이 있는 계좌(balances에 USD 줄이 있는 계좌)는 400 BALANCE_ADJUSTMENT_NOT_SUPPORTED_FOR_FX다**
+ * — 달러분만 환율을 타고 조정 거래는 원화로 굳어 다음 날 잔액이 다시 어긋나기 때문이다. 증권계좌여도
+ * 아직 환전 전이라 달러 예수금이 없으면 정정할 수 있다(OpenAPI 설명).
  */
 export interface AdjustBalanceRequest {
-  /** 정정 후 현재 잔액(원). 0 이상 정수 — 통화와 무관하게 항상 원화(UpdateAccountRequest와 동일 규칙). */
+  /** 정정 후 현재 잔액(원). 0 이상 정수 — 항상 원화다. */
   balanceKrw: number
   /** 조정 거래에 남길 내용. 생략하면 서버가 '잔액 정정'으로 채운다. 최대 200자. */
   description?: string

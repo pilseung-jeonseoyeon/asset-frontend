@@ -12,9 +12,9 @@ import { isoDateToDisplay } from '../utils/date'
 import { toPercentages } from './dashboardView'
 import type { LedgerTransactionRow } from './ledgerView'
 import type { TradeRowView } from './stocksView'
-import type { AccountDetailResponse, AccountResponse } from '@/services/account'
+import type { AccountBalanceResponse, AccountDetailResponse, AccountResponse } from '@/services/account'
 import type { AssetClassGroup, LockedAccount } from '@/services/asset'
-import type { AccountType, AssetClass, InstitutionType } from '@/services/common.type'
+import type { AccountType, AssetClass, Currency, InstitutionType } from '@/services/common.type'
 
 // ---------- 계좌/기관 유형 ↔ 한글 라벨 ----------
 // 서버 AccountType/InstitutionType은 영문 코드값만 내려준다(common.type.ts 주석 참고). 한글 라벨은
@@ -74,11 +74,8 @@ export const ASSET_CLASS_ACCOUNT_TYPE_PRESET: Record<AssetClass, AccountType> = 
 /**
  * 자산군 칩을 고를 때 함께 반영할 계좌 폼 필드 — 계좌 유형 하나뿐이다.
  *
- * **칩은 통화(currency)를 건드리지 않는다.** 증권계좌 하나가 원화 예수금과 달러 예수금을
- * **동시에** 갖고(initialBalanceKrw / initialBalanceUsd 두 필드로 따로 전송한다), 서버 계약상
- * currency는 금액 필드의 단위가 아니라 표기용이기 때문이다(AccountRes.currency 설명). 폼 기본값
- * (BLANK_ACCOUNT_FORM.currency === 'KRW')을 그대로 두므로, 사용자가 골라둔 통화를 칩을 눌렀다고
- * 조용히 되돌리는 일도 없다.
+ * 계좌에는 표시 통화가 없다(2026-09-26 계약 변경) — 원화·달러 예수금은 등록 시 initialBalances에
+ * 통화별 줄로 따로 실어 보낸다(AddAccountModal).
  */
 export function assetClassFormPreset(assetClass: AssetClass): { type: AccountType } {
   return { type: ASSET_CLASS_ACCOUNT_TYPE_PRESET[assetClass] }
@@ -356,7 +353,7 @@ export function pickNearestMaturity(lockedAccounts: LockedAccount[]): LockedAcco
 
 export interface AccountDetailHeader {
   name: string
-  /** "기관명 · 계좌종류[ · 통화]" — 값이 없는 조각은 건너뛴다. */
+  /** "기관명 · 계좌종류" — 값이 없는 조각은 건너뛴다. */
   subtitle: string
   /** '만기 2026.12.14' 형태. 만기일이 없으면 null. */
   maturityLabel: string | null
@@ -364,7 +361,6 @@ export interface AccountDetailHeader {
 
 export function buildAccountDetailHeader(account: AccountResponse): AccountDetailHeader {
   const parts = [account.institutionName, ACCOUNT_TYPE_LABELS[account.type]]
-  if (account.currency !== 'KRW') parts.push(account.currency)
   return {
     name: account.name,
     subtitle: parts.filter((p): p is string => !!p).join(' · '),
@@ -397,9 +393,28 @@ export function formatBigAmountCaption(n: number): string | null {
 // 구성 줄은 **쪼갤 것이 있을 때만** 만든다. 원화 예수금밖에 없는 현금·예적금 계좌에서는 총액과
 // 구성 줄이 같은 숫자를 두 번 보여주게 되므로 아예 그리지 않는다.
 //
-// 달러의 원화 환산액은 서버가 준 cashUsdKrw를 그대로 쓴다 — cashUsd × usdKrwRate로 다시 계산하면
-// 서버 반올림과 어긋나 구성 줄의 합이 총액과 1원씩 안 맞을 수 있다(환율은 프론트가 다루지 않는다는
-// 계약이기도 하다). usdKrwRate는 "어떤 환율로 환산했는지" 알려주는 표기용으로만 쓴다.
+// 달러의 원화 환산액은 서버가 준 달러 줄의 amountKrw를 그대로 쓴다 — amount × exchangeRate로 다시
+// 계산하면 서버 반올림과 어긋나 구성 줄의 합이 총액과 1원씩 안 맞을 수 있다(환율은 프론트가 다루지
+// 않는다는 계약이기도 하다). exchangeRate는 "어떤 환율로 환산했는지" 알려주는 표기용으로만 쓴다.
+
+/**
+ * 계좌 잔액 목록(balances)에서 한 통화의 줄을 꺼낸다. 그 통화 줄이 없으면 null.
+ * 서버는 원화 줄을 항상 먼저 주지만 순서에 기대지 않고 통화로 찾는다. balances는 필수 필드지만
+ * `?.`로 한 번 더 막는다 — 계약이 바뀌기 전 서버(아직 배포 전인 운영 서버 등)에 붙으면 이 필드가
+ * 없어 화면 전체가 멈추기 때문이다.
+ */
+export function accountBalanceOf(account: AccountResponse, currency: Currency): AccountBalanceResponse | null {
+  return account.balances?.find((b) => b.currency === currency) ?? null
+}
+
+/**
+ * 달러 예수금이 있는 계좌인가 — 잔액 정정 가능 여부의 판별 기준이다(서버가 달러 줄이 있는 계좌를
+ * 400 BALANCE_ADJUSTMENT_NOT_SUPPORTED_FOR_FX로 거절한다). 금액이 0인 달러 줄도 '있음'으로 친다 —
+ * 서버가 줄의 존재로 판단하므로 프론트가 더 느슨하게 보면 저장 시점에 400을 맞는다.
+ */
+export function hasUsdBalance(account: AccountResponse): boolean {
+  return accountBalanceOf(account, 'USD') !== null
+}
 
 export interface AccountBalanceRow {
   label: string
@@ -425,18 +440,20 @@ export interface AccountBalanceView {
 export function buildAccountBalanceView(detail: AccountDetailResponse): AccountBalanceView {
   const { account, holdingValueKrw, totalValueKrw } = detail
   // 0달러는 "달러 예수금 없음"과 같게 취급한다 — "$0.00" 한 줄은 정보가 아니라 잡음이다.
-  const usdCash = account.cashUsd ?? 0
+  const krw = accountBalanceOf(account, 'KRW')
+  const usd = accountBalanceOf(account, 'USD')
+  const usdCash = usd?.amount ?? 0
   const hasUsdCash = usdCash !== 0
   const hasHoldings = holdingValueKrw > 0
 
   const rows: AccountBalanceRow[] = []
   if (hasUsdCash || hasHoldings) {
-    rows.push({ label: '원화 예수금', valueText: `${formatNumber(account.cashKrw)}원`, note: null })
+    rows.push({ label: '원화 예수금', valueText: `${formatNumber(krw?.amount ?? 0)}원`, note: null })
     if (hasUsdCash) {
       rows.push({
         label: '달러 예수금',
         valueText: `$${formatCurrencyAmount(usdCash, 'USD')}`,
-        note: account.cashUsdKrw != null ? `${formatNumber(account.cashUsdKrw)}원` : null,
+        note: usd ? `${formatNumber(usd.amountKrw)}원` : null,
       })
     }
     if (hasHoldings) {
@@ -454,8 +471,8 @@ export function buildAccountBalanceView(detail: AccountDetailResponse): AccountB
     // 환율은 소수점 둘째 자리까지 쓴다 — formatCurrencyAmount의 USD 분기가 정확히 그 형식이라
     // 같은 규칙을 두 번 적지 않도록 그대로 빌려 쓴다(값 자체는 달러가 아니라 '달러당 원'이다).
     rateNote:
-      hasUsdCash && account.usdKrwRate != null
-        ? `1달러 = ${formatCurrencyAmount(account.usdKrwRate, 'USD')}원 기준`
+      hasUsdCash && usd?.exchangeRate != null
+        ? `1달러 = ${formatCurrencyAmount(usd.exchangeRate, 'USD')}원 기준`
         : null,
   }
 }

@@ -10,11 +10,9 @@
 // AccountRes.institutionId가 그대로 내려온다(무기관 계좌는 null). 기관을 잘못 고른 계좌는 해지 후
 // 다시 등록하는 것이 제품 흐름이다.
 //
-// 자산 유형과 통화도 읽기 전용이다(제품 결정 + 서버 제약). 이미 만들어진 계좌의 성격을 수정 화면에서
-// 갈아끼우는 건 사용자 기대와 어긋나고, 통화는 애초에 바꿀 수단이 없다 — UpdateAccountRequest에
-// currency도 등록 원금 필드도 없다(통화를 바꾸려면 해지 후 재등록이다). 그래서 선택 UI 대신 현재 값만
-// 보여준다. 라벨은 자산 화면 카드와 같은 5분류(assetClassMetaOf)를 쓰고, 달러 계좌면 옆에 '달러'를
-// 덧붙인다. 계좌를 만들 때는 유형을 골라야 하므로 AddAccountModal의 칩은 그대로 둔다.
+// 자산 유형도 읽기 전용이다(제품 결정). 이미 만들어진 계좌의 성격을 수정 화면에서 갈아끼우는 건
+// 사용자 기대와 어긋난다. 그래서 선택 UI 대신 현재 값만 보여준다. 라벨은 자산 화면 카드와 같은
+// 5분류(assetClassMetaOf)를 쓴다. 계좌를 만들 때는 유형을 골라야 하므로 AddAccountModal의 칩은 그대로 둔다.
 //
 // **저장 중에는 닫히지 않는다.** handleSave는 계좌 정보 PATCH → 성공 시 잔액 PATCH를 per-call
 // onSuccess로 체이닝한다. TanStack Query v5의 MutationObserver.reset()은 진행 중인 mutation에서
@@ -38,20 +36,14 @@
 // 원화로 굳어, 정정해도 다음 날 잔액이 다시 어긋나기 때문이다. 그래서 그런 계좌에서는 잔액 칸을
 // 읽기 전용으로 두고 현재 예수금만 보여준다 — 금액을 맞추려면 가계부에 거래를 기록해야 한다.
 //
-// **판별 기준은 통화(currency)가 아니라 달러 예수금 유무(initialBalanceUsd != null)다.**
-// 이 앱은 계좌를 **항상 currency:'KRW'로 등록**하므로(CLAUDE.md '계좌 통화') 달러 예수금이 있는 주식
-// 계좌도 통화는 KRW다 — currency === 'USD'로 판단하면 정정 칸을 열어줬다가 저장 시점에 400을 맞는다.
-// 반대로 통화만 USD이고 아직 환전 전이라 달러 예수금이 없는 계좌는 서버가 정정을 허용한다.
+// **판별 기준은 잔액 목록(balances)에 달러 줄이 있는지다**(hasUsdBalance). 증권계좌여도 아직 환전
+// 전이라 달러 줄이 없으면 서버가 정정을 허용한다.
 //
-// 달러·원화 예수금은 함께 보여준다. **표시에 쓰는 값은 등록 시점(initialBalance~)이 아니라 현재
-// 예수금(cashUsd/cashKrw)이다**(OpenAPI가 '표시에는 cash~를 쓰라'고 명시). balanceKrw ÷ 환율로
+// 달러·원화 예수금은 balances의 통화별 줄에서 그대로 꺼내 함께 보여준다. balanceKrw ÷ 환율로
 // 역산하지 않는다 — 환율은 프론트가 다루지 않는다.
 // balanceKrw는 두 예수금을 합친 값이라 '예수금 합계 (원화)'로 따로 보여준다 — **보유 종목 평가액은
 // 포함하지 않으므로 '평가액'이라고 부르지 않는다**(그 값은 계좌 상세 모달의 총 평가액이다).
-// balanceKrw - initialBalanceKrw를 '환차익/환차손'으로 보여주지 않는다 — initialBalanceKrw는 원화
-// 예수금 원금만이고 balanceKrw에는 외화 환산액과 원장 증감이 섞여 있어 이 뺄셈이 순수한 환율 변동분이
-// 아니다. 서버 응답만으로 순수 환차익을 만들 수 없으므로 '서버 응답에 없는 값은 그리지 않는다'는
-// 원칙에 따라 그리지 않는다.
+// 환차익/환차손은 서버 응답에 없으므로 그리지 않는다.
 
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -63,8 +55,10 @@ import { useIsMobile } from '../../../utils/useMediaQuery'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
 import { formatNumber, formatCurrencyAmount } from '../../../utils/format'
 import {
+  accountBalanceOf,
   assetClassMetaOf,
   assetClassOfAccountType,
+  hasUsdBalance,
 } from '../../../data/assetsView'
 import { ApiError } from '@/services/api'
 import { useDeleteAccount, useGetAccount, usePatchAccount, usePatchAccountBalance } from '@/services/account'
@@ -113,23 +107,18 @@ export function EditAccountModal() {
   // 표시할 자산군은 서버가 내려준 계좌 유형에서 역산한다(이제 1:1이라 접히는 세부 타입이 없다).
   const selectedAssetClass = assetClassOfAccountType(form.type)
   const assetClassMeta = assetClassMetaOf(selectedAssetClass)
-  // 통화도 등록 후에는 바꿀 수 없다(PATCH에 currency 필드 자체가 없다) — 유형 옆에 함께 보여준다.
-  // 원화는 이 앱의 기본값이라 굳이 붙이지 않고, 해외주식 계좌가 달러인지 원화인지가 헷갈리는
-  // 경우이므로 달러일 때만 표시한다.
-  const currencyLabel = account?.currency === 'USD' ? '달러' : null
   // 잔액 입력 오버플로 방어 — parseAmount는 자릿수 상한이 없어 아주 큰 값이 JS 안전 정수 범위를 넘으면
   // 입력과 다른 정수가 서버로 나간다(AddAccountModal의 usdError='overflow'와 같은 이유).
   const isBalanceOverflow = balanceKrwInput !== null && !Number.isSafeInteger(balanceKrwInput)
 
-  // 잔액 정정 가능 여부는 통화가 아니라 **달러 예수금 유무**로 가른다(파일 상단 주석 — 서버가
-  // initialBalanceUsd 기준으로 400을 낸다). 서버가 준 값을 그대로 믿는다(form.currency는 폼 초기화
-  // 시점에 같은 값이 들어오지만, 잔액을 다룰 수 있는지는 저장된 계좌의 성격이라 서버 응답이 근거다).
-  const hasForeignCurrencyDeposit = account?.initialBalanceUsd != null
-  // "현재 원화 예수금"은 값이 있을 때만 보여준다 — 달러만 넣고 만든 해외주식 계좌(가장 흔한 경우)는
-  // cashKrw가 0이라, 상시 노출하면 "₩0"과 안내 문구가 항상 뜬다. OpenAPI 상 cashKrw는
-  // required·non-null이지만, 바로 이 파일이 "타입 선언을 믿었다가 런타임에 터진" 사고
-  // (initialBalanceUsd의 undefined 크래시)를 겪었으므로 null/undefined도 함께 걸러 방어한다.
-  const hasKrwDeposit = hasForeignCurrencyDeposit && !!account?.cashKrw
+  // 잔액 정정 가능 여부는 **달러 예수금 유무**로 가른다(파일 상단 주석 — 서버가 달러 줄이 있는
+  // 계좌를 400으로 거절한다).
+  const hasForeignCurrencyDeposit = !!account && hasUsdBalance(account)
+  const usdCash = account ? accountBalanceOf(account, 'USD')?.amount ?? null : null
+  const krwCash = account ? accountBalanceOf(account, 'KRW')?.amount ?? 0 : 0
+  // "현재 원화 예수금"은 값이 있을 때만 보여준다 — 달러만 넣고 만든 주식 계좌(가장 흔한 경우)는
+  // 원화 줄이 0이라, 상시 노출하면 "₩0"과 안내 문구가 항상 뜬다.
+  const hasKrwDeposit = hasForeignCurrencyDeposit && krwCash !== 0
 
   // 폼 초기값 채우기(예외적으로 허용 — docs/state-management.md "서버 데이터를 AppState로 복사하지
   // 말 것. 단, 폼 초기값을 채우는 것은 예외").
@@ -156,9 +145,8 @@ export function EditAccountModal() {
         // 서버가 내려준 세부 타입을 그대로 들고 있는다(6분류 프리셋으로 바꾸지 않는다) — 위 selectedAssetClass
         // 주석 참고.
         type: account.type,
-        currency: account.currency,
-        // PATCH가 거부하는 필드(initialBalanceKrw/initialBalanceUsd/openedAt)는 이 모달에서 전송하지
-        // 않는다 — 아래 값들은 AccountForm 타입을 채우기 위한 자리 채움일 뿐이다.
+        // 초기 잔액·개설일은 이 모달에서 전송하지 않는다 — 아래 값들은 AccountForm 타입을 채우기
+        // 위한 자리 채움일 뿐이다.
         initialBalanceKrw: 0,
         initialBalanceUsd: '',
         interestRate: null,
@@ -327,16 +315,13 @@ export function EditAccountModal() {
                 확인할 수 있게 한다. */}
             <div
               role="group"
-              aria-label={`자산 유형(읽기 전용) ${assetClassMeta.label}${currencyLabel ? ` · ${currencyLabel}` : ''}`}
+              aria-label={`자산 유형(읽기 전용) ${assetClassMeta.label}`}
               style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--fill-subtle)', ...FIELD_BORDER_STYLE }}
             >
               <span style={{ width: 26, height: 26, borderRadius: 8, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <Icon name={assetClassMeta.icon} size={15} />
               </span>
               <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>{assetClassMeta.label}</span>
-              {currencyLabel && (
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-weak)' }}>· {currencyLabel}</span>
-              )}
               <Icon name="lock" size={14} color="var(--text-weak)" style={{ marginLeft: 'auto', flexShrink: 0 }} ariaHidden />
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>
@@ -378,16 +363,15 @@ export function EditAccountModal() {
               {hasForeignCurrencyDeposit ? (
                 // 달러 예수금이 있는 계좌는 잔액 정정을 서버가 거절한다(파일 상단 주석) — 고칠 수 없는
                 // 칸을 열어두면 저장을 눌러야 비로소 에러를 보게 되므로, 아예 읽기 전용으로 둔다.
-                // 보여주는 값은 등록 시점 원금이 아니라 **현재** 달러 예수금(cashUsd)이다 — 서버가
-                // 통화별 현재 예수금을 내려주면서 등록 시점 값을 보여줄 이유가 없어졌다(파일 상단 주석).
+                // 보여주는 값은 balances의 달러 줄(현재 달러 예수금)이다.
                 <div
                   role="group"
-                  aria-label={`현재 달러 예수금(읽기 전용) ${account.cashUsd != null ? `$${formatCurrencyAmount(account.cashUsd, 'USD')}` : '없음'}`}
+                  aria-label={`현재 달러 예수금(읽기 전용) ${usdCash != null ? `$${formatCurrencyAmount(usdCash, 'USD')}` : '없음'}`}
                   style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--fill-subtle)', ...FIELD_BORDER_STYLE }}
                 >
                   <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>$</span>
                   <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-mid)' }}>
-                    {account.cashUsd != null ? formatCurrencyAmount(account.cashUsd, 'USD') : '—'}
+                    {usdCash != null ? formatCurrencyAmount(usdCash, 'USD') : '—'}
                   </span>
                   <Icon name="lock" size={14} color="var(--text-weak)" style={{ marginLeft: 'auto', flexShrink: 0 }} ariaHidden />
                 </div>
@@ -452,19 +436,19 @@ export function EditAccountModal() {
           </div>
           {hasKrwDeposit && (
             // 증권 계좌는 달러 예수금과 원화 예수금을 함께 가질 수 있다(CLAUDE.md '계좌 통화') — 위
-            // 달러 예수금 필드와는 서로 다른 돈이라 따로 보여준다. 둘 다 현재 값(cashUsd/cashKrw)이고,
+            // 달러 예수금 필드와는 서로 다른 돈이라 따로 보여준다. 둘 다 balances의 현재 값이고,
             // 아래 '예수금 합계'는 이 둘을 원화로 합친 값이다.
-            // 달러만 넣고 만든 계좌(가장 흔한 경우)는 cashKrw가 0이라 이 블록 자체를 숨긴다
+            // 달러만 넣고 만든 계좌(가장 흔한 경우)는 원화 줄이 0이라 이 블록 자체를 숨긴다
             // (hasKrwDeposit 정의 참고) — "₩0"과 안내 문구를 상시 보여주면 정보 밀도만 높아진다.
             <div>
               <div style={LABEL_STYLE}>현재 원화 예수금</div>
               <div
                 role="group"
-                aria-label={`현재 원화 예수금(읽기 전용) ₩${formatNumber(account.cashKrw)}`}
+                aria-label={`현재 원화 예수금(읽기 전용) ₩${formatNumber(krwCash)}`}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--fill-subtle)', ...FIELD_BORDER_STYLE }}
               >
                 <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
-                <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-mid)' }}>{formatNumber(account.cashKrw)}</span>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-mid)' }}>{formatNumber(krwCash)}</span>
                 <Icon name="lock" size={14} color="var(--text-weak)" style={{ marginLeft: 'auto', flexShrink: 0 }} ariaHidden />
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>
@@ -474,7 +458,7 @@ export function EditAccountModal() {
           )}
           {hasForeignCurrencyDeposit && (
             // 통화별 예수금(달러·원화, 위 두 필드)과 그 합계(원화, 여기)를 나란히 보여준다 —
-            // balanceKrw = cashKrw + cashUsdKrw다(파일 상단 주석). 달러분은 조회 시점 환율로 환산되므로
+            // balanceKrw = balances의 amountKrw 합계다. 달러분은 조회 시점 환율로 환산되므로
             // 이 값은 매일 달라진다. **보유 종목 평가액은 여기 포함되지 않는다** — 계좌 전체 평가액은
             // 계좌 상세 모달의 '총 평가액'에서 본다.
             <div>

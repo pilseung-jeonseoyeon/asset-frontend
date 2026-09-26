@@ -35,23 +35,18 @@ export type AuthAgreementKey = 'age' | 'service' | 'privacy' | 'marketing'
 
 // AddAccountModal/EditAccountModal이 공유하는 계좌 폼 초안. id가 null이면 신규(POST), 아니면 수정(PATCH
 // 대상 accountId). 서버가 부분 수정을 허용하는 필드(institutionId/name/type/interestRate/maturityDate/
-// isLiquid)만 편집 가능하고, currency/initialBalanceKrw/openedAt은 PATCH가 거부하므로 수정 화면에서는
-// 읽기 전용으로만 다룬다(src/services/account/account.type.ts UpdateAccountRequest 참고).
+// isLiquid)만 편집한다. 초기 잔액은 등록할 때만 보내는 값이라 수정 화면에서는 다루지 않는다
+// (src/services/account/account.type.ts UpdateAccountRequest 참고).
 export interface AccountForm {
   id: number | null
   institutionId: number | null
   name: string
   type: AccountType
-  currency: Currency
-  /** 원화 예수금. 신규 생성 시에만 전송한다 — 수정 시 서버가 거부한다(UpdateAccountRequest에 필드
-   * 자체가 없음). POST /accounts의 initialBalanceKrw로 그대로 나간다. */
+  /** 원화 초기 잔액 입력값. 신규 등록 시에만 POST /accounts의 initialBalances에 KRW 줄로 나간다. */
   initialBalanceKrw: number
-  /** 달러 예수금 입력값(원시 입력 문자열, 소수점 2자리까지) — 저장 시 숫자로 바꿔 POST /accounts의
-   * **initialBalanceUsd**로 보낸다(initialBalanceNative가 아니다 — 그 이름은 서버 계약에 없고, 그대로
-   * 보내면 달러 예수금이 조용히 누락된다).
-   * 한 계좌가 원화·달러 예수금을 동시에 가질 수 있으므로 위 initialBalanceKrw와 함께 보낼 수 있다.
-   * 환율은 프론트가 다루지 않는다 — 서버가 두 원금을 입력값 그대로 보관하고 원화 환산은 조회 시점
-   * 환율로 매번 계산한다. */
+  /** 달러 초기 잔액 입력값(원시 입력 문자열, 소수점 2자리까지) — 저장 시 숫자로 바꿔 initialBalances의
+   * USD 줄로 보낸다. 한 계좌(주식·가상자산)가 원화·달러 예수금을 동시에 가질 수 있으므로 위 원화와
+   * 함께 보낼 수 있다. 환율은 프론트가 다루지 않는다 — 원화 환산은 서버가 조회 시점 환율로 매번 한다. */
   initialBalanceUsd: string
   interestRate: number | null
   openedAt: string | null
