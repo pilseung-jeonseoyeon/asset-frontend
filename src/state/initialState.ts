@@ -110,6 +110,6 @@ export const initialState: AppState = {
   authCode: '',
   // rememberMe를 생략하면 서버 기본값이 true다 — 화면 기본값도 체크로 맞춘다.
   authKeepLogin: true,
-  authAgreements: { service: false, privacy: false, marketing: false },
+  authAgreements: { age: false, service: false, privacy: false, marketing: false },
   authCodeSentAt: null,
 }

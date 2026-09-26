@@ -78,6 +78,8 @@ src/
                          queryClient.ts, 그리고 {domain}/{domain}.service|hook|type.ts
   stores/                Zustand. auth.ts(액세스 토큰 — 메모리 전용) 하나뿐
   data/                  {screen}View.ts — 서버 응답 → 화면용 뷰모델 변환(순수 함수).
+                         termsContent.ts — 회원가입 동의서 3종 문안(이용약관·개인정보·마케팅) +
+                         TERMS_VERSION. 문안을 고치면 버전도 같이 올린다. 운영 주체는 "운영자"(회사 아님)
                          색상·아이콘·포맷 문자열 등 디자인 시스템 규칙이 여기 산다.
                          mock*.ts는 모두 제거됨 — 화면이 쓰는 데이터는 전부 서버에서 온다
   design/                bank-institutions.ts(125개 기관 마스터 테이블),
@@ -90,7 +92,8 @@ src/
     layout/                AppShell, AuthenticatedApp(<Routes>), Header, SidebarNav,
                            BottomTabNav(모바일), navItems.ts(NAV_ITEMS), BootScreen,
                            ChunkErrorBoundary, MonitLogo, useSyncUserTheme.ts,
-                           layout/modals/(AccountModal — 전역 계정 오버레이)
+                           layout/modals/(AccountModal — 전역 계정 오버레이,
+                           TermsDetailOverlay — 약관 전문 오버레이. 가입 1단계·로그인 푸터·설정 하단이 공유)
   screens/               최상위 화면별 폴더: Auth, Dashboard, Assets, Stocks, Ledger, Settings
                          (Auth는 useAuthStore().status === 'anonymous'일 때만 렌더됨)
                          Dashboard는 cards/(카드 단위) · hooks/(공유 계산) · layouts/(A·B·C 배치)로 나뉜다

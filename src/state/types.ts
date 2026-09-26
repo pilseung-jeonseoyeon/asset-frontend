@@ -29,8 +29,9 @@ export type AuthScreen = 'login' | 'signup' | 'resetPassword'
  * 않은 상태) — "모닛 시작하기"를 눌러야 실제로 로그인 상태가 된다. 'done'은 resetPassword
  * 전용(비밀번호 변경 완료 안내). */
 export type AuthStep = 'terms' | 'form' | 'sent' | 'onboard' | 'done'
-/** 회원가입 1/3 약관 동의 항목. `age`/`service`/`privacy`는 필수, `marketing`은 선택. */
-export type AuthAgreementKey = 'service' | 'privacy' | 'marketing'
+/** 회원가입 1/3 약관 동의 항목. `age`(만 14세 이상 확인)/`service`/`privacy`는 필수, `marketing`은
+ * 선택. `age`는 문서가 없는 클라이언트 확인 항목이라 서버 agreements에는 보내지 않는다. */
+export type AuthAgreementKey = 'age' | 'service' | 'privacy' | 'marketing'
 
 // AddAccountModal/EditAccountModal이 공유하는 계좌 폼 초안. id가 null이면 신규(POST), 아니면 수정(PATCH
 // 대상 accountId). 서버가 부분 수정을 허용하는 필드(institutionId/name/type/interestRate/maturityDate/

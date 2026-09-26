@@ -1,4 +1,5 @@
-// 회원가입 1단계(약관 동의)의 '보기 ›'로 열리는 약관 전문 오버레이.
+// 약관 전문 오버레이. 회원가입 1단계의 '보기 ›', 로그인 화면 푸터의 링크, 설정 화면 하단 링크가 연다
+// (문안은 data/termsContent.ts).
 //
 // 컴포넌트 primitives/Modal은 스크림 + 가운데 정렬 카드 + 모바일 바텀시트 전환 + Esc 닫기를 그대로
 // 재사용할 수 있어 그 위에 얹는다(바깥 클릭으로는 닫히지 않으므로 닫기는 X 버튼과 Esc뿐이다). 다만
@@ -7,16 +8,16 @@
 // 닫기 버튼 하나뿐이라도 Tab/Shift+Tab이 그 버튼 안에서 순환하도록 이 컴포넌트가 직접 트랩한다
 // (포커스 이동/복귀는 Modal이 제공하지 않아 함께 처리한다 — 이 저장소의 다른 모달도 아직 이걸
 // 하는 곳이 없다).
-// AppState의 openModal에는 묶지 않는다 — 회원가입 화면을 벗어나면 함께 사라져야 하는 화면 전용
-// UI 상태라서 SignupForm의 로컬 useState로 관리한다.
+// AppState의 openModal에는 묶지 않는다 — 연 화면을 벗어나면 함께 사라져야 하는 화면 전용 UI 상태라서
+// 여는 쪽(SignupForm/Auth/Settings)의 로컬 useState로 관리한다.
 
 import { useEffect, useId, useRef } from 'react'
 import type { RefObject } from 'react'
-import { Icon } from '../../components/primitives/Icon/Icon'
-import { Modal } from '../../components/primitives/Modal/Modal'
-import { useIsMobile } from '../../utils/useMediaQuery'
-import { TERMS_DOCUMENTS } from './termsContent'
-import type { TermsDocumentKey, TermsSection } from './termsContent'
+import { Icon } from '../../primitives/Icon/Icon'
+import { Modal } from '../../primitives/Modal/Modal'
+import { useIsMobile } from '../../../utils/useMediaQuery'
+import { TERMS_DOCUMENTS } from '../../../data/termsContent'
+import type { TermsDocumentKey, TermsSection } from '../../../data/termsContent'
 
 interface TermsDetailOverlayProps {
   documentKey: TermsDocumentKey

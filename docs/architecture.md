@@ -88,7 +88,8 @@ src/
                            SidebarNav(데스크톱), BottomTabNav(모바일), navItems.ts(NAV_ITEMS),
                            BootScreen(부팅 로딩), ChunkErrorBoundary(lazy 청크 로드 실패 처리),
                            MonitLogo, useSyncUserTheme.ts,
-                           layout/modals/(AccountModal — 전역 계정 오버레이)
+                           layout/modals/(AccountModal — 전역 계정 오버레이,
+                           TermsDetailOverlay — 약관 전문 오버레이. 가입 1단계·로그인 푸터·설정 하단이 공유)
 
   screens/               화면별 폴더, 각각 자기 전용 모달을 하위 modals/에 둠
     Auth/                   로그인·회원가입·비밀번호 찾기. useAuthStore().status가
