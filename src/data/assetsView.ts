@@ -513,10 +513,35 @@ export interface AccountActivityRow {
  */
 const TRADE_AMOUNT_COLOR = 'var(--text-strong)'
 
+/**
+ * 계좌 상세에서 본 저축·이체 금액 표기. 가계부 목록은 저축·이체를 부호 없이 색으로만 구분하지만
+ * (buildLedgerTransactions — 가계부 전체로는 돈이 줄어든 게 아니라 옮겨진 것이라서), 계좌 상세는
+ * "이 계좌에서 돈이 들고 난 것"을 보는 곳이라 방향을 부호로 보여준다(2026-09-26 사용자 요청 —
+ * 적금 이체가 출금 계좌에서 부호 없이 보여 들어온 돈처럼 읽혔다). 나간 계좌(accountId)는 −,
+ * 받은 계좌(transferAccountId)는 +. 색은 유형 색(저축 보라·이체 중립)을 그대로 둔다.
+ * 수입·지출은 가계부 표기 그대로다(이미 +/−가 붙어 있다).
+ */
+function accountActivityAmountText(t: LedgerTransactionRow, accountId: number): string {
+  if (t.type !== 'SAVING' && t.type !== 'TRANSFER') return `${t.amount}원`
+  const sign = t.transferAccountId === accountId ? '+' : t.accountId === accountId ? '−' : ''
+  return `${sign}${formatNumber(t.amountRaw)}원`
+}
+
+/**
+ * 받은 쪽에서 본 이체의 태그. 가계부 목록의 이체 태그는 상대 계좌(transferAccountId) 이름이라,
+ * 받은 계좌의 상세에서는 자기 자신의 이름이 찍힌다 — 이때는 보낸 계좌 이름으로 바꾼다.
+ */
+function accountActivityTag(t: LedgerTransactionRow, accountId: number, accounts: AccountResponse[]): string {
+  if (t.type !== 'TRANSFER' || t.transferAccountId !== accountId) return t.tag
+  return accounts.find((a) => a.id === t.accountId)?.name ?? t.tag
+}
+
 export function buildAccountActivity(
   transactionRows: LedgerTransactionRow[],
   tradeRows: TradeRowView[],
   limit: number,
+  accountId: number,
+  accounts: AccountResponse[],
 ): AccountActivityRow[] {
   const fromTx: AccountActivityRow[] = transactionRows.map((t) => ({
     // key에 접두사를 붙인다 — 거래 id와 매매 id는 서로 다른 테이블이라 값이 겹칠 수 있고,
@@ -525,8 +550,8 @@ export function buildAccountActivity(
     isoDate: t.isoDate,
     dateLabel: t.dateLabel,
     description: t.description,
-    tag: t.tag,
-    amountText: `${t.amount}원`,
+    tag: accountActivityTag(t, accountId, accounts),
+    amountText: accountActivityAmountText(t, accountId),
     amountColor: t.amountColor,
   }))
   const fromTrade: AccountActivityRow[] = tradeRows.map((t) => ({

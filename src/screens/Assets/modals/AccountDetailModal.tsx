@@ -109,7 +109,7 @@ export function AccountDetailModal() {
   // 날이 있으면 가계부 거래가 밀려날 수 있는데, 그건 "최근에 일어난 일"이라는 기준상 맞는 동작이다.
   const transactionRows = buildLedgerTransactions(transactionsQuery.data?.content ?? [], accountsQuery.data ?? [])
   const tradeRows = buildTradeRows(tradesQuery.trades)
-  const activityRows = buildAccountActivity(transactionRows, tradeRows, RECENT_TX_SIZE)
+  const activityRows = buildAccountActivity(transactionRows, tradeRows, RECENT_TX_SIZE, accountId, accountsQuery.data ?? [])
   // 둘 중 하나만 실패해도 나머지는 보여준다 — 매매를 못 불러왔다고 가계부 거래까지 감출 이유가 없다.
   const activityError = transactionsQuery.error ?? tradesQuery.error
 
