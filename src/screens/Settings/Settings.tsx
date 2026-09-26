@@ -41,12 +41,15 @@ export function Settings() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20, alignItems: 'stretch' }}>
         {CARDS.map((card) => (
-          <section
+          // 카드 전체가 하나의 버튼이다 — 예전 <section onClick>은 Tab으로 포커스가 가지 않아 키보드로 열 수 없었다.
+          <button
+            type="button"
             key={card.modal}
             onClick={() => setState({ openModal: card.modal })}
             style={{
               cursor: 'pointer', background: 'var(--surface)', borderRadius: 10, border: '0.5px solid var(--border)',
               boxShadow: 'var(--shadow-card)', padding: 28, minHeight: 200, display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+              textAlign: 'left', fontFamily: 'inherit', color: 'inherit', width: '100%',
             }}
           >
             <div>
@@ -60,7 +63,7 @@ export function Settings() {
               자세히 보기
               <Icon name="chevron_right" size={16} />
             </div>
-          </section>
+          </button>
         ))}
       </div>
 

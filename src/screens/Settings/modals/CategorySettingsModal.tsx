@@ -5,7 +5,7 @@
 // /categories로 다룬다. 삭제는 참조 무결성을 서버가 막지 않으므로(category.service.ts 주석)
 // 클릭 즉시 지우지 않고 인라인 확인을 한 번 거친다.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
@@ -30,6 +30,9 @@ interface DeleteTarget {
   name: string
 }
 
+/** 서버 CreateSubcategoryReq.name 최대 길이(OpenAPI maxLength 30). */
+const SUBCATEGORY_NAME_MAX = 30
+
 export function CategorySettingsModal() {
   const isMobile = useIsMobile()
   const { state, setState } = useAppState()
@@ -41,6 +44,9 @@ export function CategorySettingsModal() {
   const deleteSubcategory = useDeleteSubcategory()
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
   const [addError, setAddError] = useState<{ categoryId: number; message: string } | null>(null)
+  // 소분류 추가 요청이 날아가는 중인지 — mutation의 isPending/input disabled는 다음 렌더에야
+  // 반영돼, 같은 틱에 들어온 두 번째 Enter를 막지 못한다. ref로 즉시 잠근다.
+  const addInFlightRef = useRef(false)
 
   if (!isOpen) return null
 
@@ -76,6 +82,13 @@ export function CategorySettingsModal() {
     setState({ addingCategoryGroup: null })
   }
   const submitAdd = (categoryId: number, e: KeyboardEvent<HTMLInputElement>) => {
+    // 서버 CreateSubcategoryReq.name은 1~30자다. 입력칸 maxLength로 막지만 한글 조합 중에는 잠깐 넘을 수
+    // 있어 제출 때 한 번 더 본다 — 넘기면 서버가 '요청 값이 올바르지 않습니다. (name)'이라는 개발자용
+    // 문구를 돌려줘 화면에 그대로 떴다(2026-09-26 통합테스트).
+    // 한글 등 조합형 IME: 조합 중 Enter는 '글자 확정'용이라 keydown이 한 번 더(조합 끝난 뒤) 온다.
+    // 조합 중 이벤트까지 받으면 같은 이름으로 POST가 두 번 나가 서버가 500을 낸다(2026-09-26 통합테스트).
+    // keyCode 229는 isComposing을 안 채우는 일부 브라우저(구형 Safari)용.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (e.key === 'Escape') {
       // Modal이 이제 document 레벨에서 Esc를 감지해 모달 전체를 닫는다(Modal.tsx 참고) — 여기서
       // stopPropagation을 안 하면 인라인 추가 입력만 취소하려던 Esc가 그대로 버블링돼 모달까지
@@ -86,17 +99,28 @@ export function CategorySettingsModal() {
     }
     if (e.key !== 'Enter') return
     const value = (e.target as HTMLInputElement).value.trim()
-    if (!value) return
+    if (!value || addInFlightRef.current) return
+    if (value.length > SUBCATEGORY_NAME_MAX) {
+      setAddError({ categoryId, message: `${SUBCATEGORY_NAME_MAX}자 이내로 입력해주세요` })
+      return
+    }
+    addInFlightRef.current = true
     setAddError(null)
     postSubcategory.mutate(
       { categoryId, body: { name: value } },
       {
+        onSettled: () => {
+          addInFlightRef.current = false
+        },
         onSuccess: () => setState({ addingCategoryGroup: null }),
         onError: (error) => {
+          const code = error instanceof ApiError ? error.code : null
           const message =
-            error instanceof ApiError && error.code === 'SUBCATEGORY_DUPLICATE_NAME'
+            code === 'SUBCATEGORY_DUPLICATE_NAME'
               ? '이미 있는 소분류 이름이에요'
-              : error.message
+              : code === 'INVALID_INPUT'
+                ? `소분류 이름은 1~${SUBCATEGORY_NAME_MAX}자로 입력해주세요`
+                : error.message
           setAddError({ categoryId, message })
         },
       },
@@ -182,13 +206,17 @@ export function CategorySettingsModal() {
                                   style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--text-mid)', background: 'var(--track)', padding: '5px 10px', borderRadius: 8 }}
                                 >
                                   {subcategory.name}
-                                  <span
-                                    className="ms"
+                                  {/* 12px <span>이던 X를 버튼으로 바꿨다 — 키보드로 누를 수 있고, 눈에 보이는 크기는 그대로 두되
+                                      누를 수 있는 영역을 넓혀 휴대폰에서 빗나가지 않게 한다. */}
+                                  <button
+                                    type="button"
                                     onClick={() => requestDelete(major.id, subcategory.id, subcategory.name)}
-                                    style={{ fontSize: 12, color: 'var(--text-weak)', cursor: 'pointer' }}
+                                    aria-label={`${subcategory.name} 소분류 삭제`}
+                                    title="삭제"
+                                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', padding: 4, margin: '-4px -6px -4px -2px', minWidth: 24, minHeight: 24, borderRadius: 6, color: 'var(--text-weak)', cursor: 'pointer' }}
                                   >
-                                    close
-                                  </span>
+                                    <span className="ms" aria-hidden style={{ fontSize: 13 }}>close</span>
+                                  </button>
                                 </span>
                               ))}
                               {adding ? (
@@ -196,7 +224,11 @@ export function CategorySettingsModal() {
                                   <input
                                     autoFocus
                                     placeholder="소분류 입력 후 Enter"
-                                    disabled={postSubcategory.isPending}
+                                    maxLength={SUBCATEGORY_NAME_MAX}
+                                    // disabled면 저장 중에 포커스가 빠져, 오류가 난 뒤 입력칸을 다시 눌러야 했다 —
+                                    // readOnly는 포커스를 유지한 채 입력만 막는다(중복 전송은 addInFlightRef가 막는다).
+                                    readOnly={postSubcategory.isPending}
+                                    aria-busy={postSubcategory.isPending}
                                     onKeyDown={(e) => submitAdd(major.id, e)}
                                     style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-strong)', border: 'none', outline: 'none', fontFamily: 'inherit', width: 104, padding: '5px 0', background: 'transparent' }}
                                   />
@@ -221,7 +253,7 @@ export function CategorySettingsModal() {
                             {deleteTarget?.categoryId === major.id && (
                               <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--fill-subtle)', borderRadius: 8, padding: 10 }}>
                                 <div style={{ fontSize: 11.5, color: 'var(--text-mid)' }}>
-                                  '{deleteTarget.name}' 소분류를 삭제할까요? 이 소분류를 쓰는 거래·구독이 있어도 함께 삭제돼요.
+                                  '{deleteTarget.name}' 소분류를 삭제할까요? 목록에서 사라지고 새 거래·구독에는 더 이상 고를 수 없어요. 이미 기록한 거래·구독은 그대로 남아요.
                                 </div>
                                 {deleteSubcategory.error && (
                                   <div style={{ fontSize: 11, color: 'var(--down)' }}>{deleteSubcategory.error.message}</div>
