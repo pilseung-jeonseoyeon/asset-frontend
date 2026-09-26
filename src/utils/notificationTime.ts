@@ -26,3 +26,9 @@ export function formatNotificationTime(createdAtUtc: string, now: Date = new Dat
     ? `${date.getMonth() + 1}월 ${date.getDate()}일`
     : `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`
 }
+
+/** 날짜 묶음(오늘/어제) 안에서는 날짜를 다시 적지 않고 시각만 쓴다. 그보다 오래되면 위와 같은 날짜 표기. */
+export function formatNotificationTimeInGroup(createdAtUtc: string, now: Date = new Date()): string {
+  const full = formatNotificationTime(createdAtUtc, now)
+  return full.startsWith('오늘 ') || full.startsWith('어제 ') ? full.slice(3) : full
+}

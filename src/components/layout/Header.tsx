@@ -7,38 +7,18 @@
 // 스타일·클릭 동작은 SidebarNav의 아바타와 똑같다(Avatar 's' = 36px, modalAccount를 연다).
 // 알림은 모바일에서 드롭다운이 아니라 **화면 전체 알림센터**로 연다(2026-09-04 사용자 결정,
 // docs/mobile.md §4-2) — 데스크톱 팝오버를 그대로 쓰면 벨 아래 작은 카드에 갇혀 목록이 길수록
-// 읽기 어렵다. 데스크톱은 지금까지의 앵커드 팝오버 그대로다.
+// 읽기 어렵다. 데스크톱은 앵커드 팝오버다. 패널 본문은 NotificationPanel.tsx.
 
-import type { CSSProperties, MouseEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import type { MouseEvent } from 'react'
 import { Avatar } from '../primitives/Avatar/Avatar'
 import { MonitLogo } from './MonitLogo'
 import { Icon } from '../primitives/Icon/Icon'
 import { useAppState } from '../../state/AppStateContext'
 import { openNewEntryUpdater } from '../../state/selectors/entryDraft'
 import { useIsMobile } from '../../utils/useMediaQuery'
-import { formatNotificationTime } from '../../utils/notificationTime'
-import type { NotificationResponse, NotificationType } from '@/services/notification'
-import { useGetNotifications, usePatchAllNotificationsRead, usePatchNotificationRead } from '@/services/notification'
+import { NotificationPanel } from './NotificationPanel'
+import { useGetNotifications, useNotificationStream } from '@/services/notification'
 import { useProfileName } from '@/services/user'
-
-// 서버는 알림 종류만 내려주고 아이콘도 색도 내려주지 않는다 — 배경/글자색은 두 타입이 같고
-// 타입별로 다른 건 아이콘 하나뿐이다.
-const NOTIF_TYPE_ICON: Record<NotificationType, string> = {
-  MATURITY: 'savings',
-  SYSTEM: 'notifications',
-}
-const NOTIF_ICON_BG = 'var(--fill-subtle)'
-const NOTIF_ICON_COLOR = 'var(--text-mid)'
-
-/** 제목·본문이 길어도 목록 리듬이 무너지지 않게 지정한 줄 수에서 …로 자른다.
- *  서버 알림 문구 길이에 제한이 없어(만기 알림은 계좌 별칭이 그대로 들어온다) 화면 쪽에서 막는다. */
-const clampLines = (lines: number): CSSProperties => ({
-  display: '-webkit-box',
-  WebkitBoxOrient: 'vertical',
-  WebkitLineClamp: lines,
-  overflow: 'hidden',
-})
 
 const MINI_HOV_ITEM_STYLE = {
   display: 'flex',
@@ -56,20 +36,6 @@ const MINI_HOV_ITEM_STYLE = {
   fontFamily: 'inherit',
 }
 
-const NOTIF_ITEM_STYLE = {
-  display: 'flex',
-  alignItems: 'flex-start',
-  gap: 11,
-  width: '100%',
-  padding: '11px 8px',
-  borderRadius: 10,
-  border: 'none',
-  background: 'transparent',
-  cursor: 'pointer',
-  textAlign: 'left' as const,
-  fontFamily: 'inherit',
-}
-
 // 화면에서는 감추되 스크린리더에는 남기는 관례 스타일(AccountHoldingsField의 aria-live 블록과 같은 값).
 const SR_ONLY_STYLE = {
   position: 'absolute' as const,
@@ -80,58 +46,13 @@ const SR_ONLY_STYLE = {
   whiteSpace: 'nowrap' as const,
 }
 
-const MARK_ALL_READ_BTN_STYLE = {
-  border: 'none',
-  background: 'transparent',
-  padding: 0,
-  fontSize: 11.5,
-  fontWeight: 700,
-  color: 'var(--accent)',
-  cursor: 'pointer',
-  fontFamily: 'inherit',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-}
-
 export function Header() {
   const { state, setState } = useAppState()
-  const navigate = useNavigate()
   const isMobile = useIsMobile()
   const profileName = useProfileName()
   const notifQuery = useGetNotifications()
-  const patchNotificationRead = usePatchNotificationRead()
-  const patchAllNotificationsRead = usePatchAllNotificationsRead()
+  useNotificationStream()
   const anyDropdownOpen = state.quickAddOpen || state.notificationOpen
-  const hasNotifs = notifQuery.notifications.length > 0
-
-  // 알림 linkType → 이동 동작 매핑. linkType은 자유 문자열이고 값 집합이 아직 서버에 의해 확정되지
-  // 않았다(docs/backend-request.md D-5-2) — 지금 실제로 관측되는 값만 다루고, 매핑에 없는 값(또는
-  // linkId가 없는 경우)은 읽음 처리만 하고 이동하지 않는다. **확장 지점**: 새 linkType이 추가되면
-  // 여기에 케이스를 더한다. 'ACCOUNT'는 계좌 상세(EditAccountModal, AppShell에 항상 마운트되어
-  // 있어 라우트 없이 열 수 있다)로 연결한다 — 자산 화면 컨텍스트가 자연스러우므로 함께 이동한다.
-  const notificationLinkHandlers: Record<string, (linkId: number) => void> = {
-    ACCOUNT: (linkId) => {
-      navigate('/assets')
-      setState({ openModal: 'editAccount', editingAccountId: linkId })
-    },
-  }
-
-  const handleNotificationClick = (nf: NotificationResponse) => {
-    if (!nf.read && !patchNotificationRead.isPending) {
-      patchNotificationRead.mutate(nf.id)
-    }
-    const handler = nf.linkType ? notificationLinkHandlers[nf.linkType] : undefined
-    if (handler && nf.linkId !== null) {
-      handler(nf.linkId)
-      setState({ notificationOpen: false, quickAddOpen: false })
-    }
-  }
-
-  const handleMarkAllRead = () => {
-    if (patchAllNotificationsRead.isPending) return
-    patchAllNotificationsRead.mutate()
-  }
 
   const closeDropdowns = () => setState({ quickAddOpen: false, notificationOpen: false })
   const stop = (e: MouseEvent) => e.stopPropagation()
@@ -267,209 +188,7 @@ export function Header() {
               />
             )}
           </button>
-          {state.notificationOpen && (
-            <div
-              onClick={stop}
-              aria-busy={notifQuery.isPending}
-              role={isMobile ? 'dialog' : undefined}
-              aria-modal={isMobile ? true : undefined}
-              aria-label={isMobile ? '알림' : undefined}
-              style={
-                isMobile
-                  ? {
-                      // 화면 전체 알림센터. z-index 60은 기존 드롭다운 층 그대로라 하단탭(50) 위,
-                      // 모달(80+) 아래다. 상단은 전체화면 앱의 상태바를 피해 safe-area를 더한다.
-                      position: 'fixed',
-                      inset: 0,
-                      zIndex: 60,
-                      background: 'var(--canvas)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      padding: 'calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom))',
-                    }
-                  : {
-                      position: 'absolute',
-                      top: 50,
-                      right: 0,
-                      width: 'min(344px, calc(100vw - 32px))',
-                      maxHeight: 440,
-                      overflow: 'auto',
-                      background: 'var(--surface)',
-                      border: '0.5px solid var(--border)',
-                      borderRadius: 10,
-                      boxShadow: 'var(--shadow-pop)',
-                      padding: 10,
-                      zIndex: 60,
-                    }
-              }
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 8,
-                  padding: isMobile ? '2px 2px 12px' : '8px 8px 12px',
-                  flex: 'none',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                  {/* 화면 전체를 덮으므로 바깥을 눌러 닫을 수 없다 — 눈에 보이는 닫기 수단을 반드시 둔다.
-                      모양은 다른 화면의 뒤로가기 버튼(AccountModal 비밀번호 변경 등)과 같은 34px 칩. */}
-                  {isMobile && (
-                    <button
-                      onClick={closeDropdowns}
-                      aria-label="알림 닫기"
-                      style={{
-                        width: 34,
-                        height: 34,
-                        flex: 'none',
-                        borderRadius: 10,
-                        border: 'none',
-                        background: 'var(--track)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Icon name="arrow_back" size={19} color="var(--text-mid)" />
-                    </button>
-                  )}
-                  <span style={{ fontSize: isMobile ? 16.5 : 13, fontWeight: 700 }}>알림</span>
-                </div>
-                {notifQuery.unreadCount > 0 && (
-                  <button
-                    className="tap-44"
-                    onClick={handleMarkAllRead}
-                    disabled={patchAllNotificationsRead.isPending}
-                    aria-busy={patchAllNotificationsRead.isPending}
-                    style={{ ...MARK_ALL_READ_BTN_STYLE, opacity: patchAllNotificationsRead.isPending ? 0.6 : 1 }}
-                  >
-                    {patchAllNotificationsRead.isPending ? '처리 중…' : '모두 읽음'}
-                  </button>
-                )}
-              </div>
-              {patchAllNotificationsRead.error && (
-                <div style={{ fontSize: 11.5, color: 'var(--down)', padding: '0 8px 10px' }}>
-                  {patchAllNotificationsRead.error.message}
-                </div>
-              )}
-              {/* 모바일 알림센터는 화면 전체 높이라 목록만 스크롤하고 상단 제목 줄은 고정한다. */}
-              <div
-                style={
-                  isMobile
-                    ? {
-                        flex: 1,
-                        minHeight: 0,
-                        overflowY: 'auto',
-                        // 목록이 없을 때(로딩·에러·빈 상태) 문구가 화면 맨 위에 붙어 있으면
-                        // 전체화면에서 허전하다 — 세로 가운데로 모은다.
-                        ...(hasNotifs ? null : { display: 'flex', alignItems: 'center', justifyContent: 'center' }),
-                      }
-                    : undefined
-                }
-              >
-                {notifQuery.isPending ? (
-                  <div style={{ fontSize: 12.5, color: 'var(--text-weak)', padding: '34px 10px', textAlign: 'center' }}>
-                    불러오는 중…
-                  </div>
-                ) : notifQuery.error ? (
-                  <div style={{ fontSize: 12.5, color: 'var(--down)', padding: '20px 8px', lineHeight: 1.5 }}>
-                    {notifQuery.error.message}
-                  </div>
-                ) : hasNotifs ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {notifQuery.notifications.map((nf) => (
-                      <button
-                        key={nf.id}
-                        className="mini-hov"
-                        onClick={() => handleNotificationClick(nf)}
-                        style={{
-                          ...NOTIF_ITEM_STYLE,
-                          // 안 읽은 알림은 행 전체를 옅은 강조 배경으로 깔아 한눈에 구분되게 한다
-                          // (2026-09-04 사용자 요청). 읽은 알림은 종전대로 배경 없음.
-                          background: nf.read ? 'transparent' : 'var(--accent-soft)',
-                          padding: isMobile ? '13px 10px' : NOTIF_ITEM_STYLE.padding,
-                        }}
-                      >
-                        <span
-                          style={{
-                            position: 'relative',
-                            width: 34,
-                            height: 34,
-                            borderRadius: 10,
-                            // 안 읽은 행은 배경이 accent-soft라 같은 톤의 fill-subtle 칩이 묻힌다.
-                            background: nf.read ? NOTIF_ICON_BG : 'var(--surface)',
-                            color: NOTIF_ICON_COLOR,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flex: 'none',
-                          }}
-                        >
-                          <Icon name={NOTIF_TYPE_ICON[nf.type]} size={18} />
-                          {!nf.read && (
-                            <span
-                              style={{
-                                position: 'absolute',
-                                top: -2,
-                                right: -2,
-                                width: 8,
-                                height: 8,
-                                background: 'var(--accent)',
-                                borderRadius: 999,
-                                border: '2px solid var(--surface)',
-                              }}
-                            />
-                          )}
-                        </span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontSize: 12.5,
-                              fontWeight: 700,
-                              color: nf.read ? 'var(--text-mid)' : 'var(--text-strong)',
-                              lineHeight: 1.4,
-                              ...clampLines(3),
-                            }}
-                          >
-                            {nf.title}
-                          </div>
-                          {nf.body && (
-                            <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2, lineHeight: 1.4, ...clampLines(3) }}>
-                              {nf.body}
-                            </div>
-                          )}
-                          <div style={{ fontSize: 10.5, color: 'var(--text-weak)', marginTop: 5 }}>
-                            {formatNotificationTime(nf.createdAt)}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '34px 10px', textAlign: 'center' }}>
-                    <span
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 10,
-                        background: 'var(--track)',
-                        color: 'var(--text-weak)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <Icon name="notifications_off" size={22} />
-                    </span>
-                    <div style={{ fontSize: 12.5, color: 'var(--text-weak)', lineHeight: 1.6 }}>새로운 알림이 없어요</div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {state.notificationOpen && <NotificationPanel isMobile={isMobile} onClose={closeDropdowns} />}
         </div>
 
         {isMobile && (

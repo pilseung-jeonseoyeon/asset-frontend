@@ -326,3 +326,14 @@ html.theme-dark .monit-logo-dark { display: block }
 @media (hover: none) {
   .row-actions { opacity: 1 }
 }
+
+/* 헤더 알림 패널의 행(NotificationPanel). 안 읽은 행은 인라인 배경(fill-subtle)이 있어 !important로 한 단계 진하게 덮는다. */
+.notif-row {
+  transition: background-color .15s ease
+}
+
+@media (hover: hover) {
+  .notif-row:hover {
+    background: var(--track) !important
+  }
+}

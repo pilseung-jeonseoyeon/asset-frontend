@@ -1,13 +1,9 @@
 import { api, unwrap } from '../api'
 import type { ApiResponse } from '../api.types'
-import type { NotificationListResponse } from './notification.type'
+import type { NotificationListParams, NotificationListResponse, StreamTicketResponse } from './notification.type'
 
-export async function getNotifications(unreadOnly?: boolean) {
-  return unwrap(
-    await api.get<ApiResponse<NotificationListResponse>>('/notifications', {
-      params: unreadOnly === undefined ? undefined : { unreadOnly },
-    }),
-  )
+export async function getNotifications(params: NotificationListParams = {}) {
+  return unwrap(await api.get<ApiResponse<NotificationListResponse>>('/notifications', { params }))
 }
 
 /**
@@ -21,4 +17,9 @@ export async function patchNotificationRead(notificationId: number) {
 /** 전체 읽음 처리. 본문 규칙은 위와 같다. */
 export async function patchAllNotificationsRead() {
   await api.patch('/notifications', { read: true })
+}
+
+/** SSE 접속용 1회용 티켓 발급. */
+export async function issueStreamTicket() {
+  return unwrap(await api.post<ApiResponse<StreamTicketResponse>>('/notifications/stream/tickets'))
 }
