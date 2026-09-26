@@ -312,9 +312,9 @@ export interface LiquidityView {
  * 두 비율을 각각 `Math.round`하면 합이 99%/101%가 되어 막대에 틈/오버플로가 생긴다 —
  * dashboardView.ts의 도넛이 쓰는 최대잔여법(toPercentages)을 그대로 재사용해 합을 100으로 보정한다.
  */
-export function buildLiquidityView(liquidAccounts: { balance: number }[], lockedAccounts: { balance: number }[]): LiquidityView {
-  const liquidSum = liquidAccounts.reduce((sum, a) => sum + a.balance, 0)
-  const lockedSum = lockedAccounts.reduce((sum, a) => sum + a.balance, 0)
+export function buildLiquidityView(liquidAccounts: { totalValueKrw: number }[], lockedAccounts: { totalValueKrw: number }[]): LiquidityView {
+  const liquidSum = liquidAccounts.reduce((sum, a) => sum + a.totalValueKrw, 0)
+  const lockedSum = lockedAccounts.reduce((sum, a) => sum + a.totalValueKrw, 0)
   const [liquidPercent, lockedPercent] = toPercentages([liquidSum, lockedSum])
   return {
     liquidPercent,
@@ -334,15 +334,17 @@ export function liquidityMonthsOfExpense(liquidAmt: number, monthlyExpense: numb
   return Math.round(liquidAmt / monthlyExpense)
 }
 
+/** 만기일이 있는 락업 계좌 — dDay가 숫자로 확정된 형태. */
+export type MaturingLockedAccount = LockedAccount & { dDay: number }
+
 /**
  * 캡션에 보여줄 "가장 신경 써야 할" 락업 계좌 하나를 고른다: 아직 만기가 남은 계좌 중 가장 임박한 것을
  * 우선하고, 전부 만기가 지났으면 그중 가장 최근에 지난 것을 보여준다. dDay < 0이면 "만기 경과"로 렌더할 것.
  */
-export function pickNearestMaturity(lockedAccounts: LockedAccount[]): LockedAccount | null {
+export function pickNearestMaturity(lockedAccounts: LockedAccount[]): MaturingLockedAccount | null {
   // lockedAccounts의 기준은 isLiquid=false이지 만기 유무가 아니라, 만기가 없는 계좌도 섞여 온다.
-  // 그때 서버는 dDay를 0으로 내려주므로 걸러내지 않으면 그 계좌가 "가장 임박한 만기"
-  // 1순위로 뽑혀 "만기까지 D−0"이라는 없는 사실을 표시하게 된다.
-  const withMaturity = lockedAccounts.filter((a) => a.maturityDate !== null)
+  // 그런 계좌는 dDay가 null이라 여기서 걸러낸다 — 남은 계좌는 dDay가 숫자임이 보장된다.
+  const withMaturity = lockedAccounts.filter((a): a is MaturingLockedAccount => a.dDay !== null)
   if (withMaturity.length === 0) return null
   const upcoming = withMaturity.filter((a) => a.dDay >= 0).sort((a, b) => a.dDay - b.dDay)
   if (upcoming.length > 0) return upcoming[0]

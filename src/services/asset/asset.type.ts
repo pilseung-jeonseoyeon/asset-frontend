@@ -36,7 +36,9 @@ export interface AssetDistributionResponse {
 export interface LiquidAccount {
   accountId: number
   name: string
-  balance: number
+  /** 계좌 총 평가액(원) = 예수금 + 보유 종목 평가액. 계좌 상세(GET /accounts/{id})의 totalValueKrw와
+   * 같은 값이다(2026-09-26 계약 변경 — 예전 이름은 balance). */
+  totalValueKrw: number
 }
 
 export interface LockedAccount extends LiquidAccount {
@@ -45,8 +47,9 @@ export interface LockedAccount extends LiquidAccount {
    * 나오고 그때 이 값은 null이다. null이면 D-Day 표시 자체를 생략할 것.
    */
   maturityDate: string | null
-  /** 만기가 지나면 음수. maturityDate가 null이면 0이 오므로 "오늘 만기"로 읽으면 안 된다. */
-  dDay: number
+  /** 만기까지 남은 일수 — 만기가 지나면 음수, 0은 '오늘 만기'. **만기일이 없으면 null**이다
+   * (2026-09-26 계약 변경 — 예전에는 0이 와서 '오늘 만기'와 구분되지 않았다). */
+  dDay: number | null
 }
 
 export interface AssetLiquidityResponse {
