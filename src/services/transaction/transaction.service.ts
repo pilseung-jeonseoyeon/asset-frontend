@@ -55,10 +55,11 @@ export async function getDailySummaries(period: YearMonth) {
 }
 
 /** period는 MONTH 또는 YEAR만 유효하다(DAY는 서비스 로직에서 400). */
-export async function getPeriodSummary(period: Extract<PeriodUnit, 'MONTH' | 'YEAR'>) {
+/** yearMonth를 생략하면 서버가 현재 구간(이번 정산월/올해)을 계산한다. 지난 정산월은 { year, month }로 본다. */
+export async function getPeriodSummary(period: Extract<PeriodUnit, 'MONTH' | 'YEAR'>, yearMonth: Partial<YearMonth> = {}) {
   return unwrap(
     await api.get<ApiResponse<PeriodSummaryResponse>>('/transactions/summary', {
-      params: { period },
+      params: { period, ...yearMonth },
     }),
   )
 }

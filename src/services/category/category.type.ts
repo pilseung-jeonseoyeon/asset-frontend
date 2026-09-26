@@ -12,7 +12,8 @@ export interface CategoryResponse {
   kind: CategoryKind
   name: string
   /** 아이콘 키. 허용 값 집합이 스펙에 없어 프론트 매핑 실패 시 폴백이 필요하다. */
-  icon: string
+  /** Material Symbols 이름 — 지정되지 않은 대분류는 null(서버 nullable). */
+  icon: string | null
   subcategories: SubcategoryResponse[]
 }
 

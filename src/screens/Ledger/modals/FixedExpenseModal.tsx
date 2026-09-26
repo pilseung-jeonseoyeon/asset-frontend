@@ -4,10 +4,13 @@
 // 반복 주기는 **매월 전용**이다 — 서버 CreateSubscriptionReq가 paymentDay(1~31, '매월 며칠') 하나만
 // 받고 주간·연간 주기는 서버 모델에 아예 없다. recurringPaymentDay('N일' 문자열)에서 paymentDay를 뽑는다.
 //
-// 시작일(startedAt): GET /subscriptions 응답에 startedAt이 없어(SubscriptionResponse 참고) 수정 모달을
-// 열 때 원래 값을 알 수 없다. 모르는 값을 '오늘'로 덮어써 버리면 데이터 손실이라, EditAccountModal의
-// interestRate 처리와 같은 이유로 수정 중에는 이 필드를 아예 보여주지 않는다(전송도 하지 않는다 —
-// UpdateSubscriptionRequest에서 optional이라 생략하면 서버가 기존 값을 유지한다).
+// 시작일(startedAt): PUT은 전체 교체라 **생략하면 서버가 null로 지운다**(2026-09-26 확인 — 예전 주석의
+// '생략하면 유지' 가정은 틀렸다). GET 응답에 startedAt이 오므로 수정 모달을 열 때 날짜 선택기
+// (datePickerPicked.recur)에 프리필하고(Ledger.tsx openRecur), 저장 때 그 값을 등록·수정 모두 싣는다.
+// 원래 시작일이 없던 항목은 선택기가 비어 있고, 그대로 저장하면 계속 null이다.
+// 고르지 않은 상태는 '선택 안 함'으로 보여준다(AddAccountModal 개설일·만기일과 같은 표기) — 예전처럼 오늘
+// 날짜를 기본 표시하면 '오늘부터'로 저장되는 것처럼 보이지만 실제로는 날짜 없이 저장돼 화면과 저장값이
+// 달랐다(2026-09-26 통합테스트). 고른 날짜는 '지우기'로 다시 '선택 안 함'으로 되돌릴 수 있다.
 //
 // 아이콘: SubscriptionIconPicker(누르면 분류별 아이콘 창이 열린다)에서 하나를 고른다. **수정 저장(PUT)에도 반드시 싣는다** —
 // PUT은 전체 교체라 icon을 빼면 저장된 아이콘이 null(기본 아이콘)로 지워진다(2026-09-26 확인).
@@ -24,8 +27,8 @@ import { SegmentedTab } from '../../../components/primitives/SegmentedTab/Segmen
 import { useAppState } from '../../../state/AppStateContext'
 import { useEntityDropdown, type DropdownState } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
-import { isoDateToDisplay, pickedToISODate, toISODate } from '../../../utils/date'
-import { formatNumber, parseAmount } from '../../../utils/format'
+import { pickedToISODate } from '../../../utils/date'
+import { MAX_KRW_AMOUNT, MAX_KRW_AMOUNT_MESSAGE, formatNumber, parseAmount } from '../../../utils/format'
 import { DEFAULT_SUBSCRIPTION_ICON, findSubcategoryById } from '../../../data/ledgerView'
 import { SubscriptionIconPicker } from './SubscriptionIconPicker'
 import { ApiError } from '@/services/api'
@@ -72,12 +75,13 @@ export function FixedExpenseModal() {
   )
   // 트리거 보조 줄 — 계좌명이 잘려도 기관은 아래 줄에 남는다(Dropdown.tsx selectedMeta).
   const recurAccount = accounts.find((a) => a.id === effectiveRecurAccountId)
-  const recurDateDefault = isoDateToDisplay(toISODate(new Date()))
-  const [recurNavY, recurNavM] = recurDateDefault.split('.').map(Number)
-  const recurringDateDropdown = useDatePicker('recur', recurDateDefault, { y: recurNavY, m: recurNavM })
+  const recurringDateDropdown = useDatePicker('recur', '선택 안 함')
+  const hasRecurStartDate = !!state.datePickerPicked['recur']
 
   const [nameInvalid, setNameInvalid] = useState(false)
   const [amountInvalid, setAmountInvalid] = useState(false)
+  // 상한을 넘는 입력은 받지 않고(이전 값 유지) 안내만 띄운다 — format.ts MAX_KRW_AMOUNT 참고.
+  const [amountTooLarge, setAmountTooLarge] = useState(false)
   const [endConfirmOpen, setEndConfirmOpen] = useState(false)
 
   const activeMutation = isEditing ? putSub : postSub
@@ -149,6 +153,7 @@ export function FixedExpenseModal() {
     // mutation 에러를 직접 지우지 않으면 다음에 열었을 때 지난 세션의 실패·확인창이 그대로 보인다.
     setNameInvalid(false)
     setAmountInvalid(false)
+    setAmountTooLarge(false)
     setEndConfirmOpen(false)
     postSub.reset()
     putSub.reset()
@@ -181,15 +186,16 @@ export function FixedExpenseModal() {
     const accountId = effectiveRecurAccountId
     if (!accountId || !submitSubcategoryId || hasError) return
     const icon = state.recurringIcon ?? DEFAULT_SUBSCRIPTION_ICON
+    const picked = state.datePickerPicked['recur'] as { y: number; m: number; d: number } | undefined
+    const startedAt = picked ? pickedToISODate(picked) : undefined
 
     if (isEditing) {
       const body: UpdateSubscriptionRequest = {
         name, amount: state.recurringAmount, paymentDay, accountId, subcategoryId: submitSubcategoryId, icon,
+        ...(startedAt ? { startedAt } : {}),
       }
       putSub.mutate({ id: state.editingRecurringId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
     } else {
-      const picked = state.datePickerPicked['recur'] as { y: number; m: number; d: number } | undefined
-      const startedAt = picked ? pickedToISODate(picked) : undefined
       const body: CreateSubscriptionRequest = {
         name, kind: state.recurringType === 'fixed' ? 'FIXED' : 'SUBSCRIPTION', amount: state.recurringAmount,
         paymentDay, accountId, subcategoryId: submitSubcategoryId, icon, ...(startedAt ? { startedAt } : {}),
@@ -256,10 +262,14 @@ export function FixedExpenseModal() {
           <div style={LABEL_STYLE}>이름</div>
           <input
             type="text" placeholder={recurNamePlaceholder}
+            // 서버 name은 1~100자(CreateSubscriptionReq) — 넘기면 400이라 입력칸에서 막는다.
+            maxLength={100}
             value={state.recurringName}
             onChange={(e) => {
               setState({ recurringName: e.target.value })
               if (nameInvalid) setNameInvalid(false)
+              // 지난 저장 실패 문구는 값을 고치는 순간 지운다.
+              if (activeMutation.error) activeMutation.reset()
             }}
             style={{ width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box' }}
           />
@@ -276,16 +286,24 @@ export function FixedExpenseModal() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...FIELD_BORDER_STYLE }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
             <input
-              type="text" placeholder="0"
+              type="text" inputMode="numeric" placeholder="0"
               value={state.recurringAmount ? formatNumber(state.recurringAmount) : ''}
               onChange={(e) => {
-                setState({ recurringAmount: parseAmount(e.target.value) })
+                const next = parseAmount(e.target.value)
+                if (next > MAX_KRW_AMOUNT) {
+                  setAmountTooLarge(true)
+                  return
+                }
+                setAmountTooLarge(false)
+                setState({ recurringAmount: next })
                 if (amountInvalid) setAmountInvalid(false)
+                if (activeMutation.error) activeMutation.reset()
               }}
               style={{ border: 'none', outline: 'none', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', width: '100%', color: 'var(--text-strong)' }}
             />
           </div>
           {amountInvalid && <div style={ERROR_STYLE}>금액을 입력해주세요</div>}
+          {amountTooLarge && <div style={ERROR_STYLE}>{MAX_KRW_AMOUNT_MESSAGE}</div>}
         </div>
 
         <div>
@@ -326,12 +344,22 @@ export function FixedExpenseModal() {
           </div>
         </div>
 
-        {!isEditing && (
-          <div style={{ position: 'relative' }}>
-            <div style={LABEL_STYLE}>시작 날짜 (선택)</div>
-            <DatePicker dp={recurringDateDropdown} />
+        <div style={{ position: 'relative' }}>
+          <div style={{ ...LABEL_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            시작 날짜 (선택)
+            {hasRecurStartDate && (
+              <button
+                type="button"
+                className="mini-hov"
+                onClick={() => setState((prev) => ({ datePickerPicked: { ...prev.datePickerPicked, recur: undefined }, openDropdown: null }))}
+                style={{ border: 'none', background: 'transparent', padding: '2px 6px', borderRadius: 6, fontSize: 11.5, fontWeight: 600, color: 'var(--text-weak)', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                지우기
+              </button>
+            )}
           </div>
-        )}
+          <DatePicker dp={recurringDateDropdown} />
+        </div>
 
         <div style={{ position: 'relative' }}>
           <div style={LABEL_STYLE}>결제수단</div>

@@ -9,17 +9,7 @@
 
 import { formatNumber } from '../utils/format'
 import { makeDeltaBadge, type DeltaBadge } from '../utils/deltaBadge'
-import {
-  addDays,
-  daysInMonth,
-  firstWeekday,
-  toISODate,
-  todayYearMonth,
-  weekDates,
-  weekIndexInMonth,
-  monthOfWeek,
-  type YearMonthCursor,
-} from '../utils/date'
+import { addDays, toISODate, weekDates, weekIndexInMonth, monthOfWeek } from '../utils/date'
 import type { LedgerPeriod } from '../state/types'
 import type { AccountResponse } from '@/services/account'
 import type { CategoryResponse, SubcategoryResponse } from '@/services/category'
@@ -31,7 +21,7 @@ import type {
   PeriodSummaryResponse,
   TransactionResponse,
 } from '@/services/transaction'
-import type { CategoryKind, Currency, EditableTransactionType, TransactionType } from '@/services/common.type'
+import type { CategoryKind, DateRange, EditableTransactionType, TransactionType } from '@/services/common.type'
 
 // ---------- 공용: 요청 실패 표시 ----------
 
@@ -124,7 +114,9 @@ function buildAmountDelta(
   let text = `${periodDeltaLabel(period)} 대비 ${sign}${formatNumber(Math.abs(diff))}원`
   if (withPercent && previous !== 0) {
     const percent = Math.round((diff / previous) * 1000) / 10
-    text += ` (${percent > 0 ? '+' : '−'}${Math.abs(percent).toFixed(1)}%)`
+    // 증감이 작아 0.0%로 반올림되면 부호를 금액 방향(sign)으로 붙이고 '0.1% 미만'으로 적는다 — 예전엔 지출이
+    // 늘었는데 '(−0.0%)'로 찍혔다(2026-09-26 통합테스트).
+    text += percent === 0 ? ` (${sign}0.1% 미만)` : ` (${sign}${Math.abs(percent).toFixed(1)}%)`
   }
   return makeDeltaBadge(text, up, colorHex)
 }
@@ -162,7 +154,10 @@ export function getSavingsRingCopy(period: LedgerPeriod): { title: string; subti
 // ---------- 저축률 링 게이지 ----------
 
 export interface SavingsRingView {
+  /** 링 채움용(0~100으로 자름). */
   ratePercent: number
+  /** 화면에 적는 실제 저축률 — 100%를 넘을 수 있다(히어로의 서버 저축률과 같은 값). */
+  displayPercent: number
   /** SVG strokeDasharray. 링 둘레 100 기준(circumference 100 정규화 — 기존 마크업의 "40 60" 표기와 동일 스케일). */
   dashArray: string
   savingText: string
@@ -179,6 +174,8 @@ export function buildSavingsRing(summary: PeriodSummaryResponse): SavingsRingVie
   const ratePercent = Math.max(0, Math.min(100, Math.round(summary.savingsRatePercent)))
   return {
     ratePercent,
+    // 링은 100%에서 꽉 차지만 글자는 실제 값을 적는다 — 예전엔 120%를 저축해도 '100%'로 적혀 히어로 숫자와 달랐다.
+    displayPercent: Math.round(summary.savingsRatePercent),
     dashArray: `${ratePercent} ${100 - ratePercent}`,
     savingText: formatNumber(summary.savingTotal),
     expenseText: formatNumber(summary.expenseTotal),
@@ -193,6 +190,9 @@ export interface SavingsBar {
   percent: number
   isFuture: boolean
   isCurrent: boolean
+  /** 막대를 누르면 뜨는 말풍선의 금액 줄에 쓴다(원 단위 그대로). */
+  savingTotal: number
+  incomeTotal: number
 }
 
 /** ds_rules §3-2: 미래(데이터 없는) 월은 트랙만, 진행 중인 현재 월은 막대 + accent 라벨. */
@@ -202,16 +202,47 @@ export function buildSavingsBars(monthly: MonthlySummaryResponse[], currentMonth
     .map((m) => {
       const isFuture = m.month > currentMonth
       const percent = !isFuture && m.incomeTotal > 0 ? Math.max(0, Math.min(100, (m.savingTotal / m.incomeTotal) * 100)) : 0
-      return { month: m.month, percent, isFuture, isCurrent: m.month === currentMonth }
+      return { month: m.month, percent, isFuture, isCurrent: m.month === currentMonth, savingTotal: m.savingTotal, incomeTotal: m.incomeTotal }
     })
 }
 
-/** ds_rules §3-2: 저축률 차트에 목표선은 없다 — 기준선이 필요하면 "최근 6개월 평균" 캡션 문장으로만 표기. */
+export interface SavingsBarLabel {
+  /** "9월 · 9%" */
+  title: string
+  /** "저축 300,000원 · 수입 3,200,000원" 또는 "수입 없음" */
+  detail: string
+  /** 스크린리더용 한 문장 */
+  ariaLabel: string
+}
+
+/**
+ * 월별 저축률 막대 말풍선 문구. 비율 표기는 월간 리포트(reportView.ts)와 같은 규칙이다 —
+ * 수입이 없어 계산할 수 없는 달은 0%가 아니라 '—', 반올림하면 0%지만 저축이 있으면 '1% 미만'.
+ * 막대 높이는 100%에서 자르지만(buildSavingsBars) 여기서는 실제 비율을 그대로 적는다(예: 120%).
+ */
+export function buildSavingsBarLabel(bar: SavingsBar): SavingsBarLabel {
+  const monthText = `${bar.month}월`
+  if (bar.incomeTotal <= 0) {
+    return { title: `${monthText} · —`, detail: '수입 없음', ariaLabel: `${monthText}, 수입이 없어 저축률을 계산할 수 없어요` }
+  }
+  const rounded = Math.round((bar.savingTotal / bar.incomeTotal) * 100)
+  const rateText = rounded === 0 && bar.savingTotal > 0 ? '1% 미만' : `${rounded}%`
+  const detail = `저축 ${formatNumber(bar.savingTotal)}원 · 수입 ${formatNumber(bar.incomeTotal)}원`
+  return { title: `${monthText} · ${rateText}`, detail, ariaLabel: `${monthText}, 저축률 ${rateText}, ${detail}` }
+}
+
+/**
+ * ds_rules §3-2: 저축률 차트에 목표선은 없다 — 기준선이 필요하면 "최근 6개월 평균" 캡션 문장으로만 표기.
+ *
+ * 지난 6개월 중 **수입이 있던 달만** 평균한다. 수입이 없는 달은 저축률을 계산할 수 없는 달이지(말풍선도
+ * '—'로 적는다, buildSavingsBarLabel) 0%인 달이 아니다 — 0%로 넣으면 가계부를 막 시작한 사람이 9%를
+ * 저축해도 '평균 2%'로 보였다(2026-09-26 통합테스트). 계산할 달이 하나도 없으면 null(캡션을 숨긴다).
+ */
 export function computeRecentAverageSavingsRate(bars: SavingsBar[]): number | null {
-  const elapsed = bars.filter((b) => !b.isFuture)
-  const recent = elapsed.slice(-6)
-  if (recent.length === 0) return null
-  return Math.round(recent.reduce((sum, b) => sum + b.percent, 0) / recent.length)
+  const recent = bars.filter((b) => !b.isFuture).slice(-6)
+  const measurable = recent.filter((b) => b.incomeTotal > 0)
+  if (measurable.length === 0) return null
+  return Math.round(measurable.reduce((sum, b) => sum + b.percent, 0) / measurable.length)
 }
 
 // ---------- 전월 대비 분류별 지출 랭킹 ----------
@@ -250,7 +281,8 @@ export function buildLedgerCategories(rankings: CategoryRankingResponse[]): Ledg
         isNew,
         changePercent,
         changePercentText: changePercent === null ? null : Math.abs(changePercent).toFixed(1),
-        changeSign: changePercent !== null && changePercent > 0 ? '+' : '−',
+        // 0.0%는 늘지도 줄지도 않은 것이라 부호를 붙이지 않는다(예전엔 '−0.0%').
+        changeSign: changePercent === null || Math.abs(changePercent) < 0.05 ? '' : changePercent > 0 ? '+' : '−',
         rampColor: RAMP_SCALE[Math.min(i, RAMP_SCALE.length - 1)],
       }
     })
@@ -287,11 +319,16 @@ export interface SubscriptionRow {
   paymentDay: number
   accountId: number
   subcategoryId: number
+  /** 'YYYY-MM-DD' | null — 수정 모달 프리필용. PUT이 전체 교체라 수정 저장 때 다시 보내야 지워지지 않는다. */
+  startedAt: string | null
+  /** 아직 시작 전인 항목의 '10월 1일부터' 표기. 이미 시작했거나 시작일이 없으면 null. */
+  startsLabel: string | null
 }
 
-function accountLabelOf(accountId: number, accounts: AccountResponse[]): string {
+function accountLabelOf(accountId: number, accounts: AccountResponse[], fallbackName?: string): string {
   const account = accounts.find((a) => a.id === accountId)
-  return account?.institutionName || account?.name || ''
+  // 계좌 목록을 아직 못 받았거나 해지된 계좌면 서버가 준 accountName으로 대신 적는다.
+  return account?.institutionName || account?.name || fallbackName || ''
 }
 
 // 서버 icon 값의 허용 집합이 스펙에 없다. Material Symbols 리거처가 아닌 값(예: 'netflix')이 오면
@@ -457,7 +494,45 @@ export function subscriptionIconLabel(name: string): string | null {
   return null
 }
 
-export function buildSubscriptionRows(subscriptions: SubscriptionResponse[], accounts: AccountResponse[]): SubscriptionRow[] {
+/**
+ * 고정 지출·구독 카드의 '월 N원'과 그 아래 '다음 달부터 +N원 예정'.
+ *
+ * - thisMonth: 이번 정산월 안에 시작했거나(시작일 ≤ 이번 정산월 마지막 날) 시작일이 없는 항목 — 목록에서
+ *   '지금 매달 나가는 돈'이다.
+ * - nextMonth: 시작일이 **바로 다음 정산월** 안에 있는 항목. 카드 아래에 가볍게 '예정'으로만 알린다.
+ * - 그보다 더 뒤에 시작하는 항목은 어느 합계에도 넣지 않는다(목록에는 '○월 ○일부터'로 남는다).
+ *
+ * 예전엔 활성 항목을 전부 더해, 다음 달부터 시작하는 구독을 등록하면 이번 달 합계가 바로 늘었다
+ * (2026-09-26 통합테스트, 사용자 결정). 서버 GET /subscriptions/summary는 고정·구독을 나눠 주지 않고
+ * '이번 정산월에 실제 결제된 금액'(오늘 종료한 항목도 포함)이라 카드별 합계·목록 합과 맞지 않아 쓰지 않는다.
+ */
+export function buildRecurringTotals(
+  subscriptions: SubscriptionResponse[],
+  currentPeriod: DateRange,
+  nextPeriod: DateRange,
+): { thisMonth: number; nextMonth: number } {
+  let thisMonth = 0
+  let nextMonth = 0
+  for (const s of subscriptions) {
+    if (!s.startedAt || s.startedAt <= currentPeriod.to) thisMonth += s.amount
+    else if (s.startedAt >= nextPeriod.from && s.startedAt <= nextPeriod.to) nextMonth += s.amount
+  }
+  return { thisMonth, nextMonth }
+}
+
+function startsLabelOf(startedAt: string | null, todayIso: string): string | null {
+  if (!startedAt || startedAt <= todayIso) return null
+  const [y, m, d] = startedAt.split('-').map(Number)
+  // 올해가 아니면 연도를 붙인다 — '1월 1일부터'만 보면 올해 1월(이미 지남)로 읽힌다.
+  const yearText = y !== Number(todayIso.slice(0, 4)) ? `${y}년 ` : ''
+  return `${yearText}${m}월 ${d}일부터`
+}
+
+export function buildSubscriptionRows(
+  subscriptions: SubscriptionResponse[],
+  accounts: AccountResponse[],
+  todayIso: string = toISODate(new Date()),
+): SubscriptionRow[] {
   // 결제일 오름차순(10일 → 15일 → 20일) — 금액순이 아니다.
   return [...subscriptions]
     .sort((a, b) => a.paymentDay - b.paymentDay)
@@ -466,12 +541,14 @@ export function buildSubscriptionRows(subscriptions: SubscriptionResponse[], acc
       name: s.name,
       icon: subscriptionIconOf(s.icon),
       dayLabel: `매월 ${s.paymentDay}일`,
-      accountLabel: accountLabelOf(s.accountId, accounts),
+      accountLabel: accountLabelOf(s.accountId, accounts, s.accountName),
       amountText: formatNumber(s.amount),
       amount: s.amount,
       paymentDay: s.paymentDay,
       accountId: s.accountId,
       subcategoryId: s.subcategoryId,
+      startedAt: s.startedAt,
+      startsLabel: startsLabelOf(s.startedAt, todayIso),
     }))
 }
 
@@ -488,9 +565,8 @@ export interface LedgerTransactionRow {
   amount: string
   amountColor: string
   key: string
-  /** 아래 4개는 표시용이 아니라 수정 모달 프리필 전용 — 서버에 단일 거래 조회(GET /transactions/{id})가
-   * 없어, 이미 이 목록 조회로 받아둔 원본 값을 그대로 재사용한다(클릭 시점에 이미 화면에 떠 있는 값이라
-   * 재조회가 불필요하다). */
+  /** 아래 4개는 표시용이 아니라 수정 모달 프리필 전용 — 이미 이 목록 조회로 받아둔 원본 값을 그대로
+   * 재사용한다(클릭 시점에 이미 화면에 떠 있는 값이라 단건 재조회가 불필요하다). */
   accountId: number
   subcategoryId: number | null
   transferAccountId: number | null
@@ -498,10 +574,6 @@ export interface LedgerTransactionRow {
   /** 목록에 "메모 있음" 표시를 하고, 수정 모달을 열 때 entryMemo 프리필에 쓴다(입력 UI가 있어
    * 더 이상 보존 전용이 아니다). */
   memo: string | null
-  /** 이 화면이 편집하지 않는 필드다(외화 입력 UI 없음). PUT이 전체 교체라 그대로 다시 보내지 않으면
-   * 사용자가 금액만 고쳐 저장해도 외화 정보가 조용히 지워진다 — 보존용으로 들고 다닌다. */
-  nativeAmount: number | null
-  nativeCurrency: Currency | null
 }
 
 const TX_TYPE_COLOR: Record<TransactionType, string> = {
@@ -513,6 +585,8 @@ const TX_TYPE_COLOR: Record<TransactionType, string> = {
   // 전용 색 없이 중립색으로 둔다. 현재 서버는 목록에서 제외하므로 실제로는 쓰이지 않지만,
   // Record가 TransactionType 전부를 요구하고 방어용으로도 필요해 남겨 둔다.
   ADJUSTMENT: 'var(--text-strong)',
+  // 환전도 수입·지출이 아니라 통화만 바뀌는 이동이라 중립색이다.
+  EXCHANGE: 'var(--text-strong)',
 }
 
 function shortDateLabel(isoDate: string): string {
@@ -520,15 +594,15 @@ function shortDateLabel(isoDate: string): string {
 }
 
 /**
- * TRANSFER는 subcategoryName이 없고 상대 계좌명도 응답에 없어(transaction.type.ts 주석)
- * 계좌 목록과 transferAccountId로 조인한다. 조인 실패 시 "계좌 이체"로 폴백.
+ * TRANSFER는 subcategoryName이 없어 상대 계좌명을 태그로 쓴다 — 서버가 주는 transferAccountName을 먼저 쓰고,
+ * 없으면(옛 응답) 계좌 목록과 transferAccountId로 조인한다. 둘 다 없으면 "계좌 이체"로 폴백.
  */
 export function buildLedgerTransactions(transactions: TransactionResponse[], accounts: AccountResponse[]): LedgerTransactionRow[] {
   return transactions.map((t) => {
     const sign = t.type === 'INCOME' ? '+' : t.type === 'EXPENSE' ? '−' : ''
     const tag =
       t.type === 'TRANSFER'
-        ? (accounts.find((a) => a.id === t.transferAccountId)?.name ?? '계좌 이체')
+        ? (t.transferAccountName ?? accounts.find((a) => a.id === t.transferAccountId)?.name ?? '계좌 이체')
         : (t.subcategoryName ?? '')
     return {
       id: t.id,
@@ -545,8 +619,6 @@ export function buildLedgerTransactions(transactions: TransactionResponse[], acc
       transferAccountId: t.transferAccountId,
       amountRaw: t.amount,
       memo: t.memo,
-      nativeAmount: t.nativeAmount,
-      nativeCurrency: t.nativeCurrency,
     }
   })
 }
@@ -693,58 +765,56 @@ function linesForDay(d: DailySummaryResponse | undefined, transferAmt: number): 
 export interface MonthCalendarResult {
   rows: (CalendarCell | null)[][]
   /**
-   * true면 daily 응답에 이 달력 격자(cursor.year-cursor.month, 1~말일)에 속하지 않는 날짜가
-   * 섞여 있었다는 뜻 — monthStartDay가 1이 아닌 정산월에서 서버가 이전/다음 달력월 날짜의 요약을
-   * 함께 내려줄 때 발생한다(2장). 근본 해결은 서버의 정산월 경계 필드가 필요해 보류하고, 여기서는
-   * "격자에 못 들어간 항목이 있다"는 사실만 화면에 캡션으로 안내한다(buildMonthCalendarRows 주석 참고).
+   * true면 daily 응답에 이 달력 격자(정산월 첫날~마지막 날)에 속하지 않는 날짜가 섞여 있었다는 뜻.
+   * 격자를 서버와 같은 정산월 경계로 그리므로 정상이라면 생기지 않는다 — 서버 라벨링 규칙이 바뀌어
+   * settlementPeriodOf(date.ts)와 어긋났을 때를 위한 방어로 남겨 두고, 그땐 화면에 캡션으로 알린다.
    */
   hasOutOfGridData: boolean
 }
 
 /**
- * 거래가 없는 날은 응답 배열에서 빠질 수 있으므로(transaction.type.ts 주석) 프론트에서 날짜 축을
- * daysInMonth/firstWeekday로 채운다. 7의 배수가 되도록 뒤쪽도 빈 칸(null)으로 채워 그리드가 항상
- * 완전한 행 단위로 떨어지게 한다.
+ * 정산월 달력 격자. 칸은 정산월 첫날(period.from)부터 마지막 날(period.to)까지이고, 월요일 시작
+ * 주 단위로 앞뒤를 빈 칸(null)으로 채워 항상 7칸 행으로 떨어지게 한다. monthStartDay가 1이면 예전처럼
+ * 그 달 1일~말일 격자와 같다.
  *
- * 방어: 일(day) 두 자리만으로 칸에 매핑하면 monthStartDay가 1이 아닐 때 서버가 함께 내려주는 다른
- * 달력월 날짜(예: 정산 6월 응답에 섞인 7/1~7/14)가 엉뚱한 칸(6/1~6/14)에 그려진다. 연·월까지 대조해
- * 이 격자(cursor.year-cursor.month)에 속하지 않는 날짜는 조용히 버리고, hasOutOfGridData로 알린다.
+ * 월 시작일이 1이 아니면 격자가 두 달력월에 걸친다(예: 28일 시작 → 8/28~9/27). 날짜 숫자만 보면
+ * 어느 달인지 헷갈리므로 정산월 첫날과 달력월이 바뀌는 1일에는 'M/D'로 달을 붙인다.
+ *
+ * 거래가 없는 날은 응답 배열에서 빠질 수 있으므로(transaction.type.ts 주석) 날짜 축은 여기서 채운다.
  */
 export function buildMonthCalendarRows(
-  cursor: YearMonthCursor,
+  period: DateRange,
   daily: DailySummaryResponse[],
   transferByDate: Map<string, number>,
 ): MonthCalendarResult {
-  const dim = daysInMonth(cursor.year, cursor.month)
-  const startDow = firstWeekday(cursor.year, cursor.month)
-  const monthPrefix = `${cursor.year}-${String(cursor.month).padStart(2, '0')}-`
-  const byDay = new Map<number, DailySummaryResponse>()
+  const byDate = new Map<string, DailySummaryResponse>()
   let hasOutOfGridData = false
   daily.forEach((d) => {
-    if (!d.date.startsWith(monthPrefix)) {
+    if (d.date < period.from || d.date > period.to) {
       hasOutOfGridData = true
       return
     }
-    byDay.set(Number(d.date.slice(8, 10)), d)
+    byDate.set(d.date, d)
   })
 
-  const today = todayYearMonth()
-  const isCurrentMonth = today.year === cursor.year && today.month === cursor.month
-  const todayDate = new Date().getDate()
+  const todayIso = toISODate(new Date())
+  const startsMidMonth = period.from.slice(8, 10) !== '01'
 
   const cells: (CalendarCell | null)[] = []
+  const startDow = (new Date(`${period.from}T00:00:00`).getDay() + 6) % 7 // 월요일 시작 격자(firstWeekday와 같은 기준)
   for (let i = 0; i < startDow; i++) cells.push(null)
-  for (let day = 1; day <= dim; day++) {
-    const iso = `${monthPrefix}${String(day).padStart(2, '0')}`
-    const d = byDay.get(day)
+  for (let iso = period.from; iso <= period.to; iso = addDays(iso, 1)) {
+    const day = Number(iso.slice(8, 10))
+    const showMonth = startsMidMonth && (iso === period.from || day === 1)
+    const d = byDate.get(iso)
     cells.push({
       day,
       isoDate: iso,
-      label: String(day),
+      label: showMonth ? `${Number(iso.slice(5, 7))}/${day}` : String(day),
       lines: linesForDay(d, transferByDate.get(iso) ?? 0),
       income: d?.incomeAmount ?? 0,
       expense: d?.expenseAmount ?? 0,
-      highlighted: isCurrentMonth && day === todayDate,
+      highlighted: iso === todayIso,
     })
   }
   while (cells.length % 7 !== 0) cells.push(null)
@@ -808,10 +878,10 @@ function formatMonthDay(iso: string): string {
   return `${Number(iso.slice(5, 7))}.${Number(iso.slice(8, 10))}`
 }
 
-/** 기간 라벨(상단 화살표 옆). 예: '2026년 6월 4주차'. */
-export function weekPeriodLabel(mondayIso: string): string {
-  const { year, month } = monthOfWeek(mondayIso)
-  return `${year}년 ${month}월 ${weekIndexInMonth(mondayIso)}주차`
+/** 기간 라벨(상단 화살표 옆). 예: '2026년 6월 4주차'. 몇 월·몇째 주는 정산월 기준(monthOfWeek 주석). */
+export function weekPeriodLabel(mondayIso: string, monthStartDay: number): string {
+  const { year, month } = monthOfWeek(mondayIso, monthStartDay)
+  return `${year}년 ${month}월 ${weekIndexInMonth(mondayIso, monthStartDay)}주차`
 }
 
 /**
@@ -823,9 +893,9 @@ export function dayListTitle(iso: string): string {
   return `${Number(iso.slice(5, 7))}월 ${Number(iso.slice(8, 10))}일 (${weekday}) 내역`
 }
 
-/** 목록 제목. 예: '6월 4주차 (6.22 – 6.28) 내역'. */
-export function weekListTitle(mondayIso: string): string {
-  const { month } = monthOfWeek(mondayIso)
+/** 목록 제목. 예: '6월 4주차 (6.22 – 6.28) 내역'. 몇 월·몇째 주는 정산월 기준. */
+export function weekListTitle(mondayIso: string, monthStartDay: number): string {
+  const { month } = monthOfWeek(mondayIso, monthStartDay)
   const sunday = addDays(mondayIso, 6)
-  return `${month}월 ${weekIndexInMonth(mondayIso)}주차 (${formatMonthDay(mondayIso)} – ${formatMonthDay(sunday)}) 내역`
+  return `${month}월 ${weekIndexInMonth(mondayIso, monthStartDay)}주차 (${formatMonthDay(mondayIso)} – ${formatMonthDay(sunday)}) 내역`
 }

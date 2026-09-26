@@ -21,7 +21,7 @@ export function useGetSubscriptions(
   return {
     ...query,
     subscriptions: query.data ?? [],
-    /** 종료된 항목을 뺀 목록. 서버가 isActive:false도 그대로 내려준다. */
+    /** 종료된 항목을 뺀 목록. 요청에 active=true를 실어 서버가 이미 거르지만, 계약이 바뀌어도 안전하게 한 번 더 거른다. */
     activeSubscriptions: (query.data ?? []).filter((s) => s.isActive),
   }
 }

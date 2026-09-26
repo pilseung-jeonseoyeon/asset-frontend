@@ -1,29 +1,31 @@
 // 가계부 화면. 거래·구독·계좌 서비스에서 데이터를 읽고 src/data/ledgerView.ts로 화면 형태를 만든다.
 // 어떤 계산이 디자인 시스템 규칙인지는 ledgerView.ts 헤더 참고.
 
-import { useEffect, useRef } from 'react'
-import type { KeyboardEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties, KeyboardEvent } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
 import { Card } from '../../components/primitives/Card/Card'
 import { DeepCard } from '../../components/primitives/DeepCard/DeepCard'
 import { SegmentedTab } from '../../components/primitives/SegmentedTab/SegmentedTab'
+import { SavingsBarChart } from '../../components/primitives/SavingsBarChart/SavingsBarChart'
 import { useAppState } from '../../state/AppStateContext'
 import {
   addDays,
   firstMondayBelongingToMonth,
   isoDateToDisplay,
   mondayOf,
+  settlementMonthOf,
+  settlementPeriodOf,
   shiftYearMonth,
   toISODate,
-  todayYearMonth,
   monthOfWeek,
   yearMonthLabel,
-  yearMonthOf,
 } from '../../utils/date'
 import { formatNumber } from '../../utils/format'
 import { openNewEntryUpdater } from '../../state/selectors/entryDraft'
 import { useDebouncedValue } from '../../utils/useDebouncedValue'
 import { useIsMobile } from '../../utils/useMediaQuery'
+import { useCurrentSettlementMonth } from '../../utils/useCurrentSettlementMonth'
 import {
   buildLedgerCategories,
   buildLedgerTransactions,
@@ -31,6 +33,7 @@ import {
   buildPeriodDeltas,
   buildSavingsBars,
   buildSavingsRing,
+  buildRecurringTotals,
   buildSubscriptionRows,
   buildTransferTotalsByDate,
   buildWeekCalendarRow,
@@ -50,6 +53,7 @@ import {
 } from '../../data/ledgerView'
 import { useGetAccounts } from '@/services/account'
 import { useGetSubscriptions } from '@/services/subscription'
+import { useGetUserSettings } from '@/services/user'
 import {
   useGetCategoryRankings,
   useGetDailySummaries,
@@ -60,7 +64,6 @@ import {
 import type { DeltaBadge } from '../../utils/deltaBadge'
 import type { EntryType } from '../../state/types'
 
-const MONTH_LABELS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
 const WEEKDAY_HEADERS: { label: string; color: string }[] = [
   { label: '월', color: 'var(--text-weak)' },
   { label: '화', color: 'var(--text-weak)' },
@@ -76,7 +79,6 @@ const ARROW_BTN_STYLE = {
   border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 0,
 } as const
 
-const BAR_X_POSITIONS = [8, 50, 92, 134, 176, 218, 260, 302, 344, 386, 428, 470]
 
 function LoadingLine() {
   return (
@@ -391,10 +393,18 @@ function LedgerOverview() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
   const period = state.ledgerPeriod
-  const today = todayYearMonth()
+  // "이번 달"은 달력 월이 아니라 오늘이 속한 정산월(서버 정본) — 월 시작일이 오늘 이후면 한 달 앞선다.
+  const today = useCurrentSettlementMonth()
+  // 개요에서도 지난 정산월을 볼 수 있다(2026-09-26 — 예전엔 항상 이번 달만 보였고 월 이동은 내역 탭에만 있었다).
+  // 0이면 이번 정산월, -1이면 지난달. 이번 달일 때는 year/month를 보내지 않아 대시보드와 같은 캐시를 쓴다.
+  // 올해 모드에는 화살표가 없다. 고정 지출·구독·월별 저축률 카드는 이 선택과 무관하다.
+  const [monthOffset, setMonthOffset] = useState(0)
+  const viewedMonth = shiftYearMonth(today, monthOffset)
+  const isPastMonth = period === 'month' && monthOffset !== 0
+  const viewedYearMonth = isPastMonth ? { year: viewedMonth.year, month: viewedMonth.month } : {}
 
-  const summary = useGetPeriodSummary(period === 'month' ? 'MONTH' : 'YEAR')
-  const rankings = useGetCategoryRankings({})
+  const summary = useGetPeriodSummary(period === 'month' ? 'MONTH' : 'YEAR', { yearMonth: viewedYearMonth })
+  const rankings = useGetCategoryRankings(viewedYearMonth)
   const fixed = useGetSubscriptions('FIXED')
   const subscriptionsQuery = useGetSubscriptions('SUBSCRIPTION')
   const monthly = useGetMonthlySummaries(today.year)
@@ -409,22 +419,39 @@ function LedgerOverview() {
 
   const deltas = summary.data ? buildPeriodDeltas(summary.data, period) : null
   const ring = summary.data ? buildSavingsRing(summary.data) : null
-  const ringCopy = getSavingsRingCopy(period)
+  const baseRingCopy = getSavingsRingCopy(period)
+  const ringCopy = isPastMonth
+    ? { title: `${viewedMonth.month}월 저축률`, subtitle: `${viewedMonth.year}년 ${viewedMonth.month}월 수입 대비` }
+    : baseRingCopy
+  const heroTitle = isPastMonth
+    ? `${viewedMonth.year}년 ${viewedMonth.month}월, 이렇게 돈이 흘렀어요`
+    : getLedgerHeroTitle(period, today.year)
+  const monthNavButtonStyle = (disabled: boolean) => ({
+    width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center',
+    justifyContent: 'center', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.35 : 1, color: '#fff', flex: 'none' as const,
+  })
   const catRows = buildLedgerCategories(rankings.rankings)
   const topIncreaseLabel = pickTopIncreaseLabel(catRows)
   // 서버가 isActive:false도 목록에 그대로 내려주므로(소프트 삭제) activeSubscriptions로 한 번 걸러낸다
   // — 로컬 전용 숨김 목록은 더 이상 쓰지 않는다(DELETE /subscriptions가 실제로 종료 처리한다).
   const fixedRows = buildSubscriptionRows(fixed.activeSubscriptions, accounts)
   const subscriptionRows = buildSubscriptionRows(subscriptionsQuery.activeSubscriptions, accounts)
-  const fixedTotalText = fixedRows.length ? formatSum(fixed.activeSubscriptions.map((s) => s.amount)) : '0'
-  const subscriptionsTotalText = subscriptionRows.length ? formatSum(subscriptionsQuery.activeSubscriptions.map((s) => s.amount)) : '0'
+  // '월 N원'은 이번 정산월에 나가는 항목만, 바로 다음 정산월에 시작하는 항목은 아래 '예정' 한 줄로(buildRecurringTotals).
+  const { settings: userSettings } = useGetUserSettings()
+  const currentPeriod = settlementPeriodOf(today, userSettings.monthStartDay)
+  const nextPeriod = settlementPeriodOf(shiftYearMonth(today, 1), userSettings.monthStartDay)
+  const fixedTotals = buildRecurringTotals(fixed.activeSubscriptions, currentPeriod, nextPeriod)
+  const subscriptionTotals = buildRecurringTotals(subscriptionsQuery.activeSubscriptions, currentPeriod, nextPeriod)
   const bars = buildSavingsBars(monthly.summaries, today.month)
   const recentAverage = computeRecentAverageSavingsRate(bars)
 
   // 서버에 단일 구독 조회가 없어, 이미 이 화면이 받아둔 목록 행(SubscriptionRow)의
   // 값을 그대로 폼에 채운다 — subscription이 null이면 신규 추가.
-  const openRecur = (recurringType: 'fixed' | 'subscription', subscription: SubscriptionRow | null) =>
-    setState({
+  const openRecur = (recurringType: 'fixed' | 'subscription', subscription: SubscriptionRow | null) => {
+    // 시작일은 모달의 날짜 선택기 상태(datePickerPicked.recur)에 프리필한다 — 없으면 비워 둔다.
+    const [startY, startM, startD] = subscription?.startedAt?.split('-').map(Number) ?? []
+    const startPicked = startY && startM && startD ? { y: startY, m: startM, d: startD } : undefined
+    setState((prev) => ({
       openModal: 'fixedExpense',
       recurringType,
       editingRecurringId: subscription?.id ?? null,
@@ -434,8 +461,11 @@ function LedgerOverview() {
       recurringAccountId: subscription?.accountId ?? null,
       recurringPaymentDay: subscription ? `${subscription.paymentDay}일` : '25일',
       recurringIcon: subscription?.icon ?? null,
+      datePickerPicked: { ...prev.datePickerPicked, recur: startPicked },
+      datePickerViewingMonth: { ...prev.datePickerViewingMonth, recur: startPicked && { y: startPicked.y, m: startPicked.m } },
       openDropdown: null,
-    })
+    }))
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -444,9 +474,34 @@ function LedgerOverview() {
         {/* 좁은 폭에서는 제목이 두 줄로 접힌다 — center 정렬이면 탭이 두 줄 사이 애매한 높이에
             떠 보여서, 모바일에서는 첫 줄과 나란히 뜨도록 위쪽 기준으로 맞춘다. */}
         <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', marginBottom: 22, gap: 12 }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>{getLedgerHeroTitle(period, today.year)}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+            {period === 'month' && (
+              <button type="button" aria-label="지난달 보기" onClick={() => setMonthOffset((o) => o - 1)} style={monthNavButtonStyle(false)}>
+                <Icon name="chevron_left" size={18} />
+              </button>
+            )}
+            <div style={{ fontSize: 15, fontWeight: 700 }}>{heroTitle}</div>
+            {period === 'month' && (
+              <button
+                type="button"
+                aria-label="다음 달 보기"
+                disabled={monthOffset === 0}
+                onClick={() => setMonthOffset((o) => Math.min(0, o + 1))}
+                style={monthNavButtonStyle(monthOffset === 0)}
+              >
+                <Icon name="chevron_right" size={18} />
+              </button>
+            )}
+          </div>
           <div style={{ display: 'flex', background: 'var(--deep-seg-track)', borderRadius: 10, padding: 4, gap: 2, flex: 'none' }}>
-            <SegmentedTab variant="deep" active={period === 'month'} onClick={() => setState({ ledgerPeriod: 'month' })}>
+            <SegmentedTab
+              variant="deep"
+              active={period === 'month'}
+              onClick={() => {
+                setState({ ledgerPeriod: 'month' })
+                setMonthOffset(0)
+              }}
+            >
               이번 달
             </SegmentedTab>
             <SegmentedTab variant="deep" active={period === 'year'} onClick={() => setState({ ledgerPeriod: 'year' })}>
@@ -473,7 +528,9 @@ function LedgerOverview() {
                 <span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>
                   {summary.data.savingsRatePercent === null ? '—' : `${Math.round(summary.data.savingsRatePercent)}%`}
                 </span>
-                {recentAverage !== null && (
+                {/* '최근 6개월 평균'은 월 단위 비교값이라 올해 모드·지난달 보기에서는 숨긴다 — 연간 저축률 옆에
+                    월 평균이 붙으면 기준이 섞여 보였다(2026-09-26 통합테스트). */}
+                {recentAverage !== null && period === 'month' && !isPastMonth && (
                   <span style={{ fontSize: 11.5, color: 'var(--deep-label)', fontWeight: 400 }}>· 최근 6개월 평균 {recentAverage}%</span>
                 )}
               </div>
@@ -504,7 +561,10 @@ function LedgerOverview() {
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginBottom: 14 }}>카테고리별 지출 순위 · 전월 대비 증감</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginBottom: 14 }}>
+              {/* 이 순위는 서버가 정산월 단위로만 준다(연간 순위 API 없음) — 올해 모드에서는 기준을 밝혀 위 연간 숫자와 섞여 읽히지 않게 한다. */}
+              카테고리별 지출 순위 · 전월 대비 증감{period === 'year' ? ' · 이번 달 기준' : isPastMonth ? ` · ${viewedMonth.month}월 기준` : ''}
+            </div>
             {rankings.isPending ? (
               <LoadingLine />
             ) : rankingsErr ? (
@@ -541,11 +601,7 @@ function LedgerOverview() {
           </Card>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <Card style={{ padding: 24 }} aria-busy={fixed.isPending}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                <div style={{ fontSize: 15, fontWeight: 700 }}>고정 지출</div>
-                {!fixed.isPending && !fixedErr && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-strong)' }}>월 {fixedTotalText}원</span>}
-              </div>
-              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginBottom: 16 }}>주거, 보험 등</div>
+              <RecurringCardHeader title="고정 지출" caption="주거, 보험 등" totals={!fixed.isPending && !fixedErr ? fixedTotals : null} />
               {fixed.isPending ? (
                 <LoadingLine />
               ) : fixedErr ? (
@@ -556,6 +612,15 @@ function LedgerOverview() {
                     <div
                       key={subscription.id}
                       className="mini-hov"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${subscription.name} 수정`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          openRecur('fixed', subscription)
+                        }
+                      }}
                       onClick={() => openRecur('fixed', subscription)}
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--fill-subtle)', borderRadius: 10, padding: '14px 16px', cursor: 'pointer' }}
                     >
@@ -567,6 +632,7 @@ function LedgerOverview() {
                           <div style={{ fontSize: 13.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subscription.name}</div>
                           <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>
                             {subscription.dayLabel}
+                            {subscription.startsLabel && ` · ${subscription.startsLabel}`}
                             {subscription.accountLabel && ` · ${subscription.accountLabel}`}
                           </div>
                         </div>
@@ -590,11 +656,7 @@ function LedgerOverview() {
               )}
             </Card>
             <Card style={{ padding: 24 }} aria-busy={subscriptionsQuery.isPending}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                <div style={{ fontSize: 15, fontWeight: 700 }}>구독</div>
-                {!subscriptionsQuery.isPending && !subscriptionsError && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-strong)' }}>월 {subscriptionsTotalText}원</span>}
-              </div>
-              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginBottom: 16 }}>음악, OTT 등</div>
+              <RecurringCardHeader title="구독" caption="음악, OTT 등" totals={!subscriptionsQuery.isPending && !subscriptionsError ? subscriptionTotals : null} />
               {subscriptionsQuery.isPending ? (
                 <LoadingLine />
               ) : subscriptionsError ? (
@@ -605,6 +667,15 @@ function LedgerOverview() {
                     <div
                       key={subscription.id}
                       className="mini-hov"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${subscription.name} 수정`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          openRecur('subscription', subscription)
+                        }
+                      }}
                       onClick={() => openRecur('subscription', subscription)}
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: 10, padding: '10px 8px', cursor: 'pointer' }}
                     >
@@ -614,7 +685,11 @@ function LedgerOverview() {
                         </span>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subscription.name}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>{subscription.dayLabel}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>
+                            {subscription.dayLabel}
+                            {subscription.startsLabel && ` · ${subscription.startsLabel}`}
+                            {subscription.accountLabel && ` · ${subscription.accountLabel}`}
+                          </div>
                         </div>
                       </div>
                       <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--exp-text)', flex: 'none' }}>{subscription.amountText}원</div>
@@ -671,7 +746,7 @@ function LedgerOverview() {
                       />
                     </svg>
                     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
-                      <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.02em', color: 'var(--text-strong)', lineHeight: 1 }}>{ring.ratePercent}%</div>
+                      <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.02em', color: 'var(--text-strong)', lineHeight: 1 }}>{ring.displayPercent}%</div>
                       <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>저축률</div>
                     </div>
                   </div>
@@ -689,7 +764,7 @@ function LedgerOverview() {
                   </div>
                 </div>
                 <div style={{ marginTop: 14, paddingTop: 12, borderTop: '0.5px solid var(--track)', fontSize: 12.5, color: 'var(--text-mid)' }}>
-                  수입의 <b style={{ color: 'var(--text-strong)' }}>{ring.ratePercent}%</b>를 저축했어요
+                  수입의 <b style={{ color: 'var(--text-strong)' }}>{ring.displayPercent}%</b>를 저축했어요
                 </div>
               </>
             )}
@@ -715,44 +790,7 @@ function LedgerOverview() {
                     저축률
                   </span>
                 </div>
-                <div style={{ display: 'flex', gap: 10, marginTop: 'auto', paddingTop: 10 }}>
-                  <div style={{ position: 'relative', width: 32, flex: 'none', height: 130, fontSize: 10.5, color: 'var(--text-mid)', textAlign: 'right' }}>
-                    <span style={{ position: 'absolute', right: 0, top: 0, transform: 'translateY(-50%)' }}>100%</span>
-                    <span style={{ position: 'absolute', right: 0, top: 65, transform: 'translateY(-50%)' }}>50%</span>
-                    <span style={{ position: 'absolute', right: 0, top: 130, transform: 'translateY(-50%)' }}>0%</span>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <svg viewBox="0 0 504 130" preserveAspectRatio="none" style={{ width: '100%', height: 130, display: 'block' }}>
-                      <g fill="var(--track)">
-                        {BAR_X_POSITIONS.map((x) => (
-                          <rect key={x} x={x} y="0" width="26" height="130" rx="5" />
-                        ))}
-                      </g>
-                      <g fill="var(--sav-fill)">
-                        {bars.map((b) => {
-                          if (b.isFuture) return null
-                          const height = (b.percent / 100) * 130
-                          // 배열 인덱스가 아니라 b.month로 x좌표를 고른다 — 서버가 12개월을 다 내려주지
-                          // 않는 달(연초 등)에는 인덱스와 월이 어긋나 막대가 엉뚱한 달 자리에 그려진다.
-                          const x = BAR_X_POSITIONS[b.month - 1]
-                          if (x === undefined) return null
-                          return <rect key={b.month} x={x} y={130 - height} width="26" height={height} rx="5" />
-                        })}
-                      </g>
-                    </svg>
-                    {/* 월 라벨은 반드시 SVG와 같은 래퍼(이 flex:1 열) 안에 둔다. 바깥(축 라벨 열의
-                        형제)에 두면 왼쪽 축 라벨 32px + gap 10px = 42px만큼 기준 폭이 달라져, 카드
-                        폭과 무관하게 1월 라벨이 막대보다 40px 왼쪽으로 밀린다(대시보드 추이 그래프도
-                        같은 이유로 라벨을 SVG와 한 래퍼에 두고 있다). */}
-                    <div style={{ display: 'flex', marginTop: 6, fontSize: 10.5, color: 'var(--text-weak)' }}>
-                      {MONTH_LABELS.map((m, i) => (
-                        <span key={m} style={{ flex: 1, textAlign: 'center', ...(i + 1 === today.month ? { fontWeight: 700, color: 'var(--accent)' } : null) }}>
-                          {m}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <SavingsBarChart bars={bars} currentMonth={today.month} />
               </>
             )}
           </Card>
@@ -762,8 +800,41 @@ function LedgerOverview() {
   )
 }
 
-function formatSum(amounts: number[]): string {
-  return formatNumber(amounts.reduce((sum, n) => sum + n, 0))
+/** 현재 쪽 기준 앞뒤 2쪽(최대 5개)의 쪽 번호. 처음·끝에 붙으면 반대쪽으로 채운다. */
+function pageWindow(current: number, total: number): number[] {
+  const size = Math.min(5, total)
+  const start = Math.max(1, Math.min(current - 2, total - size + 1))
+  return Array.from({ length: size }, (_, i) => start + i)
+}
+
+// 고정 지출·구독 카드 머리. 왼쪽(제목/설명)과 오른쪽('월 N원'/'다음 달부터 +N원 예정')을 두 줄 격자로 맞춘다 —
+// 오른쪽이 두 줄일 때 제목을 세로 가운데 정렬하면 제목만 내려가 줄이 어긋났다(2026-09-26 지적). 1행·2행
+// 줄 높이를 양쪽이 같게 고정해 제목↔합계, 설명↔예정이 각각 같은 줄에 선다.
+const RECURRING_HEADER_ROW1: CSSProperties = { lineHeight: '22px', whiteSpace: 'nowrap' }
+const RECURRING_HEADER_ROW2: CSSProperties = { lineHeight: '18px', fontSize: 11.5, color: 'var(--text-weak)' }
+
+/** buildRecurringTotals 참고. totals가 null이면(로딩·에러) 오른쪽을 비운다. */
+function RecurringCardHeader({ title, caption, totals }: {
+  title: string
+  caption: string
+  totals: { thisMonth: number; nextMonth: number } | null
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ ...RECURRING_HEADER_ROW1, fontSize: 15, fontWeight: 700 }}>{title}</div>
+        <div style={{ ...RECURRING_HEADER_ROW2, fontWeight: 400 }}>{caption}</div>
+      </div>
+      {totals && (
+        <div style={{ textAlign: 'right', flex: 'none' }}>
+          <div style={{ ...RECURRING_HEADER_ROW1, fontSize: 13, fontWeight: 700, color: 'var(--text-strong)' }}>월 {formatNumber(totals.thisMonth)}원</div>
+          {totals.nextMonth > 0 && (
+            <div style={{ ...RECURRING_HEADER_ROW2, fontWeight: 500 }}>다음 달부터 +{formatNumber(totals.nextMonth)}원 예정</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function HeroValue({
@@ -808,14 +879,20 @@ function LedgerHistory() {
   const isMobile = useIsMobile()
   const range = state.ledgerRange
   const isWeek = range === 'week'
-  const cursor = { year: state.ledgerYear, month: state.ledgerMonth }
+  const currentSettlement = useCurrentSettlementMonth()
+  const { settings } = useGetUserSettings()
+  const monthStartDay = settings.monthStartDay
+  // 사용자가 달을 넘기기 전에는 오늘이 속한 정산월을 그대로 따라간다(ledgerCursorFollowsCurrent 주석).
+  const cursor = state.ledgerCursorFollowsCurrent ? currentSettlement : { year: state.ledgerYear, month: state.ledgerMonth }
   const weekAnchor = state.ledgerWeekAnchor
   const weekEnd = addDays(weekAnchor, 6)
-  // 주간 뷰가 월 경계를 넘으면(예: 8월 마지막 주에 9/1이 섞임) 일별 요약이 두 달에 걸쳐 있을 수
-  // 있다 — daily summary가 year/month 단위로만 조회되므로(from/to 미지원) 겹치는 두 달을 각각 조회해
-  // 합친다. 월간 뷰거나 주가 한 달 안에 온전히 들어가면 두 번째 쿼리는 enabled:false로 쉰다.
-  const weekStartMonth = isWeek ? yearMonthOf(weekAnchor) : cursor
-  const weekEndMonth = isWeek ? yearMonthOf(weekEnd) : cursor
+  // 주간 뷰가 정산월 경계를 넘으면(예: 28일 시작인데 9/21~9/27 주에 9/28이 섞임) 일별 요약이 두
+  // 정산월에 걸쳐 있을 수 있다 — daily summary가 정산월 year/month 단위로만 조회되므로(from/to 미지원)
+  // 겹치는 두 정산월을 각각 조회해 합친다. 월간 뷰거나 주가 한 정산월 안에 온전히 들어가면 두 번째
+  // 쿼리는 enabled:false로 쉰다. 달력 월(yearMonthOf)로 조회하면 월 시작일이 1이 아닐 때 엉뚱한
+  // 정산월을 받아 주간 뷰가 비어 보인다.
+  const weekStartMonth = isWeek ? settlementMonthOf(weekAnchor, monthStartDay) : cursor
+  const weekEndMonth = isWeek ? settlementMonthOf(weekEnd, monthStartDay) : cursor
   const needsSecondMonth =
     isWeek && (weekStartMonth.year !== weekEndMonth.year || weekStartMonth.month !== weekEndMonth.month)
 
@@ -833,14 +910,16 @@ function LedgerHistory() {
   // 검색 중에는 기간 조건(year·month / from·to)을 전부 빼고 keyword만 보낸다 — 서버가 날짜 조건이
   // 없으면 전체 기간을 조회하므로, "지난번에 그거"를 달을 넘겨가며 찾지 않아도 된다. 달력이 고른
   // 하루도 무시한다(검색이 기간보다 우선).
+  // 정렬은 보내지 않는다 — 서비스 기본값(transactionDate,desc + id,desc)이 같은 날 거래를 최근 등록 순으로
+  // 고정해 준다. 예전엔 여기서 날짜 정렬만 보내 id 2차 키가 빠져 같은 날 순서가 들쭉날쭉했다(2026-09-26).
   const transactionsQuery = useGetTransactions(
     isSearching
-      ? { keyword: searchTerm, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] }
+      ? { keyword: searchTerm, page: state.ledgerPage, size: 5 }
       : selectedDate
-        ? { from: selectedDate, to: selectedDate, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] }
+        ? { from: selectedDate, to: selectedDate, page: state.ledgerPage, size: 5 }
         : isWeek
-          ? { from: weekAnchor, to: weekEnd, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] }
-          : { year: cursor.year, month: cursor.month, page: state.ledgerPage, size: 5, sort: ['transactionDate,desc'] },
+          ? { from: weekAnchor, to: weekEnd, page: state.ledgerPage, size: 5 }
+          : { year: cursor.year, month: cursor.month, page: state.ledgerPage, size: 5 },
   )
   const dailyQueryA = useGetDailySummaries(weekStartMonth)
   const dailyQueryB = useGetDailySummaries(weekEndMonth, { enabled: needsSecondMonth })
@@ -893,26 +972,29 @@ function LedgerHistory() {
   // 결과만 보이는데, 검색창이 달력 아래에 있어 사용자가 그 이유를 알아채기 어렵다.
   useEffect(() => () => setState({ ledgerSearch: '' }), [setState])
 
-  const { rows: monthRows, hasOutOfGridData } = buildMonthCalendarRows(cursor, dailySummaries, transferByDate)
+  const monthPeriod = settlementPeriodOf(cursor, monthStartDay)
+  const monthPeriodHint = `${Number(monthPeriod.from.slice(5, 7))}.${Number(monthPeriod.from.slice(8, 10))} – ${Number(monthPeriod.to.slice(5, 7))}.${Number(monthPeriod.to.slice(8, 10))}`
+
+  const { rows: monthRows, hasOutOfGridData } = buildMonthCalendarRows(monthPeriod, dailySummaries, transferByDate)
   const weekRow = buildWeekCalendarRow(weekAnchor, dailySummaries, transferByDate)
   // 달력에 실제로 그려진 칸만 더한다 — 주간은 7칸, 월간은 빈 칸을 뺀 그 달 격자(sumCalendarTotals 주석).
   const calendarTotals = sumCalendarTotals(isWeek ? weekRow : monthRows.flat())
 
   const goToMonth = (delta: number) => {
     const next = shiftYearMonth(cursor, delta)
-    setState({ ledgerYear: next.year, ledgerMonth: next.month, ledgerPage: 1, ledgerSelectedDate: null })
+    setState({ ledgerYear: next.year, ledgerMonth: next.month, ledgerCursorFollowsCurrent: false, ledgerPage: 1, ledgerSelectedDate: null })
   }
   const goToWeek = (delta: number) => {
     const nextAnchor = addDays(weekAnchor, delta * 7)
-    const owner = monthOfWeek(nextAnchor)
-    setState({ ledgerWeekAnchor: nextAnchor, ledgerYear: owner.year, ledgerMonth: owner.month, ledgerPage: 1, ledgerSelectedDate: null })
+    const owner = monthOfWeek(nextAnchor, monthStartDay)
+    setState({ ledgerWeekAnchor: nextAnchor, ledgerYear: owner.year, ledgerMonth: owner.month, ledgerCursorFollowsCurrent: false, ledgerPage: 1, ledgerSelectedDate: null })
   }
   const goToToday = () => {
-    const t = todayYearMonth()
+    const t = currentSettlement
     if (isWeek) {
-      setState({ ledgerWeekAnchor: mondayOf(toISODate(new Date())), ledgerYear: t.year, ledgerMonth: t.month, ledgerPage: 1, ledgerSelectedDate: null })
+      setState({ ledgerWeekAnchor: mondayOf(toISODate(new Date())), ledgerYear: t.year, ledgerMonth: t.month, ledgerCursorFollowsCurrent: true, ledgerPage: 1, ledgerSelectedDate: null })
     } else {
-      setState({ ledgerYear: t.year, ledgerMonth: t.month, ledgerPage: 1, ledgerSelectedDate: null })
+      setState({ ledgerYear: t.year, ledgerMonth: t.month, ledgerCursorFollowsCurrent: true, ledgerPage: 1, ledgerSelectedDate: null })
     }
   }
   // 주간/월간 토글: 상대 뷰가 보던 위치를 최대한 이어받는다. 월간 → 주간은 지금 커서 달이 실제
@@ -922,14 +1004,16 @@ function LedgerHistory() {
   // 1행 월요일(firstMondayOfMonthGrid)을 쓰면 그 달이 금·토·일에 시작할 때 소속 달이 전달로
   // 어긋나 월간→주간→월간 왕복이 제자리로 돌아오지 않는다(firstMondayBelongingToMonth 주석 참고).
   const switchToWeek = () => {
-    const t = todayYearMonth()
+    const t = currentSettlement
     const inCurrentMonth = t.year === cursor.year && t.month === cursor.month
-    const nextAnchor = inCurrentMonth ? mondayOf(toISODate(new Date())) : firstMondayBelongingToMonth(cursor.year, cursor.month)
+    const nextAnchor = inCurrentMonth
+      ? mondayOf(toISODate(new Date()))
+      : firstMondayBelongingToMonth(cursor.year, cursor.month, monthStartDay)
     setState({ ledgerRange: 'week', ledgerWeekAnchor: nextAnchor, ledgerPage: 1, ledgerSelectedDate: null })
   }
   const switchToMonth = () => {
-    const owner = monthOfWeek(weekAnchor)
-    setState({ ledgerRange: 'month', ledgerYear: owner.year, ledgerMonth: owner.month, ledgerPage: 1, ledgerSelectedDate: null })
+    const owner = monthOfWeek(weekAnchor, monthStartDay)
+    setState({ ledgerRange: 'month', ledgerYear: owner.year, ledgerMonth: owner.month, ledgerCursorFollowsCurrent: false, ledgerPage: 1, ledgerSelectedDate: null })
   }
 
   // 새 거래 입력 진입점(캘린더 날짜의 + · 상단 유형별 버튼). 이전에 열려 있던 수정 세션의 잔재
@@ -979,7 +1063,13 @@ function LedgerHistory() {
             >
               <Icon name="chevron_left" size={18} />
             </button>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>{isWeek ? weekPeriodLabel(weekAnchor) : yearMonthLabel(cursor)}</span>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>
+              {isWeek ? weekPeriodLabel(weekAnchor, monthStartDay) : yearMonthLabel(cursor)}
+              {/* 월 시작일이 1이 아니면 "8월"이 8/28~9/27처럼 두 달에 걸친다 — 이름만으로는 기간을 알 수 없어 날짜를 곁들인다. */}
+              {!isWeek && monthStartDay !== 1 && (
+                <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 500, color: 'var(--text-weak)' }}>{monthPeriodHint}</span>
+              )}
+            </span>
             <button
               type="button"
               onClick={() => (isWeek ? goToWeek(1) : goToMonth(1))}
@@ -1013,7 +1103,7 @@ function LedgerHistory() {
             {/* 합계는 주간/월간 공통이라 두 분기 위에 한 번만 그린다. 로딩·에러 중에는 아예 그리지
                 않는다 — 값이 비어 있는 걸 "0원"으로 읽으면 안 된다. */}
             <CalendarTotalsRow
-              periodLabel={isWeek ? weekPeriodLabel(weekAnchor) : yearMonthLabel(cursor)}
+              periodLabel={isWeek ? weekPeriodLabel(weekAnchor, monthStartDay) : yearMonthLabel(cursor)}
               income={calendarTotals.income}
               expense={calendarTotals.expense}
             />
@@ -1078,9 +1168,8 @@ function LedgerHistory() {
                 <span style={{ marginLeft: 'auto' }}>날짜를 누르면 그날 내역</span>
               </div>
             )}
-            {/* 정산월(monthStartDay≠1)이면 서버가 이 달력월과 다른 달의 날짜도 함께 내려줄 수 있는데,
-                근본 원인(periodStart/periodEnd 부재, docs/backend-request.md 2장)은 백엔드 몫이라
-                프론트는 "빠진 항목이 있을 수 있다"는 사실만 안내한다 — 아래 목록에는 정상적으로 나온다. */}
+            {/* 달력은 정산월 경계대로 그리므로 보통은 뜨지 않는다 — 서버 정산월 규칙이 바뀌어
+                settlementPeriodOf(date.ts)와 어긋났을 때만 "빠진 항목이 있다"고 알린다. 아래 목록에는 정상적으로 나온다. */}
             {!isWeek && hasOutOfGridData && (
               <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-weak)' }}>
                 일부 거래는 정산월 경계 때문에 캘린더에 표시되지 못했어요. 아래 목록에서 확인해주세요.
@@ -1089,6 +1178,12 @@ function LedgerHistory() {
             {transferTruncated && (
               <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-weak)' }}>
                 이체가 너무 많아 일부는 캘린더에 표시되지 못했어요. 아래 목록에서 확인해주세요.
+              </div>
+            )}
+            {/* 이체 조회가 실패하면 달력에서 이체 줄만 조용히 사라졌다 — 실패했다는 걸 알린다. */}
+            {transferQuery.error && (
+              <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-weak)' }}>
+                이체 내역을 불러오지 못해 캘린더에 이체가 빠져 있어요. 아래 목록에는 정상적으로 나와요.
               </div>
             )}
           </>
@@ -1144,7 +1239,7 @@ function LedgerHistory() {
                 : selectedDate
                   ? dayListTitle(selectedDate)
                   : isWeek
-                    ? weekListTitle(weekAnchor)
+                    ? weekListTitle(weekAnchor, monthStartDay)
                     : `${yearMonthLabel(cursor)} 전체 내역`}
             </div>
             {transactionsQuery.isFetching && !transactionsQuery.isPending && (
@@ -1205,19 +1300,29 @@ function LedgerHistory() {
                 <div
                   key={t.key}
                   className="mini-hov"
+                  // 키보드로도 수정 창을 열 수 있게 버튼 역할을 준다(서버가 만든 행은 열리지 않아 제외).
+                  role={t.type === 'ADJUSTMENT' || t.type === 'EXCHANGE' ? undefined : 'button'}
+                  tabIndex={t.type === 'ADJUSTMENT' || t.type === 'EXCHANGE' ? undefined : 0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      e.currentTarget.click()
+                    }
+                  }}
                   onClick={() => {
                     // 잔액 조정(ADJUSTMENT)은 계좌 잔액 정정·매매 예수금 정산 때 **서버가 자동으로
                     // 만드는** 거래라 사용자가 고칠 수 없다(서버도 ADJUSTMENT_NOT_ALLOWED로 거부한다).
                     // 현재 서버는 이 유형을 목록 응답에서 제외하므로 여기까지 오지 않지만, 계약이
                     // 바뀌어 섞여 들어와도 저장 시점에 에러가 나는 편집 모달이 열리지 않도록 방어로
                     // 남겨 둔다 — 잔액을 다시 맞추려면 계좌 수정 화면의 '현재 잔액'을 고친다.
-                    if (t.type === 'ADJUSTMENT') return
+                    // 환전(EXCHANGE)도 서버가 만드는 행이라 여기서 고치지 않는다(주식 화면의 환전 내역에서 고친다).
+                    if (t.type === 'ADJUSTMENT' || t.type === 'EXCHANGE') return
                     setState({
                       openModal: 'ledgerEntry',
                       entryType: TRANSACTION_TYPE_TO_ENTRY_TYPE[t.type],
                       entryTabsVisible: true,
-                      // 서버에 단일 거래 조회(GET /transactions/{id})가 없어, 이미 이 목록 조회로 받아둔
-                      // 원본 값(t.accountId/subcategoryId/transferAccountId/amountRaw)을 그대로 채운다.
+                      // 단건 조회를 따로 부르지 않고 이미 이 목록 조회로 받아둔 원본 값
+                      // (t.accountId/subcategoryId/transferAccountId/amountRaw)을 그대로 채운다 — 추가 요청 없이 바로 열린다.
                       entrySubcategoryId: t.subcategoryId,
                       // TRANSFER·SAVING은 출금(accountId)·상대(transferAccountId) 두 계좌를 쓴다. 그 외
                       // 유형은 accountId 하나뿐이라 "출금계좌" 필드에 넣을 값이 없다.
@@ -1228,15 +1333,10 @@ function LedgerHistory() {
                       entryMemo: t.memo ?? '',
                       entryDateOverride: isoDateToDisplay(t.isoDate),
                       editingTransactionId: t.id,
-                      // 이 모달이 편집하지 않는 필드(외화) — PUT이 전체 교체라 그대로 되돌려 보내야 한다.
-                      entryPreserved: {
-                        nativeAmount: t.nativeAmount,
-                        nativeCurrency: t.nativeCurrency,
-                      },
                       openDropdown: null,
                     })
                   }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8, cursor: t.type === 'ADJUSTMENT' ? 'default' : 'pointer' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8, cursor: t.type === 'ADJUSTMENT' || t.type === 'EXCHANGE' ? 'default' : 'pointer' }}
                 >
                   <div style={{ fontSize: 11.5, color: 'var(--text-weak)', width: 44, flex: 'none' }}>{t.dateLabel}</div>
                   <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -1270,7 +1370,8 @@ function LedgerHistory() {
               >
                 <Icon name="chevron_left" size={16} />
               </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+              {/* 페이지가 많으면(검색 결과 500건 = 100쪽) 버튼을 전부 늘어놓지 않고 현재 쪽 앞뒤 2쪽만 보인다. */}
+              {pageWindow(currentPage, totalPages).map((n) => (
                 <button
                   key={n}
                   onClick={() => setState({ ledgerPage: n })}

@@ -4,7 +4,7 @@
 // 각 폼의 로컬 useState에 두는 이유는 screens/Auth/*Form.tsx 헤더 주석 참고.
 
 import type { DashboardLayout } from '../utils/dashboardLayout'
-import type { AccountType, AssetClass, Currency, YearMonth } from '@/services/common.type'
+import type { AccountType, AssetClass, YearMonth } from '@/services/common.type'
 
 export type Screen = 'dashboard' | 'asset' | 'stock' | 'ledger' | 'settings'
 export type AssetTab = 'overview' | 'accounts' | 'goals'
@@ -18,7 +18,7 @@ export type AccountModalView = 'main' | 'profile' | 'password'
 /** 계좌 추가 모달 안의 API 연동 서브뷰 단계. 'none'이면 일반 계좌 폼. */
 export type ConnectView = 'none' | 'provider' | 'form' | 'result'
 export type StockTradeMode = 'buy' | 'sell'
-export type StockBuyMarket = 'domestic' | 'overseas'
+export type StockBuyMarket = 'domestic' | 'overseas' | 'crypto'
 export type RecurringType = 'fixed' | 'subscription'
 export type EntryType = 'income' | 'expense' | 'saving' | 'transfer'
 export type AuthScreen = 'login' | 'signup' | 'resetPassword'
@@ -119,6 +119,8 @@ export interface AppState {
   // trade edit (Stocks 화면 — 매매 내역 수정, GET /trades에 단건 조회가 없어 목록 캐시에서 id로 찾는다)
   /** 수정 대상 tradeId(서버 id). null이면 매매 수정 모달이 닫혀 있음. */
   editingTradeId: number | null
+  /** 종목 정보(이름·섹터) 수정 모달 대상 — StockEditModal. */
+  editingStockId: number | null
 
   // exchange history (Stocks 화면 — 환전 내역 목록/수정)
   /** 환전 내역 모달 안에서 수정 대상 exchangeId. null이면 목록 뷰. */
@@ -177,23 +179,23 @@ export interface AppState {
   entryDescription: string
   /** 메모(선택 입력, CreateTransactionReq.memo). 빈 문자열이면 미입력 — 제출 시 키 자체를 뺀다. */
   entryMemo: string
-  /**
-   * 가계부 입력 모달이 편집하지 않는 거래 필드. PUT이 전체 교체라 다시 보내지 않으면 사용자가
-   * 금액만 고쳐 저장해도 외화 정보가 조용히 사라진다 — 수정 모달을 열 때 원본을 담아두고 저장 시
-   * 그대로 되돌려 보낸다. 신규 등록일 때는 null. memo는 entryMemo로 직접 편집하므로 여기 없다.
-   */
-  entryPreserved: {
-    nativeAmount: number | null
-    nativeCurrency: Currency | null
-  } | null
   ledgerPage: number
   entryDateOverride: string | null
-  /** 내역 탭이 보고 있는 정산월 커서. src/utils/date.ts의 todayYearMonth/shiftYearMonth 참고. */
+  /**
+   * 내역 탭이 보고 있는 정산월 커서(src/utils/date.ts의 shiftYearMonth 참고). ledgerCursorFollowsCurrent가
+   * true인 동안에는 쓰이지 않는다 — 화면이 서버의 현재 정산월을 대신 쓴다.
+   */
   ledgerYear: number
   ledgerMonth: number
   /**
-   * 내역 탭 주간 뷰가 보고 있는 주의 월요일('YYYY-MM-DD', src/utils/date.ts의 mondayOf 참고). 정산월
-   * 경계를 서버가 안 알려줘 순수 달력 주(월요일 시작) 기준이다 — ledgerYear/ledgerMonth와 별도로 둔다.
+   * true면 내역 탭이 "오늘이 속한 정산월"(useCurrentSettlementMonth)을 따라간다. 앱을 열 때와 '오늘로 이동'을
+   * 누르면 true, 사용자가 달·주를 넘기면 false. 초기 AppState는 서버 응답 전에 만들어져 정산월을 모르므로
+   * 커서를 미리 박아 두지 않고 이 플래그로 "지금 달"을 뜻한다 — 월 시작일을 바꿔도 자동으로 따라간다.
+   */
+  ledgerCursorFollowsCurrent: boolean
+  /**
+   * 내역 탭 주간 뷰가 보고 있는 주의 월요일('YYYY-MM-DD', src/utils/date.ts의 mondayOf 참고). 주 자체는
+   * 달력 주(월요일 시작)이고, 어느 정산월 소속인지는 목요일로 정한다(monthOfWeek) — ledgerYear/ledgerMonth와 별도로 둔다.
    */
   ledgerWeekAnchor: string
   /**

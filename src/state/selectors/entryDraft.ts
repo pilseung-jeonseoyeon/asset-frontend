@@ -65,7 +65,6 @@ export function openNewEntryUpdater(
       entryType,
       entryTabsVisible: tabsVisible,
       editingTransactionId: null,
-      entryPreserved: null,
       openDropdown: null,
       entrySubcategoryId: restored?.entrySubcategoryId ?? null,
       entryAccountId: restored?.entryAccountId ?? null,

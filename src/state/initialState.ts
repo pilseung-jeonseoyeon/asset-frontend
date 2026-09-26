@@ -59,6 +59,7 @@ export const initialState: AppState = {
   stockTradeMode: 'buy',
 
   editingTradeId: null,
+  editingStockId: null,
   editingExchangeId: null,
 
   editingAccountId: null,
@@ -89,11 +90,13 @@ export const initialState: AppState = {
   entryAmount: 0,
   entryDescription: '',
   entryMemo: '',
-  entryPreserved: null,
   ledgerPage: 1,
   entryDateOverride: null,
+  // ledgerCursorFollowsCurrent가 true인 동안은 쓰이지 않는 자리값 — 서버 정산월을 모르는 부팅 시점이라
+  // 달력 연·월로 채워 둔다(types.ts 주석).
   ledgerYear: todayCursor.year,
   ledgerMonth: todayCursor.month,
+  ledgerCursorFollowsCurrent: true,
   ledgerWeekAnchor: mondayOf(toISODate(new Date())),
   ledgerSelectedDate: null,
   ledgerSearch: '',
