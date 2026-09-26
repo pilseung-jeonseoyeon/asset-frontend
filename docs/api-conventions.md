@@ -29,8 +29,8 @@
   - **개발 모드(`pnpm dev`)**: 변수가 비어 있으면 코드 기본값 `/api/v1`(상대 경로, `api.ts`의
     `API_BASE_URL`)을 쓰고, 모든 요청은 `vite.config.ts`의 프록시(`/api` → 백엔드)를 탑니다. 그래서
     **`.env` 파일 없이도** 화면이 뜹니다. 프록시 대상은 `VITE_DEV_PROXY_TARGET`이고 기본값은
-    **운영 API(`https://api.monit.io.kr`)** 입니다. 로컬 백엔드로 개발할 때는 `.env.local`(gitignore됨)에
-    `VITE_DEV_PROXY_TARGET=http://localhost:8080` 한 줄을 넣으세요. 프록시를 쓰는 이유는 브라우저가
+    **로컬 백엔드(`http://localhost:8080`)** 입니다(2026-09-26). 운영 API로 봐야 할 때만 `.env.local`(gitignore됨)에
+    `VITE_DEV_PROXY_TARGET=https://api.monit.io.kr` 한 줄을 넣으세요(운영 DB가 바뀌니 테스트 계정으로). 프록시를 쓰는 이유는 브라우저가
     같은 출처로만 요청하게 해서 백엔드 CORS·쿠키 SameSite 설정과 무관하게 refresh 쿠키 로그인 유지가
     되게 하려는 것입니다. **로컬 `.env`에 절대 URL을 넣으면 프록시를 건너뛰고 직접 부르게 되니**
     개발 중에는 `VITE_API_BASE_URL`을 비워 두세요.
