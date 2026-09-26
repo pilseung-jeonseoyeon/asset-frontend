@@ -8,6 +8,9 @@
 // 열 때 원래 값을 알 수 없다. 모르는 값을 '오늘'로 덮어써 버리면 데이터 손실이라, EditAccountModal의
 // interestRate 처리와 같은 이유로 수정 중에는 이 필드를 아예 보여주지 않는다(전송도 하지 않는다 —
 // UpdateSubscriptionRequest에서 optional이라 생략하면 서버가 기존 값을 유지한다).
+//
+// 아이콘: SubscriptionIconPicker(누르면 분류별 아이콘 창이 열린다)에서 하나를 고른다. **수정 저장(PUT)에도 반드시 싣는다** —
+// PUT은 전체 교체라 icon을 빼면 저장된 아이콘이 null(기본 아이콘)로 지워진다(2026-09-26 확인).
 
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -23,7 +26,8 @@ import { useEntityDropdown, type DropdownState } from '../../../state/selectors/
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { isoDateToDisplay, pickedToISODate, toISODate } from '../../../utils/date'
 import { formatNumber, parseAmount } from '../../../utils/format'
-import { findSubcategoryById } from '../../../data/ledgerView'
+import { DEFAULT_SUBSCRIPTION_ICON, findSubcategoryById } from '../../../data/ledgerView'
+import { SubscriptionIconPicker } from './SubscriptionIconPicker'
 import { ApiError } from '@/services/api'
 import { useGetAccounts, type AccountResponse } from '@/services/account'
 import { useGetInstitutions } from '@/services/institution'
@@ -132,6 +136,7 @@ export function FixedExpenseModal() {
       editingRecurringId: null,
       recurringName: '',
       recurringAmount: 0,
+      recurringIcon: null,
       recurringSubcategoryId: null,
       recurringAccountId: null,
       recurringPaymentDay: '25일',
@@ -175,10 +180,11 @@ export function FixedExpenseModal() {
     }
     const accountId = effectiveRecurAccountId
     if (!accountId || !submitSubcategoryId || hasError) return
+    const icon = state.recurringIcon ?? DEFAULT_SUBSCRIPTION_ICON
 
     if (isEditing) {
       const body: UpdateSubscriptionRequest = {
-        name, amount: state.recurringAmount, paymentDay, accountId, subcategoryId: submitSubcategoryId,
+        name, amount: state.recurringAmount, paymentDay, accountId, subcategoryId: submitSubcategoryId, icon,
       }
       putSub.mutate({ id: state.editingRecurringId as number, body }, { onSuccess: resetAndClose, onError: handleMutationError })
     } else {
@@ -186,7 +192,7 @@ export function FixedExpenseModal() {
       const startedAt = picked ? pickedToISODate(picked) : undefined
       const body: CreateSubscriptionRequest = {
         name, kind: state.recurringType === 'fixed' ? 'FIXED' : 'SUBSCRIPTION', amount: state.recurringAmount,
-        paymentDay, accountId, subcategoryId: submitSubcategoryId, ...(startedAt ? { startedAt } : {}),
+        paymentDay, accountId, subcategoryId: submitSubcategoryId, icon, ...(startedAt ? { startedAt } : {}),
       }
       postSub.mutate(body, { onSuccess: resetAndClose, onError: handleMutationError })
     }
@@ -258,6 +264,11 @@ export function FixedExpenseModal() {
             style={{ width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box' }}
           />
           {nameInvalid && <div style={ERROR_STYLE}>이름을 입력해주세요</div>}
+        </div>
+
+        <div>
+          <div style={LABEL_STYLE}>아이콘</div>
+          <SubscriptionIconPicker />
         </div>
 
         <div>

@@ -76,6 +76,7 @@ export const initialState: AppState = {
   recurringPaymentDay: '25일',
   recurringName: '',
   recurringAmount: 0,
+  recurringIcon: null,
   editingRecurringId: null,
 
   entryType: 'income',

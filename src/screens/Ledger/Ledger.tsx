@@ -433,6 +433,7 @@ function LedgerOverview() {
       recurringSubcategoryId: subscription?.subcategoryId ?? null,
       recurringAccountId: subscription?.accountId ?? null,
       recurringPaymentDay: subscription ? `${subscription.paymentDay}일` : '25일',
+      recurringIcon: subscription?.icon ?? null,
       openDropdown: null,
     })
 

@@ -153,6 +153,9 @@ export interface AppState {
   recurringName: string
   /** 정수 원화 금액. */
   recurringAmount: number
+  /** 고른 아이콘(Material Symbols 이름, SUBSCRIPTION_ICON_GROUPS). null이면 기본 아이콘.
+   * PUT이 전체 교체라 수정 저장 때도 반드시 실어 보내야 기존 아이콘이 지워지지 않는다. */
+  recurringIcon: string | null
   /** 수정 대상 subscriptionId(서버 id). null이면 신규 추가. */
   editingRecurringId: number | null
 

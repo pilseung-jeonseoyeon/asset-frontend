@@ -298,8 +298,163 @@ function accountLabelOf(accountId: number, accounts: AccountResponse[]): string 
 // 폰트가 매칭에 실패해 배지 안에 글자가 그대로 노출된다 — 형태 검증을 통과한 값만 아이콘으로 쓴다.
 const MATERIAL_SYMBOL_NAME = /^[a-z0-9_]+$/
 
+/** 아이콘을 고르지 않은(서버 icon이 null이거나 형식이 깨진) 항목의 기본 아이콘. */
+export const DEFAULT_SUBSCRIPTION_ICON = 'event_repeat'
+
 function subscriptionIconOf(icon: string | null): string {
-  return icon && MATERIAL_SYMBOL_NAME.test(icon) ? icon : 'event_repeat'
+  return icon && MATERIAL_SYMBOL_NAME.test(icon) ? icon : DEFAULT_SUBSCRIPTION_ICON
+}
+
+/**
+ * 고정 지출·구독 추가/수정 모달의 아이콘 선택 창(SubscriptionIconPicker)에 보여줄 아이콘을 분류별로
+ * 묶은 것(Material Symbols Rounded 이름). 서버는 icon을 자유 문자열로 받지만 사용자가 이름을 직접 칠
+ * 수는 없으니 이 목록으로 제안한다(2026-09-26 사용자 요청). 폰트는 서브셋하지 않은 전체 글꼴이라
+ * (fonts.css) 아무 이름이나 렌더되고, 여기 없는 이름이 서버에 저장돼 있어도 목록 화면은 그대로
+ * 그린다 — 이 목록은 '고를 수 있는 것'이지 '허용되는 것'이 아니다. label은 스크린리더·툴팁용.
+ */
+export interface SubscriptionIconGroup {
+  label: string
+  icons: { name: string; label: string }[]
+}
+
+export const SUBSCRIPTION_ICON_GROUPS: SubscriptionIconGroup[] = [
+  {
+    label: '생활·주거',
+    icons: [
+      { name: DEFAULT_SUBSCRIPTION_ICON, label: '기본' },
+      { name: 'home', label: '월세·집' },
+      { name: 'apartment', label: '관리비' },
+      { name: 'bolt', label: '전기' },
+      { name: 'water_drop', label: '수도' },
+      { name: 'local_fire_department', label: '가스' },
+      { name: 'heat_pump', label: '냉난방' },
+      { name: 'cleaning_services', label: '청소' },
+      { name: 'local_laundry_service', label: '세탁' },
+      { name: 'chair', label: '가구·렌탈' },
+      { name: 'key', label: '보관·열쇠' },
+      { name: 'construction', label: '수리' },
+    ],
+  },
+  {
+    label: '통신·IT',
+    icons: [
+      { name: 'smartphone', label: '휴대폰' },
+      { name: 'phone_iphone', label: '아이폰' },
+      { name: 'sim_card', label: '유심·요금제' },
+      { name: 'wifi', label: '인터넷' },
+      { name: 'router', label: '공유기' },
+      { name: 'cloud', label: '클라우드' },
+      { name: 'computer', label: '컴퓨터' },
+      { name: 'laptop_mac', label: '노트북' },
+      { name: 'vpn_key', label: 'VPN·보안' },
+      { name: 'code', label: '개발 도구' },
+      { name: 'work', label: '업무 도구' },
+      { name: 'smart_toy', label: 'AI' },
+    ],
+  },
+  {
+    label: '금융·보험',
+    icons: [
+      { name: 'shield', label: '보험' },
+      { name: 'health_and_safety', label: '건강보험' },
+      { name: 'account_balance', label: '대출·은행' },
+      { name: 'real_estate_agent', label: '주택대출' },
+      { name: 'credit_card', label: '카드' },
+      { name: 'savings', label: '저금' },
+      { name: 'payments', label: '납부' },
+      { name: 'receipt_long', label: '세금·고지서' },
+      { name: 'request_quote', label: '할부' },
+      { name: 'currency_exchange', label: '환전·해외' },
+    ],
+  },
+  {
+    label: '교통',
+    icons: [
+      { name: 'directions_car', label: '자동차' },
+      { name: 'directions_bus', label: '버스' },
+      { name: 'subway', label: '지하철' },
+      { name: 'train', label: '기차' },
+      { name: 'local_taxi', label: '택시' },
+      { name: 'local_gas_station', label: '주유' },
+      { name: 'ev_station', label: '전기차 충전' },
+      { name: 'local_parking', label: '주차' },
+      { name: 'two_wheeler', label: '오토바이' },
+      { name: 'flight', label: '항공' },
+    ],
+  },
+  {
+    label: '건강·운동',
+    icons: [
+      { name: 'fitness_center', label: '헬스' },
+      { name: 'directions_run', label: '러닝' },
+      { name: 'pool', label: '수영' },
+      { name: 'sports_tennis', label: '테니스' },
+      { name: 'sports_golf', label: '골프' },
+      { name: 'self_improvement', label: '요가·명상' },
+      { name: 'spa', label: '마사지·스파' },
+      { name: 'medical_services', label: '병원' },
+      { name: 'local_hospital', label: '의료' },
+      { name: 'medication', label: '약' },
+    ],
+  },
+  {
+    label: '교육·가족',
+    icons: [
+      { name: 'school', label: '학원·교육' },
+      { name: 'menu_book', label: '책' },
+      { name: 'child_care', label: '육아' },
+      { name: 'family_restroom', label: '가족' },
+      { name: 'elderly', label: '부모님' },
+      { name: 'pets', label: '반려동물' },
+      { name: 'favorite', label: '모임·데이트' },
+      { name: 'cake', label: '기념일' },
+      { name: 'volunteer_activism', label: '기부·후원' },
+      { name: 'church', label: '헌금' },
+    ],
+  },
+  {
+    label: '구독·엔터',
+    icons: [
+      { name: 'movie', label: '영화·OTT' },
+      { name: 'smart_display', label: '동영상' },
+      { name: 'live_tv', label: 'TV' },
+      { name: 'theaters', label: '공연' },
+      { name: 'music_note', label: '음악' },
+      { name: 'headphones', label: '오디오' },
+      { name: 'podcasts', label: '팟캐스트' },
+      { name: 'auto_stories', label: '웹툰·전자책' },
+      { name: 'newspaper', label: '뉴스' },
+      { name: 'sports_esports', label: '게임' },
+      { name: 'photo_camera', label: '사진' },
+      { name: 'palette', label: '디자인' },
+    ],
+  },
+  {
+    label: '쇼핑·음식',
+    icons: [
+      { name: 'shopping_cart', label: '쇼핑 멤버십' },
+      { name: 'shopping_bag', label: '쇼핑' },
+      { name: 'storefront', label: '마트' },
+      { name: 'redeem', label: '선물' },
+      { name: 'local_cafe', label: '카페' },
+      { name: 'restaurant', label: '식사' },
+      { name: 'delivery_dining', label: '배달' },
+      { name: 'fastfood', label: '패스트푸드' },
+      { name: 'local_pizza', label: '피자' },
+      { name: 'bakery_dining', label: '빵' },
+      { name: 'local_bar', label: '술' },
+      { name: 'lunch_dining', label: '도시락' },
+    ],
+  },
+]
+
+/** 아이콘 이름 → 사람이 읽는 이름. 목록에 없는(서버에 따로 저장된) 이름이면 null. */
+export function subscriptionIconLabel(name: string): string | null {
+  for (const group of SUBSCRIPTION_ICON_GROUPS) {
+    const found = group.icons.find((i) => i.name === name)
+    if (found) return found.label
+  }
+  return null
 }
 
 export function buildSubscriptionRows(subscriptions: SubscriptionResponse[], accounts: AccountResponse[]): SubscriptionRow[] {

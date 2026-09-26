@@ -77,6 +77,7 @@ export function UpcomingSubscriptionsCard() {
       recurringSubcategoryId: null,
       recurringAccountId: null,
       recurringPaymentDay: '25일',
+      recurringIcon: null,
       openDropdown: null,
     })
 
