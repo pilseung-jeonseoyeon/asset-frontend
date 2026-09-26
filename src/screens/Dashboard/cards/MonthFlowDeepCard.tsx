@@ -6,7 +6,7 @@ import { DeepCard } from '../../../components/primitives/DeepCard/DeepCard'
 import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { formatNumber } from '../../../utils/format'
-import { todayYearMonth } from '../../../utils/date'
+import { useCurrentSettlementMonth } from '../../../utils/useCurrentSettlementMonth'
 import { useGetGoal } from '@/services/goal'
 import { useGetPeriodSummary } from '@/services/transaction'
 import { DASHED_CTA_STYLE_DEEP, EMPTY_TEXT_STYLE_DEEP, ERROR_TEXT_STYLE_DEEP } from './cardStyles'
@@ -31,6 +31,7 @@ function FlowValue({ label, valueText, color }: FlowValueProps) {
 }
 
 export function MonthFlowDeepCard() {
+  const currentSettlement = useCurrentSettlementMonth()
   const { setState } = useAppState()
   const isMobile = useIsMobile()
   const summaryQuery = useGetPeriodSummary('MONTH')
@@ -65,7 +66,7 @@ export function MonthFlowDeepCard() {
       ) : (
         <>
           <div style={{ fontSize: 13, color: 'var(--deep-label)', fontWeight: 500, letterSpacing: '.02em' }}>
-            이번 달 · {todayYearMonth().month}월 정산월
+            이번 달 · {currentSettlement.month}월 정산월
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, marginTop: 10, flexWrap: 'wrap' }}>
             <div style={{ fontSize: 42, fontWeight: 700, letterSpacing: '-.02em', whiteSpace: 'nowrap', color: 'var(--deep-saving)' }}>

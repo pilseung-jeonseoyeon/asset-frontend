@@ -28,7 +28,31 @@ export interface UserSettingsResponse {
   theme: ThemeType
 }
 
-/** PATCH /users/me/settings — 전 필드 선택. monthStartDay는 1~28, ddayNotifyDays는 양수. */
+/** 정산월 안의 주차 — 달력 요일이 아니라 정산월 첫날부터 7일씩 끊은 구간(마지막 주는 7일 미만일 수 있음). */
+export interface SettlementWeekResponse {
+  /** 1부터 시작. */
+  index: number
+  from: string
+  to: string
+}
+
+/**
+ * GET /users/me/settlements(/current) — 사용자 monthStartDay 기준 정산월의 경계.
+ * 정산월은 시작일이 속한 달로 라벨링한다(28일 시작이면 8/28~9/27이 정산 8월).
+ */
+export interface SettlementPeriodResponse {
+  year: number
+  month: number
+  /** 정산월 첫날('YYYY-MM-DD', 포함). */
+  periodStart: string
+  /** 정산월 마지막 날('YYYY-MM-DD', 포함) — 다음 정산월 첫날의 하루 전. */
+  periodEnd: string
+  /** 오늘이 이 정산월에 속하는지. */
+  isCurrent: boolean
+  weeks: SettlementWeekResponse[]
+}
+
+/** PATCH /users/me/settings — 전 필드 선택. monthStartDay는 1~28, ddayNotifyDays는 1~365. */
 export type UpdateUserSettingsRequest = Partial<UserSettingsResponse>
 
 /** PATCH /users/me/password. newPassword는 auth.type.ts의 PASSWORD_PATTERN과 같은 규칙. */
