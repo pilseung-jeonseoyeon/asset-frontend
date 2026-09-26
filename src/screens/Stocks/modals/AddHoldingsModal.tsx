@@ -51,6 +51,9 @@ export function AddHoldingsModal() {
   const [holdings, setHoldings] = useState<DraftHolding[]>([])
   const [accountMissing, setAccountMissing] = useState(false)
   const [holdingsMissing, setHoldingsMissing] = useState(false)
+  // 적는 중인데 '추가'를 안 누른 줄 — AddAccountModal과 같은 이유로 저장을 막는다(AccountHoldingsField 주석).
+  const [hasPendingHolding, setHasPendingHolding] = useState(false)
+  const [pendingHoldingWarning, setPendingHoldingWarning] = useState(false)
   // 계좌를 바꾸는 바람에 담아둔 종목을 비웠다는 사실을 조용히 넘기지 않는다(아래 pickAccount 참고).
   const [clearedByAccountChange, setClearedByAccountChange] = useState(false)
   // 부분 실패 요약. 성공한 줄은 이미 서버에 들어갔으므로 되돌리지 않고, 실패한 줄만 목록에 남긴다.
@@ -126,6 +129,8 @@ export function AddHoldingsModal() {
     setHoldings([])
     setAccountMissing(false)
     setHoldingsMissing(false)
+    setHasPendingHolding(false)
+    setPendingHoldingWarning(false)
     setClearedByAccountChange(false)
     setFailureNote(null)
     postTrades.reset()
@@ -136,10 +141,15 @@ export function AddHoldingsModal() {
 
   const handleSave = () => {
     const missingAccount = accountId === null
-    const missingHoldings = holdings.length === 0
+    // 적는 중인 줄이 있으면 "하나 이상 담아주세요" 대신 그 줄의 '추가' 안내가 대신 말한다.
+    const missingHoldings = holdings.length === 0 && !hasPendingHolding
     setAccountMissing(missingAccount)
     setHoldingsMissing(missingHoldings)
     if (missingAccount || missingHoldings) return
+    if (hasPendingHolding) {
+      setPendingHoldingWarning(true)
+      return
+    }
 
     const picked = state.datePickerPicked['addHoldings'] as { y: number; m: number; d: number } | undefined
     const tradeDate = picked ? pickedToISODate(picked) : todayISO
@@ -261,6 +271,11 @@ export function AddHoldingsModal() {
                 setHoldingsMissing(false)
                 setClearedByAccountChange(false)
               }}
+              onPendingChange={(p) => {
+                setHasPendingHolding(p)
+                if (!p) setPendingHoldingWarning(false)
+              }}
+              pendingWarning={pendingHoldingWarning}
               hint={`담은 ${unitWord}은 위 기준일에 매수한 것으로 매매 내역에도 함께 남아요. 종목마다 매수일이 다르면 나눠서 등록해주세요`}
             />
             {holdingsMissing && holdings.length === 0 && <div style={ERROR_STYLE}>{unitWord}을 하나 이상 담아주세요</div>}

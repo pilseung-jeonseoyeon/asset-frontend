@@ -74,8 +74,8 @@ import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
-import { formatNumber, parseAmount, sanitizeDecimalInput } from '../../../utils/format'
-import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate } from '../../../utils/date'
+import { MAX_KRW_AMOUNT, MAX_KRW_AMOUNT_MESSAGE, MAX_USD_AMOUNT, MAX_USD_AMOUNT_MESSAGE, formatNumber, parseAmount, sanitizeDecimalInput } from '../../../utils/format'
+import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate } from '../../../utils/date'
 import { ASSET_CLASS_META, ASSET_CLASS_ORDER, assetClassFormPreset, assetClassOfAccountType } from '../../../data/assetsView'
 import { describeQueryError } from '../../../data/ledgerView'
 import { AccountHoldingsField } from './AccountHoldingsField'
@@ -158,6 +158,8 @@ const CONNECT_BANNER_STYLE: CSSProperties = {
   background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', minHeight: 44,
 }
 
+const AMOUNT_ERROR_STYLE: CSSProperties = { fontSize: 11.5, color: 'var(--down)', marginTop: 6 }
+
 export function AddAccountModal() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
@@ -177,12 +179,17 @@ export function AddAccountModal() {
   const [institutionNone, setInstitutionNone] = useState(false)
   // 아직 서버로 나가지 않는 보유 종목 입력값(AccountHoldingsField 참고).
   const [holdings, setHoldings] = useState<DraftHolding[]>([])
+  // 종목을 골라 적는 중인데 '추가'를 안 누른 줄이 있는지 — 있으면 저장을 막는다(AccountHoldingsField의 onPendingChange).
+  const [hasPendingHolding, setHasPendingHolding] = useState(false)
+  const [pendingHoldingWarning, setPendingHoldingWarning] = useState(false)
   // 담아둔 종목이 있는 상태에서 다른 유형 칩을 눌렀을 때, 그 칩을 바로 적용하지 않고 확인을 받는다.
   const [pendingAssetClass, setPendingAssetClass] = useState<AssetClass | null>(null)
   // 이자율은 AppState에 숫자(interestRate)로 보관하지만, 입력칸이 보여주는 값은 이 문자열이다.
   // 숫자를 그대로 되비추면 "2." 상태가 Number()→String()을 지나며 "2"로 접혀 소수점을 아예 못 찍는다
   // (확인 — 2.1을 입력하면 21이 됐다). 달러 입력값(initialBalanceUsd)이 문자열인 것과 같은 이유다.
   const [interestRateStr, setInterestRateStr] = useState('')
+  // 잔액 칸에 상한(format.ts MAX_KRW_AMOUNT/MAX_USD_AMOUNT)을 넘게 치면 입력을 받지 않고 그 칸 아래에 안내만 띄운다.
+  const [amountTooLarge, setAmountTooLarge] = useState<'KRW' | 'USD' | null>(null)
 
   // 검증에 걸린 첫 필드로 화면을 옮기기 위한 참조. 이 폼은 종목을 몇 개만 담아도 화면 몇 배 길이가
   // 되는데, 저장을 눌러도 그 필드 옆에만 빨간 문구가 뜨고 스크롤도 포커스도 움직이지 않으면
@@ -280,7 +287,10 @@ export function AddAccountModal() {
     setInstitutionMissing(false)
     setMaturityMissing(false)
     setInstitutionNone(false)
+    setAmountTooLarge(null)
     setHoldings([])
+    setHasPendingHolding(false)
+    setPendingHoldingWarning(false)
     setPendingAssetClass(null)
     setInterestRateStr('')
     postAccount.reset()
@@ -290,8 +300,10 @@ export function AddAccountModal() {
     setState((prev) => ({ accountForm: { ...prev.accountForm, ...patch } }))
 
   /**
-   * 유형 칩 적용. 계좌 이름·금융기관·유동성·원화 금액은 유형과 무관한 사용자 의도라 그대로 두고,
+   * 유형 칩 적용. 계좌 이름·금융기관·원화 금액은 유형과 무관한 사용자 의도라 그대로 두고,
    * 새 유형이 쓰지 않는 필드만 비운다(화면에서 사라지는 값이 다음 유형의 저장에 묻어 나가지 않게).
+   * 유동성은 유형마다 기본값이 달라(예적금만 '유동성 없음', assetClassFormPreset) 칩을 바꿀 때 그 기본값으로
+   * 다시 맞춘다 — 유형을 고른 뒤 유동성 칩으로 바꾸면 그 선택이 저장된다.
    */
   const applyAssetClass = (assetClass: AssetClass) => {
     const next = formFieldsOf(assetClass)
@@ -351,6 +363,12 @@ export function AddAccountModal() {
       if (missingName) nameRef.current?.focus({ preventScroll: true })
       return
     }
+    // 적어 두고 '추가'를 안 누른 종목이 있으면 저장하지 않는다 — 그대로 보내면 그 종목만 빠진 채 계좌가
+    // 만들어진다. 안내 문구와 스크롤은 AccountHoldingsField가 맡는다.
+    if (fields.holdingMarkets.length > 0 && hasPendingHolding) {
+      setPendingHoldingWarning(true)
+      return
+    }
 
     const openedPicked = state.datePickerPicked['addAccountOpened'] as { y: number; m: number; d: number } | undefined
     const openedAt = openedPicked ? pickedToISODate(openedPicked) : (form.openedAt ?? undefined)
@@ -402,10 +420,19 @@ export function AddAccountModal() {
         <input
           type="text" inputMode="numeric" placeholder="0"
           value={form.initialBalanceKrw ? formatNumber(form.initialBalanceKrw) : ''}
-          onChange={(e) => patchForm({ initialBalanceKrw: parseAmount(e.target.value) })}
+          onChange={(e) => {
+            const next = parseAmount(e.target.value)
+            if (next > MAX_KRW_AMOUNT) {
+              setAmountTooLarge('KRW')
+              return
+            }
+            setAmountTooLarge(null)
+            patchForm({ initialBalanceKrw: next })
+          }}
           style={AMOUNT_INPUT_STYLE}
         />
       </div>
+      {amountTooLarge === 'KRW' && <div style={AMOUNT_ERROR_STYLE}>{MAX_KRW_AMOUNT_MESSAGE}</div>}
     </div>
   )
 
@@ -575,10 +602,19 @@ export function AddAccountModal() {
                   <input
                     type="text" inputMode="decimal" placeholder="0.00"
                     value={form.initialBalanceUsd}
-                    onChange={(e) => patchForm({ initialBalanceUsd: sanitizeDecimalInput(e.target.value, 2) })}
+                    onChange={(e) => {
+                      const next = sanitizeDecimalInput(e.target.value, 2)
+                      if (Number(next) > MAX_USD_AMOUNT) {
+                        setAmountTooLarge('USD')
+                        return
+                      }
+                      setAmountTooLarge(null)
+                      patchForm({ initialBalanceUsd: next })
+                    }}
                     style={AMOUNT_INPUT_STYLE}
                   />
                 </div>
+                {amountTooLarge === 'USD' && <div style={AMOUNT_ERROR_STYLE}>{MAX_USD_AMOUNT_MESSAGE}</div>}
               </div>
               {krwAmountField}
             </div>
@@ -617,6 +653,10 @@ export function AddAccountModal() {
               <div style={LABEL_STYLE}>만기일</div>
               <DatePicker dp={dpMaturity} />
               {showMaturityError && <div style={FIELD_ERROR_STYLE}>만기일을 선택해주세요</div>}
+              {/* 이미 끝난 적금을 기록해 두는 경우도 있어 막지는 않고, 과거 날짜라는 것만 알린다(2026-09-26). */}
+              {maturityPickedNow && pickedToISODate(maturityPickedNow) < toISODate(new Date()) && (
+                <div style={FIELD_HINT_STYLE}>이미 지난 날짜예요 — 만기가 지난 계좌로 저장돼요</div>
+              )}
             </div>
           </>
         )}
@@ -633,6 +673,11 @@ export function AddAccountModal() {
             enabled={isOpen}
             items={holdings}
             onChange={setHoldings}
+            onPendingChange={(p) => {
+              setHasPendingHolding(p)
+              if (!p) setPendingHoldingWarning(false)
+            }}
+            pendingWarning={pendingHoldingWarning}
           />
         )}
 

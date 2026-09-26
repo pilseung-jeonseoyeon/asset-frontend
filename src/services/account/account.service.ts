@@ -31,7 +31,7 @@ export async function patchAccount(accountId: number, body: UpdateAccountRequest
   return unwrap(await api.patch<ApiResponse<AccountResponse>>(`/accounts/${accountId}`, body))
 }
 
-/** 204 No Content. 소프트 삭제(해지)로 추정 — 이미 해지된 계좌면 409 ACCOUNT_ALREADY_CLOSED. */
+/** 204 No Content. 계좌를 해지(비활성) 처리한다(OpenAPI 확정) — 이미 해지된 계좌면 409 ACCOUNT_ALREADY_CLOSED. */
 export async function deleteAccount(accountId: number) {
   await api.delete(`/accounts/${accountId}`)
 }

@@ -24,7 +24,7 @@
 // 가로막고 있을 이유가 없다.
 // **GET /dashboard/trend?type=으로 되살리지 말 것**: 그 API에는 계좌를 지정하는 파라미터가 없어 그
 // 유형 계좌 **전부의 합계**를 돌려준다 — 증권 계좌가 8개면 8개 합계가 나오므로 계좌 하나의 추이인
-// 척 그리면 틀린 숫자가 된다. 자산군 단위 그래프는 AssetCategoryModal이 쓴다.
+// 척 그리면 틀린 숫자가 된다(자산군 단위 추이 그래프도 2026-08-28 화면에서 걷어냈다).
 // 백엔드에 계좌별 추이(accountId 필터)가 생기면 그때 이 자리에 선 그래프를 만든다.
 
 import { useState } from 'react'
@@ -191,12 +191,25 @@ export function AccountDetailModal() {
                 </div>
               </div>
             </div>
-            <button
-              onClick={closeAccount}
-              style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: 'var(--track)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flex: 'none' }}
-            >
-              <Icon name="close" size={19} color="var(--text-mid)" />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+              {/* 상세에서 바로 고칠 수 있게 수정 진입점을 둔다(예전엔 자산군 목록의 작은 연필로만 갈 수 있었다).
+                  같은 층(z-index 90)에 두 모달이 겹치지 않도록 상세를 닫고 수정 모달을 연다. */}
+              <button
+                onClick={() => setState({ accountDetailId: null, editingAccountId: account.id, openModal: 'editAccount' })}
+                title="계좌 수정"
+                aria-label="계좌 수정"
+                style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: 'var(--track)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              >
+                <Icon name="edit" size={17} color="var(--text-mid)" />
+              </button>
+              <button
+                onClick={closeAccount}
+                aria-label="닫기"
+                style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: 'var(--track)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              >
+                <Icon name="close" size={19} color="var(--text-mid)" />
+              </button>
+            </div>
           </div>
 
           <div style={{ marginBottom: 16 }}>
@@ -284,7 +297,9 @@ export function AccountDetailModal() {
             <div aria-busy style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
           ) : activityRows.length === 0 ? (
             <div style={{ fontSize: 12.5, color: 'var(--text-weak)', padding: '13px 0' }}>
-              {activityError ? activityError.message : '이 계좌의 거래내역이 아직 없어요.'}
+              {/* 등록 때 넣은 초기 잔액·잔액 정정은 서버가 거래 목록에서 빼므로(ADJUSTMENT), 잔액이 있어도
+                  목록이 빌 수 있다 — 그 사실을 함께 알려 '잔액은 있는데 내역이 없다'는 혼란을 막는다. */}
+              {activityError ? activityError.message : '이 계좌의 거래내역이 아직 없어요. 등록할 때 넣은 잔액과 잔액 정정은 내역에 표시되지 않아요.'}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>

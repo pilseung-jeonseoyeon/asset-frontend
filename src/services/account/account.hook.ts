@@ -97,6 +97,8 @@ function useInvalidateAccountBalance() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.account.all() })
     void queryClient.invalidateQueries({ queryKey: queryKeys.asset.all() })
     void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() })
+    // 목표 연간 진행률은 실시간 총자산 기준이라 잔액을 정정하면 함께 바뀐다.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.goal.all() })
   }
 }
 

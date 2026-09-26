@@ -41,6 +41,8 @@ export interface SyncResponse {
   accountId: number
   /** 이번 동기화에서 계좌를 자동 생성했는지 */
   accountCreated: boolean
+  /** 기초 보유로 등록된 보유 종목 수. 계좌 자동 생성 때만 0보다 클 수 있다. */
+  seeded: number
   /** 매매로 등록된 체결 건수 */
   imported: number
   /** 이미 등록돼 건너뛴 체결 건수 */

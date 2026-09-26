@@ -54,6 +54,10 @@ export function usePostConnectionSync() {
         queryKeys.trade.all(),
         queryKeys.stock.all(),
         queryKeys.dashboard.all(),
+        // 목표 진행률도 실시간 총자산 기준이라 동기화로 잔액·보유가 바뀌면 함께 다시 받는다.
+        queryKeys.goal.all(),
+        // 매매 정산으로 예수금 거래가 생길 수 있어 계좌 상세의 거래내역도 다시 받는다.
+        queryKeys.transaction.all(),
       ]) {
         void queryClient.invalidateQueries({ queryKey: key })
       }

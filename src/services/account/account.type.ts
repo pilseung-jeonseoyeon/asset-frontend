@@ -132,13 +132,17 @@ export interface UpdateAccountRequest {
  * 반영된다"(라이브 OpenAPI). 즉 정정 후 달라지는 것은 계좌 잔액과 총자산뿐이고 가계부 내역에는
  * 아무것도 생기지 않는다 — 화면 문구에서 '가계부에 기록된다'고 말하면 안 된다.
  *
- * **달러 예수금이 있는 계좌(balances에 USD 줄이 있는 계좌)는 400 BALANCE_ADJUSTMENT_NOT_SUPPORTED_FOR_FX다**
- * — 달러분만 환율을 타고 조정 거래는 원화로 굳어 다음 날 잔액이 다시 어긋나기 때문이다. 증권계좌여도
- * 아직 환전 전이라 달러 예수금이 없으면 정정할 수 있다(OpenAPI 설명).
+ * **통화별로 정정한다**(2026-09-26 계약 변경): 필드 이름은 `balance`(예전 `balanceKrw`는 400 INVALID_INPUT)이고
+ * `currency`로 어느 통화 줄을 고칠지 고른다(생략하면 KRW). KRW는 정수만(소수면 400
+ * BALANCE_ADJUSTMENT_KRW_NOT_INTEGER), USD는 소수 2자리까지이며 주식·가상자산 계좌에만 보낼 수 있다(그 외는
+ * 400 FOREIGN_CASH_ACCOUNT_NOT_ALLOWED). 지금 화면(EditAccountModal)은 원화 줄만 정정하고, 달러 예수금이
+ * 있는 계좌는 예전 계약(달러 계좌 정정 불가) 그대로 읽기 전용으로 둔다 — 달러 줄 정정 UI는 아직 없다.
  */
 export interface AdjustBalanceRequest {
-  /** 정정 후 현재 잔액(원). 0 이상 정수 — 항상 원화다. */
-  balanceKrw: number
+  /** 정정 후 그 통화의 현재 잔액. 0 이상 — KRW는 원 단위 정수, USD는 소수 2자리까지. */
+  balance: number
+  /** 정정할 통화. 생략하면 KRW. USD는 주식·가상자산 계좌만. */
+  currency?: Currency
   /** 조정 거래에 남길 내용. 생략하면 서버가 '잔액 정정'으로 채운다. 최대 200자. */
   description?: string
 }

@@ -1,9 +1,8 @@
 // 자산군별 계좌 목록 모달. 다른 모달과 달리 `state.openModal`이 아니라 전용 필드
 // `state.assetClassDetail !== null`로 열림을 판단한다. z-index 80, 너비 500px, maxHeight 86vh.
 //
-// 계좌 목록은 GET /assets/distribution?groupBy=CLASS의 byClass[].accounts에서 온다. 이 응답에는
-// 기관명이 없어 GET /accounts 결과와 accountId로 조인한다(src/data/assetsView.ts buildAssetClassCards) —
-// 조인에 실패하면 기관명 자리를 비워둔다.
+// 계좌 목록은 기관명까지 GET /assets/distribution?groupBy=CLASS의 byClass[].accounts에서 온다
+// (GET /accounts는 부르지 않는다). 기관 없는 계좌(현금 등)는 기관명 자리를 비워둔다.
 //
 // 계좌 행을 탭하면 AccountDetailModal(z-index 90, §7-1 2단 모달)이 이 모달 위에 열린다
 // (`accountDetailId: accountId`). 행 컨테이너는 상호작용 요소가 아닌 일반 div이고, 그 안에
@@ -20,7 +19,6 @@ import { useAppState } from '../../../state/AppStateContext'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
 import { assetClassFormPreset, buildAssetClassCards } from '../../../data/assetsView'
 import { connectionOfAccount } from '../../../data/connectionView'
-import { useGetAccounts } from '@/services/account'
 import { useGetAssetDistributionByClass } from '@/services/asset'
 import { useGetConnections } from '@/services/connection'
 
@@ -29,19 +27,18 @@ export function AssetCategoryModal() {
   const { state, setState } = useAppState()
   const isOpen = state.assetClassDetail !== null
   const distribution = useGetAssetDistributionByClass({ enabled: isOpen })
-  const accountsQuery = useGetAccounts({}, { enabled: isOpen })
   // 연동 배지용. 실패해도 화면을 막지 않는다 — 배지가 안 붙을 뿐이고, 계좌 목록 자체는 이 응답과
-  // 무관하다. 그래서 accountsQuery와 달리 에러 문구를 따로 띄우지 않는다.
+  // 무관하다. 그래서 에러 문구를 따로 띄우지 않는다.
   const connectionsQuery = useGetConnections({ enabled: isOpen })
 
-  // 다른 18개 모달과 동일하게, 훅 호출(위 두 줄) 다음 파생 계산(아래 buildAssetClassCards)보다 먼저
+  // 다른 18개 모달과 동일하게, 훅 호출(위) 다음 파생 계산(아래 buildAssetClassCards)보다 먼저
   // isOpen 가드를 둔다. `enabled: isOpen`은 리페치만 막을 뿐 캐시 데이터는 계속 흘러들어오므로(같은
   // 쿼리키를 Assets 화면도 구독), 이 가드가 없으면 모달이 닫혀 있어도(state.assetClassDetail === null)
   // buildAssetClassCards가 매 렌더 실행돼 데이터 형태 문제로 던질 경우 ModalErrorBoundary가
   // `assetClassDetail: null`로 리셋해도 다음 렌더에서 즉시 재크래시한다.
   if (!isOpen) return null
 
-  const assetClassCards = buildAssetClassCards(distribution.groups, accountsQuery.data ?? [])
+  const assetClassCards = buildAssetClassCards(distribution.groups)
   const selectedAssetClass = assetClassCards.find((c) => c.id === state.assetClassDetail) || null
 
   if (!selectedAssetClass) return null
@@ -69,11 +66,6 @@ export function AssetCategoryModal() {
           <Icon name="close" size={19} color="var(--text-mid)" />
         </button>
       </div>
-      {accountsQuery.error && (
-        <div style={{ fontSize: 11.5, color: 'var(--down)', marginBottom: 14 }}>
-          기관명을 불러오지 못했어요: {accountsQuery.error.message}
-        </div>
-      )}
 
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         {selectedAssetClass.accounts.length === 0 && (

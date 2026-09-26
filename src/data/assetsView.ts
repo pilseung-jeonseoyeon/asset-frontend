@@ -3,7 +3,8 @@
 //
 // 아래 buildMapTiers의 병합/티어/램프 규칙(5% '기타' 병합, 15%/6% 티어 경계, 램프 색 순서,
 // 상위 3개 흰 글자)은 디자인 시스템 규칙이다(ds_rules_v2_5 §1-6) — 임의로 바꾸지 말 것.
-// `percent`는 서버가 주지 않아 여기서 totalValueKrw / 합계로 계산하며 0으로 나누는 경우를 막는다.
+// 화면에 적는 비율은 서버 sharePercent(최대잔여법으로 합이 정확히 100)를 쓴다 — 프론트가 따로 반올림하면
+// 합이 101%가 되는 등 어긋났다(2026-09-26). 블록 넓이·티어·'기타' 병합 판정은 정밀한 계산값(percent)으로 한다.
 // 자산군별 수익률은 어떤 API도 주지 않으므로 다루지 않는다.
 
 import type { TreemapBlock } from '../components/primitives/Treemap/Treemap'
@@ -72,13 +73,17 @@ export const ASSET_CLASS_ACCOUNT_TYPE_PRESET: Record<AssetClass, AccountType> = 
 }
 
 /**
- * 자산군 칩을 고를 때 함께 반영할 계좌 폼 필드 — 계좌 유형 하나뿐이다.
+ * 자산군 칩을 고를 때 함께 반영할 계좌 폼 필드 — 계좌 유형과 유동성 기본값.
+ *
+ * 유동성 기본값: 예적금만 '유동성 없음'(묶여 있는 돈)이다. 예전엔 모든 유형이 '유동성 있음'으로 시작해,
+ * 적금을 그대로 저장하면 유동성 뷰의 '즉시 현금화 가능'에 들어가 비상금이 부풀려지고 만기 D-Day에도
+ * 잡히지 않았다(2026-09-26 통합테스트). 기본값일 뿐이라 사용자가 유동성 칩으로 바꿀 수 있다.
  *
  * 계좌에는 표시 통화가 없다(2026-09-26 계약 변경) — 원화·달러 예수금은 등록 시 initialBalances에
  * 통화별 줄로 따로 실어 보낸다(AddAccountModal).
  */
-export function assetClassFormPreset(assetClass: AssetClass): { type: AccountType } {
-  return { type: ASSET_CLASS_ACCOUNT_TYPE_PRESET[assetClass] }
+export function assetClassFormPreset(assetClass: AssetClass): { type: AccountType; isLiquid: boolean } {
+  return { type: ASSET_CLASS_ACCOUNT_TYPE_PRESET[assetClass], isLiquid: assetClass !== 'DEPOSIT' }
 }
 
 /**
@@ -181,33 +186,51 @@ export interface AssetClassCard {
   color: string
   count: number
   totalText: string
+  /** '지난달보다 +12,000원' — 서버 changeFromLastMonthKrw. 계좌가 없거나(null) 0이면 null(줄을 생략). */
+  changeText: string | null
   accounts: AssetClassCardAccount[]
 }
 
-/** accountId → institutionName 조인. 계좌를 못 찾으면 빈 문자열(가짜 값 금지). */
-function institutionNameOf(accountId: number, accounts: AccountResponse[]): string {
-  return accounts.find((a) => a.id === accountId)?.institutionName ?? ''
+/**
+ * 서버는 증권·가상자산 계좌를 성격(kind)별 조각으로 나눠 실을 수 있다(예수금 / 보유 종목). 화면은 계좌
+ * 단위로 보여주므로 같은 계좌의 조각을 합친다 — 안 합치면 계좌 수가 부풀고 React key가 겹친다.
+ */
+function mergeAccountPieces(accounts: AssetClassGroup['accounts']): AssetClassGroup['accounts'] {
+  const byId = new Map<number, AssetClassGroup['accounts'][number]>()
+  for (const a of accounts) {
+    const prev = byId.get(a.accountId)
+    byId.set(a.accountId, prev ? { ...prev, valueKrw: prev.valueKrw + a.valueKrw } : a)
+  }
+  return [...byId.values()]
 }
 
-export function buildAssetClassCards(groups: AssetClassGroup[], accounts: AccountResponse[]): AssetClassCard[] {
+function signedWonText(n: number): string {
+  return `${n > 0 ? '+' : '−'}${formatNumber(Math.abs(n))}원`
+}
+
+export function buildAssetClassCards(groups: AssetClassGroup[]): AssetClassCard[] {
   return [...groups]
     .sort((a, b) => assetClassOrderIndex(a.assetClass) - assetClassOrderIndex(b.assetClass))
     .map((g) => {
       const meta = assetClassMetaOf(g.assetClass)
+      const accounts = mergeAccountPieces(g.accounts)
+      const change = g.changeFromLastMonthKrw
       return {
         id: g.assetClass,
         name: assetClassLabel(g),
         icon: meta.icon,
         color: meta.color,
-        count: g.accounts.length,
+        count: accounts.length,
         totalText: formatNumber(g.totalValueKrw),
+        changeText: change ? `지난달보다 ${signedWonText(change)}` : null,
         // 카테고리 내부 계좌는 금액 내림차순 — ①의 카테고리 순서 규칙과는 별개다.
-        accounts: [...g.accounts]
+        accounts: [...accounts]
           .sort((a, b) => b.valueKrw - a.valueKrw)
           .map((a) => ({
             accountId: a.accountId,
             name: a.accountName,
-            institutionName: institutionNameOf(a.accountId, accounts),
+            // 기관 없는 계좌(현금 등)는 서버가 null을 준다 — 가짜 값 대신 빈 문자열.
+            institutionName: a.institutionName ?? '',
             amount: a.valueKrw,
             amountText: formatNumber(a.valueKrw),
           })),
@@ -224,6 +247,8 @@ interface MapBlockSeed {
   icon: string
   amount: number
   percent: number
+  /** 화면에 적는 정수 비율 — 서버 sharePercent(없으면 percent 반올림). */
+  displayPercent: number
   isEtc?: boolean
   subLabels?: string[]
 }
@@ -238,8 +263,10 @@ export function buildMapTiers(
     label: assetClassLabel(g),
     icon: assetClassMetaOf(g.assetClass).icon,
     amount: g.totalValueKrw,
-    // 서버가 percent를 내려주지 않아 여기서 계산한다. 전체 합이 0이면 0으로 나누기 방어.
+    // 넓이·티어 판정용 정밀값. 전체 합이 0이면 0으로 나누기 방어.
     percent: total > 0 ? (g.totalValueKrw / total) * 100 : 0,
+    // 화면 표기용 — 서버 정본(합 100). 옛 응답처럼 없으면 직접 반올림한다.
+    displayPercent: g.sharePercent ?? (total > 0 ? Math.round((g.totalValueKrw / total) * 100) : 0),
   }))
 
   // 서버는 6분류를 값이 0인 것까지 항상 내려준다(카드는 "0원 · 계좌 0개"를 보여줘야 하므로 그게 맞다).
@@ -260,6 +287,7 @@ export function buildMapTiers(
     icon: b.icon,
     amount: b.amount,
     percent: b.percent,
+    displayPercent: b.displayPercent,
   }))
   if (etcRaw.length) {
     seeds.push({
@@ -268,6 +296,7 @@ export function buildMapTiers(
       icon: 'more_horiz',
       amount: etcRaw.reduce((sum, b) => sum + b.amount, 0),
       percent: etcRaw.reduce((sum, b) => sum + b.percent, 0),
+      displayPercent: etcRaw.reduce((sum, b) => sum + b.displayPercent, 0),
       isEtc: true,
       subLabels: etcRaw.map((b) => b.label),
     })
@@ -282,7 +311,7 @@ export function buildMapTiers(
       label: b.label,
       icon: b.icon,
       amountText: formatNumber(b.amount),
-      percent: Math.round(b.percent),
+      percent: b.displayPercent,
       widthPercent: b.percent,
       tint: RAMP[Math.min(bi, RAMP.length - 1)],
       fg: bi < 3 ? '#FFFFFF' : 'var(--text-strong)',
@@ -349,6 +378,11 @@ export function pickNearestMaturity(lockedAccounts: LockedAccount[]): MaturingLo
   const upcoming = withMaturity.filter((a) => a.dDay >= 0).sort((a, b) => a.dDay - b.dDay)
   if (upcoming.length > 0) return upcoming[0]
   return [...withMaturity].sort((a, b) => b.dDay - a.dDay)[0]
+}
+
+/** 만기일이 있는 락업 계좌 수 — 캡션의 "외 N개"는 이 값에서 화면에 보인 1개를 뺀 것이다. */
+export function countMaturingAccounts(lockedAccounts: LockedAccount[]): number {
+  return lockedAccounts.filter((a) => a.dDay !== null).length
 }
 
 // ---------- 계좌 상세 모달 ----------
