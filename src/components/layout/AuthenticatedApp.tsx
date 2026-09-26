@@ -36,6 +36,7 @@ import { Assets } from '../../screens/Assets/Assets'
 import { QuickStockModal } from '../../screens/Assets/modals/QuickStockModal'
 import { ExchangeAddModal } from '../../screens/Assets/modals/ExchangeAddModal'
 import { TradeEditModal } from '../../screens/Stocks/modals/TradeEditModal'
+import { StockEditModal } from '../../screens/Stocks/modals/StockEditModal'
 import { AddHoldingsModal } from '../../screens/Stocks/modals/AddHoldingsModal'
 import { ExchangeHistoryModal } from '../../screens/Stocks/modals/ExchangeHistoryModal'
 import { AddAccountModal } from '../../screens/Assets/modals/AddAccountModal'
@@ -165,6 +166,7 @@ export function AuthenticatedApp() {
       </ModalErrorBoundary>
       <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="매매 내역 수정">
         <TradeEditModal />
+        <StockEditModal />
       </ModalErrorBoundary>
       <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="환전 내역">
         <ExchangeHistoryModal />

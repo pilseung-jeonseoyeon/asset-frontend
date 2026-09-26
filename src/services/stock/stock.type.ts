@@ -83,3 +83,16 @@ export interface ClosedHoldingResponse {
   returnRatePercent: number | null
   closedAt: string
 }
+
+/** GET /stocks/sectors — 종목 등록의 sector에는 name을 그대로 보낸다(code는 식별·정렬용). 목록 밖 값은 400 INVALID_SECTOR. */
+export interface StockSectorResponse {
+  code: string
+  name: string
+}
+
+/** PUT /stocks/{stockId} — 종목명과 섹터만 고칠 수 있다(티커·시장·통화는 수정 불가). sector는 GET /stocks/sectors의
+ * name만 허용되고(밖이면 400 INVALID_SECTOR), null이면 섹터를 지운다(그룹 수익률에서는 '기타'). */
+export interface UpdateStockRequest {
+  name: string
+  sector: string | null
+}

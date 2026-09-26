@@ -24,6 +24,7 @@
 import type { StockBuyMarket, StockMarketTab } from '../state/types'
 import { formatNumber, formatKrw, formatCurrencyAmount } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
+import { toPercentages } from './dashboardView'
 import type { ClosedHoldingResponse, HoldingGroupResponse, HoldingResponse } from '@/services/stock'
 import type { MarketIndexResponse } from '@/services/marketIndex'
 import type { TradeResponse } from '@/services/trade'
@@ -73,7 +74,12 @@ export const STOCK_MARKET_TAB_LABELS: Record<StockMarketTab, string> = { all: '�
 
 /** QuickStockModal의 stockBuyMarket('domestic'/'overseas')을 서버 Market으로 변환한다. */
 export function buyMarketToMarket(stockBuyMarket: StockBuyMarket): Market {
-  return stockBuyMarket === 'overseas' ? 'US' : 'KR'
+  return stockBuyMarket === 'overseas' ? 'US' : stockBuyMarket === 'crypto' ? 'CRYPTO' : 'KR'
+}
+
+/** 수량 단위 — 가상자산은 '주'가 아니라 '개'로 센다. */
+export function quantityUnitOf(market: Market): string {
+  return market === 'CRYPTO' ? '개' : '주'
 }
 
 /**
@@ -110,7 +116,11 @@ export function buildMarketIndexViews(indices: MarketIndexResponse[]): MarketInd
     .map((marketIndex) => {
       const change = marketIndex.changeFromPreviousClose
       const previousClose = change === null ? null : marketIndex.currentValue - change
-      const changePercent = change !== null && previousClose ? (change / previousClose) * 100 : null
+      // 서버가 등락률(changeRatePercent)을 주면 그걸 쓰고, 옛 응답이면 변동액으로 역산한다.
+      const changePercent =
+        marketIndex.changeRatePercent !== undefined
+          ? marketIndex.changeRatePercent
+          : change !== null && previousClose ? (change / previousClose) * 100 : null
       const positive = changePercent !== null ? changePercent >= 0 : true
       return {
         symbol: marketIndex.symbol,
@@ -178,13 +188,14 @@ const RAMP = ['var(--ramp-1)', 'var(--ramp-2)', 'var(--ramp-3)', 'var(--ramp-4)'
 export function buildSectorComposition(groups: HoldingGroupResponse[]): SectorSegmentView[] {
   const total = groups.reduce((sum, g) => sum + g.totalValuationKrw, 0)
   if (total <= 0) return []
-  return [...groups]
-    .sort((a, b) => b.totalValuationKrw - a.totalValuationKrw)
-    .map((g, i) => ({
-      label: g.groupKey,
-      percent: Math.round((g.totalValuationKrw / total) * 100),
-      color: RAMP[Math.min(i, RAMP.length - 1)],
-    }))
+  const sorted = [...groups].sort((a, b) => b.totalValuationKrw - a.totalValuationKrw)
+  // 최대잔여법으로 합을 정확히 100에 맞춘다 — 개별 반올림하면 99%·101%가 될 수 있었다(대시보드 도넛과 같은 규칙).
+  const percents = toPercentages(sorted.map((g) => g.totalValuationKrw))
+  return sorted.map((g, i) => ({
+    label: g.groupKey,
+    percent: percents[i],
+    color: RAMP[Math.min(i, RAMP.length - 1)],
+  }))
 }
 
 // ---------- 보유 종목 카드 ----------
@@ -203,6 +214,8 @@ export interface HoldingCardView {
   /** 총 매수금액(원화) — 시세와 무관하게 항상 채워진다. priceMissing 카드의 대체 표시용. */
   costText: string
   quantityText: string
+  /** 수량 단위 — 주식은 '주', 가상자산은 '개'. */
+  unitLabel: string
   /** priceMissing이면 null. */
   gainText: string | null
   /** priceMissing이면 의미 없음(항상 false) — 반드시 priceMissing을 먼저 분기할 것. */
@@ -252,6 +265,7 @@ export function buildHoldingCards(holdings: HoldingResponse[]): HoldingCardView[
       ticker: h.ticker,
       costText: formatKrw(h.totalCostKrw),
       quantityText: formatNumber(h.quantity),
+      unitLabel: quantityUnitOf(h.market),
       currentPriceText,
       dayChangePercentText,
       dayChangePositive,
@@ -448,7 +462,10 @@ export interface TradeRowView {
   dateLabel: string
   stockName: string
   tag: string
+  /** 체결 금액(수량 × 단가). 수수료·세금은 포함하지 않고 feeText로 따로 적는다. */
   amountText: string
+  /** '수수료·세금 $1.20 별도' — 둘 다 0이면 null. */
+  feeText: string | null
 }
 
 /** getTrades가 size를 생략해 호출하므로 GET /trades는 조건에 맞는 전 건을 한 번에 내려준다
@@ -478,9 +495,11 @@ export function buildTradeRows(trades: TradeResponse[], market?: Market, limit: 
       dateLabel: shortTradeDateLabel(t.tradeDate),
       stockName: t.stockName,
       tag: t.side === 'BUY' ? '매수' : '매도',
-      amountText:
-        marketToCurrency(t.market) === 'USD'
-          ? `$${formatCurrencyAmount(t.quantity * t.price, 'USD')}`
-          : `${formatKrw(t.quantity * t.price)}원`,
+      amountText: moneyText(t.quantity * t.price, marketToCurrency(t.market)),
+      feeText: (t.fee ?? 0) + (t.tax ?? 0) > 0 ? `수수료·세금 ${moneyText((t.fee ?? 0) + (t.tax ?? 0), marketToCurrency(t.market))} 별도` : null,
     }))
+}
+
+function moneyText(n: number, currency: Currency): string {
+  return currency === 'USD' ? `$${formatCurrencyAmount(n, 'USD')}` : `${formatKrw(n)}원`
 }

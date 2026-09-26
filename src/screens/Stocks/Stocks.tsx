@@ -25,7 +25,7 @@ import { SegmentedTab } from '../../components/primitives/SegmentedTab/Segmented
 import { Skeleton } from '../../components/primitives/Skeleton/Skeleton'
 import { useAppState } from '../../state/AppStateContext'
 import { stockDeepTabStyle, stockLightTabStyle } from '../../state/selectors/stockTabStyles'
-import { formatNumber, formatKrw, formatKoreanUnits } from '../../utils/format'
+import { formatNumber, formatKrw, formatKoreanUnits, formatUsd } from '../../utils/format'
 import { isoDateToDisplay } from '../../utils/date'
 import { useIsMobile } from '../../utils/useMediaQuery'
 import type { MarketIndexView } from '../../data/stocksView'
@@ -42,9 +42,11 @@ import {
   stockMarketTabToMarket,
   TRADE_HISTORY_LIMIT,
 } from '../../data/stocksView'
+import { accountBalanceOf } from '../../data/assetsView'
 import { useGetMarketIndices } from '@/services/marketIndex'
 import { isExchangeRateMissing, useGetClosedHoldings, useGetHoldingGroups, useGetHoldings } from '@/services/stock'
 import { useGetExchangeSummary } from '@/services/exchange'
+import { useGetAccounts } from '@/services/account'
 import { useGetDashboardSummary } from '@/services/dashboard'
 import { useGetTrades } from '@/services/trade'
 
@@ -148,7 +150,10 @@ export function Stocks() {
 
   const groupsByTab = useGetHoldingGroups(state.stockGroupTab === 'country' ? 'market' : 'sector')
   const groupReturns = buildGroupReturns(groupsByTab.groups, state.stockGroupTab === 'country' ? 'market' : 'sector')
-  const groupReturnCaption = state.stockGroupTab === 'sector' ? '보유 섹터별 평가 수익률' : '국내·해외 평가 수익률'
+  // 그룹별 수익률·섹터 비중은 서버(GET /stocks/holdings/groups)가 시장 필터를 받지 않아 항상 전체 보유
+  // 기준이다 — 국내/해외 탭을 보고 있을 때 헷갈리지 않게 캡션에 그 사실을 붙인다.
+  const allHoldingsNote = stockMarketTab === 'all' ? '' : ' · 국내·해외 전체 보유 기준'
+  const groupReturnCaption = (state.stockGroupTab === 'sector' ? '보유 섹터별 평가 수익률' : '시장별(국내·해외·가상자산) 평가 수익률') + allHoldingsNote
 
   // 섹터 비중 도넛은 그룹별 수익률 탭과 무관하게 항상 섹터 기준이다. by='sector' 쿼리는 React Query가
   // 키로 중복 제거하므로, 그룹별 수익률 탭이 '섹터'일 때는 위 groupsByTab과 같은 캐시를 공유한다.
@@ -157,6 +162,14 @@ export function Stocks() {
   const topSector = sectorComposition[0]
 
   const exchangeSummary = useGetExchangeSummary('USD')
+  // 외화 카드의 큰 숫자(heldForeignAmount)는 서버 정의상 **환전으로 사고판 달러의 순액**이다 — 계좌 등록 때
+  // 넣은 달러·주식 매도 대금 같은 환전 밖 달러는 빠진다. 그래서 제목을 '환전한 달러'로 두고, 실제로 계좌에
+  // 들어 있는 달러는 계좌 잔액(balances의 USD 줄) 합계로 따로 보여준다(2026-09-26 통합테스트, 사용자 결정).
+  // 평단가·환차익은 환전 기록 기준이라 그대로 둔다.
+  const accountsQuery = useGetAccounts()
+  const usdDepositTotal = accountsQuery.data
+    ? Math.round(accountsQuery.data.reduce((sum, a) => sum + (accountBalanceOf(a, 'USD')?.amount ?? 0), 0) * 100) / 100
+    : null
 
   // 전량 매도해 청산된 종목 — 보유 종목(GET /stocks/holdings)에는 잡히지 않으므로 별도 섹션으로 보여준다.
   const closedHoldingsQuery = useGetClosedHoldings(market)
@@ -380,15 +393,20 @@ export function Stocks() {
             <>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
                 <div>
-                  <div style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 600 }}>총 보유 USD</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 600 }}>환전한 달러</div>
                   <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, letterSpacing: '-.02em', color: 'var(--text-strong)' }}>
-                    $ {formatNumber(exchangeSummary.data.heldForeignAmount)}
+                    {formatUsd(exchangeSummary.data.heldForeignAmount)}
                   </div>
                   {/* 서버가 직접 계산한 원화 평가액(heldKrwValuation) — 더 이상 GET /indices의
                       USDKRW로 근사하지 않는다(docs/frontend-todo.md A-7). */}
                   <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>
-                    ≈ {formatKrw(exchangeSummary.data.heldKrwValuation)}원 ({isoDateToDisplay(exchangeSummary.data.rateAsOf)} 매매기준율 기준)
+                    ≈ {exchangeSummary.data.heldKrwValuation < 0 ? '−' : ''}{formatKrw(Math.abs(exchangeSummary.data.heldKrwValuation))}원 ({isoDateToDisplay(exchangeSummary.data.rateAsOf)} 매매기준율 기준)
                   </div>
+                  {usdDepositTotal !== null && (
+                    <div style={{ fontSize: 11, color: 'var(--text-mid)', marginTop: 6 }}>
+                      계좌 달러 예수금 합계 <b style={{ color: 'var(--text-strong)' }}>{formatUsd(usdDepositTotal)}</b>
+                    </div>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>평단가 (가중평균)</div>
@@ -525,14 +543,25 @@ export function Stocks() {
                         {h.marketLabel}
                       </span>
                     </div>
-                    <span style={{ fontSize: 11, color: 'var(--text-weak)' }}>{h.sector}</span>
+                    {/* 종목명·섹터를 잘못 등록했을 때 고치는 입구 — 섹터 라벨을 누르면 종목 정보 수정 창이 열린다. */}
+                    <button
+                      type="button"
+                      className="mini-hov"
+                      onClick={() => setState({ openModal: 'stockEdit', editingStockId: h.stockId })}
+                      title="종목 정보 수정"
+                      aria-label={`${h.name} 종목 정보 수정`}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, border: 'none', background: 'transparent', padding: '2px 4px', borderRadius: 6, fontSize: 11, color: 'var(--text-weak)', cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      {h.sector}
+                      <Icon name="edit" size={12} />
+                    </button>
                   </div>
                   {h.ticker && <div style={{ fontSize: 10.5, color: 'var(--text-weak)', marginBottom: 4 }}>{h.ticker}</div>}
                   {h.priceMissing ? (
                     <>
                       <div style={{ fontSize: 18, fontWeight: 700 }}>
                         {h.costText}
-                        <span style={{ fontSize: 12, color: 'var(--text-weak)', fontWeight: 600 }}>원 · {h.quantityText}주</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-weak)', fontWeight: 600 }}>원 · {h.quantityText}{h.unitLabel}</span>
                       </div>
                       <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 5 }}>시세를 아직 확보하지 못했어요</div>
                     </>
@@ -540,7 +569,7 @@ export function Stocks() {
                     <>
                       <div style={{ fontSize: 18, fontWeight: 700 }}>
                         {h.valueText}
-                        <span style={{ fontSize: 12, color: 'var(--text-weak)', fontWeight: 600 }}>원 · {h.quantityText}주</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-weak)', fontWeight: 600 }}>원 · {h.quantityText}{h.unitLabel}</span>
                       </div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: h.positive ? 'var(--up)' : 'var(--down)', marginTop: 5 }}>
                         {h.gainText ?? '—'}
@@ -633,7 +662,17 @@ export function Stocks() {
               <div
                 key={t.id}
                 className="mini-hov"
+                // 키보드로도 열 수 있게 버튼 역할을 준다(Tab으로 포커스 → Enter/Space).
+                role="button"
+                tabIndex={0}
+                aria-label={`${t.stockName} ${t.tag} ${t.amountText} 수정`}
                 onClick={() => setState({ openModal: 'tradeEdit', editingTradeId: t.id })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setState({ openModal: 'tradeEdit', editingTradeId: t.id })
+                  }
+                }}
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8, cursor: 'pointer' }}
               >
                 <div style={{ fontSize: 11.5, color: 'var(--text-weak)', width: 44, flex: 'none' }}>{t.dateLabel}</div>
@@ -645,7 +684,10 @@ export function Stocks() {
                 </span>
                 {/* 투자 거래는 ds_rules_v2_5.md §10-4에 따라 "이체"로 취급한다 — 등락색·부호 없이
                     무채색(text-strong)으로만 총액을 보여준다. */}
-                <div style={{ fontSize: 13.5, fontWeight: 700, width: 120, textAlign: 'right', color: 'var(--text-strong)' }}>{t.amountText}</div>
+                <div style={{ width: 120, textAlign: 'right' }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>{t.amountText}</div>
+                  {t.feeText && <div style={{ fontSize: 10.5, color: 'var(--text-weak)', marginTop: 2 }}>{t.feeText}</div>}
+                </div>
               </div>
             ))}
           </div>
@@ -704,7 +746,7 @@ export function Stocks() {
         <Card style={{ padding: 26, width: '100%', height: '100%' }} aria-busy={sectorGroups.isPending}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>섹터 비중</div>
           <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400, marginTop: 4, marginBottom: 16 }}>
-            보유 주식 산업군 분포
+            보유 주식 산업군 분포{allHoldingsNote}
           </div>
           {sectorGroups.isPending ? (
             <div aria-busy style={EMPTY_TEXT_STYLE}>—</div>

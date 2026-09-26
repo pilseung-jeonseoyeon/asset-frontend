@@ -7,9 +7,11 @@ import {
   getHoldingGroups,
   getHoldings,
   getStocks,
+  getStockSectors,
   postStock,
+  putStock,
 } from './stock.service'
-import type { CreateStockRequest } from './stock.type'
+import type { CreateStockRequest, UpdateStockRequest } from './stock.type'
 
 interface QueryOptions {
   enabled?: boolean
@@ -32,10 +34,24 @@ export function useGetStocks(keyword: string, options?: QueryOptions) {
   return { ...query, stocks: query.data ?? [] }
 }
 
-export function useGetHoldings(market?: Market, options?: QueryOptions) {
+// 섹터는 서버 시드 마스터라 거의 바뀌지 않는다 — 모달을 열 때마다 다시 받지 않게 staleTime을 길게 잡는다.
+const SECTOR_STALE_TIME = 60 * 60_000
+
+export function useGetStockSectors(options?: QueryOptions) {
   const query = useQuery({
-    queryKey: queryKeys.stock.holdings(market),
-    queryFn: () => getHoldings(market),
+    queryKey: queryKeys.stock.sectors(),
+    queryFn: getStockSectors,
+    enabled: options?.enabled,
+    staleTime: SECTOR_STALE_TIME,
+  })
+  return { ...query, sectors: query.data ?? [] }
+}
+
+export function useGetHoldings(market?: Market, options?: QueryOptions & { accountId?: number | null }) {
+  const accountId = options?.accountId ?? undefined
+  const query = useQuery({
+    queryKey: [...queryKeys.stock.holdings(market), { accountId }],
+    queryFn: () => getHoldings(market, accountId),
     enabled: options?.enabled,
   })
   return {
@@ -79,5 +95,17 @@ export function usePostStock() {
   return useMutation({
     mutationFn: (body: CreateStockRequest) => postStock(body),
     onSuccess: invalidate,
+  })
+}
+
+/** 종목명·섹터 수정. 보유 종목·그룹 수익률(stock)과 매매 내역의 종목명(trade)이 함께 바뀐다. */
+export function usePutStock() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: UpdateStockRequest }) => putStock(id, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.stock.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.trade.all() })
+    },
   })
 }

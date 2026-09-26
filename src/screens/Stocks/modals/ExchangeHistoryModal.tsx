@@ -24,7 +24,6 @@ import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { formatNumber, formatKrw, sanitizeDecimalInput } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate } from '../../../utils/date'
-import { ApiError } from '@/services/api'
 import { useGetAccounts } from '@/services/account'
 import { useDeleteExchange, useGetExchanges, usePutExchange } from '@/services/exchange'
 import type { UpdateExchangeRequest } from '@/services/exchange'
@@ -157,11 +156,14 @@ export function ExchangeHistoryModal() {
     const picked = state.datePickerPicked['exchangeEditDate'] as { y: number; m: number; d: number } | undefined
     const exchangedAt = picked ? pickedToISODate(picked) : editing.exchangedAt
 
+    // 외화 금액·환율을 그대로 두고(날짜·방향만 고침) 저장하면 서버가 가진 원화 금액을 그대로 보낸다 — 외화 × 환율로
+    // 다시 계산해 덮으면 반올림 오차로 정본 원화 금액이 1원씩 바뀔 수 있다(2026-09-26 통합테스트).
+    const amountsUnchanged = foreignAmount === editing.foreignAmount && rate === editing.rate
     const body: UpdateExchangeRequest = {
       side,
       currency: 'USD',
       foreignAmount,
-      krwAmount: krwAmountEstimate,
+      krwAmount: amountsUnchanged ? editing.krwAmount : krwAmountEstimate,
       rate,
       exchangedAt,
       ...(editing.memo !== null ? { memo: editing.memo } : {}),
@@ -181,8 +183,9 @@ export function ExchangeHistoryModal() {
   }
 
   const isBusy = putExchange.isPending || deleteExchange.isPending
-  const insufficientBalance = putExchange.error instanceof ApiError && putExchange.error.code === 'FX_INSUFFICIENT_BALANCE'
-  const genericError = putExchange.error && !insufficientBalance ? putExchange.error.message : null
+  // 보유 달러보다 많이 파는 환전은 서버가 막지 않는 의도된 동작이라(ExchangeAddModal 헤더 주석) 예전의
+  // FX_INSUFFICIENT_BALANCE 분기는 뜰 일이 없어 지웠다. 서버 오류는 그대로 보여준다.
+  const genericError = putExchange.error ? putExchange.error.message : null
   const deleteErrorMessage = deleteExchange.error?.message ?? null
 
   return (
@@ -265,7 +268,6 @@ export function ExchangeHistoryModal() {
                     style={{ border: 'none', outline: 'none', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', width: '100%', color: 'var(--text-strong)' }}
                   />
                 </div>
-                {insufficientBalance && <div style={ERROR_STYLE}>보유 외화보다 많이 팔 수 없어요</div>}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={LABEL_STYLE}>적용 환율</div>
