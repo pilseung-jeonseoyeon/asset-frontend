@@ -18,7 +18,9 @@ import { useAppState } from '../../../state/AppStateContext'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { formatNumber, parseAmount } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate, yearEndISODate } from '../../../utils/date'
-import { useGetGoal, usePutGoal } from '@/services/goal'
+import { useCurrentSettlementMonth } from '../../../utils/useCurrentSettlementMonth'
+import { useDeleteGoal, useGetGoal, useGetGoalPreview, usePutGoal } from '@/services/goal'
+import { useDebouncedValue } from '../../../utils/useDebouncedValue'
 import { useGetMonthlySummaries } from '@/services/transaction'
 import type { UpsertGoalRequest } from '@/services/goal'
 
@@ -38,22 +40,27 @@ export function AddGoalModal() {
   const { goal, isUnset } = goalQuery
   const putGoal = usePutGoal()
 
-  const currentYear = new Date().getFullYear()
-  const currentMonth = new Date().getMonth() + 1
+  // 월별 요약은 정산월 라벨로 오므로 "이번 달"도 정산월 기준으로 잡아야 최근 3개월이 어긋나지 않는다.
+  const { year: currentYear, month: currentMonth } = useCurrentSettlementMonth()
   // 목표를 아직 등록하지 않았을 때만 필요한 제안값이라, 그 경우에만 불러온다.
   const monthlySummaryQuery = useGetMonthlySummaries(currentYear, { enabled: isOpen && isUnset })
   const recentIncomeMonths = [...monthlySummaryQuery.summaries]
     .sort((a, b) => a.month - b.month)
     .filter((s) => s.month <= currentMonth)
     .slice(-3)
-  const suggestedMonthlyIncome = recentIncomeMonths.length
+  // 서버가 정산월 기준 최근 3개월 평균 수입(suggestedMonthlyIncome)을 주면 그걸 쓴다 — 프론트 계산은 달력 연도 안에서만
+  // 3개월을 뽑아 1~2월엔 1~2개월(진행 중인 달 포함)만으로 평균이 됐다. 서버 값이 없을 때만(수입 기록 없음 등) 폴백한다.
+  const localSuggestedIncome = recentIncomeMonths.length
     ? Math.round(recentIncomeMonths.reduce((sum, s) => sum + s.incomeTotal, 0) / recentIncomeMonths.length)
     : 0
+  const suggestedMonthlyIncome = goal?.suggestedMonthlyIncome ?? localSuggestedIncome
 
   const [targetAmount, setTargetAmount] = useState(0)
   const [monthlyIncome, setMonthlyIncome] = useState(0)
   const [formInitialized, setFormInitialized] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const deleteGoal = useDeleteGoal()
 
   // 저장된 목표가 있으면 그 targetDate가 우선이고, 없을 때만 "입력일이 속한 해의 12월 31일"을
   // 기본값으로 채운다(연말·연초 상관없이 오늘 기준 연도). 매 렌더 재계산이라 날짜가 바뀌는
@@ -99,6 +106,20 @@ export function AddGoalModal() {
     setState,
   ])
 
+  // 입력 중인 값으로 미리 계산해 보여준다(GET /goals/preview — 저장하지 않음). 예전엔 '목표를 저장하면
+  // 계산해드려요'만 떠서 금액을 바꿔 보며 비교할 수 없었다(2026-09-26 통합테스트). 타이핑이 멈춘 뒤의
+  // 값으로만 요청하고, 서버 규칙(목표 > 0, 오늘 이후, 수입 ≥ 0)을 벗어나면 부르지 않는다.
+  const pickedGoalDate = state.datePickerPicked['goal'] as { y: number; m: number; d: number } | undefined
+  const previewTargetDate = pickedGoalDate ? pickedToISODate(pickedGoalDate) : (goal?.targetDate ?? null)
+  const previewInput =
+    isOpen && formInitialized && targetAmount > 0 && previewTargetDate && previewTargetDate > toISODate(new Date()) && monthlyIncome >= 0
+      ? { targetAmount, targetDate: previewTargetDate, monthlyIncome }
+      : null
+  // 객체는 렌더마다 새로 만들어져 그대로 디바운스하면 타이머가 끝없이 다시 걸린다 — 문자열 키로 비교한다.
+  const previewKey = previewInput ? JSON.stringify(previewInput) : ''
+  const debouncedPreviewKey = useDebouncedValue(previewKey, 400)
+  const previewQuery = useGetGoalPreview(debouncedPreviewKey ? (JSON.parse(debouncedPreviewKey) as typeof previewInput) : null)
+
   if (!isOpen) return null
 
   const closeGoalModal = () => {
@@ -112,7 +133,9 @@ export function AddGoalModal() {
     // 이 모달은 AppShell에 항상 마운트되어 있어 닫아도 언마운트되지 않는다.
     setFormInitialized(false)
     setFormError(null)
+    setDeleteConfirmOpen(false)
     putGoal.reset()
+    deleteGoal.reset()
   }
 
   const handleSave = () => {
@@ -144,13 +167,15 @@ export function AddGoalModal() {
     })
   }
 
-  const isBusy = putGoal.isPending
-  // 저장된 목표 기준 미리보기라 폼에서 수정 중인 targetAmount/monthlyIncome이 아니라 goal(서버값)을
-  // 그대로 쓴다 — 계산 자체가 서버 책임이라 프론트에서 다시 산출하지 않는다(A-9).
-  const monthlyNeeded = !isUnset && goal ? goal.monthly.targetAmount : null
-  const monthlySpendableAmt = !isUnset && goal ? goal.monthlySpendableAmount : null
-  const monthlyShortfallAmt = !isUnset && goal ? goal.monthlyShortfallAmount : null
-  const feasibility = !isUnset && goal ? goal.feasibility : null
+  const isBusy = putGoal.isPending || deleteGoal.isPending
+  // 계산은 서버 책임이다(A-9) — 입력 중인 값의 미리보기(previewQuery)가 있으면 그걸, 아직 없으면 저장된
+  // 목표(goal)를 쓴다. 입력이 유효하지 않아 미리보기를 못 부르는 동안에도 저장된 값은 보여준다.
+  const shown = previewQuery.data ?? (!isUnset && goal ? goal : null)
+  const monthlyNeeded = shown ? shown.monthly.targetAmount : null
+  const monthlySpendableAmt = shown ? shown.monthlySpendableAmount : null
+  const monthlyShortfallAmt = shown ? shown.monthlyShortfallAmount : null
+  const feasibility = shown ? shown.feasibility : null
+  const isPreviewing = previewKey !== '' && (previewKey !== debouncedPreviewKey || previewQuery.isFetching)
 
   return (
     <Modal onClose={closeGoalModal} zIndex={80} width={440}>
@@ -217,7 +242,9 @@ export function AddGoalModal() {
           </div>
           <div style={{ background: 'var(--fill-subtle)', borderRadius: 10, padding: '14px 16px' }}>
             {monthlyNeeded === null ? (
-              <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>목표를 저장하면 월 필요 저축액과 지출 가능액을 계산해드려요</div>
+              <div aria-busy={isPreviewing} style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>
+                {isPreviewing ? '계산하는 중…' : '목표 자산과 목표 시점을 넣으면 월 필요 저축액과 지출 가능액을 바로 계산해드려요'}
+              </div>
             ) : (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
@@ -248,7 +275,9 @@ export function AddGoalModal() {
                 ) : (
                   <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>월 지출 가능액을 계산할 수 없어요</div>
                 )}
-                <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 8 }}>투자 수익은 반영하지 않은 계산이에요</div>
+                <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 8 }}>
+                  {isPreviewing ? '바꾼 값으로 다시 계산하는 중…' : previewQuery.data ? '입력한 값으로 미리 계산했어요 · 투자 수익은 반영하지 않아요' : '투자 수익은 반영하지 않은 계산이에요'}
+                </div>
               </>
             )}
           </div>
@@ -260,8 +289,46 @@ export function AddGoalModal() {
             className="qbtn"
             style={{ padding: 14, borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: isBusy ? 'default' : 'pointer', opacity: isBusy ? 0.7 : 1, transition: 'transform .12s' }}
           >
-            {isBusy ? '저장 중…' : '목표 저장'}
+            {putGoal.isPending ? '저장 중…' : '목표 저장'}
           </button>
+          {/* 저장된 목표가 있을 때만 삭제할 수 있다(DELETE /goals). 되돌릴 수 없어 한 번 더 묻는다. */}
+          {!isUnset && (
+            deleteConfirmOpen ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--fill-subtle)', borderRadius: 10, padding: 14 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)' }}>목표를 삭제할까요?</div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-weak)', lineHeight: 1.6 }}>진행률과 월 필요 저축액이 더 이상 보이지 않아요. 언제든 다시 설정할 수 있어요.</div>
+                {deleteGoal.error && <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{deleteGoal.error.message}</div>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => deleteGoal.mutate(undefined, { onSuccess: closeGoalModal })}
+                    disabled={isBusy}
+                    aria-busy={deleteGoal.isPending}
+                    className="qbtn"
+                    style={{ flex: 1, padding: 11, borderRadius: 10, border: 'none', background: 'var(--down)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: isBusy ? 'default' : 'pointer', opacity: isBusy ? 0.7 : 1 }}
+                  >
+                    {deleteGoal.isPending ? '삭제 중…' : '삭제할게요'}
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirmOpen(false)}
+                    disabled={isBusy}
+                    className="qbtn"
+                    style={{ flex: 1, padding: 11, borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-mid)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setDeleteConfirmOpen(true)}
+                disabled={isBusy}
+                className="mini-hov"
+                style={{ alignSelf: 'center', border: 'none', background: 'transparent', padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--text-weak)', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                목표 삭제
+              </button>
+            )
+          )}
         </div>
       )}
     </Modal>

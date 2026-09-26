@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../queryKeys'
 import type { YearMonth } from '../common.type'
-import { getGoal, putGoal } from './goal.service'
+import { deleteGoal, getGoal, getGoalPreview, putGoal } from './goal.service'
 import type { UpsertGoalRequest } from './goal.type'
 
 interface QueryOptions {
@@ -36,6 +36,31 @@ export function usePutGoal() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.goal.all() })
       // 대시보드의 "자산 목표" 위젯이 같은 값을 읽는다.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() })
+    },
+  })
+}
+
+/**
+ * 목표 설정 모달의 미리보기. params가 null이면(입력이 아직 유효하지 않음) 부르지 않는다. 호출부가 입력을
+ * 디바운스해서 넘긴다 — 글자마다 계산 요청이 나가지 않게.
+ */
+export function useGetGoalPreview(params: UpsertGoalRequest | null) {
+  return useQuery({
+    queryKey: params ? queryKeys.goal.preview(params) : ['goal', 'preview', 'idle'],
+    queryFn: () => getGoalPreview(params as UpsertGoalRequest),
+    enabled: params !== null,
+    // 같은 입력으로 다시 계산할 필요가 없다.
+    staleTime: 60_000,
+  })
+}
+
+export function useDeleteGoal() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: deleteGoal,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.goal.all() })
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() })
     },
   })
