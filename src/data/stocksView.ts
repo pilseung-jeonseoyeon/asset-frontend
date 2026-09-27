@@ -3,7 +3,7 @@
 // 화면과 모달(QuickStockModal/ExchangeAddModal/TradeEditModal)이 그릴 형태로 바꾼다.
 //
 // 증감 표기 규칙(`(percent>=0?'+':'−')+Math.abs(percent).toFixed(1)+'%'`, 빼기 기호는 U+2212,
-// var(--up)/var(--down), ds_rules_v2_5.md §10-1)과 램프 색 순서(§1-6)는 디자인 시스템 규칙이다 —
+// var(--up)/var(--down), ds_rules_v3.md §10-1)과 램프 색 순서(§1-6)는 디자인 시스템 규칙이다 —
 // 임의로 바꾸지 말 것. 값이 전부 서버 집계에서 오므로 나눗셈마다 0 방어가 붙어 있다(실제 포트폴리오는
 // 보유 종목 0개, 총 평가액 0, 원가 0이 정상적으로 나올 수 있다).
 //
@@ -231,7 +231,7 @@ export interface HoldingCardView {
 
 /**
  * 보유 종목 정렬·매도 드롭다운이 공유하는 수익률 기준. 서버가 이미 계산한 returnRatePercent를
- * 그대로 쓴다(원가 역산 금지 — docs/frontend-todo.md B-5). 시세 미확보(null)는 맨 뒤로 보낸다
+ * 그대로 쓴다(원가 역산 금지). 시세 미확보(null)는 맨 뒤로 보낸다
  * (buildGroupReturns와 동일 기준 — "계산 불가"를 "0%"로 접지 않는다).
  */
 export function sortHoldingsByReturn(holdings: HoldingResponse[]): HoldingResponse[] {
@@ -331,7 +331,7 @@ export interface PortfolioSummaryView {
  * hasMissingPrice 캡션(Stocks.tsx)이 "총 매수금액·평가금액·손익"을 함께 언급해 안내한다.
  *
  * 시세 미확보(valuationKrw/unrealizedPnlKrw === null) 종목은 그대로 전부 제외한다 — 섞어서
- * 더하면 NaN이 화면에 나간다(docs/frontend-todo.md A-7). "총자산의 N%"는 GET /dashboard/summary의
+ * 더하면 NaN이 화면에 나간다. "총자산의 N%"는 GET /dashboard/summary의
  * totalAssetKrw를 함께 넘겨야 계산된다.
  */
 export function buildPortfolioSummary(holdings: HoldingResponse[], totalAssetKrw?: number): PortfolioSummaryView {
@@ -403,8 +403,8 @@ export function buildClosedHoldingCards(closedHoldings: ClosedHoldingResponse[])
 // ---------- 매매 계좌 필터 ----------
 
 /**
- * 시장별로 매매에 쓸 수 있는 계좌 타입. 서버가 계좌 타입을 검증하지 않아 현금 계좌로도 매매가 그대로
- * 등록되던 문제를 프론트에서 좁혀 막는다.
+ * 시장별로 매매에 쓸 수 있는 계좌 타입. 서버도 맞지 않는 계좌를 400 INVALID_ACCOUNT_TYPE으로
+ * 거절하므로, 드롭다운에서 미리 좁힌다.
  *
  * 계약 변경으로 DOMESTIC_STOCK/FOREIGN_STOCK이 STOCK 하나가 되면서 **KR과 US가 같은
  * 계좌 타입을 본다** — 실제 증권계좌 하나가 삼성전자와 애플을 함께 담기 때문이다. 잠깐 유지됐던
@@ -418,9 +418,8 @@ const TRADE_ACCOUNT_TYPES_BY_MARKET: Record<Market, AccountType[]> = {
 }
 
 /**
- * 매매(QuickStockModal) 계좌 드롭다운에 노출할 계좌 타입. 서버가 계좌 타입을 검증하지 않아
- * (docs/backend-request.md B-1-3) 현금 계좌로도 매매가 그대로 등록되던 문제(0-4-7)를 프론트에서
- * 좁혀 막는다. 선택된 시장에 맞는 계좌 타입만 남긴다(위 TRADE_ACCOUNT_TYPES_BY_MARKET 참고).
+ * 매매(QuickStockModal) 계좌 드롭다운에 노출할 계좌 타입. 서버가 400 INVALID_ACCOUNT_TYPE으로
+ * 거절할 계좌를 미리 뺀다. 선택된 시장에 맞는 계좌 타입만 남긴다(위 TRADE_ACCOUNT_TYPES_BY_MARKET 참고).
  */
 export function filterTradeAccounts(accounts: AccountResponse[], market: Market): AccountResponse[] {
   const allowed = TRADE_ACCOUNT_TYPES_BY_MARKET[market]
@@ -481,7 +480,7 @@ function shortTradeDateLabel(isoDate: string): string {
  * tie-break)으로 정렬하고 상위 limit건만 남긴다 — 조용히 자르지 않도록 호출부가 그 사실을 캡션으로
  * 밝힐 것.
  *
- * 투자 거래(매수·매도)는 ds_rules_v2_5.md §10-4에 따라 "이체"로 취급한다 — 수입/지출 파스텔이나
+ * 투자 거래(매수·매도)는 ds_rules_v3.md §10-4에 따라 "이체"로 취급한다 — 수입/지출 파스텔이나
  * 등락색이 아니라 무채색(text-strong)으로, 부호 없이 총액만 보여준다.
  */
 export function buildTradeRows(trades: TradeResponse[], market?: Market, limit: number = TRADE_HISTORY_LIMIT): TradeRowView[] {

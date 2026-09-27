@@ -1,9 +1,7 @@
 import type { Currency, ForeignExchangeSide } from '../common.type'
 
 // 조회의 currency는 선택이다(생략하면 전 통화) — 지금 화면은 USD만 다룬다.
-// GET /exchanges/summary의 응답 스키마명은 FxSummaryRes다(라이브 OpenAPI 대조,
-// docs/frontend-todo.md A-7 · docs/backend-request.md 2-1 확인 완료 — 고시 기준일 필드명은
-// rateAsOf).
+// GET /exchanges/summary의 응답 스키마명은 FxSummaryRes다(라이브 OpenAPI 대조 — 고시 기준일 필드명은 rateAsOf).
 
 export interface ExchangeResponse {
   id: number

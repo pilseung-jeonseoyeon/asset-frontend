@@ -53,7 +53,7 @@ export const initialState: AppState = {
   dashboardLayout: readStoredDashboardLayout(),
 
   // 빈 문자열 = 미선택. 기본값을 채우면 사용자가 칩을 한 번도 안 눌러도 그 값이 조용히 전송된다
-  // (docs/backend-request.md 5-1 — 과거 '반도체' 하드코딩 버그).
+  // (과거 '반도체' 하드코딩 버그).
   stockSector: '',
   stockBuyMarket: 'domestic',
   stockTradeMode: 'buy',

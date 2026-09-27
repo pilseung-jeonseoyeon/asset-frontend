@@ -110,8 +110,7 @@ export interface AppState {
 
   // stock entry
   /** 신규 종목 등록 시 선택한 섹터 칩. 빈 문자열이면 미선택(전송하지 않음) — 절대 기본값을 채우지
-   * 말 것(과거 '반도체' 하드코딩이 모든 신규 종목을 조용히 오염시켰던 버그, docs/backend-request.md
-   * 5-1 참고). */
+   * 말 것(과거 '반도체' 하드코딩이 모든 신규 종목을 조용히 오염시켰던 버그). */
   stockSector: string
   stockBuyMarket: StockBuyMarket
   stockTradeMode: StockTradeMode

@@ -3,7 +3,7 @@
 // GET /dashboard/summary에 연결돼 있다. 뷰모델 변환은 src/data/stocksView.ts.
 //
 // 이 화면의 섹터 비중 도넛이 앱 전체에서 허용된 두 번째이자 마지막 DonutChart 사용처다 —
-// ds_rules_v2_5.md §3-4가 도넛을 정확히 두 곳(대시보드 자산 구성 + 여기)으로 제한한다.
+// ds_rules_v3.md §3-4가 도넛을 정확히 두 곳(대시보드 자산 구성 + 여기)으로 제한한다.
 //
 // **시세 미확보 처리가 이 화면의 핵심 함정이다.** HoldingRes의 평가 계열(valuationKrw·
 // unrealizedPnlKrw·returnRatePercent·currentPrice·previousClosePrice·dayChangePercent·priceAsOf)은
@@ -106,7 +106,7 @@ function MarketIndexTicker({ views }: { views: MarketIndexView[] }) {
   )
 }
 
-// 1억 원 미만 금액에는 축약 캡션을 병기하지 않는다(ds_rules_v2_5.md §4-2) — Dashboard.tsx의
+// 1억 원 미만 금액에는 축약 캡션을 병기하지 않는다(ds_rules_v3.md §4-2) — Dashboard.tsx의
 // KoreanUnitsCaption과 동일 기준.
 const ABBREV_THRESHOLD = 100_000_000
 
@@ -179,7 +179,7 @@ export function Stocks() {
 
   const holdingsHasError = !!holdingsQuery.error && !holdingsQuery.isExchangeRateMissing
 
-  // 매매 내역 — 청산 종목 섹션 근처에 별도 카드로 보여준다(docs/backend-request.md 4-1). size를
+  // 매매 내역 — 청산 종목 섹션 근처에 별도 카드로 보여준다. size를
   // 생략해 전 건을 한 페이지로 받아온 뒤, 화면에는 최근 TRADE_HISTORY_LIMIT건만 남기고 그 사실을
   // 캡션으로 밝힌다.
   const tradesQuery = useGetTrades({})
@@ -310,7 +310,7 @@ export function Stocks() {
               {/* 이 메타 행에는 **실제 수치만** 넣는다. 예전에 있던 '평단가 가중평균'은 값이 아니라
                   계산 방식 설명이라 옆의 두 항목과 같은 위계(<b> + --deep-value)로 놓이면 지표처럼 읽힌다 —
                   게다가 실제 평단가 숫자는 이 카드가 계산하지도 않는다(buildPortfolioSummary에 해당 필드 없음).
-                  '가중평균 기준'이라는 안내는 아래 보유 종목 표의 열 제목('평단가 (가중평균)')이 이미 담당한다.
+                  ('평단가 (가중평균)' 라벨은 아래 외화 카드의 평균 환율에만 있다.)
                   flexWrap은 아이폰 폭(375px)에서 두 항목이 한 줄에 눌려 카드 밖으로 밀리는 것을 막는다. */}
               <div
                 style={{
@@ -342,7 +342,7 @@ export function Stocks() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <div style={{ fontSize: 15, fontWeight: 700 }}>외화 자산 &amp; 가중 평균 환율</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
-              {/* 요약(GET /exchanges/summary)이 422로 실패해도(docs/backend-request.md 0-2-1) 이
+              {/* 요약(GET /exchanges/summary)이 422로 실패해도 이
                   버튼은 항상 눌려야 한다 — 등록한 환전을 최소한 확인·삭제는 할 수 있어야 하기
                   때문이다(같은 문서 0-4-6). */}
               <button
@@ -398,7 +398,7 @@ export function Stocks() {
                     {formatUsd(exchangeSummary.data.heldForeignAmount)}
                   </div>
                   {/* 서버가 직접 계산한 원화 평가액(heldKrwValuation) — 더 이상 GET /indices의
-                      USDKRW로 근사하지 않는다(docs/frontend-todo.md A-7). */}
+                      USDKRW로 근사하지 않는다. */}
                   <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>
                     ≈ {exchangeSummary.data.heldKrwValuation < 0 ? '−' : ''}{formatKrw(Math.abs(exchangeSummary.data.heldKrwValuation))}원 ({isoDateToDisplay(exchangeSummary.data.rateAsOf)} 매매기준율 기준)
                   </div>
@@ -641,7 +641,7 @@ export function Stocks() {
         )}
       </Card>
 
-      {/* 매매 내역 — GET/PUT/DELETE /trades 훅은 있었지만 호출부가 없어(docs/backend-request.md 4-1)
+      {/* 매매 내역 — GET/PUT/DELETE /trades 훅은 있었지만 호출부가 없어
           오입력한 매수·매도를 되돌릴 방법이 없었다. 행을 누르면 TradeEditModal이 열린다. */}
       <Card style={{ padding: 26 }} aria-busy={tradesQuery.isPending}>
         <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>매매 내역</div>
@@ -682,7 +682,7 @@ export function Stocks() {
                 <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 8, whiteSpace: 'nowrap', background: 'var(--fill-subtle)', color: 'var(--text-mid)' }}>
                   {t.tag}
                 </span>
-                {/* 투자 거래는 ds_rules_v2_5.md §10-4에 따라 "이체"로 취급한다 — 등락색·부호 없이
+                {/* 투자 거래는 ds_rules_v3.md §10-4에 따라 "이체"로 취급한다 — 등락색·부호 없이
                     무채색(text-strong)으로만 총액을 보여준다. */}
                 <div style={{ width: 120, textAlign: 'right' }}>
                   <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>{t.amountText}</div>
