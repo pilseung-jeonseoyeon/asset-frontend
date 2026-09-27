@@ -1,87 +1,86 @@
 # API 통신 컨벤션
 
-이 문서는 axios + React Query 기반 API 통신 규칙입니다. 다른 프로젝트(Next.js/Cursor)에서 쓰던
-규칙을 이 저장소(Vite + React 19, `react-router-dom`으로 5개 메뉴 화면만 URL에 연결, 자세한 건
-`docs/architecture.md` 참고) 구조에 맞게 옮긴 것입니다. 원본과 다르게 조정한 부분은 각 절에
-표시해두었습니다.
+axios + React Query 기반 API 통신 규칙입니다. 전체 폴더 구조는 `docs/architecture.md`, 상태 경계는
+`docs/state-management.md`를 보세요.
 
 > **백엔드 스펙의 정본은 실행 중인 서버의 OpenAPI 문서입니다** — Swagger UI
 > `http://localhost:8080/docs`(또는 `/swagger-ui/index.html`), JSON `http://localhost:8080/v3/api-docs`.
-> 예전에 있던 `secret/API-SPEC.md`는 삭제됐고 다시 만들지 않습니다. 아래 본문에 남아 있던
-> "API-SPEC §N" 인용은 전부 그 문서가 살아 있던 시점에 검증된 내용으로, 사실 자체는 지금도
-> 유효하지만 **다시 확인할 때는 반드시 위 OpenAPI 문서를 보세요.** 다만 OpenAPI에는 `required`·
-> `nullable` 표기와 에러 코드 목록이 없으므로, 거기 없는 세부는 추측하지 말고 사용자에게 확인하세요.
-> 도메인 서비스를 새로 만들 때는 이 문서의 "서비스 폴더 구조" 절을 그대로 따르세요.
+> 필드 유무·타입·enum·`required`·nullable(`type: [..., "null"]`)과 에러 코드 전체 표(`ErrorResponse`
+> 스키마 설명)가 여기 있습니다. 별도 API 스펙 문서는 만들지 않습니다. OpenAPI에도 없는 세부는
+> 추측하지 말고 사용자에게 확인하세요.
 
 ## 설치된 것 / 설정된 것
 
-- 의존성: `axios`, `@tanstack/react-query`, `zustand`, `zod` (`package.json`)
+- 의존성: `axios`, `@tanstack/react-query`, `zustand`, `zod`
 - 경로 별칭: `@/*` → `src/*` (`tsconfig.app.json`의 `paths`, `vite.config.ts`의 `resolve.alias`)
-- `src/services/api.ts` — axios 인스턴스 + 응답 인터셉터 + `ApiError` + `unwrap`
+- `src/services/api.ts` — axios 인스턴스 `api` + 요청/응답 인터셉터 + `ApiError` + `unwrap` +
+  `refreshAccessToken`
+- `src/services/apiBlob.ts` — 파일 다운로드 전용 인스턴스(`downloadBlobFile`, `todayStamp`). 아래
+  "파일 주고받기" 참고
 - `src/services/api.types.ts` — `ApiResponse<T>` / `ApiErrorPayload` 공통 봉투 타입
 - `src/services/common.type.ts` — 여러 도메인이 함께 쓰는 enum(`Currency`, `AccountType`,
-  `AssetClass`, `TransactionType`, `Market` 등), 목록 조회 파라미터, Spring `Page<T>` 타입
+  `AssetClass`, `TransactionType`, `Market` 등), 목록 조회 파라미터, Spring `Page<T>`
 - `src/services/queryKeys.ts` — React Query 키 중앙 레지스트리(`queryKeys`)
-- `src/services/queryClient.ts` — React Query `QueryClient`, `src/main.tsx`에서
-  `QueryClientProvider`로 `AppStateProvider` 바깥을 감싸는 중
-- `VITE_API_BASE_URL` 환경변수로 baseURL 주입(`import.meta.env` 타입은 `src/vite-env.d.ts`에 선언).
-  **경로 버전 `/api/v1`을 baseURL에 포함**시키므로 서비스 함수에서는 `/accounts`처럼 버전 없이 씁니다.
-  - **개발 모드(`pnpm dev`)**: 변수가 비어 있으면 코드 기본값 `/api/v1`(상대 경로, `api.ts`의
-    `API_BASE_URL`)을 쓰고, 모든 요청은 `vite.config.ts`의 프록시(`/api` → 백엔드)를 탑니다. 그래서
-    **`.env` 파일 없이도** 화면이 뜹니다. 프록시 대상은 `VITE_DEV_PROXY_TARGET`이고 기본값은
-    **로컬 백엔드(`http://localhost:8080`)** 입니다(2026-09-26). 운영 API로 봐야 할 때만 `.env.local`(gitignore됨)에
-    `VITE_DEV_PROXY_TARGET=https://api.monit.io.kr` 한 줄을 넣으세요(운영 DB가 바뀌니 테스트 계정으로). 프록시를 쓰는 이유는 브라우저가
-    같은 출처로만 요청하게 해서 백엔드 CORS·쿠키 SameSite 설정과 무관하게 refresh 쿠키 로그인 유지가
-    되게 하려는 것입니다. **로컬 `.env`에 절대 URL을 넣으면 프록시를 건너뛰고 직접 부르게 되니**
-    개발 중에는 `VITE_API_BASE_URL`을 비워 두세요.
-  - **프로덕션 빌드(`pnpm build`)**: 배포 환경(Vercel) 대시보드의 `VITE_API_BASE_URL`(절대 URL)을 씁니다.
+- `src/services/queryClient.ts` — `QueryClient`. `src/main.tsx`에서 `QueryClientProvider`로
+  `AppStateProvider` 바깥을 감쌉니다.
 
-## Axios 인스턴스 설정 패턴
+### baseURL과 개발 서버 프록시
 
-`src/services/api.ts`에서 인스턴스 하나를 만들어 모든 서비스 함수가 공유합니다.
+- baseURL은 `VITE_API_BASE_URL`(타입은 `src/vite-env.d.ts`)이고, 비어 있으면 `api.ts`의 기본값
+  `/api/v1`(상대 경로)을 씁니다. **버전 `/api/v1`은 baseURL에 포함**되므로 서비스 함수는 `/accounts`처럼
+  버전 없이 씁니다.
+- **개발(`pnpm dev`)**: `VITE_API_BASE_URL`은 비워 두거나 `/api/v1`로 둡니다. `/api` 요청은
+  `vite.config.ts` 프록시가 `VITE_DEV_PROXY_TARGET`으로 넘기며, **기본값은 로컬 백엔드
+  `http://localhost:8080`** 입니다. 브라우저는 같은 출처로만 요청하므로 백엔드 CORS·쿠키 SameSite 설정과
+  무관하게 refresh 쿠키 로그인 유지가 됩니다. 절대 URL을 넣으면 프록시를 건너뛰니 넣지 마세요.
+- **운영 API로 붙어야 할 때만** `.env.local`(gitignore됨)에 `VITE_DEV_PROXY_TARGET=https://api.monit.io.kr`
+  한 줄을 넣습니다. 이때 로컬 화면의 등록·삭제가 운영 DB를 바꾸니 테스트 계정으로 쓰세요.
+  `.env.development` 같은 커밋되는 env 파일은 만들지 않습니다.
+- 프록시는 개발 편의를 위해 `Origin` 헤더를 떼고, 쿠키의 `Domain`·`Secure`를 지웁니다(http인 개발 서버에서
+  refresh 쿠키가 저장되게).
+- **프로덕션 빌드**: 배포 환경(Vercel) 환경변수의 `VITE_API_BASE_URL`(절대 URL)을 씁니다.
+
+## Axios 인스턴스
+
+`api.ts`의 인스턴스 하나를 모든 서비스 함수가 공유합니다.
 
 ```ts
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL,                          // API_BASE_URL
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
-  withCredentials: true, // 리프레시 토큰이 httpOnly 쿠키로 오가므로 필수 (아래 "인터셉터 사용" 절)
-  paramsSerializer: { indexes: null }, // 배열을 sort=a&sort=b로 (아래 "반복 파라미터" 참고)
+  withCredentials: true,            // refresh_token이 httpOnly 쿠키로 오간다
+  paramsSerializer: { indexes: null }, // 배열을 sort=a&sort=b로
 })
 ```
 
-**반복 파라미터**: Spring Data의 `Pageable`은 정렬을 `sort=transactionDate,desc&sort=id,desc`처럼
-같은 키를 반복해서 받습니다. axios 기본 직렬화는 `sort[]=a&sort[]=b`라 서버가 정렬 조건을 하나도
-읽지 못하므로 인스턴스에 `paramsSerializer: { indexes: null }`을 걸어 두었습니다.
+- **반복 파라미터**: Spring `Pageable`은 `sort=transactionDate,desc&sort=id,desc`처럼 같은 키를 반복해
+  받습니다. axios 기본값(`sort[]=a`)으로는 서버가 정렬을 못 읽어 `indexes: null`을 걸어 두었습니다.
+- **정렬은 항상 명시**: 페이지네이션이 있는 목록은 `GET /transactions` 하나이고 서버 기본 정렬이 없어,
+  `sort`를 빼면 페이지 사이에 항목이 겹치거나 빠집니다. `transaction.service.ts`의
+  `DEFAULT_TRANSACTION_SORT`가 2차 키(`id`)까지 고정합니다. 없는 필드명을 보내면 400이 아니라 500이니
+  정렬 키를 임의로 늘리지 마세요.
+- **timeout 오버라이드**는 오래 걸리는 요청에만 서비스 함수에서 겁니다: 연동 동기화 30초
+  (`connection.service.ts`), 엑셀 업로드 60초(`import.service.ts`). 토큰 재발급(`refreshAccessToken`)은
+  single-flight라 호출부별 timeout을 두지 않습니다.
+- 반복되는 요청/응답 가공(에러 정규화 등)은 서비스 함수가 아니라 인터셉터에서 한 번만 합니다.
 
-**정렬은 항상 명시하세요.** `GET /transactions`에는 서버 기본 정렬이 없어 `sort`를
-빼면 페이지를 넘길 때 같은 항목이 두 번 나오거나 빠집니다. `transaction.service.ts`의
-`DEFAULT_TRANSACTION_SORT`가 2차 정렬 키(`id`)까지 못 박아 두었고, 없는 필드명을 보내면 400이
-아니라 **500**이 나므로 정렬 키는 화이트리스트 밖으로 나가면 안 됩니다.
+## 엔드포인트·함수 네이밍
 
-반복되는 요청/응답 가공(에러 메시지 정규화 등)은 개별 서비스 함수가 아니라
-`api.interceptors`에서 한 번만 처리합니다.
+- 경로는 RESTful 리소스 중심이고 버전 프리픽스는 baseURL에만 둡니다.
+- 서비스 함수는 camelCase `{httpMethod}{Resource}`: `getAccounts`, `postAccount`, `deleteAccount`.
+- React Query 훅은 `use{HttpMethod}{Domain}{Action}`: `useGetAccounts`, `usePostLogin`,
+  `usePatchUserSettings`. HTTP 요청 하나에 대응하지 않는 훅은 동작 이름을 씁니다(`useRestoreSession`,
+  `useNotificationStream`, `useCompleteSignupOnboarding`).
 
-## API 엔드포인트 네이밍 규칙
+## Request/Response 타입
 
-- RESTful 리소스 중심: `/{domain}/{action}` (예: `/auth/login`). 버전 프리픽스가 필요하면
-  `VITE_API_BASE_URL` 자체에 `/api/v1`을 포함시키거나(권장), 백엔드가 버전을 안 쓰면 생략하세요.
-  원본 규칙의 `/api/v1/{domain}/{action}` 하드코딩은 baseURL과 경로에 버전이 중복될 수 있어
-  baseURL 쪽으로 옮겼습니다.
-- **[조정]** 서비스 함수 이름은 원본의 `POST_login` 스타일(언더스코어 + 대문자 접두)이 아니라
-  이 코드베이스의 camelCase 컨벤션(`formatNumber`, `makeDeltaBadge`, `useApplyTheme` 등)을 따라
-  `postLogin`, `getCourses`처럼 씁니다.
-- React Query 훅은 `use{HttpMethod}{Domain}{Action}` 형태를 유지합니다: `usePostLogin`,
-  `useGetCourses`, `usePostPurchaseCreate`.
-
-## Request/Response 타입 정의
-
-- 도메인별 타입은 `src/services/{domain}/{domain}.type.ts`에 `PascalCase` +
-  `Request`/`Response` 접미사로 정의합니다 (`CreateAccountRequest`, `AccountResponse`).
-- 여러 도메인이 함께 쓰는 enum·파라미터·`Page<T>`는 `src/services/common.type.ts`에 둡니다.
-  도메인 폴더끼리는 서로 import하지 않습니다(순환 방지).
-- 공통 응답 봉투는 `src/services/api.types.ts`의 `ApiResponse<T>`를 재사용합니다. 실제 서버는
-  성공/실패 형태가 다르고, 실패는 `error` 객체 안에 중첩되어 있습니다.
+- 도메인 타입은 `src/services/{domain}/{domain}.type.ts`에 `PascalCase` + `Request`/`Response`
+  접미사로 둡니다(`CreateAccountRequest`, `AccountResponse`).
+- 여러 도메인이 함께 쓰는 enum·파라미터·`Page<T>`는 `common.type.ts`에 둡니다. 도메인 폴더끼리는 서로
+  import하지 않습니다(순환 방지).
+- 공통 응답 봉투(`api.types.ts`). 성공/실패를 유니온으로 합치지 않는 이유는 axios가 비-2xx를 reject해
+  서비스 함수 본문에서는 성공 형태만 다루기 때문입니다.
 
   ```ts
   // 성공: { "success": true, "data": { ... } }
@@ -97,11 +96,14 @@ export const api = axios.create({
   }
   ```
 
-- 서비스 함수는 `unwrap`으로 `data`를 꺼냅니다. 204를 돌려주는 DELETE 계열은 `unwrap`을 쓰지
-  않습니다.
+  서버 `ErrorResponse`에는 쿨다운이 있는 실패(`VERIFICATION_CODE_RESEND_COOLDOWN` 등)에만
+  `retryAfter`(초)가 더 붙지만, 프론트 타입과 `ApiError`는 아직 이 값을 싣지 않습니다.
+
+- 서비스 함수는 `unwrap`으로 `data`를 꺼냅니다(`data`가 없으면 `EMPTY_RESPONSE`). 204를 돌려주는
+  DELETE 계열은 `unwrap`을 쓰지 않습니다.
 
   ```ts
-  export async function getAccounts(params?: AccountListParams) {
+  export async function getAccounts(params: AccountListParams = {}) {
     return unwrap(await api.get<ApiResponse<AccountResponse[]>>('/accounts', { params }))
   }
   export async function deleteAccount(accountId: number) {
@@ -109,217 +111,159 @@ export const api = axios.create({
   }
   ```
 
-- 응답 스키마 검증이 필요한 도메인은 `zod`로 스키마를 선언하고 `z.infer`로 타입을 뽑아
-  씁니다. 모든 도메인에 강제하진 않습니다 — 지금은 zod 스키마를 쓰는 실제 도메인이 아직 없습니다.
+- `zod`는 설치만 되어 있고 쓰는 도메인은 없습니다. 응답 검증이 필요한 도메인이 생기면 스키마를 선언하고
+  `z.infer`로 타입을 뽑습니다(모든 도메인에 강제하지 않음).
+- `verbatimModuleSyntax: true`이므로 타입만 가져올 땐 `import type { ... }`을 씁니다.
 
-  ```ts
-  const LoginResponseSchema = z.object({
-    accessToken: z.string(),
-    profileName: z.string(),
-  })
-  type LoginResponse = z.infer<typeof LoginResponseSchema>
-  ```
+## 인증과 인터셉터
 
-- `tsconfig.app.json`이 `verbatimModuleSyntax: true`이므로 타입만 가져올 땐 반드시
-  `import type { ... }`을 씁니다(`api.ts`의 `import type { ApiErrorPayload } from './api.types'` 참고).
+계약: 액세스 토큰 30분(`expiresIn: 1800`, 메모리 전용 — `src/stores/auth.ts`), 리프레시 토큰은
+`refresh_token` httpOnly 쿠키(`Path=/api/v1/auth`, 14일, rotation). 폐기된 리프레시 토큰을 다시 쓰면
+서버가 탈취로 보고 그 유저의 모든 세션을 끊습니다(`REFRESH_TOKEN_REUSED`) — 그래서 재발급은 반드시
+single-flight입니다.
 
-## 인터셉터 사용 (인증, 에러 처리)
-
-**[상태: 구현됨]** 백엔드가 개발 도중 JWT 인증을 켜면서 모든 API가 인증을 요구하게 됐습니다.
-계약은 다음과 같습니다 — 액세스 토큰 30분(`expiresIn: 1800`),
-리프레시 토큰은 `refresh_token` httpOnly 쿠키(`Path=/api/v1/auth`, 14일, **rotation**)입니다.
-폐기된 리프레시 토큰을 다시 쓰면 서버가 탈취로 보고 **그 유저의 모든 세션을 종료**합니다
-(`REFRESH_TOKEN_REUSED`) — 그래서 refresh 호출은 반드시 single-flight여야 합니다.
-`src/services/api.ts`에 아래가 모두 구현되어 있습니다.
-
-- **요청 인터셉터**가 `useAuthStore.getState().accessToken`을 읽어 `Authorization: Bearer`
-  헤더를 붙입니다. 단, `PUBLIC_PATHS`(로그인·회원가입·코드 발송·refresh·비밀번호 재설정)는
-  토큰이 있어도 붙이지 않습니다 — 토큰이 만료된 상태에서 로그인을 다시 시도하는 경우 등을
-  방어하기 위함입니다.
+- **요청 인터셉터**: `useAuthStore.getState().accessToken`으로 `Authorization: Bearer`를 붙입니다.
+  `PUBLIC_PATHS`(`/auth/login`, `/auth/signup`, `/auth/signup/code`, `/auth/refresh`, `/auth/password`,
+  `/auth/password/code`)에는 토큰이 있어도 붙이지 않고, 401이 나도 재발급하지 않습니다.
+- **401 → 재발급**: 공개 경로가 아닌 요청이 401을 받으면 `refreshAccessToken()`의 단일 Promise로
+  `POST /auth/refresh`(쿠키 기반, 바디 없음)를 한 번만 보내고, 동시에 401을 받은 요청들은 같은 Promise를
+  기다린 뒤 `_retriedAfterRefresh` 플래그로 **한 번만** 재시도합니다.
+  - 재발급은 인터셉터가 없는 별도 `refreshClient`로 보냅니다(무한 재귀 방지).
+  - 재발급 실패 시 `signOut()`으로 세션을 끊고 `AppShell`이 로그인 화면으로 돌려보냅니다.
+  - 재발급과 재시도는 따로 잡습니다 — 재발급은 됐는데 재시도가 400/404로 실패한 경우를 세션 만료로
+    오인하지 않고, 실제 실패를 호출부에 그대로 전달하기 위함입니다.
+  - 응답이 돌아왔을 때 그 사이 로그인/로그아웃이 있었으면(`authGeneration`이 바뀜) 새 토큰을 반영하지
+    않습니다.
 - **`INVALID_REFRESH_TOKEN` / `REFRESH_TOKEN_REUSED`는 `POST /auth/refresh` 응답에만 나옵니다**
-  (보호된 엔드포인트의 401은 `UNAUTHENTICATED`/`TOKEN_EXPIRED`뿐). 그리고 그 호출은 무한 재귀를
-  막으려고 인터셉터가 없는 `refreshClient`로만 나갑니다 — 즉 **응답 인터셉터에서 이 두 코드를
-  분기하면 절대 도달하지 않는 죽은 코드**가 됩니다. 구분이 필요하면 재발급이 실패한 자리
-  (`api.ts`의 `describeRefreshFailure`)에서 하세요. `REFRESH_TOKEN_REUSED`는 단순 만료가 아니라
-  서버가 탈취로 판단해 계정의 모든 세션을 끊은 상태라 사용자 안내 문구가 달라야 합니다.
-- **401 응답과 토큰 갱신**은 `refreshAccessToken()`의 단일 비행(single-flight) Promise로
-  처리합니다: 첫 401이 `POST /auth/refresh`(쿠키 기반, 바디 없음)를 시작하고, 같은 순간의
-  다른 401들은 새로 refresh를 트리거하지 않고 같은 Promise를 기다린 뒤 원래 요청을
-  `config._retriedAfterRefresh` 플래그로 **한 번만** 재시도합니다. refresh 자체가 401이면(세션
-  만료) 이 인스턴스가 아니라 인터셉터를 달지 않은 별도의 `refreshClient`로 호출해 무한 재귀를
-  피하고, 실패 시 `useAuthStore().signOut()`으로 세션을 끊습니다 — `AppShell`이 이를 감지해
-  로그인 화면으로 돌려보냅니다.
-- `PUBLIC_PATHS`에 해당하는 경로는 401을 받아도 재발급을 시도하지 않습니다(애초에 토큰이
-  필요 없는 요청이므로).
+  (보호된 엔드포인트의 401은 `UNAUTHENTICATED`/`TOKEN_EXPIRED`뿐). 이 호출은 `refreshClient`로만 나가므로
+  응답 인터셉터에서 이 두 코드를 분기하면 도달하지 않는 죽은 코드입니다. 구분은 `api.ts`의
+  `describeRefreshFailure`에서 하며, `REFRESH_TOKEN_REUSED`는 "모든 기기에서 로그아웃" 문구로 따로
+  안내합니다.
+- **에러 정규화**: 그 밖의 실패는 서버 `error.code`/`error.message`를 담은 `ApiError(code, message,
+  status)`로 reject합니다. 응답 body가 없으면 `code`는 `NETWORK_ERROR`입니다. `INVALID_INPUT`은 서버
+  문구 끝에 영어 필드명이 붙어 오므로 `friendlyInvalidInputMessage`가 `INVALID_INPUT_FIELD_LABELS`에 있는
+  필드만 한국어 문구로 바꿉니다(목록에 없으면 원문 유지).
+- **로그아웃·로그인 시 캐시**: `auth.hook.ts`가 로그인·온보딩 완료·로그아웃 때 `queryClient.clear()`로
+  이전 사용자 캐시를 비웁니다.
+- **알림 SSE**: `EventSource`는 헤더를 못 붙이므로 `POST /notifications/stream/tickets`로 1회용 티켓을
+  받아 `GET /notifications/stream?ticket=`에 붙입니다(`useNotificationStream`, 지수 백오프 재연결).
 
-지금까지 구현된 것에 더해 **응답 인터셉터의 에러 정규화**도 그대로 유지됩니다. 서버 실패
-코드를 호출부에서 분기할 수 있도록 `ApiError`로 감싸 reject합니다:
+### 로그인 화면(`src/screens/Auth/`)과의 경계
 
-```ts
-api.interceptors.response.use(
-  (response) => response,
-  (error: unknown) => {
-    if (isAxiosError<ApiErrorPayload>(error)) {
-      const payload = error.response?.data
-      return Promise.reject(
-        new ApiError(
-          payload?.error?.code ?? 'NETWORK_ERROR',
-          payload?.error?.message ?? error.message,
-          error.response?.status,
-        ),
-      )
-    }
-    return Promise.reject(error)
-  },
-)
-```
+- `AppShell`은 `useRestoreSession()`(`auth.hook.ts`)이 돌려주는 `useAuthStore().status`로 게이팅합니다:
+  `unknown`이면 이 브라우저에서 세션을 본 적이 있을 때만 `BootScreen`, 없으면 바로 로그인 화면,
+  `anonymous`면 `Auth.tsx`만, `authenticated`면 `AuthenticatedApp`을 렌더합니다.
+  `anonymous`일 때 화면·모달을 마운트하지 않는 이유는 `useGetMe` 등 마운트 즉시 나가는 쿼리가 토큰 없이
+  401을 반복하기 때문입니다.
+- 인증 흐름은 `src/services/auth/`의 `usePostLogin` / `usePostSignupCode` / `usePostSignup` /
+  `useCompleteSignupOnboarding` / `usePostPasswordResetCode` / `usePutPassword` / `usePostLogout`을
+  씁니다. 로그인 상태에서의 비밀번호 변경은 `PATCH /users/me/password`(`user` 도메인)이고,
+  `PUT /auth/password`는 비밀번호 찾기(재설정) 전용입니다.
 
-> `responseType: 'blob'` 요청(엑셀 내보내기)은 실패 시 body가 Blob이라 이 인터셉터가
-> `code`/`message`를 읽을 수 없습니다. 그래서 `src/services/export/`는 이 인스턴스를 공유하지 않고
-> 자체 `exportClient`를 따로 만들어 Blob을 텍스트로 읽어 에러 메시지를 복원합니다 — 401 재발급만
-> `api.ts`의 `refreshAccessToken()` 단일 비행 큐를 재사용합니다. blob 응답을 다루는 기능을 새로
-> 추가할 땐 이 도메인을 본보기로 삼으세요.
+## 파일 주고받기 (엑셀)
 
-### 로그인 화면 (`src/screens/Auth/`)과의 경계
+- **다운로드**(`responseType: 'blob'`)는 실패 시 body도 Blob이라 공용 응답 인터셉터가 `code`/`message`를
+  못 읽습니다. 그래서 `apiBlob.ts`의 `downloadBlobFile`을 씁니다 — 별도 인스턴스(timeout 60초)가 Blob을
+  텍스트로 읽어 서버 메시지를 복원하고, 401이면 `refreshAccessToken()`을 재사용해 한 번만 재시도합니다.
+  파일명은 `Content-Disposition`에서 읽고 없으면 폴백 이름을 씁니다. 실제 브라우저 다운로드는 훅에서
+  `triggerBrowserDownload`(`src/utils/download.ts`)로 합니다. `export`(내보내기)와 `import`(양식
+  내려받기)가 함께 씁니다.
+- **업로드**(`import.service.ts`의 `uploadImportFile`)는 공용 `api`로 `FormData`를 보내되,
+  `Content-Type: multipart/form-data`를 **반드시 명시**합니다. 기본 헤더가 JSON이면 axios가 FormData를
+  JSON으로 직렬화해 415가 납니다. boundary는 브라우저가 붙이므로 직접 만들지 않습니다.
+- 가져오기 계약(시트·열 순서·전체 롤백·에러 코드)은 `docs/excel-import.md`를 보세요.
 
-- `AppShell`은 `useRestoreSession()`(`src/services/auth/auth.hook.ts`)이 돌려주는
-  `useAuthStore().status`로 게이팅합니다: `unknown`이면 최소 로딩만, `anonymous`면
-  `screens/Auth/Auth.tsx`만, `authenticated`면 기존 화면 트리 전체를 렌더합니다.
-  `anonymous`일 때 기존 모달/화면을 마운트하지 않는 이유는 `useGetMe` 등 마운트 즉시 쏘는
-  쿼리가 토큰 없이 401을 반복해서 받기 때문입니다.
-- 로그인/회원가입/비밀번호 재설정 자체는 `src/services/auth/`의 `usePostLogin` /
-  `usePostSignupCode` / `usePostSignup` / `usePostPasswordResetCode` / `usePutPassword` /
-  `usePostLogout`을 그대로 씁니다 — 이 도메인만 `services/{domain}` 표준 구조에서 조금
-  벗어나 `auth.service.ts`가 요청 인터셉터가 자동으로 건드리지 않는 `PUBLIC_PATHS`를 직접
-  호출한다는 점이 다릅니다.
+## 에러 핸들링
 
-## 에러 핸들링 전략
+- 서비스 함수는 try/catch로 감싸지 않습니다. 인터셉터가 이미 `ApiError`로 정규화하므로 호출부(훅 사용처)에서
+  한 번만 처리합니다.
+- `err.message`는 이미 완성된 한국어 문장이므로 기본적으로 그대로 노출하고, UX를 바꿔야 할 때만
+  `ApiError.code`로 분기합니다(`INSUFFICIENT_HOLDING`, `SUBCATEGORY_DUPLICATE_NAME` 등). 가능한 코드 전체는
+  OpenAPI `ErrorResponse` 표에 있습니다.
+- **에러가 아닌 실패**를 구분하세요. `FX_RATE_NOT_FOUND`(422)는 "환율 데이터가 아직 없음"이라 빨간 에러가
+  아니라 `var(--text-weak)` 안내문으로 렌더합니다(`isExchangeRateMissing`, `stock.hook.ts`).
+- **재시도**(`queryClient.ts`): 4xx는 다시 보내도 결과가 같아 재시도하지 않고, 5xx·네트워크 오류만 1회
+  재시도합니다.
+- 토스트/알림 프리미티브는 없습니다. 에러는 상태로 들고 있다가 그 자리에 렌더합니다. 토스트 컴포넌트를
+  임의로 만들지 마세요(디자인 시스템 결정이 필요 — 사용자에게 확인).
 
-- 서비스 함수 자체는 try/catch로 감싸지 않습니다 — axios 에러는 위 응답 인터셉터가 이미
-  일반 `Error(message)`로 정규화해 던지므로, 호출부(React Query 훅 사용처)에서 한 번만
-  처리합니다.
-- **[조정]** 원본 규칙은 실패 시 `toast`/`FormMessage`로 사용자에게 안내하라고 하지만, 이
-  프로젝트의 `src/components/primitives`에는 아직 토스트/알림 컴포넌트가 없습니다. 토스트
-  컴포넌트가 추가되기 전까지는 에러를 상태로 들고 있다가 화면에 직접 렌더링하거나
-  `console.error`로만 남기세요. 임의로 토스트 컴포넌트를 새로 만들지 마세요(디자인 시스템
-  결정이 필요한 사안 — `secret/ds_rules_v2_5.md` 기준 확인 필요).
-- 서버가 내려주는 실패 코드는 `ApiError.code` 값으로 분기 처리합니다(`INSUFFICIENT_HOLDING`,
-  `SUBCATEGORY_DUPLICATE_NAME`, `INSTITUTION_HAS_ACTIVE_ACCOUNTS` 등). `err.message`는 이미
-  완성된 한국어 문장이므로 기본적으로 그대로 노출하고, 코드 분기는 UX를 바꿔야 할 때만 씁니다.
-- **에러가 아닌 실패**를 구분하세요. `FX_RATE_NOT_FOUND`(422)는 "데이터가 아직 없음"에 가까우므로
-  빨간 에러가 아니라 `var(--text-weak)` 안내문으로 렌더합니다.
-  (`USER_SETTINGS_NOT_FOUND`(404)는 가입 시 user_settings가 항상 함께 생성됨이 백엔드에서
-  보장되어 2026-08-15부로 발생하지 않는 조건이 되었습니다 — 관련 폴백/분기는 제거되었습니다.)
+## 로딩 상태
 
-## 로딩 상태 관리
-
-- 로딩 상태는 React Query의 `isPending`/`isFetching`을 그대로 씁니다 — 별도 상태를 만들지 마세요.
-- **화면 전체를 덮는 전역 로딩 오버레이는 없습니다.** 로딩은 카드·모달 단위로 그 자리에서
-  표시합니다(`Skeleton` 프리미티브, `aria-busy`, 값 자리의 `—`). 전역 로딩 카운터 스토어를
-  다시 만들지 마세요 — 한 번 있었지만 어디서도 쓰지 않아 걷어냈습니다.
-- 로딩 인디케이터 컴포넌트가 더 필요하면 `src/components/primitives` 컨벤션에 맞춰 새로 만들고,
-  이 문서에 참조를 추가하세요.
+- React Query의 `isPending`/`isFetching`을 그대로 씁니다 — 별도 로딩 상태나 전역 로딩 카운터 스토어를
+  만들지 마세요.
+- 화면 전체를 덮는 로딩 오버레이는 없습니다. 카드·모달 단위로 그 자리에서 표시합니다(`Skeleton`
+  프리미티브, `aria-busy`, 값 자리의 `—`).
+- 페이지를 넘길 때 이전 페이지를 유지해야 하는 목록은 `placeholderData: keepPreviousData`를 씁니다
+  (`useGetTransactions`).
 
 ## 서비스 폴더 구조
 
-**[조정]** 원본의 `shared/services/{domain}` 대신 이 프로젝트의 기존 `src/{layer}` 평면 구조를
-따라 `src/services/{domain}`으로 둡니다.
-
-**파일명은 단수형**(`.hook.ts` / `.type.ts`)입니다 — `docs/code-convention.md`의 "도메인 전용
-서비스 파일은 단수형" 규칙을 따릅니다.
+파일명은 단수형(`.hook.ts` / `.type.ts`)입니다(`docs/code-convention.md`).
 
 ```
 src/services/
-  api.ts                 axios 인스턴스 + 인터셉터 + ApiError + unwrap
-  api.types.ts           ApiResponse<T> / ApiErrorPayload 공통 봉투 타입
+  api.ts                 axios 인스턴스 + 인터셉터 + ApiError + unwrap + refreshAccessToken
+  apiBlob.ts             파일 다운로드 전용 인스턴스(downloadBlobFile)
+  api.types.ts           ApiResponse<T> / ApiErrorPayload
   common.type.ts         도메인 공용 enum · 목록 파라미터 · Page<T>
-  queryKeys.ts           React Query 키 중앙 레지스트리(queryKeys)
-  queryClient.ts         React Query QueryClient
+  queryKeys.ts           React Query 키 중앙 레지스트리
+  queryClient.ts         QueryClient(기본 staleTime·retry)
   {domain}/
-    {domain}.service.ts    api 인스턴스를 직접 사용하는 순수 함수 (getAccounts 등)
-    {domain}.hook.ts       useQuery/useMutation으로 위 함수를 감싼 훅 (useGetAccounts 등)
-    {domain}.type.ts       Request/Response 타입 (+ 필요 시 zod 스키마)
-    index.ts               위 세 파일의 재export
+    {domain}.service.ts    api 인스턴스를 쓰는 순수 함수 (getAccounts 등)
+    {domain}.hook.ts       useQuery/useMutation으로 감싼 훅 (useGetAccounts 등)
+    {domain}.type.ts       Request/Response 타입
+    index.ts               위 세 파일 재export
 ```
 
-도메인 폴더는 백엔드 컨트롤러의 base path와 1:1로 나눕니다(OpenAPI 문서의 태그·경로와 대조하기 쉽게).
-예외: 보유 종목은 `/stocks/holdings`로 통합되어 있으므로 `holding` 폴더를 만들지 말고 `stock`
-도메인 안에 둡니다.
+현재 도메인 18개: `auth` `user` `institution` `account` `asset` `category` `transaction`
+`subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification` `export`
+`import` `connection`.
 
-예시 (`account` 도메인 — 새 도메인을 추가할 때 이 형태를 그대로 따라 하면 됩니다):
+도메인 폴더는 백엔드 컨트롤러(OpenAPI 태그) 단위로 나눕니다. 폴더명과 경로가 다른 것: `marketIndex` ↔
+`/indices`, `subscription` ↔ `/subscriptions`(고정지출 포함), `export`/`import` ↔ `/export/excel/*`,
+`/import/excel/*`. 보유 종목은 `/stocks/holdings`이므로 `holding` 폴더를 만들지 말고 `stock` 도메인에 둡니다.
+
+예시(`account` — 새 도메인은 이 형태를 따릅니다):
 
 ```ts
-// src/services/account/account.type.ts
-import type { AccountType, Currency } from '../common.type'
-
-export interface AccountResponse {
-  id: number
-  name: string
-  type: AccountType
-  institutionName: string | null
-  balance: number
-  currency: Currency
-  isLiquid: boolean
-  maturityDate: string | null
-}
-
-// src/services/account/account.service.ts
+// account.service.ts
 import { api, unwrap } from '../api'
 import type { ApiResponse } from '../api.types'
 import type { AccountListParams } from '../common.type'
 import type { AccountResponse } from './account.type'
 
-export async function getAccounts(params?: AccountListParams) {
+export async function getAccounts(params: AccountListParams = {}) {
   return unwrap(await api.get<ApiResponse<AccountResponse[]>>('/accounts', { params }))
 }
 
-// src/services/account/account.hook.ts
-import { useQuery } from '@tanstack/react-query'
-import { queryKeys } from '../queryKeys'
-import type { AccountListParams } from '../common.type'
-import { getAccounts } from './account.service'
-
-export function useGetAccounts(params: AccountListParams = {}) {
-  return useQuery({ queryKey: queryKeys.account.list(params), queryFn: () => getAccounts(params) })
+// account.hook.ts
+export function useGetAccounts(params: AccountListParams = {}, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.account.list(params),
+    queryFn: () => getAccounts(params),
+    enabled: options?.enabled,
+  })
 }
 
-// src/services/account/index.ts
+// index.ts
 export * from './account.service'
 export * from './account.hook'
 export * from './account.type'
 ```
 
-화면에서는 `@/services/account`로 가져다 씁니다:
-
-```ts
-import { useGetAccounts } from '@/services/account'
-```
+화면에서는 `import { useGetAccounts } from '@/services/account'`로 가져다 씁니다.
 
 ## queryKey 규칙
 
-키는 배열 리터럴로 흩뿌리지 말고 `src/services/queryKeys.ts`의 중앙 레지스트리 `queryKeys`만 씁니다.
+키는 배열 리터럴로 흩뿌리지 말고 `queryKeys.ts`의 `queryKeys`만 씁니다.
 
-- 도메인별 팩토리로 쪼개지 않은 이유: 이 백엔드는 잔액·평단·손익을 매 요청마다 원장에서
-  재계산합니다. 그래서 거래 1건 등록이 `transaction`·`account`·`asset`·`dashboard`·`goal`을
-  동시에 무효화합니다. 도메인별로 나누면 mutation마다 여러 도메인을 cross-import해야 합니다.
-- 배열 첫 요소는 도메인 이름(폴더명과 동일), 파라미터는 **마지막 하나의 객체**로 둡니다 —
-  prefix 부분 무효화(`invalidateQueries({ queryKey: queryKeys.account.all() })`)를 유지하기 위함입니다.
-- **정산월에 의존하는 쿼리는 `{ year, month }`를 키에 반드시 포함**합니다. 이 앱의 "월"은 사용자
-  설정 `monthStartDay`(1~28) 기준 정산월이라 달력 1일과 다를 수 있습니다.
+- 한 파일에 모은 이유: 백엔드가 잔액·평단·손익을 매 요청 원장에서 재계산하므로 거래 1건 등록이
+  `transaction`·`account`·`asset`·`dashboard`·`goal`을 함께 무효화합니다. 도메인별로 나누면 mutation마다
+  cross-import가 생깁니다.
+- 배열 첫 요소는 도메인 이름(폴더명과 동일), 파라미터는 **마지막 하나의 객체**로 둡니다 — prefix 부분
+  무효화(`queryKeys.account.all()`)를 유지하기 위함입니다.
+- **정산월에 의존하는 쿼리는 `{ year, month }`를 키에 반드시 포함**합니다(`monthStartDay` 기준 정산월).
+  "이번 달"은 달력 월이 아니라 `useCurrentSettlementMonth()`(`GET /users/me/settlements/current`)로 잡습니다.
 - 화면 컴포넌트는 `queryKeys`를 직접 import하지 않습니다 — 훅 안에 캡슐화합니다.
-- `staleTime`은 도메인별로 오버라이드합니다: 시장 지표 30초(외부 실시간 조회라 느림),
-  카테고리·금융기관 5분(마스터성), 나머지는 `queryClient.ts`의 기본값 30초.
-
-## 요약
-
-| 항목 | 상태 |
-|---|---|
-| axios 인스턴스, `ApiError` 정규화, `unwrap` | 구현됨 (`src/services/api.ts`) |
-| 공통 봉투 타입 / 도메인 공용 enum | 구현됨 (`api.types.ts`, `common.type.ts`) |
-| queryKey 중앙 레지스트리 `queryKeys` | 구현됨 (`src/services/queryKeys.ts`) |
-| React Query `QueryClient` + Provider 연결 | 구현됨 (`src/services/queryClient.ts`, `src/main.tsx`) |
-| `@/` 경로 별칭 | 구현됨 (`tsconfig.app.json`, `vite.config.ts`) |
-| 인증 헤더 부착 / refresh token 큐 | 구현됨 (`src/services/api.ts`, `src/stores/auth.ts`) |
-| 도메인 서비스 폴더(`{domain}.service/hook/type.ts`) | 구현됨 — 16개 도메인(`auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification` `export`) |
-| 토스트/알림 UI 연동 | 보류 — 디자인 시스템 컴포넌트 필요, 확인 후 결정 |
-| 엑셀 내보내기(blob 응답) | 구현됨 (`src/services/export/` — 전용 `exportClient`, 공용 인스턴스 미사용) |
+- `staleTime` 기본값은 30초(`queryClient.ts`)이고, 마스터성 데이터만 늘립니다: 카테고리·금융기관·
+  내 정보·사용자 설정 5분, 섹터 1시간, 현재 정산월·목표 미리보기 1분.
