@@ -20,7 +20,7 @@ import type {
 
 // 부팅 시 refresh는 대기 화면 지속 시간에 직결되므로, 일반 요청 타임아웃(10초, api.ts)을 다
 // 기다리지 않고 이 시간이 지나면 먼저 손을 뗀다. refresh 요청 자체는 취소하지 않는다 — 늦게라도
-// 성공하면 signInFromRestore가 반영해 준다(그때는 이미 로그인 화면이 떠 있고, 사용자가 그 사이
+// 성공하면 applyRefreshedToken이 반영해 준다(그때는 이미 로그인 화면이 떠 있고, 사용자가 그 사이
 // 직접 로그인을 시작했다면 manualAuthPending이 덮어쓰기를 막는다).
 const BOOT_REFRESH_GIVE_UP_MS = 3500
 
@@ -72,7 +72,7 @@ export function usePostLogin() {
 
   return useMutation({
     // 제출 순간부터 "사용자가 직접 시작한 로그인"으로 표시한다. 이 구간에 백그라운드 refresh가
-    // 예전 쿠키로 성공해도 신원을 덮어쓰지 못한다(stores/auth.ts의 signInFromRestore).
+    // 예전 쿠키로 성공해도 신원을 덮어쓰지 못한다(stores/auth.ts의 applyRefreshedToken).
     mutationFn: (body: LoginRequest) => {
       beginManualAuth()
       return postLogin(body)
