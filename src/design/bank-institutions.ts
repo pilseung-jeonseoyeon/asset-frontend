@@ -1,4 +1,4 @@
-// 국내 금융기관 125개 마스터 표(ds_rules_v2_5.md §12-3).
+// 국내 금융기관 125개 마스터 표(ds_rules_v3.md §12-3).
 // bg/fg 실제 색값은 src/styles/bank-tokens.css의 --bank-{tokenKey}-bg/-fg에 선언돼 있다.
 
 import type { BankArchetype } from './bank-archetypes'
@@ -21,7 +21,7 @@ export interface BankInstitution {
   archetype: BankArchetype
 }
 
-// ds_rules_v2_5.md §1-7 "yellow exception": KB family (#FFB600) and Kakao family (#FFE300) base colors
+// ds_rules_v3.md §1-7 "yellow exception": KB family (#FFB600) and Kakao family (#FFE300) base colors
 // fail 3:1 light-mode contrast at stroke-width 1.8 → raised to 2.0 for these token keys only.
 export const BANK_YELLOW_STROKE_EXCEPTIONS = new Set<string>([
   'kb', 'kbsec', 'kbcard', 'kblife', 'kbins', 'kbsb',

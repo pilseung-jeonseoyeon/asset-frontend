@@ -1,4 +1,4 @@
-// 공용 심볼 archetype 25종(ds_rules_v2_5.md §12-2).
+// 공용 심볼 archetype 25종(ds_rules_v3.md §12-2).
 // 공통 SVG 스펙: viewBox 0 0 24 24, fill=none, stroke=currentColor, stroke-width 1.8
 // (노란 브랜드 예외는 2.0 — bank-institutions.ts의 BANK_YELLOW_STROKE_EXCEPTIONS 참고),
 // stroke-linecap/linejoin round.

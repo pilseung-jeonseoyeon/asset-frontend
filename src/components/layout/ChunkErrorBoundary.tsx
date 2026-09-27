@@ -6,7 +6,7 @@
 // 경계가 없으면 React가 트리 전체를 언마운트해 **흰 화면**이 된다(콘솔 에러 외 안내 없음).
 //
 // 클래스 컴포넌트인 이유: 에러 경계는 훅으로 만들 수 없다(React가 componentDidCatch/
-// getDerivedStateFromError를 요구한다). 이 저장소에서 클래스 컴포넌트는 여기 하나뿐이다.
+// getDerivedStateFromError를 요구한다). 이 저장소의 클래스 컴포넌트는 이것과 ModalErrorBoundary 둘뿐이다.
 
 import { Component } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'

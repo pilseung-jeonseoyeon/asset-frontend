@@ -41,7 +41,7 @@ export function segmentedTabStyle(active: boolean): CSSProperties {
 }
 
 /** Deep-card segmented-tab variant (e.g. ledgerPeriodTabMonthDark/YearDark, L4589-4590) — uses the
- * --deep-seg-* 토큰을 쓴다(ds_rules_v2_5.md에는 이 토큰 항목이 없고, 값의 정본은
+ * --deep-seg-* 토큰을 쓴다(ds_rules_v3.md에는 이 토큰 항목이 없고, 값의 정본은
  * src/styles/tokens.css다). */
 export function deepCardTabStyle(active: boolean): CSSProperties {
   return {

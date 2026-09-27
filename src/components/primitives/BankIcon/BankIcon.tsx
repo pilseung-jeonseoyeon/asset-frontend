@@ -1,4 +1,4 @@
-// 기관 아이콘 타일 스펙: ds_rules_v2_5.md §1-7 + §12-2(공용 archetype SVG 25종).
+// 기관 아이콘 타일 스펙: ds_rules_v3.md §1-7 + §12-2(공용 archetype SVG 25종).
 // 타일 28~44px 정사각, radius 8px(§5), 24x24 viewBox에 stroke만 쓰는 SVG, stroke-width 1.8
 // (KB·카카오 등 노란 브랜드는 2.0, §1-7), 심볼 크기는 타일 한 변의 58%.
 // 색은 --bank-{key}-bg/-fg(src/styles/bank-tokens.css)에서 오고, 없는 키는

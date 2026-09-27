@@ -1,4 +1,4 @@
-// 로딩 자리표시(스켈레톤) 막대. ds_rules_v2_5.md에는 로딩 표현 규정이 없어(확인함) 기존 토큰만으로
+// 로딩 자리표시(스켈레톤) 막대. ds_rules_v3.md에는 로딩 표현 규정이 없어(확인함) 기존 토큰만으로
 // 만든다 — 색은 var(--border) ↔ var(--track) 사이를 오가는 그라디언트 한 겹이라 라이트/다크 모두
 // 카드 배경(var(--fill-subtle)/var(--surface)) 위에서 읽힌다. 애니메이션 정의와 접근성 예외
 // (prefers-reduced-motion)는 src/styles/base.css의 `.skeleton` 규칙에 있다.
