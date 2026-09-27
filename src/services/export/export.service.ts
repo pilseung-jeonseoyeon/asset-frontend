@@ -7,7 +7,7 @@ const EXPORT_PATHS: Record<ExportKind, string> = {
   accounts: '/export/excel/accounts',
 }
 
-// Content-Disposition이 없을 때(현재 백엔드가 그럴 확률이 높다 — B-3-5) 쓰는 폴백 파일명의 한글 라벨.
+// Content-Disposition을 읽지 못할 때 쓰는 폴백 파일명의 한글 라벨.
 const EXPORT_KIND_LABEL: Record<ExportKind, string> = {
   transactions: '거래내역',
   trades: '매매내역',

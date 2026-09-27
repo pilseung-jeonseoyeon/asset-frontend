@@ -1,6 +1,5 @@
-// 가계부 엑셀 가져오기. 정본은 서버 OpenAPI(`GET /import/excel/transactions/template`,
-// `POST /import/excel/transactions`)다 — 아래 타입은 백엔드 소스(`TransactionImportRes` /
-// `TransactionImportErrorRes`)와 대조해 맞춘 것이고, 실행 중인 서버 문서에 반영되면 다시 한 번 대조한다.
+// 엑셀 가져오기(거래 내역 · 계좌 목록). 정본은 서버 OpenAPI(`GET /import/excel/{transactions,accounts}/template`,
+// `POST /import/excel/{transactions,accounts}`)다. 결과 타입은 두 종류가 같은 모양이라 하나(ImportTransactionsResult)를 같이 쓴다.
 // 전체 계약(엑셀 열 순서·에러 코드·전체 롤백 규칙)은 docs/excel-import.md 참고.
 //
 // 결정 사항:
