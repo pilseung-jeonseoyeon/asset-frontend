@@ -47,7 +47,7 @@ export interface DashboardHeroView {
    * summary(스냅샷 기반)에 이력이 있는지 여부. false면 `totalAssetKrw`는 allocation 실시간 합계로
    * 보완한 값이라 `monthChangeKrw`/`yearChangeKrw`는 계산 근거(전일/연초 스냅샷)가 없다 —
    * 이 값이 false일 때는 증감 관련 UI(월 증감 배지, 올해 자산 추이)를 그리지 말 것
-   * (docs/backend-requests.md 23번 — 계좌 생성 첫날 스냅샷 부재).
+   * (계좌 생성 첫날 스냅샷 부재).
    */
   hasSnapshotHistory: boolean
 }
@@ -60,7 +60,7 @@ function signedText(n: number): string {
 
 /**
  * `summary.totalAssetKrw === 0`은 "계좌 없음"과 "스냅샷이 아직 없는 계좌 등록 첫날"을 구분하지
- * 못한다(docs/backend-requests.md 23번). 같은 화면의 `GET /dashboard/allocation`은 잔액을 실시간
+ * 못한다. 같은 화면의 `GET /dashboard/allocation`은 잔액을 실시간
  * 집계하므로, summary가 0이어도 allocation 합계가 양수면 계좌가 있다고 판정하고 총자산 표시값을
  * allocation 합계로 보완한다. summary가 양수면(정상 스냅샷 보유) 그대로 summary 값을 쓴다.
  */

@@ -1,4 +1,4 @@
-// C안 대표 카드 — 이번 달 저축 중심 딥 카드. GET /transactions/summaries/period?period=MONTH.
+// C안 대표 카드 — 이번 달 저축 중심 딥 카드. GET /transactions/summary?period=MONTH.
 // 수입·지출·저축은 Ledger.tsx의 딥 카드와 같은 --deep-* 색을 쓴다(대시보드-가계부 색 통일).
 
 import { StatBadge } from '../../../components/primitives/StatBadge/StatBadge'

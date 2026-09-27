@@ -10,7 +10,7 @@ export function useDashboardHero() {
   const summaryQuery = useGetDashboardSummary()
   const allocationQuery = useGetDashboardAllocation()
   // summary(스냅샷 기반)가 0이면 "계좌 없음"과 "계좌 등록 첫날이라 스냅샷이 아직 없음"을 구분할 수
-  // 없다(docs/backend-requests.md 23번) — allocation(실시간 집계) 합계로 보완해서 판정한다.
+  // 없다 — allocation(실시간 집계) 합계로 보완해서 판정한다.
   // allocation이 아직 로딩 중일 때 곧바로 판정해버리면 "빈 상태" → "실제 데이터"로 바뀌는 깜빡임이
   // 생기므로, summary가 0인 동안은 allocation이 정착(settle)할 때까지 히어로 판정을 보류한다
   // (리포트 배너가 hero 자체로 자신을 게이트하는 것과 같은 이유).
