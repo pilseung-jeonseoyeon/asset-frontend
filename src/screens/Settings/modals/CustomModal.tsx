@@ -37,9 +37,8 @@ const MONTH_START_DAYS = Array.from({ length: 28 }, (_, i) => i + 1)
 const MONTH_START_LIST_MAX_HEIGHT = 200
 // 데스크톱 목록 폭 — 트리거 알약(약 70px)보다 조금 넓게, 트리거 오른쪽 끝에 맞춘다.
 const MONTH_START_LIST_WIDTH = 100
-// D-Day 알림을 며칠 전부터 받을지(서버 1~365). 자주 쓰는 값만 칩으로 둔다 — 서버에 이 밖의 값이 저장돼
-// 있으면 그 값도 칩으로 함께 보여준다(아래 ddayOptions).
-const DDAY_DAY_PRESETS = [7, 14, 30, 60, 90]
+// D-Day 알림 일수(서버 ddayNotifyDays)는 화면에서 고르지 않는다 — 우선 30일 전으로 고정한다(2026-09-27
+// 사용자 결정). 서버는 여전히 이 값을 읽어 만기 알림을 거르므로, 설명 문구는 서버에 저장된 값을 그대로 적는다.
 
 export function CustomModal() {
   const { state, setState } = useAppState()
@@ -84,10 +83,6 @@ export function CustomModal() {
   const controlsDisabled = !settingsData
 
   const goalRows = !isGoalUnset && goal ? buildAssetGoals(goal) : []
-
-  const ddayOptions = settingsData && !DDAY_DAY_PRESETS.includes(settingsData.ddayNotifyDays)
-    ? [...DDAY_DAY_PRESETS, settingsData.ddayNotifyDays].sort((a, b) => a - b)
-    : DDAY_DAY_PRESETS
 
   const monthStartDropdown = {
     value: settingsData ? `${settings.monthStartDay}일` : '—',
@@ -276,31 +271,6 @@ export function CustomModal() {
               {settingsData ? `예적금 만기 ${settingsData.ddayNotifyDays}일 전` : '예적금 만기 알림'}
             </div>
             {patchDday.error && <div style={ERROR_STYLE}>{patchDday.error.message}</div>}
-            {/* 알림을 켠 경우에만 며칠 전부터 받을지 고른다(서버 ddayNotifyDays, 1~365). */}
-            {settingsData && settings.ddayNotifyEnabled && (
-              <div role="group" aria-label="만기 며칠 전부터 알림" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                {ddayOptions.map((d) => {
-                  const active = settingsData.ddayNotifyDays === d
-                  return (
-                    <button
-                      key={d}
-                      type="button"
-                      className="mini-hov"
-                      aria-pressed={active}
-                      disabled={patchDday.isPending}
-                      onClick={() => !active && patchDday.mutate({ ddayNotifyDays: d })}
-                      style={{
-                        padding: '5px 10px', borderRadius: 8, fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
-                        border: active ? '0.5px solid var(--accent)' : '0.5px solid var(--border)',
-                        background: active ? 'var(--accent)' : 'var(--surface)', color: active ? '#fff' : 'var(--text-mid)',
-                      }}
-                    >
-                      {d}일 전
-                    </button>
-                  )
-                })}
-              </div>
-            )}
           </div>
           {settingsData ? (
             <Switch
