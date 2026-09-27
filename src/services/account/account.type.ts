@@ -135,8 +135,8 @@ export interface UpdateAccountRequest {
  * **통화별로 정정한다**(2026-09-26 계약 변경): 필드 이름은 `balance`(예전 `balanceKrw`는 400 INVALID_INPUT)이고
  * `currency`로 어느 통화 줄을 고칠지 고른다(생략하면 KRW). KRW는 정수만(소수면 400
  * BALANCE_ADJUSTMENT_KRW_NOT_INTEGER), USD는 소수 2자리까지이며 주식·가상자산 계좌에만 보낼 수 있다(그 외는
- * 400 FOREIGN_CASH_ACCOUNT_NOT_ALLOWED). 지금 화면(EditAccountModal)은 원화 줄만 정정하고, 달러 예수금이
- * 있는 계좌는 예전 계약(달러 계좌 정정 불가) 그대로 읽기 전용으로 둔다 — 달러 줄 정정 UI는 아직 없다.
+ * 400 FOREIGN_CASH_ACCOUNT_NOT_ALLOWED). 화면(EditAccountModal)은 원화 칸과, 달러 줄이 있는 주식·가상자산 계좌의 달러 칸을
+ * 따로 두고 바뀐 통화만 원화 → 달러 순서로 정정한다.
  */
 export interface AdjustBalanceRequest {
   /** 정정 후 그 통화의 현재 잔액. 0 이상 — KRW는 원 단위 정수, USD는 소수 2자리까지. */

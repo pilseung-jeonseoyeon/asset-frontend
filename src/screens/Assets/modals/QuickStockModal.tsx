@@ -20,8 +20,8 @@
 // - stockAcct 드롭다운 키는 ExchangeAddModal의 exchangeAcct와 분리한다 — 같은 키를 쓰면 두 모달이
 // 같은 openDropdown 키를 다툰다.
 // - 계좌 드롭다운은 GET /accounts 전체가 아니라 filterTradeAccounts(선택된 시장에 맞는 타입만 —
-// KR·US는 STOCK, CRYPTO는 CRYPTO)로 좁힌다 — 서버가 계좌 타입을 검증하지 않아서, 현금 계좌는 물론
-// 증권 계좌 없이 가상자산 지갑만 있는 사용자가 KR/US 종목을 지갑 계좌로 등록하는 것까지 막는다.
+// KR·US는 STOCK, CRYPTO는 CRYPTO)로 좁힌다. 서버도 맞지 않는 계좌를 400 INVALID_ACCOUNT_TYPE으로 거절하지만,
+// 고를 수 없는 계좌를 아예 보여주지 않는 편이 낫다.
 // 적합한 계좌가 0개면 빈 드롭다운 대신 '증권계좌를 먼저 추가해주세요' + 계좌 추가 버튼으로 보낸다.
 // - state.stockSector는 기본값을 갖지 않는다(빈 문자열 = 미선택). 기본값을 채우면 사용자가 섹터를
 // 한 번도 고르지 않아도 그 값이 조용히 전송돼 신규 종목이 전부 그 섹터로 오염된다 — 모달을 닫거나
@@ -126,8 +126,7 @@ export function QuickStockModal() {
   // 보유 종목 카드(buildHoldingCards)와 같은 기준(수익률 내림차순)으로 정렬해 화면 간 순서를 맞춘다.
   const sortedHoldings = sortHoldingsByReturn(holdingsQuery.holdings)
   const accountsQuery = useGetAccounts({}, { enabled: isOpen })
-  // 서버가 계좌 타입을 검증하지 않아(docs/backend-request.md B-1-3) 현금 계좌로도 매매가 등록되던
-  // 문제(0-4-7)를 여기서 좁혀 막는다 — 선택된 시장(KR/US)에 맞는 증권 계좌만 드롭다운에 노출한다.
+  // 서버가 400 INVALID_ACCOUNT_TYPE으로 거절할 계좌는 처음부터 고르지 못하게 — 선택된 시장(KR/US)에 맞는 증권 계좌만 드롭다운에 노출한다.
   const accounts = filterTradeAccounts(accountsQuery.data ?? [], market)
   // 계좌 드롭다운에 소속 기관(아이콘 + 기관명)을 함께 보여주기 위한 조인 대상 — accountInstitutionMeta
   // 참고. 기관 목록은 계좌보다 훨씬 자주 재사용되는 마스터 데이터라 staleTime이 길다(institution.hook.ts).
@@ -174,7 +173,7 @@ export function QuickStockModal() {
   const selectedAccountIcon = selectedAccountMeta ? <BankIcon tokenKey={selectedAccountMeta.tokenKey} size={24} /> : undefined
 
   const todayISO = toISODate(new Date())
-  // 미래 매매는 성립하지 않는다(docs/backend-request.md 0-4-5) — 서버 검증이 없어 프론트에서 막는다.
+  // 미래 매매는 성립하지 않는다 — 서버도 400 TRADE_DATE_IN_FUTURE로 막지만 입력 단계에서 먼저 막는다.
   const dpTradeDate = useDatePicker('stockTrade', isoDateToDisplay(todayISO), isoDateToViewingMonth(todayISO), todayISO)
 
   if (!isOpen) return null
@@ -580,7 +579,7 @@ export function QuickStockModal() {
               <div aria-busy style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
             ) : accounts.length === 0 ? (
               // 증권/가상자산 계좌가 하나도 없으면 빈 드롭다운으로 막다른 길을 만들지 않고 바로 계좌
-              // 추가로 보낸다(docs/backend-request.md 5-8, 6).
+              // 추가로 보낸다.
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>
                   {isCrypto ? '가상자산 계좌를 먼저 추가해주세요' : '증권계좌를 먼저 추가해주세요'}

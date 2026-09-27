@@ -2,7 +2,7 @@
 // 화면·모달이 그릴 형태로 바꾼다.
 //
 // 아래 buildMapTiers의 병합/티어/램프 규칙(5% '기타' 병합, 15%/6% 티어 경계, 램프 색 순서,
-// 상위 3개 흰 글자)은 디자인 시스템 규칙이다(ds_rules_v2_5 §1-6) — 임의로 바꾸지 말 것.
+// 상위 3개 흰 글자)은 디자인 시스템 규칙이다(ds_rules_v3 §1-6) — 임의로 바꾸지 말 것.
 // 화면에 적는 비율은 서버 sharePercent(최대잔여법으로 합이 정확히 100)를 쓴다 — 프론트가 따로 반올림하면
 // 합이 101%가 되는 등 어긋났다(2026-09-26). 블록 넓이·티어·'기타' 병합 판정은 정밀한 계산값(percent)으로 한다.
 // 자산군별 수익률은 어떤 API도 주지 않으므로 다루지 않는다.
@@ -115,7 +115,7 @@ export function assetClassOfAccountType(type: AccountType): AssetClass {
 
 // ---------- 자산군(AssetClass) ↔ 아이콘/색 매핑 ----------
 // 라벨은 서버 assetClassName을 쓰지 않고 항상 이 프론트 고정 표기를 쓴다 — 서버 한글 라벨이
-// 제품 자산 분류 문구와 어긋나므로(docs/backend-requests.md #22) 화면 표기는 프론트가 소유한다.
+// 제품 자산 분류 문구와 어긋나므로 화면 표기는 프론트가 소유한다.
 // color는 모든 자산군이 'var(--accent)'를 공유한다(포인트 아이콘 배경 위 accent 색상 규칙).
 
 interface AssetClassMeta {
@@ -405,7 +405,7 @@ export function buildAccountDetailHeader(account: AccountResponse): AccountDetai
 }
 
 /**
- * 1억 원 이상 금액을 카드 대표 금액 아래 캡션으로 축약한다(ds_rules_v2_5 §4-2, 만 원 단위 반올림).
+ * 1억 원 이상 금액을 카드 대표 금액 아래 캡션으로 축약한다(ds_rules_v3 §4-2, 만 원 단위 반올림).
  * 1억 미만이면 null — 호출부는 이 값이 있을 때만 캡션을 렌더한다.
  */
 export function formatBigAmountCaption(n: number): string | null {
@@ -444,9 +444,8 @@ export function accountBalanceOf(account: AccountResponse, currency: Currency): 
 }
 
 /**
- * 달러 예수금이 있는 계좌인가 — 잔액 정정 가능 여부의 판별 기준이다(서버가 달러 줄이 있는 계좌를
- * 400 BALANCE_ADJUSTMENT_NOT_SUPPORTED_FOR_FX로 거절한다). 금액이 0인 달러 줄도 '있음'으로 친다 —
- * 서버가 줄의 존재로 판단하므로 프론트가 더 느슨하게 보면 저장 시점에 400을 맞는다.
+ * 달러 예수금 줄이 있는 계좌인가 — 계좌 수정 화면이 달러 칸을 보여줄지 정하는 기준이다(달러 정정은
+ * 주식·가상자산 계좌만 된다). 금액이 0인 달러 줄도 "있음"으로 친다.
  */
 export function hasUsdBalance(account: AccountResponse): boolean {
   return accountBalanceOf(account, 'USD') !== null
@@ -542,7 +541,7 @@ export interface AccountActivityRow {
 }
 
 /**
- * 매매 금액은 무채색이다 — 투자 거래는 수입/지출이 아니라 이체로 취급한다(ds_rules_v2_5 §10-4,
+ * 매매 금액은 무채색이다 — 투자 거래는 수입/지출이 아니라 이체로 취급한다(ds_rules_v3 §10-4,
  * buildTradeRows 주석과 같은 규칙).
  */
 const TRADE_AMOUNT_COLOR = 'var(--text-strong)'

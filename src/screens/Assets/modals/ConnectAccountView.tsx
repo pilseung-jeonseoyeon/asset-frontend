@@ -4,7 +4,7 @@
 //
 // 새 모달을 띄우지 않고 AddAccountModal의 패널을 그대로 쓴다(AccountModal의 비밀번호 변경 뷰와 같은
 // 규격 — 뒤로가기 헤더 + 폼). 모달을 두 겹 쌓으면 모바일 바텀시트에서 뒤 시트가 비쳐 보이고,
-// 스크림 클릭으로 닫히지 않는 이 앱의 모달 규칙(docs/mobile.md §4)에서는 닫는 수단만 헷갈려진다.
+// 두 겹 중 어느 쪽이 닫히는지(X·Esc·스크림) 헷갈려진다.
 //
 // **API 키는 이 컴포넌트의 로컬 state에만 둔다.** AppState(전역)에 담으면 모달을 닫아도 메모리에
 // 남고 다른 화면에서도 읽을 수 있다. 이 컴포넌트는 connectView !== 'none'일 때만 마운트되므로,
@@ -51,7 +51,7 @@ const BACK_BTN_STYLE: CSSProperties = {
   width: 34, height: 34, borderRadius: 10, border: 'none', background: 'var(--track)',
   display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
 }
-// 이 앱의 모달은 스크림 클릭으로 닫히지 않는다(docs/mobile.md §4). 계좌 폼 헤더에 X가 있듯
+// 계좌 폼 헤더에 X가 있듯
 // 서브뷰에도 X를 남겨야 모바일에서 닫을 수단이 사라지지 않는다 — 뒤로가기만으로는 폼까지
 // 되짚어 나가야 한다.
 const HEADER_ROW_STYLE: CSSProperties = {

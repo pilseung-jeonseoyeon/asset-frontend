@@ -103,7 +103,7 @@ export function ExchangeAddModal() {
   const selectedAccount = accountId !== null ? accounts.find((a) => a.id === accountId) : undefined
 
   const todayISO = toISODate(new Date())
-  // 미래 환전은 성립하지 않는다(docs/backend-request.md 0-4-5) — 서버 검증이 없어 프론트에서 막는다.
+  // 미래 환전은 성립하지 않는다 — 서버도 400 FX_DATE_IN_FUTURE로 막지만 입력 단계에서 먼저 막는다.
   const dpExchangeDate = useDatePicker('exchangeDate', isoDateToDisplay(todayISO), isoDateToViewingMonth(todayISO), todayISO)
 
   if (!isOpen) return null
@@ -230,7 +230,7 @@ export function ExchangeAddModal() {
               <div aria-busy style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
             ) : accounts.length === 0 ? (
               // 계좌가 하나도 없으면 빈 드롭다운으로 막다른 길을 만들지 않고 바로 계좌 추가로
-              // 보낸다(매수/매도 모달 QuickStockModal과 동일한 패턴, docs/backend-request.md 5-8).
+              // 보낸다(매수/매도 모달 QuickStockModal과 동일한 패턴).
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ ...FIELD_BORDER_STYLE, fontSize: 12.5, color: 'var(--text-weak)' }}>등록된 주식 계좌가 없어요</div>
                 <button

@@ -227,7 +227,7 @@ export function AccountDetailModal() {
                     <div style={{ fontSize: 12, color: 'var(--text-weak)', flex: 1, minWidth: 0 }}>{row.label}</div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-mid)' }}>{row.valueText}</div>
-                      {/* 달러 줄의 원화 환산액 — 서버가 준 cashUsdKrw 그대로다(프론트 환산 아님). */}
+                      {/* 달러 줄의 원화 환산액 — 서버가 준 balances[].amountKrw 그대로다(프론트 환산 아님). */}
                       {row.note && (
                         <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 2 }}>{row.note}</div>
                       )}

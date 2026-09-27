@@ -221,7 +221,7 @@ export function EditAccountModal() {
 
   const resetAndClose = () => {
     // 저장/해지 뮤테이션이 진행 중일 때는 닫지 않는다 — 파일 상단 주석의 TanStack Query 옵저버 분리
-    // 근거 참고. X 버튼(Modal은 배경 클릭으로 닫히지 않는다)이 이 함수 하나를 거치므로, 여기서 막으면
+    // 근거 참고. X 버튼·Esc·배경 클릭이 모두 이 함수 하나를 거치므로, 여기서 막으면
     // 그 경로가 막힌다. handleSave/handleDelete의 mutate onSuccess가 부르는 resetAndClose는 그 시점엔
     // 이미 isBusy가 false로 떨어진 뒤이므로 정상적으로 닫힌다.
     if (isBusy) return
