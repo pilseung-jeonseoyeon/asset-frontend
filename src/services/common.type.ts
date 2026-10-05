@@ -54,10 +54,14 @@ export type AssetClass =
  * OpenAPI). 계좌 잔액·총자산에만 반영된다. 그래서 화면에서 조정 거래를 볼 수 있는 곳은 없다.
  * 유니언에 남겨 두는 것은 서버 enum을 그대로 반영하기 위해서다.
  */
-export type TransactionType = 'INCOME' | 'EXPENSE' | 'SAVING' | 'TRANSFER' | 'ADJUSTMENT'
+/**
+ * ADJUSTMENT(잔액 정정)·EXCHANGE(환전)는 서버가 만드는 유형이다 — 가계부 목록·수지 집계에는 나오지 않지만
+ * 계좌 상세 거래내역처럼 계좌 기준으로 보는 곳에는 섞여 올 수 있다.
+ */
+export type TransactionType = 'INCOME' | 'EXPENSE' | 'SAVING' | 'TRANSFER' | 'ADJUSTMENT' | 'EXCHANGE'
 
-/** 사용자가 직접 만들거나 검색 조건으로 쓸 수 있는 거래 유형(ADJUSTMENT 제외). */
-export type EditableTransactionType = Exclude<TransactionType, 'ADJUSTMENT'>
+/** 사용자가 직접 만들거나 검색 조건으로 쓸 수 있는 거래 유형(서버가 만드는 ADJUSTMENT·EXCHANGE 제외). */
+export type EditableTransactionType = Exclude<TransactionType, 'ADJUSTMENT' | 'EXCHANGE'>
 
 export type CategoryKind = 'INCOME' | 'SAVING' | 'EXPENSE'
 
@@ -148,8 +152,7 @@ export interface Page<T> {
   totalPages: number
   size: number
   number: number
-  numberOfElements: number
   first: boolean
   last: boolean
-  empty: boolean
+  // numberOfElements·empty는 서버 PageRes에 없다(2026-09-26 OpenAPI 대조) — 선언하면 쓰는 순간 undefined라 뺐다.
 }

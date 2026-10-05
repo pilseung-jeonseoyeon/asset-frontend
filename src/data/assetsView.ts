@@ -2,8 +2,9 @@
 // 화면·모달이 그릴 형태로 바꾼다.
 //
 // 아래 buildMapTiers의 병합/티어/램프 규칙(5% '기타' 병합, 15%/6% 티어 경계, 램프 색 순서,
-// 상위 3개 흰 글자)은 디자인 시스템 규칙이다(ds_rules_v2_5 §1-6) — 임의로 바꾸지 말 것.
-// `percent`는 서버가 주지 않아 여기서 totalValueKrw / 합계로 계산하며 0으로 나누는 경우를 막는다.
+// 상위 3개 흰 글자)은 디자인 시스템 규칙이다(ds_rules_v3 §1-6) — 임의로 바꾸지 말 것.
+// 화면에 적는 비율은 서버 sharePercent(최대잔여법으로 합이 정확히 100)를 쓴다 — 프론트가 따로 반올림하면
+// 합이 101%가 되는 등 어긋났다(2026-09-26). 블록 넓이·티어·'기타' 병합 판정은 정밀한 계산값(percent)으로 한다.
 // 자산군별 수익률은 어떤 API도 주지 않으므로 다루지 않는다.
 
 import type { TreemapBlock } from '../components/primitives/Treemap/Treemap'
@@ -12,9 +13,9 @@ import { isoDateToDisplay } from '../utils/date'
 import { toPercentages } from './dashboardView'
 import type { LedgerTransactionRow } from './ledgerView'
 import type { TradeRowView } from './stocksView'
-import type { AccountDetailResponse, AccountResponse } from '@/services/account'
+import type { AccountBalanceResponse, AccountDetailResponse, AccountResponse } from '@/services/account'
 import type { AssetClassGroup, LockedAccount } from '@/services/asset'
-import type { AccountType, AssetClass, InstitutionType } from '@/services/common.type'
+import type { AccountType, AssetClass, Currency, InstitutionType } from '@/services/common.type'
 
 // ---------- 계좌/기관 유형 ↔ 한글 라벨 ----------
 // 서버 AccountType/InstitutionType은 영문 코드값만 내려준다(common.type.ts 주석 참고). 한글 라벨은
@@ -72,16 +73,17 @@ export const ASSET_CLASS_ACCOUNT_TYPE_PRESET: Record<AssetClass, AccountType> = 
 }
 
 /**
- * 자산군 칩을 고를 때 함께 반영할 계좌 폼 필드 — 계좌 유형 하나뿐이다.
+ * 자산군 칩을 고를 때 함께 반영할 계좌 폼 필드 — 계좌 유형과 유동성 기본값.
  *
- * **칩은 통화(currency)를 건드리지 않는다.** 증권계좌 하나가 원화 예수금과 달러 예수금을
- * **동시에** 갖고(initialBalanceKrw / initialBalanceUsd 두 필드로 따로 전송한다), 서버 계약상
- * currency는 금액 필드의 단위가 아니라 표기용이기 때문이다(AccountRes.currency 설명). 폼 기본값
- * (BLANK_ACCOUNT_FORM.currency === 'KRW')을 그대로 두므로, 사용자가 골라둔 통화를 칩을 눌렀다고
- * 조용히 되돌리는 일도 없다.
+ * 유동성 기본값: 예적금만 '유동성 없음'(묶여 있는 돈)이다. 예전엔 모든 유형이 '유동성 있음'으로 시작해,
+ * 적금을 그대로 저장하면 유동성 뷰의 '즉시 현금화 가능'에 들어가 비상금이 부풀려지고 만기 D-Day에도
+ * 잡히지 않았다(2026-09-26 통합테스트). 기본값일 뿐이라 사용자가 유동성 칩으로 바꿀 수 있다.
+ *
+ * 계좌에는 표시 통화가 없다(2026-09-26 계약 변경) — 원화·달러 예수금은 등록 시 initialBalances에
+ * 통화별 줄로 따로 실어 보낸다(AddAccountModal).
  */
-export function assetClassFormPreset(assetClass: AssetClass): { type: AccountType } {
-  return { type: ASSET_CLASS_ACCOUNT_TYPE_PRESET[assetClass] }
+export function assetClassFormPreset(assetClass: AssetClass): { type: AccountType; isLiquid: boolean } {
+  return { type: ASSET_CLASS_ACCOUNT_TYPE_PRESET[assetClass], isLiquid: assetClass !== 'DEPOSIT' }
 }
 
 /**
@@ -113,7 +115,7 @@ export function assetClassOfAccountType(type: AccountType): AssetClass {
 
 // ---------- 자산군(AssetClass) ↔ 아이콘/색 매핑 ----------
 // 라벨은 서버 assetClassName을 쓰지 않고 항상 이 프론트 고정 표기를 쓴다 — 서버 한글 라벨이
-// 제품 자산 분류 문구와 어긋나므로(docs/backend-requests.md #22) 화면 표기는 프론트가 소유한다.
+// 제품 자산 분류 문구와 어긋나므로 화면 표기는 프론트가 소유한다.
 // color는 모든 자산군이 'var(--accent)'를 공유한다(포인트 아이콘 배경 위 accent 색상 규칙).
 
 interface AssetClassMeta {
@@ -184,33 +186,51 @@ export interface AssetClassCard {
   color: string
   count: number
   totalText: string
+  /** '지난달보다 +12,000원' — 서버 changeFromLastMonthKrw. 계좌가 없거나(null) 0이면 null(줄을 생략). */
+  changeText: string | null
   accounts: AssetClassCardAccount[]
 }
 
-/** accountId → institutionName 조인. 계좌를 못 찾으면 빈 문자열(가짜 값 금지). */
-function institutionNameOf(accountId: number, accounts: AccountResponse[]): string {
-  return accounts.find((a) => a.id === accountId)?.institutionName ?? ''
+/**
+ * 서버는 증권·가상자산 계좌를 성격(kind)별 조각으로 나눠 실을 수 있다(예수금 / 보유 종목). 화면은 계좌
+ * 단위로 보여주므로 같은 계좌의 조각을 합친다 — 안 합치면 계좌 수가 부풀고 React key가 겹친다.
+ */
+function mergeAccountPieces(accounts: AssetClassGroup['accounts']): AssetClassGroup['accounts'] {
+  const byId = new Map<number, AssetClassGroup['accounts'][number]>()
+  for (const a of accounts) {
+    const prev = byId.get(a.accountId)
+    byId.set(a.accountId, prev ? { ...prev, valueKrw: prev.valueKrw + a.valueKrw } : a)
+  }
+  return [...byId.values()]
 }
 
-export function buildAssetClassCards(groups: AssetClassGroup[], accounts: AccountResponse[]): AssetClassCard[] {
+function signedWonText(n: number): string {
+  return `${n > 0 ? '+' : '−'}${formatNumber(Math.abs(n))}원`
+}
+
+export function buildAssetClassCards(groups: AssetClassGroup[]): AssetClassCard[] {
   return [...groups]
     .sort((a, b) => assetClassOrderIndex(a.assetClass) - assetClassOrderIndex(b.assetClass))
     .map((g) => {
       const meta = assetClassMetaOf(g.assetClass)
+      const accounts = mergeAccountPieces(g.accounts)
+      const change = g.changeFromLastMonthKrw
       return {
         id: g.assetClass,
         name: assetClassLabel(g),
         icon: meta.icon,
         color: meta.color,
-        count: g.accounts.length,
+        count: accounts.length,
         totalText: formatNumber(g.totalValueKrw),
+        changeText: change ? `지난달보다 ${signedWonText(change)}` : null,
         // 카테고리 내부 계좌는 금액 내림차순 — ①의 카테고리 순서 규칙과는 별개다.
-        accounts: [...g.accounts]
+        accounts: [...accounts]
           .sort((a, b) => b.valueKrw - a.valueKrw)
           .map((a) => ({
             accountId: a.accountId,
             name: a.accountName,
-            institutionName: institutionNameOf(a.accountId, accounts),
+            // 기관 없는 계좌(현금 등)는 서버가 null을 준다 — 가짜 값 대신 빈 문자열.
+            institutionName: a.institutionName ?? '',
             amount: a.valueKrw,
             amountText: formatNumber(a.valueKrw),
           })),
@@ -227,6 +247,8 @@ interface MapBlockSeed {
   icon: string
   amount: number
   percent: number
+  /** 화면에 적는 정수 비율 — 서버 sharePercent(없으면 percent 반올림). */
+  displayPercent: number
   isEtc?: boolean
   subLabels?: string[]
 }
@@ -241,8 +263,10 @@ export function buildMapTiers(
     label: assetClassLabel(g),
     icon: assetClassMetaOf(g.assetClass).icon,
     amount: g.totalValueKrw,
-    // 서버가 percent를 내려주지 않아 여기서 계산한다. 전체 합이 0이면 0으로 나누기 방어.
+    // 넓이·티어 판정용 정밀값. 전체 합이 0이면 0으로 나누기 방어.
     percent: total > 0 ? (g.totalValueKrw / total) * 100 : 0,
+    // 화면 표기용 — 서버 정본(합 100). 옛 응답처럼 없으면 직접 반올림한다.
+    displayPercent: g.sharePercent ?? (total > 0 ? Math.round((g.totalValueKrw / total) * 100) : 0),
   }))
 
   // 서버는 6분류를 값이 0인 것까지 항상 내려준다(카드는 "0원 · 계좌 0개"를 보여줘야 하므로 그게 맞다).
@@ -263,6 +287,7 @@ export function buildMapTiers(
     icon: b.icon,
     amount: b.amount,
     percent: b.percent,
+    displayPercent: b.displayPercent,
   }))
   if (etcRaw.length) {
     seeds.push({
@@ -271,6 +296,7 @@ export function buildMapTiers(
       icon: 'more_horiz',
       amount: etcRaw.reduce((sum, b) => sum + b.amount, 0),
       percent: etcRaw.reduce((sum, b) => sum + b.percent, 0),
+      displayPercent: etcRaw.reduce((sum, b) => sum + b.displayPercent, 0),
       isEtc: true,
       subLabels: etcRaw.map((b) => b.label),
     })
@@ -285,7 +311,7 @@ export function buildMapTiers(
       label: b.label,
       icon: b.icon,
       amountText: formatNumber(b.amount),
-      percent: Math.round(b.percent),
+      percent: b.displayPercent,
       widthPercent: b.percent,
       tint: RAMP[Math.min(bi, RAMP.length - 1)],
       fg: bi < 3 ? '#FFFFFF' : 'var(--text-strong)',
@@ -315,9 +341,9 @@ export interface LiquidityView {
  * 두 비율을 각각 `Math.round`하면 합이 99%/101%가 되어 막대에 틈/오버플로가 생긴다 —
  * dashboardView.ts의 도넛이 쓰는 최대잔여법(toPercentages)을 그대로 재사용해 합을 100으로 보정한다.
  */
-export function buildLiquidityView(liquidAccounts: { balance: number }[], lockedAccounts: { balance: number }[]): LiquidityView {
-  const liquidSum = liquidAccounts.reduce((sum, a) => sum + a.balance, 0)
-  const lockedSum = lockedAccounts.reduce((sum, a) => sum + a.balance, 0)
+export function buildLiquidityView(liquidAccounts: { totalValueKrw: number }[], lockedAccounts: { totalValueKrw: number }[]): LiquidityView {
+  const liquidSum = liquidAccounts.reduce((sum, a) => sum + a.totalValueKrw, 0)
+  const lockedSum = lockedAccounts.reduce((sum, a) => sum + a.totalValueKrw, 0)
   const [liquidPercent, lockedPercent] = toPercentages([liquidSum, lockedSum])
   return {
     liquidPercent,
@@ -337,26 +363,33 @@ export function liquidityMonthsOfExpense(liquidAmt: number, monthlyExpense: numb
   return Math.round(liquidAmt / monthlyExpense)
 }
 
+/** 만기일이 있는 락업 계좌 — dDay가 숫자로 확정된 형태. */
+export type MaturingLockedAccount = LockedAccount & { dDay: number }
+
 /**
  * 캡션에 보여줄 "가장 신경 써야 할" 락업 계좌 하나를 고른다: 아직 만기가 남은 계좌 중 가장 임박한 것을
  * 우선하고, 전부 만기가 지났으면 그중 가장 최근에 지난 것을 보여준다. dDay < 0이면 "만기 경과"로 렌더할 것.
  */
-export function pickNearestMaturity(lockedAccounts: LockedAccount[]): LockedAccount | null {
+export function pickNearestMaturity(lockedAccounts: LockedAccount[]): MaturingLockedAccount | null {
   // lockedAccounts의 기준은 isLiquid=false이지 만기 유무가 아니라, 만기가 없는 계좌도 섞여 온다.
-  // 그때 서버는 dDay를 0으로 내려주므로 걸러내지 않으면 그 계좌가 "가장 임박한 만기"
-  // 1순위로 뽑혀 "만기까지 D−0"이라는 없는 사실을 표시하게 된다.
-  const withMaturity = lockedAccounts.filter((a) => a.maturityDate !== null)
+  // 그런 계좌는 dDay가 null이라 여기서 걸러낸다 — 남은 계좌는 dDay가 숫자임이 보장된다.
+  const withMaturity = lockedAccounts.filter((a): a is MaturingLockedAccount => a.dDay !== null)
   if (withMaturity.length === 0) return null
   const upcoming = withMaturity.filter((a) => a.dDay >= 0).sort((a, b) => a.dDay - b.dDay)
   if (upcoming.length > 0) return upcoming[0]
   return [...withMaturity].sort((a, b) => b.dDay - a.dDay)[0]
 }
 
+/** 만기일이 있는 락업 계좌 수 — 캡션의 "외 N개"는 이 값에서 화면에 보인 1개를 뺀 것이다. */
+export function countMaturingAccounts(lockedAccounts: LockedAccount[]): number {
+  return lockedAccounts.filter((a) => a.dDay !== null).length
+}
+
 // ---------- 계좌 상세 모달 ----------
 
 export interface AccountDetailHeader {
   name: string
-  /** "기관명 · 계좌종류[ · 통화]" — 값이 없는 조각은 건너뛴다. */
+  /** "기관명 · 계좌종류" — 값이 없는 조각은 건너뛴다. */
   subtitle: string
   /** '만기 2026.12.14' 형태. 만기일이 없으면 null. */
   maturityLabel: string | null
@@ -364,7 +397,6 @@ export interface AccountDetailHeader {
 
 export function buildAccountDetailHeader(account: AccountResponse): AccountDetailHeader {
   const parts = [account.institutionName, ACCOUNT_TYPE_LABELS[account.type]]
-  if (account.currency !== 'KRW') parts.push(account.currency)
   return {
     name: account.name,
     subtitle: parts.filter((p): p is string => !!p).join(' · '),
@@ -373,7 +405,7 @@ export function buildAccountDetailHeader(account: AccountResponse): AccountDetai
 }
 
 /**
- * 1억 원 이상 금액을 카드 대표 금액 아래 캡션으로 축약한다(ds_rules_v2_5 §4-2, 만 원 단위 반올림).
+ * 1억 원 이상 금액을 카드 대표 금액 아래 캡션으로 축약한다(ds_rules_v3 §4-2, 만 원 단위 반올림).
  * 1억 미만이면 null — 호출부는 이 값이 있을 때만 캡션을 렌더한다.
  */
 export function formatBigAmountCaption(n: number): string | null {
@@ -397,9 +429,27 @@ export function formatBigAmountCaption(n: number): string | null {
 // 구성 줄은 **쪼갤 것이 있을 때만** 만든다. 원화 예수금밖에 없는 현금·예적금 계좌에서는 총액과
 // 구성 줄이 같은 숫자를 두 번 보여주게 되므로 아예 그리지 않는다.
 //
-// 달러의 원화 환산액은 서버가 준 cashUsdKrw를 그대로 쓴다 — cashUsd × usdKrwRate로 다시 계산하면
-// 서버 반올림과 어긋나 구성 줄의 합이 총액과 1원씩 안 맞을 수 있다(환율은 프론트가 다루지 않는다는
-// 계약이기도 하다). usdKrwRate는 "어떤 환율로 환산했는지" 알려주는 표기용으로만 쓴다.
+// 달러의 원화 환산액은 서버가 준 달러 줄의 amountKrw를 그대로 쓴다 — amount × exchangeRate로 다시
+// 계산하면 서버 반올림과 어긋나 구성 줄의 합이 총액과 1원씩 안 맞을 수 있다(환율은 프론트가 다루지
+// 않는다는 계약이기도 하다). exchangeRate는 "어떤 환율로 환산했는지" 알려주는 표기용으로만 쓴다.
+
+/**
+ * 계좌 잔액 목록(balances)에서 한 통화의 줄을 꺼낸다. 그 통화 줄이 없으면 null.
+ * 서버는 원화 줄을 항상 먼저 주지만 순서에 기대지 않고 통화로 찾는다. balances는 필수 필드지만
+ * `?.`로 한 번 더 막는다 — 계약이 바뀌기 전 서버(아직 배포 전인 운영 서버 등)에 붙으면 이 필드가
+ * 없어 화면 전체가 멈추기 때문이다.
+ */
+export function accountBalanceOf(account: AccountResponse, currency: Currency): AccountBalanceResponse | null {
+  return account.balances?.find((b) => b.currency === currency) ?? null
+}
+
+/**
+ * 달러 예수금 줄이 있는 계좌인가 — 계좌 수정 화면이 달러 칸을 보여줄지 정하는 기준이다(달러 정정은
+ * 주식·가상자산 계좌만 된다). 금액이 0인 달러 줄도 "있음"으로 친다.
+ */
+export function hasUsdBalance(account: AccountResponse): boolean {
+  return accountBalanceOf(account, 'USD') !== null
+}
 
 export interface AccountBalanceRow {
   label: string
@@ -425,18 +475,20 @@ export interface AccountBalanceView {
 export function buildAccountBalanceView(detail: AccountDetailResponse): AccountBalanceView {
   const { account, holdingValueKrw, totalValueKrw } = detail
   // 0달러는 "달러 예수금 없음"과 같게 취급한다 — "$0.00" 한 줄은 정보가 아니라 잡음이다.
-  const usdCash = account.cashUsd ?? 0
+  const krw = accountBalanceOf(account, 'KRW')
+  const usd = accountBalanceOf(account, 'USD')
+  const usdCash = usd?.amount ?? 0
   const hasUsdCash = usdCash !== 0
   const hasHoldings = holdingValueKrw > 0
 
   const rows: AccountBalanceRow[] = []
   if (hasUsdCash || hasHoldings) {
-    rows.push({ label: '원화 예수금', valueText: `${formatNumber(account.cashKrw)}원`, note: null })
+    rows.push({ label: '원화 예수금', valueText: `${formatNumber(krw?.amount ?? 0)}원`, note: null })
     if (hasUsdCash) {
       rows.push({
         label: '달러 예수금',
         valueText: `$${formatCurrencyAmount(usdCash, 'USD')}`,
-        note: account.cashUsdKrw != null ? `${formatNumber(account.cashUsdKrw)}원` : null,
+        note: usd ? `${formatNumber(usd.amountKrw)}원` : null,
       })
     }
     if (hasHoldings) {
@@ -454,8 +506,8 @@ export function buildAccountBalanceView(detail: AccountDetailResponse): AccountB
     // 환율은 소수점 둘째 자리까지 쓴다 — formatCurrencyAmount의 USD 분기가 정확히 그 형식이라
     // 같은 규칙을 두 번 적지 않도록 그대로 빌려 쓴다(값 자체는 달러가 아니라 '달러당 원'이다).
     rateNote:
-      hasUsdCash && account.usdKrwRate != null
-        ? `1달러 = ${formatCurrencyAmount(account.usdKrwRate, 'USD')}원 기준`
+      hasUsdCash && usd?.exchangeRate != null
+        ? `1달러 = ${formatCurrencyAmount(usd.exchangeRate, 'USD')}원 기준`
         : null,
   }
 }
@@ -489,15 +541,40 @@ export interface AccountActivityRow {
 }
 
 /**
- * 매매 금액은 무채색이다 — 투자 거래는 수입/지출이 아니라 이체로 취급한다(ds_rules_v2_5 §10-4,
+ * 매매 금액은 무채색이다 — 투자 거래는 수입/지출이 아니라 이체로 취급한다(ds_rules_v3 §10-4,
  * buildTradeRows 주석과 같은 규칙).
  */
 const TRADE_AMOUNT_COLOR = 'var(--text-strong)'
+
+/**
+ * 계좌 상세에서 본 저축·이체 금액 표기. 가계부 목록은 저축·이체를 부호 없이 색으로만 구분하지만
+ * (buildLedgerTransactions — 가계부 전체로는 돈이 줄어든 게 아니라 옮겨진 것이라서), 계좌 상세는
+ * "이 계좌에서 돈이 들고 난 것"을 보는 곳이라 방향을 부호로 보여준다(2026-09-26 사용자 요청 —
+ * 적금 이체가 출금 계좌에서 부호 없이 보여 들어온 돈처럼 읽혔다). 나간 계좌(accountId)는 −,
+ * 받은 계좌(transferAccountId)는 +. 색은 유형 색(저축 보라·이체 중립)을 그대로 둔다.
+ * 수입·지출은 가계부 표기 그대로다(이미 +/−가 붙어 있다).
+ */
+function accountActivityAmountText(t: LedgerTransactionRow, accountId: number): string {
+  if (t.type !== 'SAVING' && t.type !== 'TRANSFER') return `${t.amount}원`
+  const sign = t.transferAccountId === accountId ? '+' : t.accountId === accountId ? '−' : ''
+  return `${sign}${formatNumber(t.amountRaw)}원`
+}
+
+/**
+ * 받은 쪽에서 본 이체의 태그. 가계부 목록의 이체 태그는 상대 계좌(transferAccountId) 이름이라,
+ * 받은 계좌의 상세에서는 자기 자신의 이름이 찍힌다 — 이때는 보낸 계좌 이름으로 바꾼다.
+ */
+function accountActivityTag(t: LedgerTransactionRow, accountId: number, accounts: AccountResponse[]): string {
+  if (t.type !== 'TRANSFER' || t.transferAccountId !== accountId) return t.tag
+  return accounts.find((a) => a.id === t.accountId)?.name ?? t.tag
+}
 
 export function buildAccountActivity(
   transactionRows: LedgerTransactionRow[],
   tradeRows: TradeRowView[],
   limit: number,
+  accountId: number,
+  accounts: AccountResponse[],
 ): AccountActivityRow[] {
   const fromTx: AccountActivityRow[] = transactionRows.map((t) => ({
     // key에 접두사를 붙인다 — 거래 id와 매매 id는 서로 다른 테이블이라 값이 겹칠 수 있고,
@@ -506,8 +583,8 @@ export function buildAccountActivity(
     isoDate: t.isoDate,
     dateLabel: t.dateLabel,
     description: t.description,
-    tag: t.tag,
-    amountText: `${t.amount}원`,
+    tag: accountActivityTag(t, accountId, accounts),
+    amountText: accountActivityAmountText(t, accountId),
     amountColor: t.amountColor,
   }))
   const fromTrade: AccountActivityRow[] = tradeRows.map((t) => ({

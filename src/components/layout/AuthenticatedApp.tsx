@@ -36,6 +36,7 @@ import { Assets } from '../../screens/Assets/Assets'
 import { QuickStockModal } from '../../screens/Assets/modals/QuickStockModal'
 import { ExchangeAddModal } from '../../screens/Assets/modals/ExchangeAddModal'
 import { TradeEditModal } from '../../screens/Stocks/modals/TradeEditModal'
+import { StockEditModal } from '../../screens/Stocks/modals/StockEditModal'
 import { AddHoldingsModal } from '../../screens/Stocks/modals/AddHoldingsModal'
 import { ExchangeHistoryModal } from '../../screens/Stocks/modals/ExchangeHistoryModal'
 import { AddAccountModal } from '../../screens/Assets/modals/AddAccountModal'
@@ -86,6 +87,12 @@ export function AuthenticatedApp() {
           style={{
             flex: 1,
             minWidth: 0,
+            // 세로 flex — 설정 화면처럼 "남은 높이를 채우고 맨 아래에 붙는" 요소가 있는 화면이 flex: 1을
+            // 쓸 수 있게 한다. 모든 화면의 최상위는 바깥 여백 없는 상자 하나라서(2026-09-26 확인) 블록
+            // 배치일 때와 보이는 모양은 같다. 화면 최상위에 margin을 주면 형제 간 여백 겹침이 일어나지
+            // 않으니 주의.
+            display: 'flex',
+            flexDirection: 'column',
             // 전체화면(standalone) 앱은 status-bar-style=black-translucent라 웹 콘텐츠가 상태바
             // 뒤까지 깔린다(index.html 주석 참고) — 상단도 safe-area만큼 밀어야 시계·배터리
             // 아이콘과 헤더 로고가 겹치지 않는다. 일반 브라우저 탭에서는 env(...)가 0이라 원래
@@ -159,6 +166,7 @@ export function AuthenticatedApp() {
       </ModalErrorBoundary>
       <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="매매 내역 수정">
         <TradeEditModal />
+        <StockEditModal />
       </ModalErrorBoundary>
       <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="환전 내역">
         <ExchangeHistoryModal />

@@ -6,13 +6,19 @@
 // 도형은 secret/monit-symbol-spec.md §3-1/§3-2 규격 그대로이고, 그라데이션·clipPath id는
 // useId()로 인스턴스마다 고유하게 만든다(규격 §4 — id가 겹치면 그라데이션이 깨진다).
 
-import { useId, useLayoutEffect } from 'react'
-import { Icon } from '../../components/primitives/Icon/Icon'
-import { useAppState } from '../../state/AppStateContext'
-import { useGoAuthScreen } from '../../state/selectors/auth'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { LoginForm } from './LoginForm'
 import { SignupForm } from './SignupForm'
 import { ResetPasswordForm } from './ResetPasswordForm'
+import { Icon } from '../../components/primitives/Icon/Icon'
+import { TermsDetailOverlay } from '../../components/layout/modals/TermsDetailOverlay'
+import { useAppState } from '../../state/AppStateContext'
+import { useGoAuthScreen } from '../../state/selectors/auth'
+import { TERMS_DOCUMENTS } from '../../data/termsContent'
+import type { TermsDocumentKey } from '../../data/termsContent'
+
+/** 푸터 링크로 여는 문서. 마케팅 동의는 가입 화면에서만 의미가 있어 여기엔 두지 않는다. */
+const FOOTER_LINKS: TermsDocumentKey[] = ['service', 'privacy']
 
 const BRAND_POINTS: { icon: string; label: string }[] = [
   { icon: 'account_balance_wallet', label: '흩어진 계좌를 한 곳에서 확인' },
@@ -79,6 +85,11 @@ function AuthLogo() {
 export function Auth() {
   const { state } = useAppState()
   const goAuthScreen = useGoAuthScreen()
+  // 푸터의 "이용약관 · 개인정보 수집 및 이용" 링크가 여는 문서. 로그인·비밀번호 찾기 화면에서도 가입 때
+  // 동의하는 문서를 미리 볼 수 있게 한다. 회원가입 1단계의 '보기 ›'와는 별개의 로컬 상태다(둘 다
+  // 스크림이 있는 모달이라 동시에 열릴 수 없다).
+  const [footerDoc, setFooterDoc] = useState<TermsDocumentKey | null>(null)
+  const footerTriggerRef = useRef<HTMLButtonElement | null>(null)
 
   // AppShell only mounts this component when authStatus flips to 'anonymous' — both on manual
   // logout (AccountModal's doLogout) and on the axios interceptor's forced signOut() after a
@@ -175,9 +186,25 @@ export function Auth() {
           {state.authScreen === 'resetPassword' && <ResetPasswordForm />}
 
           <div style={{ marginTop: 20, textAlign: 'center', fontSize: 11, color: 'var(--text-weak)', lineHeight: 1.7 }}>
-            이용약관 · 개인정보처리방침
-            <br />© Monit
+            {FOOTER_LINKS.map((key, i) => (
+              <span key={key}>
+                {i > 0 && <span aria-hidden="true"> · </span>}
+                <button
+                  type="button"
+                  className="tap-44"
+                  onClick={(e) => {
+                    footerTriggerRef.current = e.currentTarget
+                    setFooterDoc(key)
+                  }}
+                  style={{ border: 'none', background: 'transparent', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                >
+                  {TERMS_DOCUMENTS[key].title}
+                </button>
+              </span>
+            ))}
+            <br />© 2026 Monit
           </div>
+          {footerDoc && <TermsDetailOverlay documentKey={footerDoc} onClose={() => setFooterDoc(null)} returnFocusRef={footerTriggerRef} />}
         </div>
       </main>
     </div>

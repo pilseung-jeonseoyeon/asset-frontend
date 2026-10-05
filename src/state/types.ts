@@ -4,7 +4,7 @@
 // 각 폼의 로컬 useState에 두는 이유는 screens/Auth/*Form.tsx 헤더 주석 참고.
 
 import type { DashboardLayout } from '../utils/dashboardLayout'
-import type { AccountType, AssetClass, Currency, YearMonth } from '@/services/common.type'
+import type { AccountType, AssetClass, YearMonth } from '@/services/common.type'
 
 export type Screen = 'dashboard' | 'asset' | 'stock' | 'ledger' | 'settings'
 export type AssetTab = 'overview' | 'accounts' | 'goals'
@@ -18,7 +18,7 @@ export type AccountModalView = 'main' | 'profile' | 'password'
 /** 계좌 추가 모달 안의 API 연동 서브뷰 단계. 'none'이면 일반 계좌 폼. */
 export type ConnectView = 'none' | 'provider' | 'form' | 'result'
 export type StockTradeMode = 'buy' | 'sell'
-export type StockBuyMarket = 'domestic' | 'overseas'
+export type StockBuyMarket = 'domestic' | 'overseas' | 'crypto'
 export type RecurringType = 'fixed' | 'subscription'
 export type EntryType = 'income' | 'expense' | 'saving' | 'transfer'
 export type AuthScreen = 'login' | 'signup' | 'resetPassword'
@@ -29,28 +29,24 @@ export type AuthScreen = 'login' | 'signup' | 'resetPassword'
  * 않은 상태) — "모닛 시작하기"를 눌러야 실제로 로그인 상태가 된다. 'done'은 resetPassword
  * 전용(비밀번호 변경 완료 안내). */
 export type AuthStep = 'terms' | 'form' | 'sent' | 'onboard' | 'done'
-/** 회원가입 1/3 약관 동의 항목. `age`/`service`/`privacy`는 필수, `marketing`은 선택. */
-export type AuthAgreementKey = 'service' | 'privacy' | 'marketing'
+/** 회원가입 1/3 약관 동의 항목. `age`(만 14세 이상 확인)/`service`/`privacy`는 필수, `marketing`은
+ * 선택. `age`는 문서가 없는 클라이언트 확인 항목이라 서버 agreements에는 보내지 않는다. */
+export type AuthAgreementKey = 'age' | 'service' | 'privacy' | 'marketing'
 
 // AddAccountModal/EditAccountModal이 공유하는 계좌 폼 초안. id가 null이면 신규(POST), 아니면 수정(PATCH
 // 대상 accountId). 서버가 부분 수정을 허용하는 필드(institutionId/name/type/interestRate/maturityDate/
-// isLiquid)만 편집 가능하고, currency/initialBalanceKrw/openedAt은 PATCH가 거부하므로 수정 화면에서는
-// 읽기 전용으로만 다룬다(src/services/account/account.type.ts UpdateAccountRequest 참고).
+// isLiquid)만 편집한다. 초기 잔액은 등록할 때만 보내는 값이라 수정 화면에서는 다루지 않는다
+// (src/services/account/account.type.ts UpdateAccountRequest 참고).
 export interface AccountForm {
   id: number | null
   institutionId: number | null
   name: string
   type: AccountType
-  currency: Currency
-  /** 원화 예수금. 신규 생성 시에만 전송한다 — 수정 시 서버가 거부한다(UpdateAccountRequest에 필드
-   * 자체가 없음). POST /accounts의 initialBalanceKrw로 그대로 나간다. */
+  /** 원화 초기 잔액 입력값. 신규 등록 시에만 POST /accounts의 initialBalances에 KRW 줄로 나간다. */
   initialBalanceKrw: number
-  /** 달러 예수금 입력값(원시 입력 문자열, 소수점 2자리까지) — 저장 시 숫자로 바꿔 POST /accounts의
-   * **initialBalanceUsd**로 보낸다(initialBalanceNative가 아니다 — 그 이름은 서버 계약에 없고, 그대로
-   * 보내면 달러 예수금이 조용히 누락된다).
-   * 한 계좌가 원화·달러 예수금을 동시에 가질 수 있으므로 위 initialBalanceKrw와 함께 보낼 수 있다.
-   * 환율은 프론트가 다루지 않는다 — 서버가 두 원금을 입력값 그대로 보관하고 원화 환산은 조회 시점
-   * 환율로 매번 계산한다. */
+  /** 달러 초기 잔액 입력값(원시 입력 문자열, 소수점 2자리까지) — 저장 시 숫자로 바꿔 initialBalances의
+   * USD 줄로 보낸다. 한 계좌(주식·가상자산)가 원화·달러 예수금을 동시에 가질 수 있으므로 위 원화와
+   * 함께 보낼 수 있다. 환율은 프론트가 다루지 않는다 — 원화 환산은 서버가 조회 시점 환율로 매번 한다. */
   initialBalanceUsd: string
   interestRate: number | null
   openedAt: string | null
@@ -114,8 +110,7 @@ export interface AppState {
 
   // stock entry
   /** 신규 종목 등록 시 선택한 섹터 칩. 빈 문자열이면 미선택(전송하지 않음) — 절대 기본값을 채우지
-   * 말 것(과거 '반도체' 하드코딩이 모든 신규 종목을 조용히 오염시켰던 버그, docs/backend-request.md
-   * 5-1 참고). */
+   * 말 것(과거 '반도체' 하드코딩이 모든 신규 종목을 조용히 오염시켰던 버그). */
   stockSector: string
   stockBuyMarket: StockBuyMarket
   stockTradeMode: StockTradeMode
@@ -123,6 +118,8 @@ export interface AppState {
   // trade edit (Stocks 화면 — 매매 내역 수정, GET /trades에 단건 조회가 없어 목록 캐시에서 id로 찾는다)
   /** 수정 대상 tradeId(서버 id). null이면 매매 수정 모달이 닫혀 있음. */
   editingTradeId: number | null
+  /** 종목 정보(이름·섹터) 수정 모달 대상 — StockEditModal. */
+  editingStockId: number | null
 
   // exchange history (Stocks 화면 — 환전 내역 목록/수정)
   /** 환전 내역 모달 안에서 수정 대상 exchangeId. null이면 목록 뷰. */
@@ -157,6 +154,9 @@ export interface AppState {
   recurringName: string
   /** 정수 원화 금액. */
   recurringAmount: number
+  /** 고른 아이콘(Material Symbols 이름, SUBSCRIPTION_ICON_GROUPS). null이면 기본 아이콘.
+   * PUT이 전체 교체라 수정 저장 때도 반드시 실어 보내야 기존 아이콘이 지워지지 않는다. */
+  recurringIcon: string | null
   /** 수정 대상 subscriptionId(서버 id). null이면 신규 추가. */
   editingRecurringId: number | null
 
@@ -178,23 +178,23 @@ export interface AppState {
   entryDescription: string
   /** 메모(선택 입력, CreateTransactionReq.memo). 빈 문자열이면 미입력 — 제출 시 키 자체를 뺀다. */
   entryMemo: string
-  /**
-   * 가계부 입력 모달이 편집하지 않는 거래 필드. PUT이 전체 교체라 다시 보내지 않으면 사용자가
-   * 금액만 고쳐 저장해도 외화 정보가 조용히 사라진다 — 수정 모달을 열 때 원본을 담아두고 저장 시
-   * 그대로 되돌려 보낸다. 신규 등록일 때는 null. memo는 entryMemo로 직접 편집하므로 여기 없다.
-   */
-  entryPreserved: {
-    nativeAmount: number | null
-    nativeCurrency: Currency | null
-  } | null
   ledgerPage: number
   entryDateOverride: string | null
-  /** 내역 탭이 보고 있는 정산월 커서. src/utils/date.ts의 todayYearMonth/shiftYearMonth 참고. */
+  /**
+   * 내역 탭이 보고 있는 정산월 커서(src/utils/date.ts의 shiftYearMonth 참고). ledgerCursorFollowsCurrent가
+   * true인 동안에는 쓰이지 않는다 — 화면이 서버의 현재 정산월을 대신 쓴다.
+   */
   ledgerYear: number
   ledgerMonth: number
   /**
-   * 내역 탭 주간 뷰가 보고 있는 주의 월요일('YYYY-MM-DD', src/utils/date.ts의 mondayOf 참고). 정산월
-   * 경계를 서버가 안 알려줘 순수 달력 주(월요일 시작) 기준이다 — ledgerYear/ledgerMonth와 별도로 둔다.
+   * true면 내역 탭이 "오늘이 속한 정산월"(useCurrentSettlementMonth)을 따라간다. 앱을 열 때와 '오늘로 이동'을
+   * 누르면 true, 사용자가 달·주를 넘기면 false. 초기 AppState는 서버 응답 전에 만들어져 정산월을 모르므로
+   * 커서를 미리 박아 두지 않고 이 플래그로 "지금 달"을 뜻한다 — 월 시작일을 바꿔도 자동으로 따라간다.
+   */
+  ledgerCursorFollowsCurrent: boolean
+  /**
+   * 내역 탭 주간 뷰가 보고 있는 주의 월요일('YYYY-MM-DD', src/utils/date.ts의 mondayOf 참고). 주 자체는
+   * 달력 주(월요일 시작)이고, 어느 정산월 소속인지는 목요일로 정한다(monthOfWeek) — ledgerYear/ledgerMonth와 별도로 둔다.
    */
   ledgerWeekAnchor: string
   /**

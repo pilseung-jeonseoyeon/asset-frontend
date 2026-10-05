@@ -1,7 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth'
 import { queryKeys } from '../queryKeys'
-import { deleteMe, getMe, getUserSettings, patchMe, patchPassword, patchUserSettings } from './user.service'
+import {
+  deleteMe,
+  getCurrentSettlement,
+  getMe,
+  getUserSettings,
+  patchMe,
+  patchPassword,
+  patchUserSettings,
+} from './user.service'
 import type {
   ChangePasswordRequest,
   UpdateProfileRequest,
@@ -68,6 +76,19 @@ export function useGetUserSettings(options?: { enabled?: boolean }) {
   }
 }
 
+/**
+ * 오늘이 속한 정산월(서버 정본). 화면은 보통 이 훅 대신 useCurrentSettlementMonth()
+ * (src/utils/useCurrentSettlementMonth.ts)를 쓴다 — 응답 전에도 값을 채워 주는 래퍼다.
+ * 자정을 넘기면 정산월이 바뀔 수 있으므로 설정 쿼리보다 짧게 1분마다 낡은 값으로 본다.
+ */
+export function useGetCurrentSettlement() {
+  return useQuery({
+    queryKey: queryKeys.user.settlementCurrent(),
+    queryFn: getCurrentSettlement,
+    staleTime: 60_000,
+  })
+}
+
 /** 이름 · 마케팅 수신 동의 수정. 성공하면 프로필 쿼리를 무효화해 헤더·사이드바 이름도 함께 갱신한다. */
 export function usePatchMe() {
   const queryClient = useQueryClient()
@@ -98,9 +119,14 @@ export function useDeleteMe() {
 }
 
 /** 로그인한 사용자의 비밀번호 변경. 서버가 현재 비밀번호를 검증한다(틀리면 실패 메시지를 그대로 노출). */
+/** 성공하면 내 정보(GET /users/me)를 다시 받는다 — 비밀번호 변경 시각 등 서버가 갱신한 값이 화면에 남지 않게. */
 export function usePatchPassword() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (body: ChangePasswordRequest) => patchPassword(body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.user.me() })
+    },
   })
 }
 

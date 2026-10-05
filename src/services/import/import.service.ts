@@ -6,15 +6,17 @@ import type { ImportKind, ImportTransactionsResult } from './import.type'
 
 const IMPORT_PATHS: Record<ImportKind, string> = {
   transactions: '/import/excel/transactions',
+  accounts: '/import/excel/accounts',
 }
 
 // 서버가 Content-Disposition으로 주는 이름(transactions_template.xlsx)과 같은 폴백. 헤더를 못 읽었을 때만 쓴다.
 const IMPORT_TEMPLATE_FALLBACK_FILENAME: Record<ImportKind, string> = {
   transactions: 'transactions_template.xlsx',
+  accounts: 'accounts_template.xlsx',
 }
 
 /**
- * 가져오기용 엑셀 양식을 내려받는다. 양식은 시트가 둘이다 — 1번 "거래내역"(A~I 헤더 + 예시 행),
+ * 가져오기용 엑셀 양식을 내려받는다. 거래 양식은 시트가 둘이다(계좌 양식 구성은 docs/excel-import.md) — 1번 "거래내역"(A~I 헤더 + 예시 행),
  * 2번 "등록된 이름"(이 사용자의 계좌·대분류·소분류 이름 목록 — 거래내역 시트의 계좌·분류 칸은 여기 있는
  * 이름과 정확히 같아야 한다). 실제 다운로드 트리거는 훅에서 한다.
  */

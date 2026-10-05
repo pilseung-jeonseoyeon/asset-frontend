@@ -4,7 +4,7 @@
 // `role="switch"` + 네이티브 button으로 키보드 조작(Enter/Space)과 포커스를 갖춘다.
 //
 // 꺼짐(OFF) 상태 색: 대비비 근거로 확정함(라이트 6.0:1 / 다크 7.13:1). 기존 마크업에는 OFF
-// 스타일 자체가 없었고 secret/ds_rules_v2_5.md에도 스위치 규격이 없어(문서에 없는 세부는 추측
+// 스타일 자체가 없었고 secret/ds_rules_v3.md에도 스위치 규격이 없어(문서에 없는 세부는 추측
 // 금지 원칙 — CLAUDE.md 절대 규칙 4), 트랙 색은 흰 노브/카드 대비 기준으로 골랐다. `--text-weak`는
 // 라이트 모드에서 2.63:1로 UI 컴포넌트 권장 3:1에 못 미쳐 `--text-mid`로 확정했다(토큰 실값:
 // 라이트 --text-mid #5B6470/--text-weak #9AA0AC, 다크 --text-mid #A6ADB8/--text-weak #6D7480).

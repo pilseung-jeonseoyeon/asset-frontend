@@ -37,8 +37,8 @@ async function toDataUrl(url: string): Promise<string> {
 }
 
 /**
- * 이미지에 넣을 @font-face CSS. html-to-image 기본 동작은 문서의 @font-face 93개(Pretendard 조각 92
- * + Material Symbols, 3.9MB)를 전부 base64로 박아 넣는데, 그 크기의 SVG를 그리느라 브라우저가 수십 초
+ * 이미지에 넣을 @font-face CSS. html-to-image 기본 동작은 문서의 @font-face 전부(Pretendard 조각
+ * 전체 + Material Symbols, 약 3.9MB)를 base64로 박아 넣는데, 그 크기의 SVG를 그리느라 브라우저가 수십 초
  * 멈춘다(2026-09-06 확인). 대신 **브라우저가 이미 내려받은 조각**(document.fonts에서 status=loaded —
  * unicode-range 덕에 화면에 쓰인 글자가 든 조각만 로드된다)만 골라 같은 형식으로 만든다. 보통 몇 개,
  * 수백 KB다. 실패하면 null을 돌려주고 호출부가 폰트 없이(시스템 글꼴) 굽는다.

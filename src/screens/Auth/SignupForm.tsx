@@ -6,8 +6,10 @@
 // 된다(signIn을 usePostSignup의 onSuccess가 아니라 여기까지 미루는 이유는
 // auth.hook.ts의 usePostSignup 헤더 주석 참고)
 //
-// 동의 항목 4개(연령·이용약관·개인정보·마케팅)의 '보기 ›'는 약관 전문을 연다
-// (termsContent.ts의 문안을 TermsDetailOverlay.tsx가 렌더). 어떤 문서가 열려 있는지는 AppState가
+// 동의 항목 4개(만 14세·이용약관·개인정보·마케팅) 중 문서가 있는 3개의 '보기 ›'는 약관 전문을 연다
+// (data/termsContent.ts의 문안을 components/layout/modals/TermsDetailOverlay.tsx가 렌더). 만 14세
+// 항목은 문서 없이 체크만 받는 클라이언트 확인이라 서버 agreements에 넣지 않는다(서버 AgreementCode가
+// 3종뿐 — 연령 동의도 기록하려면 백엔드에 코드 추가 요청). 어떤 문서가 열려 있는지는 AppState가
 // 아니라 이 컴포넌트의 로컬 state다 — 화면 안에서만 의미 있는 UI 상태이기 때문이다.
 // 온보딩 단계에는 3단계 진행 표시(점 바)가 없다 — 번호가 붙은 3단계가 아니라 뒤따르는 확인 단계다.
 //
@@ -15,16 +17,16 @@
 
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { CodeInput } from './CodeInput'
+import { useResendCooldown } from './useResendCooldown'
 import { Avatar } from '../../components/primitives/Avatar/Avatar'
 import { Icon } from '../../components/primitives/Icon/Icon'
+import { TermsDetailOverlay } from '../../components/layout/modals/TermsDetailOverlay'
 import { useAppState } from '../../state/AppStateContext'
 import { useGoAuthScreen, useMarkAuthCodeSent } from '../../state/selectors/auth'
 import type { AuthAgreementKey } from '../../state/types'
-import { CodeInput } from './CodeInput'
-import { TermsDetailOverlay } from './TermsDetailOverlay'
-import { AGREEMENT_CODE_BY_KEY, TERMS_DOCUMENTS, TERMS_VERSION } from './termsContent'
-import type { TermsDocumentKey } from './termsContent'
-import { useResendCooldown } from './useResendCooldown'
+import { AGREEMENT_CODE_BY_KEY, TERMS_DOCUMENTS, TERMS_VERSION } from '../../data/termsContent'
+import type { TermsDocumentKey } from '../../data/termsContent'
 import {
   agreeAllButtonStyle,
   agreementRowStyle,
@@ -54,13 +56,22 @@ interface AgreementItem {
   tag: string
   label: string
   required: boolean
+  /** '보기 ›'로 여는 약관 전문. 없으면(만 14세 확인) 체크만 받고 서버에도 보내지 않는다. */
+  document?: TermsDocumentKey
 }
 
 const AGREEMENT_ITEMS: AgreementItem[] = [
-  { key: 'service', tag: '[필수]', label: '서비스 이용약관 동의', required: true },
-  { key: 'privacy', tag: '[필수]', label: '개인정보 수집 및 이용 동의', required: true },
-  { key: 'marketing', tag: '[선택]', label: '마케팅 정보 수신 동의', required: false },
+  { key: 'age', tag: '[필수]', label: '만 14세 이상입니다', required: true },
+  { key: 'service', tag: '[필수]', label: '서비스 이용약관 동의', required: true, document: 'service' },
+  { key: 'privacy', tag: '[필수]', label: '개인정보 수집 및 이용 동의', required: true, document: 'privacy' },
+  { key: 'marketing', tag: '[선택]', label: '마케팅 정보 수신 동의', required: false, document: 'marketing' },
 ]
+
+const REQUIRED_ITEMS = AGREEMENT_ITEMS.filter((item) => item.required)
+
+function isRequiredMet(agreements: Record<AuthAgreementKey, boolean>): boolean {
+  return REQUIRED_ITEMS.every((item) => agreements[item.key])
+}
 
 const STEP_LABEL: Record<'terms' | 'form' | 'sent', number> = { terms: 1, form: 2, sent: 3 }
 
@@ -85,7 +96,7 @@ export function SignupForm() {
   const viewTriggerRef = useRef<HTMLButtonElement | null>(null)
 
   const step = state.authStep === 'done' ? 'terms' : state.authStep
-  const allRequiredAgreed = state.authAgreements.service && state.authAgreements.privacy
+  const allRequiredAgreed = isRequiredMet(state.authAgreements)
   const allAgreed = AGREEMENT_ITEMS.every((item) => state.authAgreements[item.key])
   const emailValid = EMAIL_PATTERN.test(state.authEmail)
 
@@ -96,10 +107,10 @@ export function SignupForm() {
     setState(patch)
   }
 
-  /** 필수 3개가 모두 체크되면, 3단계에서 미동의로 튕겨 남아 있던 안내 메시지를 지운다(그렇지 않으면
+  /** 필수 항목이 모두 체크되면, 3단계에서 미동의로 튕겨 남아 있던 안내 메시지를 지운다(그렇지 않으면
    * "다음"을 다시 눌러야만 사라진다). */
   function clearErrorIfRequiredMet(next: Record<AuthAgreementKey, boolean>) {
-    if (next.service && next.privacy) {
+    if (isRequiredMet(next)) {
       setValidationError(null)
     }
   }
@@ -112,7 +123,7 @@ export function SignupForm() {
 
   function toggleAgreeAll() {
     const on = !allAgreed
-    const next = { service: on, privacy: on, marketing: on }
+    const next = { age: on, service: on, privacy: on, marketing: on }
     setState({ authAgreements: next })
     clearErrorIfRequiredMet(next)
   }
@@ -164,12 +175,14 @@ export function SignupForm() {
         code: state.authCode,
         name: state.authName.trim(),
         password,
-        // 서버는 boolean 하나가 아니라 "동의한 문서 + 그 버전" 목록을 받는다. 체크된 항목만 담고,
-        // 각 항목에는 방금 화면이 보여준 문서의 버전(TERMS_VERSION)을 그대로 붙인다.
-        agreements: AGREEMENT_ITEMS.filter((item) => state.authAgreements[item.key]).map((item) => ({
-          code: AGREEMENT_CODE_BY_KEY[item.key],
-          version: TERMS_VERSION,
-        })),
+        // 서버는 boolean 하나가 아니라 "동의한 문서 + 그 버전" 목록을 받는다. 문서가 있고 체크된
+        // 항목만 담고(만 14세 확인은 문서가 없어 제외), 각 항목에는 방금 화면이 보여준 문서의
+        // 버전(TERMS_VERSION)을 그대로 붙인다.
+        agreements: AGREEMENT_ITEMS.flatMap((item) =>
+          item.document && state.authAgreements[item.key]
+            ? [{ code: AGREEMENT_CODE_BY_KEY[item.document], version: TERMS_VERSION }]
+            : [],
+        ),
       },
       { onSuccess: () => setState({ authStep: 'onboard' }) },
     )
@@ -220,6 +233,7 @@ export function SignupForm() {
           <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 22 }}>
             {AGREEMENT_ITEMS.map((item) => {
               const checked = state.authAgreements[item.key]
+              const document = item.document
               return (
                 <div key={item.key} style={agreementRowStyle}>
                   <button type="button" onClick={() => toggleAgreement(item.key)} aria-pressed={checked} style={agreementToggleButtonStyle}>
@@ -228,30 +242,32 @@ export function SignupForm() {
                       <span style={{ fontWeight: 700, color: item.required ? 'var(--accent)' : 'var(--text-weak)' }}>{item.tag}</span> {item.label}
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      viewTriggerRef.current = e.currentTarget
-                      setViewDoc(item.key)
-                    }}
-                    aria-label={`${TERMS_DOCUMENTS[item.key].title} 전문 보기`}
-                    className="tap-44"
-                    style={{
-                      flex: 'none',
-                      border: 'none',
-                      background: 'transparent',
-                      padding: '4px 2px',
-                      fontSize: 12,
-                      color: 'var(--text-weak)',
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    보기 ›
-                  </button>
+                  {document && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        viewTriggerRef.current = e.currentTarget
+                        setViewDoc(document)
+                      }}
+                      aria-label={`${TERMS_DOCUMENTS[document].title} 전문 보기`}
+                      className="tap-44"
+                      style={{
+                        flex: 'none',
+                        border: 'none',
+                        background: 'transparent',
+                        padding: '4px 2px',
+                        fontSize: 12,
+                        color: 'var(--text-weak)',
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      보기 ›
+                    </button>
+                  )}
                 </div>
               )
             })}

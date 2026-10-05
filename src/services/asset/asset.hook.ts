@@ -10,7 +10,7 @@ interface AssetQueryOptions {
   enabled?: boolean
 }
 
-/** 자산군(6분류)별 분포. 자산 화면의 카테고리 카드·트리맵이 쓴다. */
+/** 자산군(5분류)별 분포. 자산 화면의 카테고리 카드·트리맵이 쓴다. */
 export function useGetAssetDistributionByClass(options?: AssetQueryOptions) {
   const query = useQuery({
     queryKey: queryKeys.asset.distribution('CLASS'),

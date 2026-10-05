@@ -46,11 +46,12 @@ export function useGetDailySummaries(period: YearMonth, options?: QueryOptions) 
 
 export function useGetPeriodSummary(
   period: Extract<PeriodUnit, 'MONTH' | 'YEAR'>,
-  options?: QueryOptions,
+  options?: QueryOptions & { yearMonth?: Partial<YearMonth> },
 ) {
+  const yearMonth = options?.yearMonth ?? {}
   return useQuery({
-    queryKey: queryKeys.transaction.periodSummary(period),
-    queryFn: () => getPeriodSummary(period),
+    queryKey: queryKeys.transaction.periodSummary(period, yearMonth),
+    queryFn: () => getPeriodSummary(period, yearMonth),
     enabled: options?.enabled,
   })
 }

@@ -19,7 +19,7 @@ export function useGoAuthScreen() {
       authName: '',
       authCode: '',
       authKeepLogin: false,
-      authAgreements: { service: false, privacy: false, marketing: false },
+      authAgreements: { age: false, service: false, privacy: false, marketing: false },
       authCodeSentAt: null,
     })
 }

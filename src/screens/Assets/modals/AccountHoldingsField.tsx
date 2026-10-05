@@ -31,7 +31,8 @@
 // CRYPTO 평단가를 달러로 받으면 안 된다 — 서버 시세 수집이 업비트 원화 마켓에 고정돼 있어 환율이
 // 이중으로 곱해진다(src/data/stocksView.ts marketToCurrency 주석, 백엔드 확정).
 
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useDebouncedValue } from '../../../utils/useDebouncedValue'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { POPOVER_VIEWPORT_MARGIN, usePopoverAnchor } from '../../../components/primitives/usePopoverAnchor'
@@ -122,9 +123,17 @@ interface Props {
   /** 리스트 아래 안내 문구. 생략하면 계좌 등록 기준 문구("오늘 산 것으로 기록돼요")를 쓴다 —
    * 체결일을 직접 고르는 호출부(AddHoldingsModal)는 그 문구가 사실과 달라 직접 넘긴다. */
   hint?: ReactNode
+  /**
+   * 종목을 골라 수량·단가를 적는 중인지(아직 '추가'를 안 누른 줄이 있는지) 부모에게 알린다. 그 줄은 이
+   * 컴포넌트 안에만 있어 부모의 저장 버튼이 모른다 — 모르고 저장하면 적어 둔 종목이 조용히 빠진다
+   * (2026-09-26 확인). 부모는 이 값으로 저장을 막는다.
+   */
+  onPendingChange?: (hasPending: boolean) => void
+  /** 부모가 저장을 막았을 때 true — 적는 중인 줄 아래에 "'추가'를 눌러야 담겨요"를 띄우고 그 줄로 스크롤한다. */
+  pendingWarning?: boolean
 }
 
-export function AccountHoldingsField({ markets, enabled, items, onChange, hint }: Props) {
+export function AccountHoldingsField({ markets, enabled, items, onChange, hint, onPendingChange, pendingWarning = false }: Props) {
   // 코인 계좌는 시장이 CRYPTO 하나뿐이다 — 주식 계좌(KR·US)와 섞이는 경우가 없어 블록 단위 문구
   // (제목·플레이스홀더)는 이 판정 하나로 충분하다. 금액 단위는 여기서 정하지 않는다(줄 단위).
   const isCrypto = markets.length > 0 && markets.every((m) => m === 'CRYPTO')
@@ -146,7 +155,10 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
   const [rowError, setRowError] = useState<string | null>(null)
 
   const showResults = resultsOpen && !pending && !!keyword.trim()
-  const searchQuery = useGetStocks(keyword, { enabled: enabled && showResults })
+  // 글자마다 검색 요청이 나가고 응답 순서가 뒤섞이지 않게, 타이핑이 잠시 멈춘 뒤의 값으로만 조회한다.
+  const debouncedKeyword = useDebouncedValue(keyword.trim())
+  const isKeywordSettling = keyword.trim() !== debouncedKeyword
+  const searchQuery = useGetStocks(debouncedKeyword, { enabled: enabled && showResults })
   const results = searchQuery.stocks.filter((s) => markets.includes(s.market))
   const addedIds = new Set(items.map((h) => h.stockId))
 
@@ -180,6 +192,23 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
         bottom: anchor.style.bottom,
       }
     : undefined
+
+  // 부모 콜백은 인라인 함수라 렌더마다 바뀐다 — 의존성에 넣으면 매 렌더 다시 알리므로 ref로 최신 것만 쓴다.
+  const onPendingChangeRef = useRef(onPendingChange)
+  useLayoutEffect(() => {
+    onPendingChangeRef.current = onPendingChange
+  })
+  const hasPending = pending !== null
+  useEffect(() => {
+    onPendingChangeRef.current?.(hasPending)
+  }, [hasPending])
+
+  const pendingRowRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    // 저장 버튼은 모달 맨 아래라 적는 중인 줄이 화면 밖일 수 있다. block:'center'는 sticky 헤더 뒤로
+    // 숨지 않게 하려는 것(AddAccountModal의 필수값 스크롤과 같은 이유).
+    if (pendingWarning) pendingRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [pendingWarning])
 
   const resetRow = () => {
     setPending(null)
@@ -264,7 +293,7 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
       {pending ? (
         // 고른 종목의 수량/단가를 그 자리에서 인라인으로 받는다 — 필드가 둘뿐이라 별도 시트를 띄울
         // 무게가 아니다.
-        <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div ref={pendingRowRef} style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {pending.stockName} <span style={{ color: 'var(--text-weak)', fontWeight: 600 }}>{pending.ticker}</span>
@@ -323,6 +352,11 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
             </div>
           </div>
           {rowError && <div style={{ ...ERROR_STYLE, marginTop: 0 }}>{rowError}</div>}
+          {!rowError && pendingWarning && (
+            <div role="alert" style={{ ...ERROR_STYLE, marginTop: 0 }}>
+              '추가'를 눌러야 이 {isCrypto ? '코인' : '종목'}이 담겨요. 담지 않으려면 '변경'으로 지워주세요
+            </div>
+          )}
           <button
             type="button"
             className="qbtn"
@@ -372,7 +406,7 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint }
                   ...(isMobile ? { ...anchor.style, maxHeight: panelMaxHeight } : desktopFixedStyle),
                 }}
               >
-                {searchQuery.isPending ? (
+                {(searchQuery.isPending || isKeywordSettling) ? (
                   <div style={{ padding: '9px 10px', fontSize: 12.5, color: 'var(--text-weak)' }} aria-busy>찾는 중…</div>
                 ) : results.length > 0 ? (
                   results.map((s) => {

@@ -13,7 +13,6 @@ export const BLANK_ACCOUNT_FORM: AccountForm = {
   institutionId: null,
   name: '',
   type: 'CASH',
-  currency: 'KRW',
   initialBalanceKrw: 0,
   initialBalanceUsd: '',
   interestRate: null,
@@ -54,12 +53,13 @@ export const initialState: AppState = {
   dashboardLayout: readStoredDashboardLayout(),
 
   // 빈 문자열 = 미선택. 기본값을 채우면 사용자가 칩을 한 번도 안 눌러도 그 값이 조용히 전송된다
-  // (docs/backend-request.md 5-1 — 과거 '반도체' 하드코딩 버그).
+  // (과거 '반도체' 하드코딩 버그).
   stockSector: '',
   stockBuyMarket: 'domestic',
   stockTradeMode: 'buy',
 
   editingTradeId: null,
+  editingStockId: null,
   editingExchangeId: null,
 
   editingAccountId: null,
@@ -77,6 +77,7 @@ export const initialState: AppState = {
   recurringPaymentDay: '25일',
   recurringName: '',
   recurringAmount: 0,
+  recurringIcon: null,
   editingRecurringId: null,
 
   entryType: 'income',
@@ -89,11 +90,13 @@ export const initialState: AppState = {
   entryAmount: 0,
   entryDescription: '',
   entryMemo: '',
-  entryPreserved: null,
   ledgerPage: 1,
   entryDateOverride: null,
+  // ledgerCursorFollowsCurrent가 true인 동안은 쓰이지 않는 자리값 — 서버 정산월을 모르는 부팅 시점이라
+  // 달력 연·월로 채워 둔다(types.ts 주석).
   ledgerYear: todayCursor.year,
   ledgerMonth: todayCursor.month,
+  ledgerCursorFollowsCurrent: true,
   ledgerWeekAnchor: mondayOf(toISODate(new Date())),
   ledgerSelectedDate: null,
   ledgerSearch: '',
@@ -110,6 +113,6 @@ export const initialState: AppState = {
   authCode: '',
   // rememberMe를 생략하면 서버 기본값이 true다 — 화면 기본값도 체크로 맞춘다.
   authKeepLogin: true,
-  authAgreements: { service: false, privacy: false, marketing: false },
+  authAgreements: { age: false, service: false, privacy: false, marketing: false },
   authCodeSentAt: null,
 }

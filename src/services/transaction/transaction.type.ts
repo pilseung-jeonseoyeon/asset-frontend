@@ -12,14 +12,19 @@ export interface TransactionResponse {
   id: number
   accountId: number
   type: TransactionType
+  /** 대분류 — 소분류가 없는 이체는 null. */
+  categoryId: number | null
+  categoryName: string | null
   subcategoryId: number | null
   subcategoryName: string | null
-  /** 이체 상대 계좌. 계좌명은 응답에 없어 계좌 목록과 조인해야 한다. */
+  /** 상대 계좌(이체·저축). 수입·지출은 null. */
   transferAccountId: number | null
-  /** KRW 정수 */
+  transferAccountName: string | null
+  /** KRW 정수 — ADJUSTMENT·EXCHANGE만 부호 있는 증감액(음수 가능), 나머지는 항상 양수. */
   amount: number
-  nativeAmount: number | null
-  nativeCurrency: Currency | null
+  /** 외화 증감의 통화·금액(부호 있음) — 달러 종목 매매 정산·환전·달러 잔액 정정에서만 값이 있다. */
+  foreignCurrency: Currency | null
+  foreignAmount: number | null
   /** 'YYYY-MM-DD' */
   transactionDate: string
   description: string
@@ -33,8 +38,6 @@ export interface CreateTransactionRequest {
   transferAccountId?: number
   /** 양수 정수 */
   amount: number
-  nativeAmount?: number
-  nativeCurrency?: Currency
   transactionDate: string
   description: string
   memo?: string
@@ -42,7 +45,7 @@ export interface CreateTransactionRequest {
 
 /**
  * PUT은 전체 교체 — 등록 요청과 필수/선택 필드 구성이 동일하다(accountId 포함, 수정 가능).
- * 일부만 고쳐도 나머지 필수 필드를 전부 다시 보내야 하고, 선택 필드(nativeAmount 등)를 생략하면
+ * 일부만 고쳐도 나머지 필수 필드를 전부 다시 보내야 하고, 선택 필드(memo)를 생략하면
  * null로 덮어써진다.
  */
 export type UpdateTransactionRequest = CreateTransactionRequest

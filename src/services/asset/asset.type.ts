@@ -5,7 +5,15 @@ import type { AssetClass } from '../common.type'
 export interface DistributionAccount {
   accountId: number
   accountName: string
+  /** 금융기관명 — 현금처럼 기관이 없는 계좌는 null. 이 값이 있어 자산 화면은 GET /accounts를 부르지 않는다. */
+  institutionName: string | null
   valueKrw: number
+  /**
+   * 이 금액의 성격(예: 증권 계좌의 'CASH_AND_HOLDING' = 예수금 + 보유 종목). 값이 늘어날 수 있어
+   * 모르는 코드면 kindName을 그대로 표시한다. 기관별(byInstitution) 목록에는 오지 않을 수 있다.
+   */
+  kind?: string
+  kindName?: string
 }
 
 export interface AssetClassGroup {
@@ -13,6 +21,12 @@ export interface AssetClassGroup {
   /** 서버가 내려주는 한글 라벨. 대시보드 allocation에는 이 필드가 없다(비일관). */
   assetClassName: string
   totalValueKrw: number
+  /** 전체 대비 비율(%) — 최대잔여법으로 합이 정확히 100이 되게 맞춘 서버 값이 정본. 총자산이 0이면 null. */
+  sharePercent: number | null
+  /** 지난달 대비 증감(원) — 이 자산군에 계좌가 없으면 null. */
+  changeFromLastMonthKrw: number | null
+  /** 지난달 대비 증감률(%) — 기준값이 0이면 null. */
+  changeFromLastMonthPercent: number | null
   accounts: DistributionAccount[]
 }
 
@@ -24,6 +38,8 @@ export interface AssetInstitutionGroup {
   institutionId: number | null
   institutionName: string | null
   totalValueKrw: number
+  /** 전체 대비 비율(%) — 서버 정본(합 100). 총자산이 0이면 null. */
+  sharePercent: number | null
   accounts: DistributionAccount[]
 }
 
@@ -36,7 +52,9 @@ export interface AssetDistributionResponse {
 export interface LiquidAccount {
   accountId: number
   name: string
-  balance: number
+  /** 계좌 총 평가액(원) = 예수금 + 보유 종목 평가액. 계좌 상세(GET /accounts/{id})의 totalValueKrw와
+   * 같은 값이다(2026-09-26 계약 변경 — 예전 이름은 balance). */
+  totalValueKrw: number
 }
 
 export interface LockedAccount extends LiquidAccount {
@@ -45,8 +63,9 @@ export interface LockedAccount extends LiquidAccount {
    * 나오고 그때 이 값은 null이다. null이면 D-Day 표시 자체를 생략할 것.
    */
   maturityDate: string | null
-  /** 만기가 지나면 음수. maturityDate가 null이면 0이 오므로 "오늘 만기"로 읽으면 안 된다. */
-  dDay: number
+  /** 만기까지 남은 일수 — 만기가 지나면 음수, 0은 '오늘 만기'. **만기일이 없으면 null**이다
+   * (2026-09-26 계약 변경 — 예전에는 0이 와서 '오늘 만기'와 구분되지 않았다). */
+  dDay: number | null
 }
 
 export interface AssetLiquidityResponse {

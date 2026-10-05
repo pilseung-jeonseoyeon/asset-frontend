@@ -111,7 +111,8 @@ export function TradeEditModal() {
     if (!trade) return
     const quantity = Number(quantityStr)
     const price = Number(priceStr)
-    const missingAmount = !quantityStr || !quantity || !priceStr || !price
+    // 단가는 0도 허용한다(서버 price ≥ 0 — 증정주·무상 입고 기록). 수량만 0보다 커야 한다.
+    const missingAmount = !quantityStr || !quantity || !priceStr || price < 0
     setAmountInvalid(missingAmount)
     if (missingAmount) return
 
@@ -119,7 +120,7 @@ export function TradeEditModal() {
     const tradeDate = picked ? pickedToISODate(picked) : trade.tradeDate
     const fee = Number(feeStr)
 
-    // PUT은 전체 교체다. 이 모달이 편집하지 않는 필드(환율·메모)를 다시 실어 보내지 않으면 저장할
+    // PUT은 전체 교체다. 이 모달이 편집하지 않는 필드(세금·환율·메모)를 다시 실어 보내지 않으면 저장할
     // 때마다 원래 값이 지워진다(과거 일자 해외 매매에 오늘 환율이 다시 적용되는 등) — 값이 있던
     // 필드만 그대로 되돌려 보낸다.
     const body: UpdateTradeRequest = {
@@ -128,6 +129,8 @@ export function TradeEditModal() {
       price,
       tradeDate,
       ...(feeStr && fee ? { fee } : {}),
+      // 세금이 기록된 매도를 수량·단가만 고쳐도 세금이 0으로 지워지던 문제(2026-09-26 통합테스트) — 그대로 되돌려 보낸다.
+      ...(trade.tax ? { tax: trade.tax } : {}),
       ...(trade.exchangeRate !== null ? { exchangeRate: trade.exchangeRate } : {}),
       ...(trade.memo !== null ? { memo: trade.memo } : {}),
     }

@@ -13,7 +13,7 @@ export function useDownloadImportTemplate() {
 }
 
 /**
- * 파일을 올려 거래를 일괄 등록한다. 실제로 거래가 들어갔을 때만(importedCount > 0 — 한 행이라도 틀리면
+ * 파일을 올려 거래(또는 계좌)를 일괄 등록한다. 실제로 등록됐을 때만(importedCount > 0 — 한 행이라도 틀리면
  * 서버가 전부 롤백해 0이다) 거래 1건 등록과 같은 범위를 무효화한다 — 서버가 잔액·자산 분포·목표·대시보드를
  * 원장에서 다시 계산하기 때문이다(transaction.hook.ts의 useInvalidateTransaction과 같은 목록. 도메인
  * 폴더끼리 import하지 않는 규칙 때문에 여기 한 번 더 적는다 — 그쪽 목록이 바뀌면 여기도 같이 맞춘다).
@@ -22,8 +22,10 @@ export function useUploadImportFile() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ kind, file }: { kind: ImportKind; file: File }) => uploadImportFile(kind, file),
-    onSuccess: (result) => {
+    onSuccess: (result, { kind }) => {
       if (result.importedCount === 0) return
+      // 계좌 가져오기는 계좌 목록·기관 보유 여부도 바꾼다.
+      if (kind === 'accounts') void queryClient.invalidateQueries({ queryKey: queryKeys.institution.all() })
       void queryClient.invalidateQueries({ queryKey: queryKeys.transaction.all() })
       void queryClient.invalidateQueries({ queryKey: queryKeys.account.all() })
       void queryClient.invalidateQueries({ queryKey: queryKeys.asset.all() })

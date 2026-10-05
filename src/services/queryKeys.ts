@@ -32,6 +32,8 @@ export const queryKeys = {
     all: () => ['user'] as const,
     me: () => ['user', 'me'] as const,
     settings: () => ['user', 'settings'] as const,
+    // 오늘이 속한 정산월 — monthStartDay를 바꾸면 usePatchUserSettings가 캐시 전체를 무효화해 다시 받는다.
+    settlementCurrent: () => ['user', 'settlementCurrent'] as const,
   },
   institution: {
     all: () => ['institution'] as const,
@@ -57,7 +59,7 @@ export const queryKeys = {
     list: (params: TransactionSearchParams) => ['transaction', 'list', params] as const,
     dailySummary: (period: YearMonth) => ['transaction', 'dailySummary', period] as const,
     monthlySummary: (year: number) => ['transaction', 'monthlySummary', { year }] as const,
-    periodSummary: (period: PeriodUnit) => ['transaction', 'periodSummary', { period }] as const,
+    periodSummary: (period: PeriodUnit, yearMonth: Partial<YearMonth> = {}) => ['transaction', 'periodSummary', { period, ...yearMonth }] as const,
     rankings: (period: Partial<YearMonth>) => ['transaction', 'rankings', period] as const,
     categoryDetail: (categoryId: number, period: Partial<YearMonth>) =>
       ['transaction', 'categoryDetail', categoryId, period] as const,
@@ -69,6 +71,7 @@ export const queryKeys = {
   stock: {
     all: () => ['stock'] as const,
     search: (keyword: string) => ['stock', 'search', { keyword }] as const,
+    sectors: () => ['stock', 'sectors'] as const,
     holdings: (market?: Market) => ['stock', 'holdings', { market }] as const,
     holdingGroups: (by: 'sector' | 'market') => ['stock', 'holdingGroups', { by }] as const,
     closedHoldings: (market?: Market) => ['stock', 'closedHoldings', { market }] as const,
@@ -89,6 +92,7 @@ export const queryKeys = {
   goal: {
     all: () => ['goal'] as const,
     detail: (period: Partial<YearMonth>) => ['goal', 'detail', period] as const,
+    preview: (params: { targetAmount: number; targetDate: string; monthlyIncome: number }) => ['goal', 'preview', params] as const,
   },
   dashboard: {
     all: () => ['dashboard'] as const,

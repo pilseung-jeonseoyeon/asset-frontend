@@ -74,6 +74,7 @@ export function AccountModal() {
   const [profileNameInput, setProfileNameInput] = useState('')
   const [profileMarketingOptIn, setProfileMarketingOptIn] = useState(false)
   const [localProfileError, setLocalProfileError] = useState<string | null>(null)
+  const [profileSavedMessage, setProfileSavedMessage] = useState<string | null>(null)
 
   // 탈퇴도 비밀번호와 같은 이유로 로컬 state에 두고 닫을 때 직접 지운다(위 비밀번호 서브뷰 주석 참고).
   const [withdrawPw, setWithdrawPw] = useState('')
@@ -99,6 +100,7 @@ export function AccountModal() {
     setProfileNameInput('')
     setProfileMarketingOptIn(false)
     setLocalProfileError(null)
+    setProfileSavedMessage(null)
     patchProfile.reset()
   }
   const closeProfileView = () => {
@@ -168,6 +170,7 @@ export function AccountModal() {
     setProfileNameInput(me?.name ?? '')
     setProfileMarketingOptIn(me?.hasMarketingOptIn ?? false)
     setLocalProfileError(null)
+    setProfileSavedMessage(null)
     patchProfile.reset()
     setState({ accountModalView: 'profile' })
   }
@@ -184,8 +187,31 @@ export function AccountModal() {
       return
     }
     setLocalProfileError(null)
+    // 바뀐 필드만 보내고, 성공 문구도 실제로 바뀐 것만 말한다 — 예전엔 마케팅 동의만 바꿔도
+    // 이름을 매번 함께 보내고 '이름을 저장했어요'라고 떴다(2026-09-26 통합테스트).
+    const nameChanged = trimmed !== (me?.name ?? '')
+    const marketingChanged = profileMarketingOptIn !== (me?.hasMarketingOptIn ?? false)
+    if (!nameChanged && !marketingChanged) {
+      setProfileSavedMessage('바뀐 내용이 없어요.')
+      return
+    }
     patchProfile.reset()
-    patchProfile.mutate({ name: trimmed, hasMarketingOptIn: profileMarketingOptIn })
+    setProfileSavedMessage(null)
+    patchProfile.mutate(
+      { ...(nameChanged ? { name: trimmed } : {}), ...(marketingChanged ? { hasMarketingOptIn: profileMarketingOptIn } : {}) },
+      {
+        onSuccess: () =>
+          setProfileSavedMessage(
+            nameChanged && marketingChanged
+              ? '이름과 마케팅 수신 동의를 저장했어요.'
+              : nameChanged
+                ? '이름을 저장했어요.'
+                : profileMarketingOptIn
+                  ? '마케팅 정보 수신에 동의했어요.'
+                  : '마케팅 정보 수신 동의를 철회했어요.',
+          ),
+      },
+    )
   }
 
   const handleChangePassword = () => {
@@ -690,8 +716,8 @@ export function AccountModal() {
 
               <div aria-live="polite" style={{ marginBottom: 14, minHeight: 16 }}>
                 {profileError && <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{profileError}</div>}
-                {patchProfile.isSuccess && !profileError && (
-                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>이름을 저장했어요.</div>
+                {profileSavedMessage && !profileError && (
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--inc-text)' }}>{profileSavedMessage}</div>
                 )}
               </div>
 

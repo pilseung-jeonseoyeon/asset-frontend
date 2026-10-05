@@ -1,59 +1,55 @@
 # 모바일 대응 규칙
 
-`secret/ds_rules_v2_5.md`에는 모바일·반응형 절이 없고, 프로토타입(`Asset Manager v14.dc.html`)에도
-데스크톱 축소용 미디어쿼리 4개(`1380/1300/1000/900px`)뿐이다. 그래서 모바일 규격은 **디자인 시스템이
-이미 확정한 값(곡률 §5, 그림자 §6, 타이포 §4, 보더 §6-1) 안에서만** 파생시킨다.
+디자인 시스템(`secret/ds_rules_v3.md`)에는 모바일·반응형 절이 없다. 그래서 모바일 규격은
+**디자인 시스템이 이미 확정한 값(곡률 §5, 그림자 §6, 타이포 §4, 보더 §6-1) 안에서만** 파생시킨다.
 아래에 없는 세부값이 필요하면 임의로 만들지 말고 사용자에게 확인한다.
 
 ## 1. 브레이크포인트
 
-단일 브레이크포인트만 쓴다.
+모바일 브레이크포인트는 하나다.
 
 | 이름 | 조건 |
 |---|---|
 | 모바일 | `max-width: 767px` |
-| 데스크톱 | 그 외 (기존 1380/1300/1000/900px 축소 규칙은 그대로 유지) |
+| 데스크톱 | 그 외 (`base.css`의 1380/1300/1000/900px 축소 규칙은 별도로 유지) |
 
 - CSS: `@media (max-width:767px)`
-- JS: `useIsMobile()` (`src/utils/useMediaQuery.ts`) — `matchMedia('(max-width:767px)')`.
-  이 저장소는 인라인 스타일 중심이라 미디어쿼리만으로는 레이아웃을 못 바꾸는 곳이 많다.
-  **구조 자체가 달라지는 곳(내비 교체, 모달→시트)만 JS 훅으로 분기하고**, 단순 수치 조정은 CSS로 한다.
+- JS: `useIsMobile()` (`src/utils/useMediaQuery.ts`, `useSyncExternalStore` + `matchMedia('(max-width: 767px)')`).
+  인라인 스타일 중심이라 미디어쿼리로는 못 바꾸는 곳이 많다.
+  **구조가 달라지는 곳(내비 교체, 모달→시트, 위젯 교체)은 JS 훅으로 분기하고**, 단순 수치 조정은 CSS로 한다.
 
-## 2. 레이아웃 셸
+## 2. 레이아웃 셸 (`AuthenticatedApp.tsx`)
 
 | 항목 | 데스크톱 | 모바일 |
 |---|---|---|
 | 좌측 `SidebarNav` | 렌더 | **렌더하지 않음** |
 | 하단 `BottomTabNav` | 렌더하지 않음 | 렌더 |
-| `main` padding | `30px 40px 56px` | `18px 16px calc(92px + env(safe-area-inset-bottom))` |
+| `main` padding | `30px 40px 56px` | `calc(18px + env(safe-area-inset-top)) 16px calc(92px + env(safe-area-inset-bottom))` |
 
-하단 여백은 떠 있는 탭바에 콘텐츠가 가리지 않도록 확보한 값이다 — `92px = 탭바 60 + 아래로 띄운 12 + 숨통 20`.
+- 하단 `92px = 탭바 60 + 아래로 띄운 12 + 숨통 20` — 떠 있는 탭바에 콘텐츠가 가리지 않게 한다.
+- 상단 safe-area는 홈 화면 앱(§7)에서 헤더가 상태바와 겹치지 않게 한다. 일반 브라우저에서는 0이다.
 
 ## 3. 하단 탭바 (`BottomTabNav`)
 
-**화면 좌우·아래에서 띄운 알약 모양으로 콘텐츠 위에 떠 있다**(2026-09-04 사용자 결정 —
-"요즘 앱처럼 아래에 섬처럼 떠 있는 형태"). 예전에는 화면 좌우 끝까지 붙은 각진 바였다.
+화면 좌우·아래에서 띄운 알약 모양으로 콘텐츠 위에 떠 있다.
 
 - `position: fixed; left/right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); z-index: 50`
   → 헤더 드롭다운 스크림(55)·메뉴(60)·전역 스크림(70)·모달(80+)보다 항상 아래.
-  아래 여백은 아이폰 홈 인디케이터(`env`) 위로 12px 더 띄운 값이다.
-- 높이 `60px`
-- `background: var(--surface)`, `border: 0.5px solid var(--border)` 사방 (§6-1),
-  `box-shadow: var(--shadow-pop)` (§6-2 기존 토큰 — 새 그림자 값을 만들지 않는다)
-- 모서리 곡률 `999px`(완전한 반원 끝). **§5에 없는 값이라 하단 탭바에만 두는 예외다** —
-  2026-09-04 사용자가 이 형태를 명시적으로 선택했다. 다시 각지게 되돌리자는 이야기가 나오면
-  이 결정부터 확인한다. (§5의 "메뉴(내비)바 10px"는 카드 형태인 데스크톱 사이드바에 적용된다.)
-- `overflow: hidden` — 항목이 높이 100%를 채우므로 알약 곡률 밖으로 삐져나오지 않게 자른다.
-- 항목 5개는 `SidebarNav`의 `NAV_ITEMS`를 그대로 재사용한다. 아이콘 `22px`, 라벨 `10.5px/600`.
-- 활성 `var(--accent)` / 비활성 `var(--text-weak)`. 활성 표시는 색으로만 한다(1-8 데이터 색 금지와 무관).
+- 높이 `60px`, `background: var(--surface)`, `border: 0.5px solid var(--border)` (§6-1),
+  `box-shadow: var(--shadow-pop)` (새 그림자 값을 만들지 않는다).
+- 곡률 `999px`. **§5에 없는 값이라 하단 탭바에만 두는 예외다**(사용자 결정). 각지게 되돌리자는
+  이야기가 나오면 먼저 확인한다. §5의 "메뉴(내비)바 10px"는 데스크톱 사이드바에 적용된다.
+- `overflow: hidden` — 높이 100%를 채우는 항목이 알약 곡률 밖으로 삐져나오지 않게 한다.
+- 항목 5개는 `navItems.ts`의 `NAV_ITEMS`를 `SidebarNav`와 공유하고, 각 항목은 `Link`(진짜 `<a>`)다.
+  아이콘 `22px`, 라벨 `10.5px/600` `nowrap`(좁은 기기에서 두 줄로 꺾이지 않게).
+- 활성 `var(--accent)` / 비활성 `var(--text-weak)`. 활성 표시는 색으로만 한다.
 - 각 항목의 터치 영역은 최소 `44x44px`.
-- 데스크톱 사이드바 하단에 있던 **프로필 아바타는 모바일에서 헤더 우측으로 옮긴다**
-  (36px, 기존 스타일 그대로, `modalAccount`를 연다).
+- 프로필 아바타(36px, `Avatar size="s"`, 계정 모달을 연다)는 모바일에서 헤더 우측에 둔다.
 
 ## 4. 모달 → 바텀시트
 
-`src/components/primitives/Modal/Modal.tsx` 한 곳만 바꾸면 이를 쓰는 18개 모달에 모두 적용된다.
-`ReportOverlay`와 `AccountModal`은 공용 `Modal`을 쓰지 않으므로 각각 따로 대응한다.
+`src/components/primitives/Modal/Modal.tsx`가 모바일에서 바텀시트로 바뀌므로 공용 `Modal`을 쓰는
+모달은 모두 자동 적용된다. `ReportOverlay`와 `AccountModal`은 공용 `Modal`을 쓰지 않아 각자 대응한다.
 
 모바일일 때:
 
@@ -61,144 +57,125 @@
 |---|---|
 | 스크림 정렬 | `align-items: flex-end`, padding 0 |
 | 패널 너비 | `100%` |
-| 패널 곡률 | `10px 10px 0 0` (§5 — 모달은 10px, 새 값 만들지 않음) |
-| 패널 최대 높이 | `88vh`, 넘치면 세로 스크롤 |
-| 패널 padding | `20px 18px calc(20px + env(safe-area-inset-bottom))` |
-| 그림자 | `var(--shadow-modal)` 유지 (§6-2) |
-| 상단 그래버 | `36x4px`, `radius 999px`, `var(--border)`, 중앙 정렬 |
-| 등장 | 아래에서 위로 `220ms cubic-bezier(.2,.7,.3,1)`. `prefers-reduced-motion` 시 비활성 |
-| 닫기 제스처 | 아래로 스와이프(2026-08-28 추가). 임계값 `min(96px, 패널 높이 × 0.28)` |
+| 패널 곡률 | `10px 10px 0 0` (§5 — 모달은 10px) |
+| 패널 최대 높이 | `88vh`, 넘치면 세로 스크롤, `overscroll-behavior: contain` |
+| 패널 padding | `0 18px calc(20px + env(safe-area-inset-bottom))` — 위 20px은 그래버 블록이 가진다 |
+| 그림자 | `var(--shadow-modal)` (§6-2) |
+| 상단 그래버 | `36x4px`, `radius 999px`, `var(--border)`, 중앙. `position: sticky` 블록(`20px 18px 14px`, 총 38px) 안에 있다 |
+| 등장 | `.sheet-up`(base.css) — 아래에서 위로 `220ms cubic-bezier(.2,.7,.3,1)`. `prefers-reduced-motion` 시 비활성 |
+| 닫기 제스처 | 아래로 스와이프. 임계값 `min(96px, 패널 높이 × 0.28)` |
 
-- 호출부가 넘기는 `zIndex`는 그대로 유지한다(§7-1 중첩 모달 규칙이 이미 값을 정해둠).
-- 호출부의 `width`는 모바일에서 무시된다.
-- **모달은 스크림(배경)을 누르면 닫힌다**(2026-08-29 사용자 요청 — 2026-08-19에 "입력이 날아간다"는
-  이유로 막아뒀던 것을 되돌렸다). 닫는 방법은 배경 누르기, 아래로 스와이프, Esc 키(`Modal`이 직접
-  처리, 중첩 시 맨 위 하나만 반응), 호출부가 그리는 X/취소 버튼이다. 그래도 **모든 모달은 눈에 보이는
-  닫기 버튼을 반드시 가져야 한다**(배경 누르기·스와이프는 보조 수단이다).
-  - `click`이 아니라 `pointerdown`으로 받고 **누른 지점이 스크림 자신일 때만** 닫는다. 패널 안에서
-    글자를 드래그 선택하다 바깥에서 손을 떼면 `click`의 대상이 스크림이 되어 의도치 않게 닫히기
-    때문이다. 드롭다운·달력이 열려 있으면 그 투명 캐처(z-index 94)가 대상이 되므로 팝오버만 닫히고
-    모달은 남는다 — Esc와 같은 층위다.
-  - **입력이 날아가는 문제는 "초안 보관"으로 막는다.** 가계부 거래 입력 모달은 저장하지 않고 닫으면
-    적던 내용을 `AppState.entryDraft`에 담았다가 같은 거래유형으로 다시 열 때 되살린다
-    (`src/state/selectors/entryDraft.ts`). **2026-08-29 기준 초안 보관이 있는 모달은 이 하나뿐**이고,
-    계좌 등록·종목 추가 등 다른 폼 모달은 배경을 누르면 입력이 사라진다(사용자가 이 상태를 확인함).
-    다른 모달에도 넣자는 이야기가 나오면 같은 방식을 따른다.
-- **아래로 스와이프해서 닫기**(`Modal.tsx`의 `useSheetSwipeDown`, 2026-08-28 사용자 요청). 패널
-  전체에서 받고(그래버 바 4px만 잡으라고 하면 너무 작다), 아래 조건에서는 가로채지 않는다:
-  시트나 그 안의 스크롤 영역이 이미 스크롤돼 있을 때(`isScrolledDown` — 맨 위까지 올라와야 시작),
-  드롭다운·달력 팝오버가 열려 있을 때(`state.openDropdown !== null` — 팝오버는 `position: fixed`
-  여도 DOM상 패널의 자손이라 터치가 버블링된다), 가로 이동이 세로보다 클 때, 위로 끌 때.
-  **끄는 동안에만 인라인 `transform`을 건다** — 상시로 걸면 그 패널이 `position: fixed` 자손의
-  기준 상자가 되어 `usePopoverAnchor` 팝오버가 엉뚱한 자리에 붙는다.
-  React의 `onTouchMove`는 루트에 passive로 붙어 `preventDefault`가 통하지 않으므로(배경 스크롤·
-  당겨서 새로고침을 막아야 한다) 패널에 `{ passive: false }` 네이티브 리스너를 직접 붙인다.
-  `ReportOverlay`·`AccountModal`은 공용 `Modal`을 쓰지 않아 이 제스처가 없다(`ReportOverlay`는 대신 좌우 스와이프로 장을 넘긴다).
-- **내부 팝오버(드롭다운·달력)는 `usePopoverAnchor`로 띄운다.** 시트는 세로 스크롤 때문에
-  `overflow-y: auto`이고 데스크톱 모달도 대부분 `panelStyle`로 `overflow: auto`를 덮어써서,
-  `position: absolute` 팝오버는 양쪽 모두에서 잘린다. `src/components/primitives/usePopoverAnchor.ts`가
-  트리거의 화면 좌표를 재서 `position: fixed`로 띄우고 화면 가장자리를 벗어나지 않게 보정한다 —
-  `Dropdown`/`DatePicker`가 이미 이 훅을 쓰므로 새 팝오버를 만들 때도 그대로 재사용한다.
+- 호출부의 `zIndex`는 그대로 쓴다(§7-1 중첩 모달 규칙). 호출부의 `width`·`borderRadius`·`maxHeight`·
+  `padding`은 모바일에서 덮어쓴다(데스크톱 padding이 safe-area 하단 여백을 지우지 않게).
+- **헤더 고정**: 시트 헤더에는 `sheetStickyHeaderStyle(isMobile, gapBelow)`(`Modal/sheetHeader.ts`)를
+  헤더 style **뒤에** 펼친다. 그래버 블록 아래(`top: 38px`)에 붙어, 목록을 내려도 제목과 X 버튼이 남는다.
+  `ModalHeader`는 이미 적용돼 있다.
+- **닫는 방법**: 배경 누르기, 아래로 스와이프, Esc(`Modal`이 처리, 중첩 시 맨 위 하나만), 호출부의
+  X/취소 버튼. 배경·스와이프는 보조 수단이라 **모든 모달은 눈에 보이는 닫기 버튼을 가져야 한다.**
+  - 배경 닫기는 `pointerdown`에서 "스크림 자신을 눌렀는지" 기억하고 `click`에서 닫는다. `pointerdown`에서
+    바로 닫으면 손을 뗄 때 뒤에 드러난 헤더 버튼이 눌리고(고스트 클릭), `click`만 보면 패널 안에서 글자를
+    드래그하다 바깥에서 떼도 닫힌다. 드롭다운·달력이 열려 있으면 투명 캐처(z-index 94)가 대상이 되어
+    팝오버만 닫힌다(Esc도 같다).
+  - 배경을 누르면 입력이 사라진다. **초안 보관은 가계부 거래 입력 모달만** 한다(`AppState.entryDraft`,
+    `src/state/selectors/entryDraft.ts` — 같은 거래유형으로 다시 열면 복원). 다른 모달에 넣을 때도 같은 방식을 따른다.
+- **아래로 스와이프**(`useSheetSwipeDown`): 패널 전체에서 받는다(4px 그래버만 잡게 하면 너무 작다).
+  다음 경우엔 가로채지 않는다 — 터치 지점~패널 사이 영역이 이미 스크롤돼 있을 때(`isScrolledDown`),
+  드롭다운·달력이 열려 있을 때(`state.openDropdown !== null`, 팝오버도 DOM상 패널 자손이라 터치가 버블링된다),
+  가로 이동이 더 클 때, 위로 끌 때.
+  - **끄는 동안에만 인라인 `transform`을 건다** — 상시로 걸면 패널이 `position: fixed` 자손의 기준 상자가
+    되어 팝오버가 엉뚱한 자리에 붙는다.
+  - React `onTouchMove`는 passive라 `preventDefault`가 안 되므로 패널에 `{ passive: false }` 네이티브
+    리스너를 직접 붙인다.
+- **내부 팝오버(드롭다운·달력)는 `usePopoverAnchor`로 띄운다.** 시트와 대부분의 데스크톱 모달이
+  `overflow`로 잘라서 `position: absolute` 팝오버는 잘린다. `src/components/primitives/usePopoverAnchor.ts`가
+  트리거 좌표로 `position: fixed` 위치를 잡고 화면 밖으로 나가지 않게 보정한다 — `Dropdown`/`DatePicker`가
+  쓰고 있으니 새 팝오버도 재사용한다.
+- `ReportOverlay`는 스와이프로 닫기가 없고, 대신 좌우 스와이프로 장을 넘긴다.
 
 ## 4-1. 예외: 계정 모달은 오른쪽 서랍
 
-`AccountModal`(헤더 우측 아바타 → 계정 및 프로필)만 바텀시트가 아니라 **오른쪽에서 밀려 나오는
-서랍**이다(2026-09-04 사용자 요청 — 여는 버튼이 화면 우측 위에 있어 그쪽에서 나오는 게 자연스럽다).
-다른 모달은 전부 §4의 바텀시트를 따른다.
+`AccountModal`(헤더 우측 아바타)만 바텀시트가 아니라 **오른쪽에서 밀려 나오는 서랍**이다 — 여는 버튼이
+화면 우측 위에 있어서다.
 
 | 항목 | 값 |
 |---|---|
 | 스크림 정렬 | `align-items: stretch`, `justify-content: flex-end`, padding 0 |
-| 패널 폭 | `88%`, 최대 `420px` (왼쪽에 뒤 화면이 살짝 보여 눌러서 닫기 쉽다) |
-| 패널 높이 | `100%` (화면 전체) |
-| 패널 곡률 | `10px 0 0 10px` (§5 — 왼쪽 모서리만) |
+| 패널 폭 | `88%`, 최대 `420px` (왼쪽에 뒤 화면이 보여 눌러서 닫기 쉽다) |
+| 패널 높이 | `100%` |
+| 패널 곡률 | `10px 0 0 10px` (§5) |
 | 패널 padding | `calc(20px + env(safe-area-inset-top)) 18px calc(20px + env(safe-area-inset-bottom))` |
-| 등장 | 오른쪽에서 왼쪽으로 `.sheet-right`(base.css) — 시간·이징은 `.sheet-up`과 같은 `220ms cubic-bezier(.2,.7,.3,1)`, `prefers-reduced-motion` 시 비활성 |
-| 그래버 | 없음 — 아래로 미는 시트가 아니다. 닫기는 X 버튼과 왼쪽 빈 곳 누르기 |
+| 등장 | `.sheet-right`(base.css) — `.sheet-up`과 같은 시간·이징, `prefers-reduced-motion` 시 비활성 |
+| 그래버·스와이프 | 없음. 닫기는 X 버튼, 왼쪽 빈 곳 누르기(`Modal`과 같은 pointerdown+click 방식), Esc |
 
-- **로그아웃·탈퇴는 서랍 맨 아래에 붙인다**(`marginTop: 'auto'`, 2026-09-04 사용자 결정).
-  서랍이 화면 전체 높이라 항목 6개로는 아래가 크게 비는데, 되돌리기 어려운 두 동작을 한 묶음으로
-  빼서 하단에 두면 그 공백이 여백이 되고 일상 항목(이름·비밀번호 등)과도 구분된다.
-  데스크톱 모달은 높이가 내용에 맞춰지므로 영향이 없다.
-- **행 안에서 줄어드는 쪽은 왼쪽 텍스트다.** 오른쪽 배지·버튼에는 `whiteSpace: 'nowrap'`과
-  `flexShrink: 0`을, 왼쪽 텍스트 묶음에는 `minWidth: 0`(`ROW_TEXT_STYLE`)을 준다 — 안 그러면
-  좁은 폭에서 "준비 중"이 `준비` / `중`으로 쪼개진다(2026-09-04 실기기에서 발생).
-
-옆으로 스와이프해서 닫는 제스처는 아직 없다(§4의 `useSheetSwipeDown`은 바텀시트 전용).
+- **로그아웃·탈퇴는 서랍 맨 아래에 붙인다**(`marginTop: 'auto'`) — 되돌리기 어려운 동작을 일상 항목과
+  떼어 둔다. 데스크톱 모달은 높이가 내용에 맞춰지므로 영향이 없다.
+- **행 안에서 줄어드는 쪽은 왼쪽 텍스트다.** 오른쪽 배지·버튼에 `whiteSpace: 'nowrap'`·`flexShrink: 0`,
+  왼쪽 텍스트에 `minWidth: 0`(`ROW_TEXT_STYLE`) — 안 그러면 "준비 중"이 두 줄로 쪼개진다.
 
 ## 4-2. 예외: 알림은 화면 전체 알림센터
 
-헤더 벨 버튼의 알림은 모바일에서 드롭다운이 아니라 **화면 전체 알림센터**로 연다
-(2026-09-04 사용자 결정 — 데스크톱 앵커드 팝오버를 그대로 쓰면 벨 아래 작은 카드에 갇혀
-목록이 길수록 읽기 어렵다). 데스크톱은 종전의 팝오버 그대로다(`Header.tsx`).
+헤더 벨의 알림은 모바일에서 **화면 전체 알림센터**, 데스크톱에서 벨 아래 팝오버다. 본문은
+`NotificationPanel.tsx`가 `isMobile`로 분기한다.
 
 | 항목 | 값 |
 |---|---|
-| 배치 | `position: fixed; inset: 0; z-index: 60` (하단탭 50 위, 모달 80+ 아래 — 기존 드롭다운 층 그대로) |
-| 배경 | `var(--canvas)` (카드가 아니라 화면이므로 `--surface`가 아니다) |
+| 배치 | `position: fixed; inset: 0; z-index: 60` (하단탭 50 위, 모달 80+ 아래), `role="dialog"` |
+| 배경 | `var(--canvas)` (카드가 아니라 화면) |
 | padding | `calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom))` |
-| 구조 | 세로 flex — 제목 줄 고정, 목록만 `flex:1; overflow-y:auto`로 스크롤 |
-| 제목 줄 | 34px 뒤로가기 칩(`arrow_back`, `--track`) + "알림" 16.5px/700 + 오른쪽 "모두 읽음" |
-| 닫기 | 뒤로가기 칩 — 화면 전체를 덮어 바깥 누르기가 불가능하므로 보이는 닫기 수단이 필수다 |
-| 빈 상태·로딩·에러 | 세로 가운데 정렬 |
+| 구조 | 세로 flex — 제목 줄 고정, 목록만 스크롤. 날짜 묶음 라벨은 sticky |
+| 제목 줄 | 34px 뒤로가기 칩(`arrow_back`, `--track`) + "알림" 17px/700 + 오른쪽 "모두 읽음" |
+| 닫기 | 뒤로가기 칩 — 화면 전체를 덮어 바깥 누르기가 없으므로 필수 |
+| 빈 상태 | 세로 가운데 정렬 |
 
-목록 표기 규칙(데스크톱 팝오버에도 같이 적용):
+목록 규칙(데스크톱 팝오버도 같다):
 
-- **안 읽은 알림은 행 배경 `var(--accent-soft)`**, 읽은 알림은 배경 없음. 안 읽은 행에서는
-  아이콘 칩 배경을 `--fill-subtle` 대신 `--surface`로 바꿔 강조 배경에 묻히지 않게 한다.
-  기존의 아이콘 우상단 점(`--accent`)과 제목 색 구분은 그대로 둔다.
-- **제목·본문은 3줄에서 자른다**(`clampLines(3)`, `-webkit-line-clamp`). 서버 알림 문구에는
-  길이 제한이 없어(만기 알림에 계좌 별칭이 그대로 들어온다) 화면 쪽에서 막는다.
+- 안 읽은 알림: 행 배경 `var(--fill-subtle)` + 제목 700 + 아이콘 칩 오른쪽 위 `--accent` 점.
+  읽은 알림: 배경 없음, 제목 500 `--text-mid`, 칩 `opacity 0.55`.
+- 제목·본문은 각각 **2줄에서 자른다**(`clampLines`). 서버 문구에 길이 제한이 없어서다. 행을 누르면
+  읽음 처리 + 그 자리에서 펼치고 접는다(다른 화면으로 이동하지 않는다).
+- 행 hover 배경은 `@media (hover: hover)`에서만 준다(`.notif-row`).
 
 ## 5. 터치 환경
 
-- `.row-actions`처럼 **hover에서만 나타나는 UI는 터치 기기에서 영영 보이지 않는다.**
-  `@media (hover: none)`에서 항상 보이도록 한다.
-- hover로만 뜨는 트리맵 툴팁 등도 같은 문제를 가진다 — 터치에서는 탭으로 열리게 하거나 항상 표시한다.
-- 모든 인터랙티브 요소의 터치 영역 최소 `44x44px`.
+- **hover에서만 나타나는 UI는 터치 기기에서 영영 보이지 않는다.** `@media (hover: none)`에서 항상
+  보이게 한다(`.row-actions`). 반대로 hover 효과는 필요하면 `@media (hover: hover)`로 가둔다.
+- 모든 인터랙티브 요소의 터치 영역 최소 `44x44px`. 모양은 작게 두고 터치 영역만 키울 때는 모바일에서
+  `min-width/height: 44px`를 주는 `.tap-44`(base.css)를 쓴다.
 
 ## 6. 화면별 그리드
 
-기존 `.rgrid-outer`(≤1300px)·`.rgrid-cards`(≤900px)·`.asset-2col`(≤1380px)은 이미 1열로 접히므로
-모바일에서도 자동으로 1열이 된다. 추가로 필요한 것만 다룬다.
+`.rgrid-outer`(≤1300px)·`.rgrid-cards`(≤900px)·`.asset-2col`(≤1380px)은 이미 1열로 접혀 모바일에서도 1열이다.
 
-- 4열 그리드(대시보드 하단 카드)는 1열이면 지나치게 길어진다 → 모바일 **2열**.
-- 가로로 넓은 표·리스트는 잘라내지 말고 `overflow-x: auto` 래퍼로 감싼다.
-- 금액은 `--text-strong` 크기를 줄이기보다 줄바꿈·축약(§4-2)을 우선한다.
+- 1열이면 지나치게 길어지는 4열 그리드는 2열로 접는다 — 대시보드 "주요 자산 보관처"는 `.rgrid-institutions`
+  (≤767px 2열), 주식 시장 지표 타일은 `.rgrid-indices`(≤900px 2열). **이 클래스들은 `.rgrid-cards`와
+  같이 쓰지 않는다** — `.rgrid-cards`의 `!important` 1열 규칙과 충돌한다.
+- 자산 구성 카드(`.aclass-card`)는 1열이 되는 ≤900px에서 가로 배치로 바뀐다(열 수 규칙과 같은 폭).
+- 다단 그리드의 자식에는 `min-width: 0`을 준다(base.css) — 없으면 칸이 내용물 최소 폭만큼 늘어나 화면이
+  가로로 밀린다.
+- 가로로 넓은 표·리스트·트리맵은 잘라내지 말고 `overflow-x: auto` 래퍼로 감싼다(자산 화면 트리맵 참고).
+- 구조를 바꾸는 모바일 분기 예: 주식 시장 지표는 타일 대신 한 줄 전광판(`MarketIndexTicker`), 대시보드
+  B안은 카드 순서 변경.
+- 금액은 글자 크기를 줄이기보다 줄바꿈·축약(`formatKoreanUnits`)을 우선한다.
 
 ## 7. 홈 화면에 추가(PWA)
 
-사파리·크롬의 "홈 화면에 추가"로 설치하면 모닛 로고 아이콘이 생기고, 눌렀을 때 **주소창 없는
-전체화면(standalone)** 으로 열린다(2026-09-03 사용자 결정).
+"홈 화면에 추가"로 설치하면 주소창 없는 **전체화면(standalone)** 으로 열린다.
 
 - 파일: `index.html`의 `apple-touch-icon`·`manifest`·`*-web-app-capable`·`theme-color` 태그,
-  `public/manifest.webmanifest`, 아이콘 PNG `public/pwa/`(180·192·512). PNG 원본과 다시 뽑는
-  명령은 `scripts/app-icon/index.html` 상단 주석. 로고를 바꾸면 파비콘·`MonitLogo.tsx`·
-  og-image·app-icon 네 곳을 같이 고친다.
-- 새 정적 파일을 `public/`에 추가하면 `vercel.json` rewrite 예외에도 넣어야 한다 — 빠지면
-  `index.html`로 덮여 HTML이 응답된다.
-- 전체화면 모드는 사파리와 **쿠키·저장소가 분리**된다. 홈 화면에서 처음 열 때 로그인을 한 번
-  다시 해야 하는 것은 버그가 아니다(refresh 쿠키가 없어서 `anonymous`로 시작).
-- 상태바는 `apple-mobile-web-app-status-bar-style=black-translucent` — 상태바를 투명하게
-  웹 콘텐츠 위에 겹쳐 그리고, 웹 콘텐츠는 상태바 뒤까지 화면 전체 높이를 차지한다. 스플래시
-  이미지도 항상 화면 전체 높이 기준으로 로고를 중앙에 그리므로, 웹 콘텐츠도 같은 기준(전체 높이)
-  이어야 스플래시 → 실제 페이지로 넘어갈 때 로고 위치가 안 튄다. **다만 이 설정을 iOS가 항상
-  따라주지는 않는다** — 2026-09-03 실기기(393×852) 영상을 픽셀 측정했을 때 아이콘을 다시 추가한
-  뒤에도 웹뷰가 상태바 아래(59pt)부터 시작해 `innerHeight`가 793이었고, 로딩 화면 로고가
-  스플래시보다 30pt 아래에 놓였다. 그래서 `BootScreen`은 `navigator.standalone`일 때
-  `(screen.height − innerHeight) / 2`만큼 로고를 위로 올려 **어느 방식이든 기기 화면 전체의
-  정중앙**에 맞춘다(웹뷰가 전체 화면이면 차이가 0이라 보정도 0). 대신 콘텐츠가
-  상태바 뒤까지 깔리므로, 화면 맨 위에 오는 요소(헤더, `Auth` 폼)는 `env(safe-area-inset-top)`
-  만큼 여백을 더해야 시계·배터리 아이콘과 안 겹친다 — `AuthenticatedApp.tsx`의 모바일 main
-  padding, `Auth.tsx`의 main padding 참고. 하단은 `viewport-fit=cover` 덕에
-  `env(safe-area-inset-bottom)`이 실제 값을 갖고, §2·§4의 하단탭·시트가 이미 그 값을 쓴다.
-- `theme-color`(안드로이드 상태바 색)는 `src/utils/theme.ts`의 `applyTheme`이 테마에 맞춰
-  `--canvas` 색으로 갈아끼운다.
-- iOS는 홈 화면 아이콘을 캐시한다. 아이콘을 바꿔 배포하면 기존 아이콘을 지우고 다시 추가해야 한다.
-- **시작 화면(스플래시)**: 전체화면 앱이 뜨기 전까지 iOS가 보여주는 이미지. `BootScreen`과 같은
-  모양(`--canvas` 바탕 + 가운데 40px 로고)으로 기종별·라이트/다크별 PNG 24장을 미리 만들어
-  `public/pwa/splash/`에 두고 `index.html`의 `apple-touch-startup-image` 태그 24개로 연결했다.
-  원본은 `scripts/splash/index.html`, 전체 생성은 `scripts/splash/generate.sh`(dev 서버를 띄운
-  채 실행) — 로고가 바뀌거나 새 기종을 추가할 땐 스크립트를 다시 돌려 태그 블록을 통째로
-  갈아끼운다(손으로 한 장씩 고치지 말 것). 라이트/다크는 `prefers-color-scheme`(iOS 시스템
-  설정)을 따르며, 이 시점엔 로그인 전이라 앱 내 테마 설정과 다를 수 있다.
+  `public/manifest.webmanifest`, 아이콘 PNG `public/pwa/`(180·192·512). 아이콘 원본은 `scripts/app-icon/index.html`.
+  로고를 바꾸면 파비콘·`MonitLogo.tsx`·og-image·app-icon·스플래시를 같이 고친다.
+- `public/`에 새 정적 파일(경로)을 추가하면 `vercel.json` rewrite 예외에도 넣는다 — 빠지면 `index.html`이 응답된다.
+- 전체화면 모드는 사파리와 **쿠키·저장소가 분리**된다. 처음 열 때 다시 로그인하는 것은 버그가 아니다.
+- viewport는 `viewport-fit=cover`, 상태바는 `apple-mobile-web-app-status-bar-style=black-translucent`라
+  콘텐츠가 상태바 뒤까지 깔린다. 그래서 화면 맨 위 요소는 `env(safe-area-inset-top)`을 더한다
+  (`AuthenticatedApp` main, `Auth.tsx` main, 알림센터, 계정 서랍, `ReportOverlay` 상단 버튼).
+  하단은 §2·§3·§4가 `env(safe-area-inset-bottom)`을 쓴다.
+- iOS가 웹뷰를 상태바 아래부터 시작시키는 경우가 있어, `BootScreen`은 `navigator.standalone`일 때
+  `(screen.height − innerHeight) / 2`만큼 로고를 올려 스플래시와 같은 화면 정중앙에 맞춘다.
+- `theme-color`(안드로이드 상태바 색)는 `src/utils/theme.ts`가 테마에 맞춰 `--canvas` 색으로 바꾼다.
+- iOS는 홈 화면 아이콘을 캐시한다. 아이콘을 바꾸면 지우고 다시 추가해야 보인다.
+- **스플래시**: `BootScreen`과 같은 모양(`--canvas` 바탕 + 가운데 40px 로고)의 기종별·라이트/다크별 PNG 24장이
+  `public/pwa/splash/`에 있고 `index.html`의 `apple-touch-startup-image` 태그 24개로 연결된다. 원본은
+  `scripts/splash/index.html`, 생성은 `scripts/splash/generate.sh`(dev 서버를 띄운 채 실행, 태그 블록을
+  출력한다) — 손으로 한 장씩 고치지 말고 스크립트로 통째로 갈아끼운다. 라이트/다크는 iOS 시스템
+  설정을 따르므로 앱 내 테마와 다를 수 있다.

@@ -19,9 +19,14 @@ export function firstWeekday(y: number, m: number): number {
 // monthStartDay=15면 6/28도 7/1도 7/14도 전부 정산 6월이다(정산 6월 = 6/15~7/14). 이건 새로 정한
 // 게 아니라 기존 서버 동작(가계부·대시보드·목표)과 일치하는 확정 규칙이다.
 //
-// 다만 이 규칙을 실제로 계산에 반영하려면 monthStartDay별 정산월 경계(periodStart/periodEnd)가
-// 필요한데, 아직 GET /users/me/settlements 연동 전이라 아래 계산 로직은 손대지 않았다 — 기본
-// 커서는 여전히 달력 연·월을 그대로 쓴다. 서버 확인 후 이 엔드포인트로 교체할 것.
+// "지금이 어느 정산월인가"의 정본은 서버(GET /users/me/settlements/current)다 — 화면은
+// useCurrentSettlementMonth()(src/utils/useCurrentSettlementMonth.ts)로 읽는다. 아래 todayYearMonth는
+// 달력 연·월 그대로라 monthStartDay가 1이 아니면 틀린다(예: 28일 시작, 9/26 → 정산 8월인데 9를 돌려줌).
+// 앱 부팅 직후 AppState 초기값처럼 서버 응답 전에만 쓰는 임시값으로 남겨 둔다.
+//
+// 가계부 달력·주간 뷰처럼 "임의의 날짜가 어느 정산월인가"는 서버에 날짜 단위 API가 없어 아래
+// settlementMonthOf/settlementPeriodOf가 같은 규칙으로 계산한다. 서버가 라벨링 규칙을 바꾸면(예: 끝나는
+// 달 기준) 이 두 함수만 고치면 된다 — useCurrentSettlementMonth가 서버 값과 어긋나면 콘솔에 경고한다.
 
 export interface YearMonthCursor {
   year: number
@@ -31,6 +36,22 @@ export interface YearMonthCursor {
 export function todayYearMonth(): YearMonthCursor {
   const now = new Date()
   return { year: now.getFullYear(), month: now.getMonth() + 1 }
+}
+
+/**
+ * 이 날짜('YYYY-MM-DD')가 속한 정산월. 시작일이 속한 달로 라벨링한다 — monthStartDay가 28이면
+ * 9/26은 정산 8월(8/28~9/27), 9/28은 정산 9월이다. monthStartDay가 1이면 달력 연·월과 같다.
+ */
+export function settlementMonthOf(iso: string, monthStartDay: number): YearMonthCursor {
+  const cursor = yearMonthOf(iso)
+  return Number(iso.slice(8, 10)) >= monthStartDay ? cursor : shiftYearMonth(cursor, -1)
+}
+
+/** 정산월의 첫날·마지막 날('YYYY-MM-DD', 양끝 포함). monthStartDay는 1~28이라 모든 달에 그 날이 있다. */
+export function settlementPeriodOf({ year, month }: YearMonthCursor, monthStartDay: number): DateRange {
+  const dayOf = (c: YearMonthCursor) =>
+    `${c.year}-${String(c.month).padStart(2, '0')}-${String(monthStartDay).padStart(2, '0')}`
+  return { from: dayOf({ year, month }), to: addDays(dayOf(shiftYearMonth({ year, month }, 1)), -1) }
 }
 
 /** 정산월 커서를 delta개월 이동한다(음수면 과거). */
@@ -74,10 +95,8 @@ export function isoDateToViewingMonth(iso: string | null): { y: number; m: numbe
 }
 
 // --- 가계부 주간 뷰 ----------------------------------------------------------
-// 서버가 정산월의 시작·종료일(periodStart/periodEnd)을 안 내려주므로(2장, docs/backend-request.md)
-// "정산월 안에서 몇째 주"를 정확히 계산할 근거가 없다. 대신 순수 달력 기준 주(월요일 시작)로 계산한다
-// — monthStartDay가 1이 아닌 사용자에게는 "몇째 주"·"어느 달"이 실제 정산월과 어긋날 수 있는 한계를
-// 그대로 안고 간다(백엔드가 기간 경계를 제공하면 이 절 전체를 정산월 기준으로 교체해야 한다).
+// 주는 월요일 시작 달력 주다. 그 주가 "어느 정산월 소속인가"는 목요일이 속한 정산월로 정한다(ISO 8601이
+// 주-연도를 목요일로 정하는 방식). monthStartDay를 생략하면 1(=달력월)로 계산해 예전 동작과 같다.
 
 /** 주어진 날짜가 속한 주의 월요일('YYYY-MM-DD'). */
 export function mondayOf(iso: string): string {
@@ -106,19 +125,18 @@ export function yearMonthOf(iso: string): YearMonthCursor {
 }
 
 /**
- * 이 주(월~일)가 "몇 월"에 속하는지 결정한다. ISO 8601이 주-연도를 그 주의 목요일 기준으로 정하는
- * 것과 같은 방식으로, 이 주의 목요일이 속한 달을 그 주의 "소속 달"로 본다(정산월이 아니라 달력월
- * 기준 — 위 절 설명 참고).
+ * 이 주(월~일)가 어느 정산월에 속하는지 결정한다. ISO 8601이 주-연도를 그 주의 목요일 기준으로 정하는
+ * 것과 같은 방식으로, 이 주의 목요일이 속한 정산월을 그 주의 "소속 달"로 본다.
  */
-export function monthOfWeek(mondayIso: string): YearMonthCursor {
-  return yearMonthOf(addDays(mondayIso, 3))
+export function monthOfWeek(mondayIso: string, monthStartDay = 1): YearMonthCursor {
+  return settlementMonthOf(addDays(mondayIso, 3), monthStartDay)
 }
 
-/** 소속 달의 월요일 시작 달력 격자에서 이 주가 몇 번째 행(1-base)인지. */
-export function weekIndexInMonth(mondayIso: string): number {
-  const { year, month } = monthOfWeek(mondayIso)
-  const startDow = firstWeekday(year, month)
-  const firstRowMonday = addDays(`${year}-${String(month).padStart(2, '0')}-01`, -startDow)
+/** 소속 정산월의 달력 격자(정산월 첫날이 든 주가 1행)에서 이 주가 몇 번째 행(1-base)인지. */
+export function weekIndexInMonth(mondayIso: string, monthStartDay = 1): number {
+  const periodStart = settlementPeriodOf(monthOfWeek(mondayIso, monthStartDay), monthStartDay).from
+  const startDow = (new Date(`${periodStart}T00:00:00`).getDay() + 6) % 7 // 0=월..6=일(firstWeekday와 같은 기준)
+  const firstRowMonday = addDays(periodStart, -startDow)
   const diffDays = Math.round(
     (new Date(`${mondayIso}T00:00:00`).getTime() - new Date(`${firstRowMonday}T00:00:00`).getTime()) / 86400000,
   )
@@ -142,15 +160,15 @@ export function firstMondayOfMonthGrid(year: number, month: number): string {
  * (monthOfWeek)과 서로 다른 답을 내 "2월 보다가 주간 전환 → 1월로 표시 → 다시 월간 전환
  * → 1월로 이동"하는 왕복 불일치가 생긴다.
  *
- * 이를 막기 위해 "월간 → 주간 기본 주"도 반드시 monthOfWeek 기준으로 통일한다: 달의 1일이
+ * 이를 막기 위해 "월간 → 주간 기본 주"도 반드시 monthOfWeek 기준으로 통일한다: 정산월 첫날이
  * 속한 주가 이미 이 달 소속이면 그 주를, 아니면(1일이 금/토/일이라 그 주가 전달 소속이면) 다음
  * 주를 반환한다 — 이렇게 고르면 반환값의 monthOfWeek가 항상 (year, month)와 정확히
  * 일치하므로 월간→주간→월간 왕복이 항상 제자리로 돌아온다.
  */
-export function firstMondayBelongingToMonth(year: number, month: number): string {
-  const day1 = `${year}-${String(month).padStart(2, '0')}-01`
+export function firstMondayBelongingToMonth(year: number, month: number, monthStartDay = 1): string {
+  const day1 = settlementPeriodOf({ year, month }, monthStartDay).from
   const candidate = mondayOf(day1)
-  const owner = monthOfWeek(candidate)
+  const owner = monthOfWeek(candidate, monthStartDay)
   return owner.year === year && owner.month === month ? candidate : addDays(candidate, 7)
 }
 

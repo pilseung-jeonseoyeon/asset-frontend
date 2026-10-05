@@ -19,7 +19,7 @@
 // 최대 3개까지 입력칸 아래에 보여준다. 칩을 누르면 제목·금액·소분류·계좌(저축·이체는 출금/상대 계좌)를
 // 한 번에 채운다 — 자동으로 채우지는 않는다. 목록은 모달이 열릴 때 한 번 받고(React Query 캐시, 거래를
 // 등록하면 transaction 키가 무효화되어 다음에 열 때 반영), 제목 비교는 ledgerView의
-// buildEntrySuggestions가 한다(서버에 제목 검색이 없다). 수정 모드에서는 보여주지 않는다 — 이미 값이
+// buildEntrySuggestions가 한다(서버 keyword 검색 대신, 이미 받은 목록에서 비교한다). 수정 모드에서는 보여주지 않는다 — 이미 값이
 // 다 차 있고, 엉뚱한 칩을 눌러 기존 거래가 덮어써지는 사고를 막는다.
 
 import { useState, useRef } from 'react'
@@ -35,7 +35,7 @@ import { useAppState } from '../../../state/AppStateContext'
 import { useEntityDropdown, type DropdownState } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { isoDateToDisplay, pickedToISODate, recentMonthsRange, toISODate } from '../../../utils/date'
-import { formatNumber, parseAmount } from '../../../utils/format'
+import { MAX_KRW_AMOUNT, MAX_KRW_AMOUNT_MESSAGE, formatNumber, parseAmount } from '../../../utils/format'
 import { readLastUsedAccounts, storeLastUsedAccounts } from '../../../utils/ledgerLastAccounts'
 import { captureEntryDraft } from '../../../state/selectors/entryDraft'
 import { ENTRY_TYPE_TO_CATEGORY_KIND, ENTRY_TYPE_TO_TRANSACTION_TYPE, buildEntrySuggestions, findSubcategoryById } from '../../../data/ledgerView'
@@ -106,6 +106,8 @@ export function LedgerEntryModal() {
   )
 
   const [amountInvalid, setAmountInvalid] = useState(false)
+  // 상한을 넘는 입력은 받지 않고(이전 값 유지) 안내만 띄운다 — format.ts MAX_KRW_AMOUNT 참고.
+  const [amountTooLarge, setAmountTooLarge] = useState(false)
   // 칩을 누른 뒤에는 제목을 다시 고칠 때까지 칩을 숨긴다 — 방금 채운 값과 같은 칩이 계속 떠 있으면
   // "아직 안 채워진 건가?" 하고 헷갈린다.
   const [suggestionApplied, setSuggestionApplied] = useState(false)
@@ -183,7 +185,12 @@ export function LedgerEntryModal() {
   // 화면엔 항상 "첫 대분류·첫 소분류"가 기본 선택으로 보이지만(사용자가 한 번도 안 건드렸을 수 있음),
   // 실제 제출값은 state.entrySubcategoryId가 null이어도 이 유효값으로 채운다 — 그대로 두면 화면엔
   // 카테고리가 선택된 것처럼 보이는데 실제로는 null이 전송돼 SUBCATEGORY_REQUIRED가 난다.
-  const submitSubcategoryId = state.entrySubcategoryId ?? effectiveSubcategory?.id ?? null
+  // 수정 중인 거래의 소분류가 설정에서 삭제됐으면(서버는 논리 삭제라 거래는 옛 id를 그대로 가리킨다) 드롭다운은
+  // 첫 소분류를 보여주는데 제출값은 사라진 id라 SUBCATEGORY_NOT_FOUND가 났다 — 화면에 보이는 값을 보내고 그 사실을 알린다.
+  const storedSubcategoryMissing = state.entrySubcategoryId !== null && !selected && categoriesQuery.isSuccess && categories.length > 0
+  const submitSubcategoryId = storedSubcategoryMissing
+    ? (effectiveSubcategory?.id ?? null)
+    : (state.entrySubcategoryId ?? effectiveSubcategory?.id ?? null)
 
   const entryCatVisible = !isTransfer
   const suggestions: EntrySuggestion[] =
@@ -263,6 +270,7 @@ export function LedgerEntryModal() {
       entryWithdrawAccountId: null,
     })
     setAmountInvalid(false)
+    setAmountTooLarge(false)
     setDescInvalid(false)
     setSameAccountInvalid(false)
     setSuggestionApplied(false)
@@ -287,9 +295,11 @@ export function LedgerEntryModal() {
     setState((prev) => ({
       // 수정 세션(editingTransactionId)은 어느 경로로 닫히든 초안을 만들지도, 기존 초안을 지우지도 않는다.
       // 남의 거래를 잠깐 고치고 저장했다고 해서 내가 쓰다 만 새 거래 초안이 날아가면 안 된다.
+      // 다른 유형 창을 열었다가 아무것도 안 적고 닫으면 보관 중이던 다른 유형의 초안은 그대로 둔다 —
+      // 예전엔 '지출' 창을 열어 보기만 해도 적어 둔 '수입' 초안이 사라졌다(2026-09-26 통합테스트).
       entryDraft:
         prev.editingTransactionId !== null ? prev.entryDraft
-        : keepDraft ? captureEntryDraft(prev)
+        : keepDraft ? (captureEntryDraft(prev) ?? (prev.entryDraft && prev.entryDraft.entryType !== prev.entryType ? prev.entryDraft : null))
         : null,
       entryDraftRestored: false,
       openModal: null,
@@ -309,6 +319,7 @@ export function LedgerEntryModal() {
     // 이 모달은 AppShell에 항상 마운트되어 있어 닫아도 언마운트되지 않는다. 로컬 확인/검증 상태와
     // mutation 에러를 직접 지우지 않으면 다음에 열었을 때 지난 세션의 실패·확인창이 그대로 보인다.
     setAmountInvalid(false)
+    setAmountTooLarge(false)
     setDescInvalid(false)
     setSameAccountInvalid(false)
     setDeleteConfirmOpen(false)
@@ -353,16 +364,12 @@ export function LedgerEntryModal() {
       closeDiscardingDraft()
     }
 
-    // PUT은 전체 교체다. 이 모달이 편집하지 않는 필드(외화 nativeAmount/nativeCurrency)를 다시
-    // 실어 보내지 않으면 금액만 고쳐 저장해도 원래 값이 null로 지워진다. 값이 없던 거래는 키 자체를
-    // 넣지 않는다. memo는 이제 이 모달이 직접 편집하므로(entryMemo) 여기서 보존할 필요가 없다 —
-    // 아래 memo와 별도로 합친다.
-    const preserved = state.entryPreserved
+    // 예전 외화 필드(nativeAmount/nativeCurrency)는 서버 요청에서 사라졌다(2026-09-26 — 외화 증감은 이제 응답의
+    // foreignCurrency/foreignAmount로만 오고, 매매 정산·환전·달러 잔액 정정에서 서버가 채운다). 그래서 PUT에 다시
+    // 실어 보낼 값은 memo뿐이다.
     const memo = state.entryMemo.trim()
     const keep = {
       ...(memo ? { memo } : {}),
-      ...(isEditing && preserved?.nativeAmount !== null && preserved?.nativeAmount !== undefined ? { nativeAmount: preserved.nativeAmount } : {}),
-      ...(isEditing && preserved?.nativeCurrency !== null && preserved?.nativeCurrency !== undefined ? { nativeCurrency: preserved.nativeCurrency } : {}),
     }
 
     if (isTransfer) {
@@ -434,14 +441,21 @@ export function LedgerEntryModal() {
   // 계좌가 부족한 것이므로 저장을 막고 그 사실을 그대로 안내한다.
   const notEnoughAccounts =
     needsTransferAccount && !accountsQuery.isPending && !accountsQuery.error && accounts.length === 1
-  const canSave = !isBusy && !noCategoryAvailable && !noAccountAvailable && !notEnoughAccounts
+  // 카테고리·계좌 목록을 못 불러오면 제출값을 채울 수 없어 저장을 눌러도 조용히 아무 일도 없었다(죽은 클릭) —
+  // 버튼을 막고, 각 칸의 오류 문구로 이유를 보여준다.
+  const listLoadFailed = (entryCatVisible && !!categoriesQuery.error) || !!accountsQuery.error
+  const canSave = !isBusy && !noCategoryAvailable && !noAccountAvailable && !notEnoughAccounts && !listLoadFailed
 
   const categoryErrorMessage =
-    saveErrorCode === 'SUBCATEGORY_REQUIRED' || saveErrorCode === 'SUBCATEGORY_NOT_ALLOWED' || saveErrorCode === 'SUBCATEGORY_NOT_FOUND'
+    saveErrorCode === 'SUBCATEGORY_REQUIRED' || saveErrorCode === 'SUBCATEGORY_NOT_ALLOWED' || saveErrorCode === 'SUBCATEGORY_NOT_FOUND' ||
+    saveErrorCode === 'SUBCATEGORY_KIND_MISMATCH'
       ? saveError?.message
       : null
+  // 서버도 같은 계좌 저축·이체를 SAME_ACCOUNT_NOT_ALLOWED로 막는다 — 계좌 칸 옆에 보여준다.
   const transferAccountErrorMessage =
-    saveErrorCode === 'TRANSFER_ACCOUNT_REQUIRED' || saveErrorCode === 'TRANSFER_ACCOUNT_NOT_ALLOWED' ? saveError?.message : null
+    saveErrorCode === 'TRANSFER_ACCOUNT_REQUIRED' || saveErrorCode === 'TRANSFER_ACCOUNT_NOT_ALLOWED' || saveErrorCode === 'SAME_ACCOUNT_NOT_ALLOWED'
+      ? saveError?.message
+      : null
   const transactionNotFoundMessage = saveErrorCode === 'TRANSACTION_NOT_FOUND' ? saveError?.message : null
   const genericErrorMessage =
     saveError && !categoryErrorMessage && !transferAccountErrorMessage && !transactionNotFoundMessage ? saveError.message : null
@@ -513,27 +527,39 @@ export function LedgerEntryModal() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...FIELD_BORDER_STYLE }}>
             <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
             <input
-              type="text" placeholder="0"
+              type="text" inputMode="numeric" placeholder="0"
               value={state.entryAmount ? formatNumber(state.entryAmount) : ''}
               onChange={(e) => {
-                setState({ entryAmount: parseAmount(e.target.value) })
+                const next = parseAmount(e.target.value)
+                if (next > MAX_KRW_AMOUNT) {
+                  setAmountTooLarge(true)
+                  return
+                }
+                setAmountTooLarge(false)
+                setState({ entryAmount: next })
                 if (amountInvalid) setAmountInvalid(false)
+                // 지난 저장 실패 문구는 값을 고치는 순간 지운다 — 남겨 두면 고친 뒤에도 틀린 것처럼 보인다.
+                if (activeMutation.error) activeMutation.reset()
               }}
               ref={amountInputRef}
               style={{ border: 'none', outline: 'none', fontSize: 20, fontWeight: 700, fontFamily: 'inherit', width: '100%', color: 'var(--text-strong)' }}
             />
           </div>
           {amountInvalid && <div style={ERROR_STYLE}>금액을 입력해주세요</div>}
+          {amountTooLarge && <div style={ERROR_STYLE}>{MAX_KRW_AMOUNT_MESSAGE}</div>}
         </div>
 
         <div>
           <div style={LABEL_STYLE}>내용</div>
           <input
             type="text" placeholder={CONTENT_PLACEHOLDER[entryType]}
+            // 서버 description은 1~200자(CreateTransactionReq) — 넘기면 400이라 입력칸에서 막는다.
+            maxLength={200}
             value={state.entryDescription}
             onChange={(e) => {
               setState({ entryDescription: e.target.value })
               if (descInvalid) setDescInvalid(false)
+              if (activeMutation.error) activeMutation.reset()
               if (suggestionApplied) setSuggestionApplied(false)
             }}
             style={{ width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box' }}
@@ -568,7 +594,10 @@ export function LedgerEntryModal() {
           <input
             type="text" placeholder="추가로 남겨둘 메모가 있다면 적어주세요"
             value={state.entryMemo}
-            onChange={(e) => setState({ entryMemo: e.target.value })}
+            onChange={(e) => {
+              setState({ entryMemo: e.target.value })
+              if (activeMutation.error) activeMutation.reset()
+            }}
             style={{ width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13, fontWeight: 500, fontFamily: 'inherit', outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box' }}
           />
         </div>
@@ -591,6 +620,9 @@ export function LedgerEntryModal() {
                   <Dropdown dropdown={entrySubcategoryDropdown} maxHeight={200} />
                 </div>
               </div>
+            )}
+            {storedSubcategoryMissing && !categoryErrorMessage && (
+              <div style={{ ...ERROR_STYLE, color: 'var(--text-mid)' }}>원래 소분류가 삭제돼서 지금 보이는 소분류로 저장돼요. 다른 소분류로 바꿀 수 있어요.</div>
             )}
             {categoryErrorMessage && <div style={ERROR_STYLE}>{categoryErrorMessage}</div>}
           </div>

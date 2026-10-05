@@ -124,7 +124,10 @@ export function providersFor(assetClass: AssetClass): ConnectionProvider[] {
  * 문구를 따로 고치지 않도록 목록에서 만든다.
  */
 export function providerLabelsFor(assetClass: AssetClass): string {
+  // 아직 연동할 수 없는(supported: false) 기관은 빼고 부른다 — 배너에서 'KB증권'을 불러 놓고 들어가면
+  // '준비 중'으로 막혀 있으면 약속을 어긴 셈이다(2026-09-26 통합테스트).
   return providersFor(assetClass)
+    .filter((p) => PROVIDER_META[p].supported)
     .map((p) => PROVIDER_META[p].label)
     .join('·')
 }
@@ -151,9 +154,13 @@ export function tradeNounFor(provider: ConnectionProvider): string {
  */
 export function describeSync(result: SyncResponse, noun = '매매'): SyncSummary {
   const nothing = result.imported === 0 && result.skipped === 0
+  // seeded: 첫 동기화 때 지금 가진 종목을 '기초 보유'로 등록한 수 — 체결(imported)과 별개다.
+  const seeded = result.seeded ?? 0
   const headline = result.accountCreated
     ? nothing
-      ? '계좌를 만들었어요.'
+      ? seeded > 0
+        ? `계좌를 만들고 보유 종목 ${seeded.toLocaleString('ko-KR')}개를 등록했어요.`
+        : '계좌를 만들었어요.'
       : `계좌를 만들고 ${noun} ${result.imported.toLocaleString('ko-KR')}건을 가져왔어요.`
     : nothing
       ? `가져올 새 ${noun} 내역이 없었어요.`
@@ -163,6 +170,7 @@ export function describeSync(result: SyncResponse, noun = '매매'): SyncSummary
   // 첫 동기화는 계좌를 만들고 기준 시각만 잡는다 — 서버가 일부러 체결을 안 가져온다(설계 문서 §2).
   // 이 설명이 없으면 "0건"이 실패로 읽혀서 사용자가 키를 다시 발급받는 헛수고를 한다.
   if (result.accountCreated) {
+    if (seeded > 0 && !nothing) notes.push(`지금 가진 종목 ${seeded.toLocaleString('ko-KR')}개를 보유 종목으로 등록했어요.`)
     notes.push(`지금까지의 ${noun} 내역은 가져오지 않아요. 앞으로 새로 생기는 것부터 쌓입니다.`)
   }
   if (result.skipped > 0) notes.push(`이미 등록돼 있던 ${result.skipped.toLocaleString('ko-KR')}건은 건너뛰었어요.`)

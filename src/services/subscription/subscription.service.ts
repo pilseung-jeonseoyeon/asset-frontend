@@ -7,9 +7,10 @@ import type {
   UpdateSubscriptionRequest,
 } from './subscription.type'
 
+/** 화면은 종료된 항목을 쓰지 않아 active=true로 해지 항목을 서버에서 뺀다(생략하면 전체가 온다). */
 export async function getSubscriptions(kind?: RecurringExpenseKind) {
   return unwrap(
-    await api.get<ApiResponse<SubscriptionResponse[]>>('/subscriptions', { params: { kind } }),
+    await api.get<ApiResponse<SubscriptionResponse[]>>('/subscriptions', { params: { kind, active: true } }),
   )
 }
 

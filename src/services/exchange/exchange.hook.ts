@@ -34,7 +34,7 @@ export function useGetExchangeSummary(currency: Currency, options?: QueryOptions
   return { ...query, isExchangeRateMissing: isExchangeRateMissing(query.error) }
 }
 
-/** 환전은 계좌 잔액과 해외 자산 평가액을 함께 바꾼다. */
+/** 환전은 계좌 잔액과 해외 자산 평가액을 함께 바꾼다. 목표 진행률도 실시간 총자산 기준이라 함께 다시 받는다. */
 function useInvalidateExchange() {
   const queryClient = useQueryClient()
   return () => {
@@ -43,6 +43,7 @@ function useInvalidateExchange() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.asset.all() })
     void queryClient.invalidateQueries({ queryKey: queryKeys.stock.all() })
     void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.goal.all() })
   }
 }
 

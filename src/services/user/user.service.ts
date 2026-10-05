@@ -2,6 +2,7 @@ import { api, unwrap } from '../api'
 import type { ApiResponse } from '../api.types'
 import type {
   ChangePasswordRequest,
+  SettlementPeriodResponse,
   UpdateProfileRequest,
   UpdateUserSettingsRequest,
   UserResponse,
@@ -34,6 +35,12 @@ export async function getUserSettings() {
 
 export async function patchUserSettings(body: UpdateUserSettingsRequest) {
   return unwrap(await api.patch<ApiResponse<UserSettingsResponse>>('/users/me/settings', body))
+}
+
+/** 오늘이 속한 정산월의 경계. 프론트가 달력 연·월을 "이번 달"로 보내면 월 시작일이 오늘 이후인 사용자는
+ * 아직 오지 않은 정산월을 조회하게 되므로, "이번 달"은 반드시 이 응답의 year·month로 잡는다. */
+export async function getCurrentSettlement() {
+  return unwrap(await api.get<ApiResponse<SettlementPeriodResponse>>('/users/me/settlements/current'))
 }
 
 /** 로그인한 상태에서 현재 비밀번호를 확인하고 바꾼다. 204 No Content. */
