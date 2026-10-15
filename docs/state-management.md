@@ -29,6 +29,9 @@
   `useSyncUserTheme`이 서버 값을 AppState와 `localStorage`에 반영합니다.
 - **대시보드 레이아웃**(`AppState.dashboardLayout`, A·B·C)은 서버에 필드가 없어 `localStorage`가
   정본이고 AppState가 렌더용 미러입니다. 서버 필드가 생기면 테마와 같은 구조로 바꿉니다.
+- **새 알림 배너**(`AppState.notificationBanners`·`notificationPendingIds`)에는 알림 **id만** 둡니다. 알림 내용은
+  서버 데이터라 React Query 알림 목록 캐시가 정본이고, 배너는 렌더할 때 거기서 찾습니다(SSE로 받은 알림은
+  `useNotificationStream`이 목록 캐시 맨 앞에 끼워 넣음).
 
 ### localStorage는 캐시·힌트 전용입니다
 
@@ -41,6 +44,8 @@
 | `monit.seenSession` | `src/stores/auth.ts` | 이 브라우저에서 로그인한 적 있는지(부팅 게이팅용 불리언) |
 | `monit.ledger.lastAccounts` | `src/utils/ledgerLastAccounts.ts` | 가계부 입력 폼의 거래유형별 마지막 사용 계좌 id. AppState에 쓰지 않고 드롭다운 폴백으로만 적용 |
 | `monit.dashboardLayout` | `src/utils/dashboardLayout.ts` | 대시보드 카드 배치(이 기기 전용) |
+| `monit.notification.prefs` | `src/utils/notificationPrefs.ts` | 알림 받는 방식(화면 안 팝업·맥·PC 알림·내용 보이기, 이 기기 전용 — 브라우저 알림 허락이 기기마다 따로라서). `AppState.notificationPrefs`가 렌더용 미러 |
+| `monit.notification.askDismissedAt` | `src/utils/notificationPrefs.ts` | 알림 패널의 맥·PC 알림 안내 카드에서 '다음에'를 누른 시각(30일 동안 다시 안 물음) |
 
 ### Zustand는 좁은 예외입니다
 

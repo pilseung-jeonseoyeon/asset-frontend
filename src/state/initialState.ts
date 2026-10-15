@@ -2,6 +2,7 @@
 
 import { mondayOf, todayYearMonth, toISODate } from '../utils/date'
 import { readStoredDashboardLayout } from '../utils/dashboardLayout'
+import { readStoredNotificationPrefs } from '../utils/notificationPrefs'
 import { readStoredTheme } from '../utils/theme'
 import type { AccountForm } from './types'
 import type { AppState } from './types'
@@ -50,6 +51,11 @@ export const initialState: AppState = {
 
   quickAddOpen: false,
   notificationOpen: false,
+  notificationBanners: [],
+  notificationPendingIds: [],
+  notificationFocusId: null,
+  notificationBellRing: 0,
+  notificationPrefs: readStoredNotificationPrefs(),
 
   // index.html의 부팅 전 인라인 스크립트와 같은 값을 읽어, 최초 렌더부터 <html> 클래스와
   // AppState가 어긋나지 않게 한다(2단계 참고). 로그인 후에는 useSyncUserTheme이 서버 값으로 덮는다.

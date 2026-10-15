@@ -6,6 +6,7 @@
 // 필드(totalAssetKrw 등)라 화면 금액이 하나도 바뀌지 않으므로(다통화 표기 미지원, 백엔드 요청
 // 항목), 드롭다운 대신 '추후 업데이트' 배지를 붙인다.
 // - 대시보드 레이아웃(A · B · C): 서버 필드가 없어 localStorage 전용(src/utils/dashboardLayout.ts).
+// - 알림(화면 안 팝업 · 맥·PC 알림 · 내용 보이기): 이 기기 전용 — NotificationSettingsSection.tsx.
 //
 // '환율 자동 갱신' 행은 화면에서 뺐다(켜고 끄는 의미가 없다는 사용자 판단). 서버 설정 필드
 // (UserSettingsRes.fxAutoRefresh)와 PATCH 계약은 그대로 있으니 다시 노출하려면 행 하나만 되살리면
@@ -15,6 +16,7 @@
 // 타깃에 못 미쳐 모바일 변형만 세로로 키운다(데스크톱 패딩은 그대로) — themeButton 참고.
 
 import type { CSSProperties } from 'react'
+import { NotificationSettingsSection } from './NotificationSettingsSection'
 import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
 import { useAppState } from '../../../state/AppStateContext'
 import { useCloseModal } from '../../../state/selectors/modal'
@@ -189,6 +191,7 @@ export function GeneralModal() {
           </div>
         </div>
       </div>
+      <NotificationSettingsSection />
     </Modal>
   )
 }

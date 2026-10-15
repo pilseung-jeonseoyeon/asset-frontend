@@ -74,7 +74,7 @@ src/
     {screen}View.ts        assetsView, dashboardView, ledgerView, stocksView, reportView(월간 리포트)
     accountView.ts         계좌 표기 규칙 — 계좌를 고르는 여러 화면이 공유
     connectionView.ts      증권사·거래소 연동(BYOK) 표기 규칙의 정본
-    notificationView.ts    헤더 알림 패널 뷰모델
+    notificationView.ts    헤더 알림 패널·새 알림 배너 뷰모델
     termsContent.ts        회원가입 동의서 문안 + TERMS_VERSION
 
   design/                bank-institutions.ts(금융기관 마스터 테이블),
@@ -86,7 +86,10 @@ src/
                            SegmentedTab, Skeleton, StatBadge, Switch, Treemap
                            + usePopoverAnchor.ts(팝오버를 모달 밖으로 띄우는 공용 훅)
     layout/                AppShell(인증 게이팅), AuthenticatedApp(<Routes> + 모달 마운트), Header,
-                           NotificationPanel(헤더 알림), SidebarNav(데스크톱), BottomTabNav(모바일),
+                           NotificationPanel(헤더 알림), NotificationBanner(새 알림 배너 + SSE 구독),
+                           useNotificationDelivery.ts(새 알림을 배너/맥·PC 알림 중 어디로 보낼지),
+                           NotificationPermissionAsk(맥·PC 알림 안내 카드),
+                           SidebarNav(데스크톱), BottomTabNav(모바일),
                            navItems.ts(NAV_ITEMS), BootScreen, ChunkErrorBoundary(lazy 청크 로드
                            실패), ModalErrorBoundary(모달 하나의 렌더 실패를 그 모달 자리로 국한),
                            MonitLogo, useSyncUserTheme.ts

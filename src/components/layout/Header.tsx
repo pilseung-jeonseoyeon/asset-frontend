@@ -8,6 +8,8 @@
 // 알림은 모바일에서 드롭다운이 아니라 **화면 전체 알림센터**로 연다(2026-09-04 사용자 결정,
 // docs/mobile.md §4-2) — 데스크톱 팝오버를 그대로 쓰면 벨 아래 작은 카드에 갇혀 목록이 길수록
 // 읽기 어렵다. 데스크톱은 앵커드 팝오버다. 패널 본문은 NotificationPanel.tsx.
+// 새 알림이 오면 벨이 한 번 흔들린다(AppState.notificationBellRing을 key로 써서 애니메이션을 다시 튼다).
+// 실시간 구독(SSE)과 도착 배너는 NotificationBanner가 맡는다.
 
 import type { MouseEvent } from 'react'
 import { Avatar } from '../primitives/Avatar/Avatar'
@@ -17,7 +19,7 @@ import { useAppState } from '../../state/AppStateContext'
 import { openNewEntryUpdater } from '../../state/selectors/entryDraft'
 import { useIsMobile } from '../../utils/useMediaQuery'
 import { NotificationPanel } from './NotificationPanel'
-import { useGetNotifications, useNotificationStream } from '@/services/notification'
+import { useGetNotifications } from '@/services/notification'
 import { useProfileName } from '@/services/user'
 
 const MINI_HOV_ITEM_STYLE = {
@@ -51,7 +53,6 @@ export function Header() {
   const isMobile = useIsMobile()
   const profileName = useProfileName()
   const notifQuery = useGetNotifications()
-  useNotificationStream()
   const anyDropdownOpen = state.quickAddOpen || state.notificationOpen
 
   const closeDropdowns = () => setState({ quickAddOpen: false, notificationOpen: false })
@@ -159,6 +160,8 @@ export function Header() {
         <div style={{ position: 'relative' }}>
           <button
             onClick={() => setState((prev) => ({ notificationOpen: !prev.notificationOpen, quickAddOpen: false }))}
+            aria-label={notifQuery.unreadCount > 0 ? `알림, 안 읽은 알림 ${notifQuery.unreadCount}개` : '알림'}
+            aria-expanded={state.notificationOpen}
             style={{
               width: 42,
               height: 42,
@@ -172,7 +175,13 @@ export function Header() {
               position: 'relative',
             }}
           >
-            <Icon name="notifications" size={20} color="var(--text-mid)" />
+            <span
+              key={state.notificationBellRing}
+              className={state.notificationBellRing > 0 ? 'notif-bell-ring' : undefined}
+              style={{ display: 'flex' }}
+            >
+              <Icon name="notifications" size={20} color="var(--text-mid)" />
+            </span>
             {notifQuery.unreadCount > 0 && (
               <span
                 style={{

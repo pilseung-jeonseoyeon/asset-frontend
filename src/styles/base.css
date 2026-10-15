@@ -310,7 +310,11 @@ html.theme-dark .monit-logo-dark { display: block }
 @media (prefers-reduced-motion: reduce) {
   .sheet-up,
   .sheet-right,
-  .mindex-ticker-item {
+  .mindex-ticker-item,
+  .notif-banner-in,
+  .notif-banner-out,
+  .notif-bell-ring,
+  .notif-fresh {
     animation: none
   }
 
@@ -336,4 +340,49 @@ html.theme-dark .monit-logo-dark { display: block }
   .notif-row:hover {
     background: var(--track) !important
   }
+}
+
+/* 새 알림 도착 표시 — 화면 위 가운데 배너(NotificationBanner), 헤더 벨 흔들림(Header), 알림 패널에서 방금 온 줄
+   (NotificationPanel). 움직임 줄이기 설정에서는 위 prefers-reduced-motion 블록이 모두 끈다. */
+.notif-banner-in {
+  animation: notif-banner-in .32s cubic-bezier(.2, .8, .2, 1)
+}
+
+@keyframes notif-banner-in {
+  from { opacity: 0; transform: translateY(-24px) }
+  to { opacity: 1; transform: none }
+}
+
+/* 길이는 NotificationBanner의 LEAVE_MS와 같다. */
+.notif-banner-out {
+  animation: notif-banner-out .18s ease-in forwards
+}
+
+@keyframes notif-banner-out {
+  to { opacity: 0; transform: translateY(-16px) }
+}
+
+.notif-bell-ring {
+  animation: notif-bell-swing .7s ease-in-out;
+  transform-origin: 50% 10%
+}
+
+@keyframes notif-bell-swing {
+  0% { transform: rotate(0) }
+  15% { transform: rotate(16deg) }
+  30% { transform: rotate(-14deg) }
+  45% { transform: rotate(10deg) }
+  60% { transform: rotate(-6deg) }
+  75% { transform: rotate(3deg) }
+  100% { transform: rotate(0) }
+}
+
+/* 끝나면 행의 인라인 배경(안 읽음 fill-subtle)으로 돌아간다 — fill-mode를 두지 않는 이유. */
+.notif-fresh {
+  animation: notif-fresh 2.2s ease-out
+}
+
+@keyframes notif-fresh {
+  0%, 50% { background-color: var(--accent-soft) }
+  100% { background-color: var(--fill-subtle) }
 }

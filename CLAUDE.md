@@ -72,6 +72,10 @@
   - C안의 가계부 카드(수입·지출·저축, 월별 저축률, 지출 순위, 고정 지출)는 **가계부 화면과 같은 색·규격**을 씁니다(월별 저축률 막대는 공용 `SavingsBarChart`).
   - 뷰모델 변환은 `src/data/dashboardView.ts`. 디자인 시안은 claude.ai 캔버스 "Monit 대시보드 레이아웃".
 - **알림**은 SSE(`GET /notifications/stream`, 브라우저 `EventSource`가 헤더를 못 실어 `POST /notifications/stream/tickets`로 1회용 티켓을 받아 쿼리로 붙임)로 받고, 목록은 커서 페이지네이션(최신순 20건 + '더 보기')입니다. 알림 패널은 `NotificationPanel.tsx`.
+  - **새 알림이 오면 알려줍니다**(시안 `docs/plan/view/알림 도착 표시 시안.html`, 로컬 전용). 원칙은 "같은 알림을 두 군데서 동시에 알리지 않는다" — 모닛을 보고 있으면 **화면 위 가운데 배너**(`NotificationBanner.tsx`, 웹·모바일 같은 카드), 다른 탭·앱을 보고 있으면 **맥·PC 알림**(브라우저 Notification, `src/utils/desktopNotification.ts`) + 탭 제목 "(N) Monit". 어디로 보낼지의 규칙 정본은 `useNotificationDelivery.ts` 헤더 표입니다(입력 창이 열려 있으면 미룸, 패널이 열려 있으면 새 줄만 반짝, 재연결로 채운 알림은 안 띄움).
+  - 배너에는 알림 **id만** 담고 내용은 알림 목록 캐시에서 찾습니다 — SSE로 받은 알림은 `useNotificationStream`이 목록 캐시 맨 앞에 끼워 넣습니다. AppState에 알림 내용을 복사하지 마세요.
+  - 알림 받는 방식(화면 안 팝업 · 맥·PC 알림 · 내용 보이기)은 **이 기기 `localStorage`**(`monit.notification.prefs`)에만 저장되고 설정 → 일반 및 디스플레이의 '알림' 묶음에서 바꿉니다. 맥·PC 알림은 브라우저 허락이 필요해 **버튼을 누를 때만** 묻습니다(알림 패널 안내 카드 · 설정).
+  - **탭·브라우저를 닫은 뒤의 알림과 폰 알림(웹 푸시)은 아직 없습니다** — 서비스 워커와 서버 발송(VAPID 키·구독 등록 API)이 필요한 2단계입니다. 폰에서는 화면 안 배너만 뜹니다.
 - 진입점: `src/main.tsx`가 `BrowserRouter` → `QueryClientProvider` → `AppStateProvider`로 감싼 `App`을 `#root`에 마운트합니다. `src/index.css`는 `fonts.css` → `tokens.css` → `bank-tokens.css` → `base.css` 순으로 import합니다. `App.tsx`는 테마를 적용(`useApplyTheme`)하고 `AppShell`을 렌더링합니다. 화면 전환은 `AuthenticatedApp.tsx`의 `<Routes>`가 담당합니다(경로 목록은 `navItems.ts`의 `NAV_ITEMS`를 사이드바/하단탭과 공유).
 - `tsconfig.json`은 project references 구조입니다(`src/`는 `tsconfig.app.json`, Vite 설정은 `tsconfig.node.json`). 전체 빌드는 항상 `tsc -b`로 실행하세요.
 
@@ -105,6 +109,8 @@ src/
                            Switch, Treemap) + usePopoverAnchor.ts(드롭다운/달력 팝오버를 모달 밖으로
                            띄우는 공용 훅)
     layout/                AppShell, AuthenticatedApp(<Routes>), Header, NotificationPanel, SidebarNav,
+                           NotificationBanner(새 알림 배너 + SSE 구독), useNotificationDelivery.ts(알릴 곳 규칙),
+                           NotificationPermissionAsk(맥·PC 알림 안내 카드),
                            BottomTabNav(모바일), navItems.ts, BootScreen, ChunkErrorBoundary,
                            ModalErrorBoundary, MonitLogo, useSyncUserTheme.ts,
                            modals/(AccountModal — 전역 계정 오버레이, TermsDetailOverlay — 약관 전문.

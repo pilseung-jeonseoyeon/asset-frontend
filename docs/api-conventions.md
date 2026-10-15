@@ -147,6 +147,10 @@ single-flight입니다.
   이전 사용자 캐시를 비웁니다.
 - **알림 SSE**: `EventSource`는 헤더를 못 붙이므로 `POST /notifications/stream/tickets`로 1회용 티켓을
   받아 `GET /notifications/stream?ticket=`에 붙입니다(`useNotificationStream`, 지수 백오프 재연결).
+  `notification` 이벤트의 data는 알림 1건(목록 API와 같은 모양)이라, 받으면 알림 목록 캐시 맨 앞에 끼워 넣고
+  `onNotification`으로 넘긴 뒤(새 알림 배너·맥·PC 알림 — `useNotificationDelivery`) 목록을 무효화합니다.
+  재연결로 못 받은 알림을 채울 때는 `onNotification`을 부르지 않습니다(한꺼번에 뜨면 시끄럽다). 구독은
+  `NotificationBanner`가 엽니다.
 
 ### 로그인 화면(`src/screens/Auth/`)과의 경계
 

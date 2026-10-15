@@ -1,4 +1,4 @@
-// 알림 목록 뷰모델 — 헤더 알림 패널(NotificationPanel)이 쓴다.
+// 알림 뷰모델 — 헤더 알림 패널(NotificationPanel)과 새 알림 배너(NotificationBanner)가 쓴다.
 // 서버는 알림 종류(type)와 심각도(severity)만 주고 아이콘·색은 주지 않는다("표현은 클라이언트 자유").
 // 아이콘은 종류로, 색은 심각도로 정한다. 목표 달성만 좋은 소식이라 심각도와 무관하게 초록(up)으로 둔다.
 
@@ -37,6 +37,29 @@ export function notificationToneOf(nf: Pick<NotificationResponse, 'type' | 'seve
   // 누군가 참여했다는 소식도 목표 달성처럼 좋은 소식이라 초록으로 둔다.
   if (nf.type === 'GOAL_ACHIEVED' || nf.type === 'SHARE_ACCEPTED') return GOAL_TONE
   return SEVERITY_TONE[nf.severity] ?? SEVERITY_TONE.INFO
+}
+
+/** 여러 건을 한 장으로 묶은 배너의 본문("결제 예정 1 · 자동 기록 2")에 쓰는 짧은 종류 이름. */
+const TYPE_KIND_LABEL: Record<NotificationType, string> = {
+  MATURITY: '만기',
+  RECURRING_EXPENSE: '자동 기록',
+  PAYMENT_DUE: '결제 예정',
+  GOAL_ACHIEVED: '목표 달성',
+  SYSTEM: '공지',
+  SHARE_INVITED: '계좌 공유',
+  SHARE_ACCEPTED: '계좌 공유',
+  SHARE_DECLINED: '계좌 공유',
+  SHARE_ENDED: '계좌 공유',
+}
+
+/** 종류별 개수를 처음 나온 순서대로 이어 붙인다. 예: "결제 예정 1 · 자동 기록 2". */
+export function notificationKindSummaryOf(list: Pick<NotificationResponse, 'type'>[]): string {
+  const counts = new Map<string, number>()
+  for (const nf of list) {
+    const label = TYPE_KIND_LABEL[nf.type] ?? '알림'
+    counts.set(label, (counts.get(label) ?? 0) + 1)
+  }
+  return [...counts].map(([label, count]) => `${label} ${count}`).join(' · ')
 }
 
 export interface NotificationGroup {
