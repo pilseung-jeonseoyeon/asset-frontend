@@ -65,9 +65,14 @@ interface DropdownProps {
   selectedMeta?: string
   /** 트리거의 선택값 앞에 붙는 아이콘(예: BankIcon). selectedMeta와 함께 2줄 레이아웃을 켠다. */
   selectedLeading?: ReactNode
+  /**
+   * 선택값이 비어 있을 때 트리거에 회색으로 보여줄 안내(예: 계좌가 0개일 때 "계좌를 추가해주세요").
+   * 빈 트리거는 눌러야 한다는 단서가 없어 막다른 칸처럼 보인다. 넘기지 않으면 예전처럼 빈 칸이다.
+   */
+  placeholder?: string
 }
 
-export function Dropdown({ dropdown, maxHeight = 200, icon = 'expand_more', footer, selectedMeta, selectedLeading }: DropdownProps) {
+export function Dropdown({ dropdown, maxHeight = 200, icon = 'expand_more', footer, selectedMeta, selectedLeading, placeholder }: DropdownProps) {
   const isMobile = useIsMobile()
   const panelRef = useRef<HTMLDivElement>(null)
   // 패널의 실측 높이. scrollHeight는 overflow로 잘려 있어도 잘리기 전 전체 높이를 돌려주므로, 아직
@@ -110,6 +115,7 @@ export function Dropdown({ dropdown, maxHeight = 200, icon = 'expand_more', foot
   // 계좌가 기관 없는 계좌라 둘 다 비더라도, 같은 드롭다운이 선택에 따라 1줄/2줄을 오가지 않도록
   // 호출부는 항상 selectedMeta를 넘기는 것을 전제로 한다(위 prop 주석 참고).
   const twoLine = selectedMeta !== undefined || selectedLeading !== undefined
+  const showPlaceholder = !dropdown.value && !!placeholder
 
   return (
     <>
@@ -121,18 +127,25 @@ export function Dropdown({ dropdown, maxHeight = 200, icon = 'expand_more', foot
       <div
         ref={anchor.anchorRef}
         onClick={dropdown.toggle}
-        title={dropdown.value || undefined}
+        title={dropdown.value || placeholder || undefined}
         style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: twoLine ? 10 : 0,
+          // 안내 문구일 때는 아이콘이 없으니 간격도 뺀다 — 360px 폰의 반폭 칸(가계부 입력 '계좌')에서
+          // "계좌를 추가해주세요"가 잘리지 않을 여유가 이 10px이다.
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: twoLine && !showPlaceholder ? 10 : 0,
           border: '0.5px solid var(--border)', borderRadius: 10, cursor: 'pointer', minWidth: 0,
           // 2줄이어도 한 줄 필드(DatePicker 등)와 나란히 놓았을 때 높이가 어긋나지 않도록 세로
           // 패딩을 줄이고 최소 높이를 고정한다 — 같은 행의 옆 칸과 아랫변을 맞추기 위한 값이다.
           padding: twoLine ? '7px 16px' : '13px 16px', minHeight: TRIGGER_MIN_HEIGHT, boxSizing: 'border-box',
         }}
       >
-        {twoLine && (selectedLeading ?? <span style={{ width: TRIGGER_LEADING_SLOT_WIDTH, flex: 'none' }} />)}
+        {/* 안내 문구를 띄울 때는 아이콘 자리 스페이서를 빼서 문구가 칸 왼쪽에서 바로 시작하게 한다. */}
+        {twoLine && !showPlaceholder && (selectedLeading ?? <span style={{ width: TRIGGER_LEADING_SLOT_WIDTH, flex: 'none' }} />)}
         <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, flex: 1 }}>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dropdown.value}</span>
+          {showPlaceholder ? (
+            <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text-weak)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{placeholder}</span>
+          ) : (
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dropdown.value}</span>
+          )}
           {twoLine && selectedMeta && (
             <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--text-weak)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedMeta}</span>
           )}
