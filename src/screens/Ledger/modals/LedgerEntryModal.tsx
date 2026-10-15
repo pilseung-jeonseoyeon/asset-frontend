@@ -22,6 +22,10 @@
 // 알린다. 저축·이체에는 공유 계좌를 보여주지 않는다(서버 SHARE_TYPE_NOT_ALLOWED, 상대 계좌가 주인의 다른
 // 계좌라서). 공유 계좌 상세에서 열렸으면(entryReturnSharedAccountId) 닫을 때 그 상세로 돌아간다.
 //
+// **계좌 추가**: 계좌 선택 칸(출금계좌 포함 두 칸 모두) 안, 펼친 목록 맨 아래에서만 연다 — 칸 밖에 따로
+// 버튼을 두지 않는다. 계좌가 0개인 신규 사용자는 칸에 "계좌를 추가해주세요"가 보이고, 펼치면
+// "등록된 계좌가 없어요" + [계좌 추가]가 뜬다.
+//
 // 최근 내역 추천: 신규 등록 중 '내용'을 2글자 이상 치면 최근 6개월 거래에서 비슷한 제목을 찾아 칩을
 // 최대 3개까지 입력칸 아래에 보여준다. 칩을 누르면 제목·금액·소분류·계좌(저축·이체는 출금/상대 계좌)를
 // 한 번에 채운다 — 자동으로 채우지는 않는다. 목록은 모달이 열릴 때 한 번 받고(React Query 캐시, 거래를
@@ -81,6 +85,7 @@ const SUGGESTION_DESC_STYLE: CSSProperties = {
 // 추천 후보로 받아 둘 최근 거래 범위. 개인 가계부 규모에서 6개월·500건이면 자주 쓰는 제목은 다 들어온다.
 const SUGGESTION_MONTHS_BACK = 6
 const SUGGESTION_FETCH_SIZE = 500
+const NO_ACCOUNT_PLACEHOLDER = '계좌를 추가해주세요'
 
 const CONTENT_PLACEHOLDER: Record<EntryType, string> = {
   income: '급여, 상여, 이자 등',
@@ -533,6 +538,32 @@ export function LedgerEntryModal() {
   const listLoadFailed = (entryCatVisible && !!activeCategoriesQuery.error) || !!accountsQuery.error
   const canSave = !isBusy && !noCategoryAvailable && !noAccountAvailable && !notEnoughAccounts && !listLoadFailed
 
+  // 계좌가 0개라고 확정된 칸. 출금계좌는 내 계좌만, 계좌/입금/저축계좌는 공유 계좌까지 센다 — 수입·지출에서
+  // 공유 계좌 목록이 아직 오는 중이면 "없어요"가 잠깐 비쳤다가 바뀌지 않게 기다린다.
+  const withdrawListEmpty = !accountsQuery.isPending && !accountsQuery.error && accounts.length === 0
+  const entryListEmpty = noAccountAvailable && !(!needsTransferAccount && sharedAccountsQuery.isPending)
+  // 펼친 계좌 목록 맨 아래의 [계좌 추가](파일 상단 주석). 목록이 있으면 구분선 아래에, 0개면 구분선 대신
+  // "등록된 계좌가 없어요" 아래에 둔다 — 구분선만 덩그러니 남으면 빈 패널처럼 보인다.
+  // 계좌를 만들면 addAccountReturnTo로 이 창에 돌아오고, 적던 금액·내용은 AppState에 그대로 남아 있다.
+  const addAccountFooter = (hasOptions: boolean, knownEmpty: boolean) => (
+    <>
+      {hasOptions && <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />}
+      {knownEmpty && <div style={{ padding: '8px 10px 4px', fontSize: 12, color: 'var(--text-weak)' }}>등록된 계좌가 없어요</div>}
+      <button
+        className="mini-hov"
+        onClick={() => setState({ openModal: 'addAccount', addAccountReturnTo: 'ledgerEntry', openDropdown: null })}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 8, border: 'none',
+          background: 'transparent', fontSize: 12.5, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit',
+          ...(isMobile ? { minHeight: 44 } : undefined),
+        }}
+      >
+        <Icon name="add" size={15} />
+        계좌 추가
+      </button>
+    </>
+  )
+
   const categoryErrorMessage =
     saveErrorCode === 'SUBCATEGORY_REQUIRED' || saveErrorCode === 'SUBCATEGORY_NOT_ALLOWED' || saveErrorCode === 'SUBCATEGORY_NOT_FOUND' ||
     saveErrorCode === 'SUBCATEGORY_KIND_MISMATCH'
@@ -731,10 +762,12 @@ export function LedgerEntryModal() {
               maxHeight={180}
               selectedMeta={accountInstitutionLabel(withdrawAccount, institutions)}
               selectedLeading={withdrawAccount && accountLeadingIcon(withdrawAccount, 24)}
+              placeholder={withdrawListEmpty ? NO_ACCOUNT_PLACEHOLDER : undefined}
+              footer={addAccountFooter(accounts.length > 0, withdrawListEmpty)}
             />
             {notEnoughAccounts ? (
               <div style={{ fontSize: 12.5, color: 'var(--text-weak)', marginTop: 6 }}>
-                계좌가 하나뿐이라 등록할 수 없어요. 서로 다른 두 계좌가 필요해요.
+                계좌가 하나뿐이라 등록할 수 없어요. 계좌 칸을 눌러 하나 더 추가해주세요.
               </div>
             ) : (
               sameAccountInvalid && <div style={ERROR_STYLE}>출금 계좌와 {ledgerEntryAcctLabel}가 같아요. 다른 계좌를 선택해주세요.</div>
@@ -760,21 +793,12 @@ export function LedgerEntryModal() {
               maxHeight={180}
               selectedMeta={sharedSelected ? `${sharedSelected.owner.name}님의 계좌` : accountInstitutionLabel(entryAccount, institutions)}
               selectedLeading={sharedSelected ? sharedLeadingIcon(24) : entryAccount && accountLeadingIcon(entryAccount, 24)}
-              footer={
-                <>
-                  <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />
-                  <button
-                    className="mini-hov"
-                    onClick={() => setState({ openModal: 'addAccount', addAccountReturnTo: 'ledgerEntry', openDropdown: null })}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 8, border: 'none', background: 'transparent', fontSize: 12.5, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
-                  >
-                    <Icon name="add" size={15} />
-                    계좌 추가
-                  </button>
-                </>
-              }
+              placeholder={entryListEmpty ? NO_ACCOUNT_PLACEHOLDER : undefined}
+              footer={addAccountFooter(selectableAccounts.length > 0, entryListEmpty)}
             />
             )}
+            {/* 계좌 목록을 못 받으면 칸이 빈 채로 저장만 막힌다(listLoadFailed) — 이유를 칸 아래에 적는다. */}
+            {accountsQuery.error && <div style={ERROR_STYLE}>{accountsQuery.error.message}</div>}
             {transferAccountErrorMessage && <div style={ERROR_STYLE}>{transferAccountErrorMessage}</div>}
           </div>
           <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
