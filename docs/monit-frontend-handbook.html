@@ -2745,7 +2745,7 @@ export function DashboardLayoutA() {
 <li><strong>계좌 이름</strong>(필수, 예: 파킹통장).</li>
 <li><strong>금융기관</strong>(필수로 골라야 함) — 서버 기관 목록 맨 뒤에 프론트가 붙인 '없음' 옵션이 있다. '아직 안 고름'과 '없음을 고름'은 둘 다 <code>institutionId: null</code>이라 로컬 상태 <code>institutionNone</code>으로 구분한다. 기관 추가 진입점은 두지 않는다.</li>
 <li><strong>잔액</strong> — 유형별로 다르다(아래 표). 주식은 달러 칸과 원화 칸이 따로 있고 둘 다 선택 입력이다. 두 칸은 서로 환산하는 관계가 아니다("달러와 원화, 계좌에 실제로 들어 있는 두 돈을 각각 적어주세요…").</li>
-<li><strong>예적금 전용</strong>: 이자율 %(선택), 개설일(선택), 만기일(필수). 과거 날짜를 고르면 막지 않고 "이미 지난 날짜예요 — 만기가 지난 계좌로 저장돼요"만 알린다.</li>
+<li><strong>예적금 전용</strong>: 이자율 %(선택), 개설일(선택), 만기일(선택 — 주택청약처럼 만기가 없는 상품이 있어 2026-10-10에 필수를 풀었다). 과거 날짜를 고르면 막지 않고 "이미 지난 날짜예요 — 만기가 지난 계좌로 저장돼요"만 알린다.</li>
 <li><strong>보유 종목/코인</strong>(주식·가상자산만) — AccountHoldingsField로 검색해 담는다.</li>
 <li><strong>유동성 여부</strong> 칩 → '계좌 추가'를 누른다.</li>
 </ol>
@@ -2753,7 +2753,7 @@ export function DashboardLayoutA() {
 <thead><tr><th>유형</th><th>잔액 칸</th><th>예적금 필드</th><th>보유 종목</th></tr></thead>
 <tbody>
 <tr><td>현금</td><td>현재 잔액(₩)</td><td>—</td><td>—</td></tr>
-<tr><td>예적금</td><td>현재 잔액(₩)</td><td>이자율·개설일·만기일(만기일만 필수)</td><td>—</td></tr>
+<tr><td>예적금</td><td>현재 잔액(₩)</td><td>이자율·개설일·만기일(모두 선택)</td><td>—</td></tr>
 <tr><td>주식</td><td>현재 달러 잔액($) + 현재 원화 잔액(₩)</td><td>—</td><td>KR·US 섞어서</td></tr>
 <tr><td>가상자산</td><td>현재 잔액(₩)</td><td>—</td><td>CRYPTO</td></tr>
 <tr><td>연금·기타</td><td>현재 잔액(₩)</td><td>—</td><td>—</td></tr>
