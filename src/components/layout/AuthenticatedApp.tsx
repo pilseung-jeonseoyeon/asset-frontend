@@ -17,6 +17,7 @@ import { useIsMobile } from '../../utils/useMediaQuery'
 import { SidebarNav } from './SidebarNav'
 import { BottomTabNav } from './BottomTabNav'
 import { Header } from './Header'
+import { NotificationBanner } from './NotificationBanner'
 import { ModalErrorBoundary } from './ModalErrorBoundary'
 import { NAV_ITEMS } from './navItems'
 import { useSyncUserTheme } from './useSyncUserTheme'
@@ -118,6 +119,8 @@ export function AuthenticatedApp() {
         </main>
       </div>
       {isMobile && <BottomTabNav />}
+      {/* 새 알림 배너 + 실시간 알림 구독(SSE). 로그인 화면 내내 한 번만 마운트된다. */}
+      <NotificationBanner />
       {/* 모든 modalXxx는 s.openModal만 보고 열리는 최상위 형제다 —
           nested inside their "owning" screen's sc-if block (confirmed: modalLedgerEntry's markup sits
           inside the Assets line-range, L1605, yet opens from the Header on any screen). So every modal

@@ -14,11 +14,18 @@
 //   창(ShareInviteConfirmModal)을 열고 거기서 수락한다(바로 수락 아님). [거절]은 그 자리에서 처리한다. 공유 상태는
 //   알림에 없어 내가 받은 공유 목록(GET /shares?side=MEMBER)에서 linkId로 찾고, 처리된 초대는 버튼 자리에
 //   '참여했어요 / 거절했어요 / 기한이 지났어요 / 취소된 초대예요'를 적는다. 여전히 다른 화면으로 이동하지는 않는다.
+//
+// 2026-10-16 새 알림 도착 표시(NotificationBanner · useNotificationDelivery):
+// - 배너·맥 알림을 눌러 열면 그 알림(AppState.notificationFocusId)을 펼치고 보이게 스크롤한다.
+// - 패널이 열려 있는 동안 새로 온 줄은 잠깐 연보라로 반짝였다가 원래 색으로 돌아간다(.notif-fresh). 기준은 패널을
+//   처음 그렸을 때의 가장 최신 id — '더 보기'로 불러온 예전 알림은 반짝이지 않는다.
+// - 목록 맨 위에 맥·PC 알림 안내 카드(NotificationPermissionAsk)가 조건이 맞을 때만 보인다.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Icon } from '../primitives/Icon/Icon'
 import { Skeleton } from '../primitives/Skeleton/Skeleton'
+import { NotificationPermissionAsk } from './NotificationPermissionAsk'
 import { useAppState } from '../../state/AppStateContext'
 import { formatNotificationTimeInGroup } from '../../utils/notificationTime'
 import { groupNotificationsByDay, notificationIconOf, notificationToneOf } from '../../data/notificationView'
@@ -66,7 +73,7 @@ interface InviteActions {
 }
 
 export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps) {
-  const { setState } = useAppState()
+  const { state, setState } = useAppState()
   const notifQuery = useGetNotifications()
   const patchNotificationRead = usePatchNotificationRead()
   const patchAllNotificationsRead = usePatchAllNotificationsRead()
@@ -79,7 +86,26 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
   const [inviteError, setInviteError] = useState<{ shareId: number; text: string } | null>(null)
 
   // 여러 개를 동시에 펼쳐 둘 수 있다. 패널을 닫으면(언마운트) 모두 접힌 상태로 돌아간다.
-  const [expandedIds, setExpandedIds] = useState<ReadonlySet<number>>(() => new Set())
+  // 배너·맥 알림을 눌러 열었으면 그 알림은 펼친 채로 시작한다.
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<number>>(
+    () => new Set(state.notificationFocusId !== null ? [state.notificationFocusId] : []),
+  )
+
+  // 패널이 이미 열린 채로 맥 알림을 눌렀을 때도 펼치고, 그 줄이 보이게 스크롤한 뒤 요청을 지운다.
+  const focusId = state.notificationFocusId
+  useEffect(() => {
+    if (focusId === null || notifQuery.isPending) return
+    setExpandedIds((prev) => (prev.has(focusId) ? prev : new Set(prev).add(focusId)))
+    document.querySelector(`[data-notification-id="${focusId}"]`)?.scrollIntoView({ block: 'nearest' })
+    setState({ notificationFocusId: null })
+  }, [focusId, notifQuery.isPending, setState])
+
+  // 패널을 처음 그렸을 때의 가장 최신 알림 id. 이보다 큰 id는 패널이 열린 사이 새로 온 것이다.
+  const [newestIdAtOpen, setNewestIdAtOpen] = useState<number | null>(null)
+  useEffect(() => {
+    if (newestIdAtOpen !== null || notifQuery.isPending) return
+    setNewestIdAtOpen(notifQuery.notifications.reduce((max, nf) => Math.max(max, nf.id), 0))
+  }, [newestIdAtOpen, notifQuery.isPending, notifQuery.notifications])
 
   const markRead = (nf: NotificationResponse) => {
     if (!nf.read && !patchNotificationRead.isPending) patchNotificationRead.mutate(nf.id)
@@ -250,6 +276,7 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
           </div>
         ) : hasNotifs ? (
           <>
+            <NotificationPermissionAsk />
             {groups.map((group) => (
               <section key={group.label} aria-label={group.label}>
                 <div
@@ -267,6 +294,7 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
                       nf={nf}
                       isMobile={isMobile}
                       expanded={expandedIds.has(nf.id)}
+                      fresh={newestIdAtOpen !== null && nf.id > newestIdAtOpen}
                       onClick={() => handleClick(nf)}
                       invite={inviteActionsOf(nf)}
                     />
@@ -316,6 +344,8 @@ interface NotificationRowProps {
   isMobile: boolean
   /** 펼치면 제목·본문을 줄 수 제한 없이 전부 보여준다. */
   expanded: boolean
+  /** 패널이 열린 사이 새로 온 줄 — 잠깐 연보라로 반짝인다. */
+  fresh: boolean
   onClick: () => void
   /** 계좌 공유 초대 카드에만 있는 버튼 줄. */
   invite?: InviteActions
@@ -329,12 +359,13 @@ const INVITE_BTN_BASE_STYLE: CSSProperties = {
   flex: 1, padding: '9px 12px', minHeight: 36, borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
 }
 
-function NotificationRow({ nf, isMobile, expanded, onClick, invite }: NotificationRowProps) {
+function NotificationRow({ nf, isMobile, expanded, fresh, onClick, invite }: NotificationRowProps) {
   const tone = notificationToneOf(nf)
   const unread = !nf.read
   const row = (
     <button
-      className="notif-row"
+      className={fresh ? 'notif-row notif-fresh' : 'notif-row'}
+      data-notification-id={nf.id}
       onClick={onClick}
       aria-expanded={expanded}
       aria-label={`${unread ? '안 읽음, ' : ''}${nf.title}${nf.body ? `, ${nf.body}` : ''}`}

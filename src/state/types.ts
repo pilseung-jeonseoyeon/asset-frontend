@@ -4,6 +4,7 @@
 // 각 폼의 로컬 useState에 두는 이유는 screens/Auth/*Form.tsx 헤더 주석 참고.
 
 import type { DashboardLayout } from '../utils/dashboardLayout'
+import type { NotificationPrefs } from '../utils/notificationPrefs'
 import type { AccountType, AssetClass, YearMonth } from '@/services/common.type'
 
 export type Screen = 'dashboard' | 'asset' | 'stock' | 'ledger' | 'settings'
@@ -53,6 +54,16 @@ export interface AccountForm {
   maturityDate: string | null
   isLiquid: boolean
 }
+
+/**
+ * 화면 위 가운데 알림 배너 한 장(NotificationBanner). 알림 내용은 담지 않고 id만 든다 — 서버 데이터는
+ * React Query 알림 목록 캐시가 정본이고(docs/state-management.md), 배너는 렌더할 때 거기서 찾는다.
+ * 'summary'는 여러 건을 한 장으로 묶은 배너다: 'away' = 다른 탭·앱을 보는 사이 온 것(맥·PC 알림을 안 켰을 때),
+ * 'deferred' = 입력 창이 열려 있어 미뤘던 것.
+ */
+export type NotificationBanner =
+  | { kind: 'single'; notificationId: number }
+  | { kind: 'summary'; notificationIds: number[]; reason: 'away' | 'deferred' }
 
 /** 저장하지 않고 닫은 가계부 입력 폼의 내용. AppState.entryDraft 주석 참고. */
 export interface EntryDraft {
@@ -112,6 +123,18 @@ export interface AppState {
   // header
   quickAddOpen: boolean
   notificationOpen: boolean
+
+  // 새 알림 도착 표시(NotificationBanner · useNotificationDelivery). 규칙 정본은 useNotificationDelivery.ts 헤더.
+  /** 지금 떠 있는 배너. 앞이 최신(맨 앞 한 장만 보이고 나머지는 뒤로 겹쳐 보인다). */
+  notificationBanners: NotificationBanner[]
+  /** 입력 창(모달·바텀시트)이 열려 있는 동안 온 알림 id. 창이 닫히면 배너로 꺼낸다. */
+  notificationPendingIds: number[]
+  /** 알림 패널을 열 때 펼쳐 보여줄 알림 id(배너·맥 알림을 눌렀을 때). 패널이 반영하면 null로 되돌린다. */
+  notificationFocusId: number | null
+  /** 새 알림이 올 때마다 1씩 오른다 — 헤더 벨이 이 값을 key로 써서 흔들림 애니메이션을 다시 튼다. */
+  notificationBellRing: number
+  /** 알림 받는 방식(이 기기 localStorage가 정본, src/utils/notificationPrefs.ts). */
+  notificationPrefs: NotificationPrefs
 
   // profile: 사용자 이름/이메일은 서버(GET /users/me)에서 온다 — services/user의 useProfileName 참고
 

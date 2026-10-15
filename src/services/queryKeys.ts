@@ -108,6 +108,8 @@ export const queryKeys = {
   },
   notification: {
     all: () => ['notification'] as const,
+    /** 전체·안 읽음만 두 목록을 함께 가리키는 접두어 — 실시간으로 받은 알림을 두 캐시에 끼워 넣을 때 쓴다. */
+    lists: () => ['notification', 'list'] as const,
     list: (unreadOnly?: boolean) => ['notification', 'list', { unreadOnly }] as const,
   },
   connection: {
