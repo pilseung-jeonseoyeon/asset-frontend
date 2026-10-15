@@ -33,3 +33,6 @@ secret/
 # 개인 작업 메모 (공유하지 않음)
 TODO.md
 review.md
+
+# 기획·설계 HTML (설계안·프로토타입 — 공유하지 않음)
+docs/plan/

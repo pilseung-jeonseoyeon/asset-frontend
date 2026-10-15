@@ -83,6 +83,20 @@ export interface AppState {
   openModal: string | null
   /** 계좌 상세 모달 대상 accountId. null이면 닫혀 있음(AccountDetailModal). */
   accountDetailId: number | null
+
+  // 계좌 공유(가족·커플 함께 보기). 계약은 services/share, 표기 규칙은 data/shareView.ts.
+  /** '함께 보는 사람'(ShareMembersModal) 대상 — 내가 소유한 계좌 id. null이면 닫혀 있음. */
+  shareMembersAccountId: number | null
+  /** ShareMembersModal을 계좌 상세에서 열었으면 'accountDetail' — 뒤로 가기가 그 계좌 상세를 다시 연다.
+   * 설정 화면에서 열었으면 null(닫으면 설정 모달이 그대로 남아 있다). */
+  shareMembersReturnTo: 'accountDetail' | null
+  /** 공유받은 계좌 상세(SharedAccountDetailModal) 대상 — 소유자의 계좌 id. null이면 닫혀 있음. */
+  sharedAccountDetailId: number | null
+  /** 초대 확인 창(ShareInviteConfirmModal) 대상 shareId. 알림 카드·설정의 [확인하기]가 연다. */
+  shareInviteConfirmId: number | null
+  /** 공유 계좌 상세에서 [수입·지출 기록]으로 가계부 입력 모달을 열었을 때, 입력 모달을 닫으면 되돌아갈
+   * 공유 계좌 id. 두 모달이 같은 층에 겹치지 않도록 상세를 닫고 열기 때문에 필요하다. */
+  entryReturnSharedAccountId: number | null
   reportOpen: boolean
   /** 리포트 오버레이가 보고 있는 정산월. null이면 '현재 정산월'(서버가 결정 — 열 때마다 null로 리셋). */
   reportPeriod: YearMonth | null

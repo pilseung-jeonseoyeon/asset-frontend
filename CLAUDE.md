@@ -49,7 +49,13 @@
 
 - 기술 스택: Vite + React 19 + TypeScript. `react-router-dom`(`BrowserRouter`)으로 로그인 후 5개 화면(`/dashboard` `/assets` `/stocks` `/ledger` `/settings`)을 URL에 연결하고, 그 외 경로는 `/dashboard`로 리다이렉트합니다. 화면 내 탭(가계부 개요/내역, 주식 전체/국내/해외)과 모달은 주소와 무관하게 `AppState`로만 관리합니다. CSS 프레임워크 없음. 테스트 러너 없음.
 - 상태는 세 레이어입니다: 앱 자체 reducer/context(`AppState`) + React Query(서버 상태) + Zustand(`src/stores/auth.ts` — 액세스 토큰과 인증 상태, 이것 하나뿐). 기기별 설정 일부는 localStorage에 둡니다. 경계는 `docs/state-management.md`.
-- **데이터는 모두 서버에서 옵니다**(목업 화면 없음). axios + React Query 기반 API 레이어가 `src/services/{domain}/`에 있습니다: `auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification` `export` `import` `connection`.
+- **데이터는 모두 서버에서 옵니다**(목업 화면 없음). axios + React Query 기반 API 레이어가 `src/services/{domain}/`에 있습니다: `auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification` `export` `import` `connection` `share`.
+- **계좌 공유**(`share`, 가족·커플 함께 보기)는 계좌 소유자가 가입자 이메일로 초대하고, 상대가 알림에서 수락하면 그 계좌의 잔액·거래내역을 함께 보는 기능입니다. 원리는 "권한 위임" — 멤버의 요청은 서버가 소유자 userId로 기존 계산을 돌립니다. 화면 시안은 `docs/plan/view/계좌 공유 A안 화면 시안.html`(로컬 전용), 표기 규칙 정본은 `src/data/shareView.ts`.
+  - **공유받은 계좌는 내 총자산·자산 구성·대시보드에 더하지 않습니다**(서버가 `GET /accounts`·분포에 넣지 않음). 자산 화면의 "함께 보는 계좌" 구역(`Assets.tsx`)과 상세(`SharedAccountDetailModal`)에만 보입니다. 프론트에서 합산하지 마세요.
+  - 권한은 `VIEWER`(보기만)·`EDITOR`(함께 기록) 2종. **EDITOR가 적은 거래는 소유자의 가계부 거래로 저장**되고(`createdBy`만 멤버) 멤버 본인의 가계부에는 안 들어옵니다. 수입·지출만 가능하고 소분류는 **소유자의 것**(`GET /shares/accounts/{id}/categories`)을 씁니다. 가계부 입력 모달(`LedgerEntryModal`)은 EDITOR 공유 계좌를 수입·지출 계좌 목록에 섞어 보여주고 `POST/PUT/DELETE /shares/accounts/{id}/transactions`로 보냅니다.
+  - 진입점: 초대·멤버 관리는 **계좌 상세**(현금·예적금만, `ShareMembersModal`), 받은 초대는 **알림 카드의 [확인하기] → 초대 확인 창**(`ShareInviteConfirmModal`, 바로 수락 아님)과 **설정 → 가족 · 커플 공유**(`FamilyShareModal`). 초대는 7일 뒤 만료(`EXPIRED`는 응답 시점 계산값), 계좌당 10명.
+  - 거래 작성자 배지: `TransactionRes.createdBy`가 내 id와 다를 때만 이름 배지(`ownerActivityAuthor`/`sharedActivityAuthor`). 멤버에게 소유자의 다른 계좌 이름은 '다른 계좌'로 가립니다.
+  - 서버에 없는 것: 초대 재전송(만료된 초대는 새로 `POST`), 공유 일괄 끄기(화면이 하나씩 `DELETE`), 단건 공유 조회(목록에서 찾음).
 - **엑셀 가져오기·내보내기**(`import`/`export`)는 거래 내역과 계좌 목록을 다룹니다(내보내기는 매매 내역도). 가져오기는 **한 행이라도 틀리면 전부 등록하지 않는(전체 롤백)** 계약이라 결과 화면도 "N건 등록" 아니면 "틀린 행 목록" 둘 중 하나입니다. 거래·매매 내보내기는 기간(`from`/`to`)을 고르고, 계좌 내보내기는 기간이 없습니다. 계약은 `docs/excel-import.md`.
 - **API 키 연동**(`connection`, BYOK)은 사용자가 기관에서 발급받은 키를 등록하면 서버가 그 키로 기관 API를 대신 호출하는 구조입니다.
   - **첫 동기화가 계좌를 자동 생성**하므로 등록 진입점은 계좌 추가 모달 안(자산 유형이 주식·가상자산일 때만 뜨는 점선 배너 → `ConnectAccountView`)이고, 목록·재동기화·해제는 설정 → 데이터 관리 및 백업(`ConnectionsSection`)에 있습니다.
@@ -88,23 +94,26 @@ src/
   stores/                Zustand. auth.ts(액세스 토큰 — 메모리 전용) 하나뿐
   data/                  서버 응답 → 화면용 뷰모델 변환(순수 함수): accountView, assetsView,
                          connectionView, dashboardView, ledgerView, notificationView, reportView,
-                         stocksView. 자산군 아이콘·색 같은 뷰 상수도 여기 둔다.
+                         shareView(계좌 공유 표기·에러 문구), stocksView. 자산군 아이콘·색 같은 뷰 상수도 여기 둔다.
                          termsContent.ts — 회원가입 동의서 3종 문안 + TERMS_VERSION. 문안을 고치면
                          버전도 같이 올린다. 운영 주체는 "운영자"(회사 아님)
   design/                bank-institutions.ts(125개 기관 마스터 테이블),
                          bank-archetypes.ts(공용 SVG 아이콘 경로 25종) — BankIcon에 사용
   components/
-    primitives/            원자 단위 UI(Avatar, BankIcon, Card, DatePicker, DeepCard, DonutChart,
-                           Dropdown, Icon, Modal, SavingsBarChart, SegmentedTab, Skeleton, StatBadge,
+    primitives/            원자 단위 UI(Avatar, AvatarStack, BankIcon, Card, DatePicker, DeepCard, DonutChart,
+                           Dropdown, Icon, Modal, SavingsBarChart, SegmentedTab, ShareBadge, Skeleton, StatBadge,
                            Switch, Treemap) + usePopoverAnchor.ts(드롭다운/달력 팝오버를 모달 밖으로
                            띄우는 공용 훅)
     layout/                AppShell, AuthenticatedApp(<Routes>), Header, NotificationPanel, SidebarNav,
                            BottomTabNav(모바일), navItems.ts, BootScreen, ChunkErrorBoundary,
                            ModalErrorBoundary, MonitLogo, useSyncUserTheme.ts,
                            modals/(AccountModal — 전역 계정 오버레이, TermsDetailOverlay — 약관 전문.
-                           가입 1단계·로그인 푸터·설정 하단이 공유)
+                           가입 1단계·로그인 푸터·설정 하단이 공유, ShareInviteConfirmModal — 계좌 공유
+                           초대 확인 창. 알림 카드·설정이 공유)
   screens/               화면별 폴더: Auth, Dashboard, Assets, Stocks, Ledger, Settings
                          Dashboard는 cards/ · hooks/ · layouts/로 나뉜다
+                         Assets/modals에 ShareMembersModal('함께 보는 사람')·SharedAccountDetailModal(공유받은
+                         계좌 상세), Settings/modals에 FamilyShareModal(가족 · 커플 공유)
   styles/                fonts.css(웹폰트), tokens.css(디자인 토큰, 라이트/다크),
                          bank-tokens.css(기관별 색상), base.css(리셋 + 지정된 hover/media 클래스만)
   utils/                 format.ts(formatNumber, formatKrw, formatUsd, formatCurrencyAmount,

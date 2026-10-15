@@ -7,11 +7,14 @@
 import type { CSSProperties } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
 import { Card } from '../../components/primitives/Card/Card'
+import { ShareBadge } from '../../components/primitives/ShareBadge/ShareBadge'
 import { Treemap } from '../../components/primitives/Treemap/Treemap'
 import { useAppState } from '../../state/AppStateContext'
 import { useIsMobile } from '../../utils/useMediaQuery'
-import { buildAssetClassCards, buildLiquidityView, buildMapTiers, countMaturingAccounts, liquidityMonthsOfExpense, pickNearestMaturity } from '../../data/assetsView'
+import { formatNumber } from '../../utils/format'
+import { assetClassMetaOf, assetClassOfAccountType, buildAssetClassCards, buildLiquidityView, buildMapTiers, countMaturingAccounts, liquidityMonthsOfExpense, pickNearestMaturity } from '../../data/assetsView'
 import { useGetAssetDistributionByClass, useGetAssetLiquidity } from '@/services/asset'
+import { useGetSharedAccounts } from '@/services/share'
 import { useGetPeriodSummary } from '@/services/transaction'
 
 function EmptyAccountsState({ onAdd, style }: { onAdd: () => void; style?: CSSProperties }) {
@@ -67,6 +70,12 @@ export function Assets() {
       : periodSummaryQuery.data.expenseTotal
     : null
   const liquidityMonths = liquidityView ? liquidityMonthsOfExpense(liquidityView.liquidAmt, baseMonthlyExpense) : null
+
+  // 다른 사람이 공유해 준 계좌(GET /shares/accounts). 서버가 내 계좌 목록·자산 분포·총자산에 넣지 않으므로
+  // 위 자산 구성 카드와 섞지 않고 구역을 따로 둔다. 공유받은 게 없으면 구역 자체를 그리지 않는다.
+  const sharedQuery = useGetSharedAccounts()
+  const sharedAccounts = sharedQuery.sharedAccounts
+  const showShared = sharedAccounts.length > 0 || !!sharedQuery.error
 
   const openAddAccount = () => setState({ quickAddOpen: false, openModal: 'addAccount' })
 
@@ -147,6 +156,49 @@ export function Assets() {
           </div>
         )}
       </Card>
+
+      {/* 함께 보는 계좌 — 다른 사람이 공유해 준 계좌. 행 모양은 자산군 목록(AssetCategoryModal)의 계좌 행과 같고,
+          기관명 자리에 "OO님의 계좌"가 온다(시안 1번). 금액은 서버 totalValueKrw(예수금 + 보유 종목). */}
+      {showShared && (
+        <Card style={{ padding: 26 }} aria-busy={sharedQuery.isPending}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap' }}>함께 보는 계좌</div>
+            <ShareBadge />
+          </div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-mid)', marginBottom: 14 }}>다른 사람이 공유해 준 계좌예요 · 내 총자산에는 들어가지 않아요</div>
+          {sharedQuery.error ? (
+            <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{sharedQuery.error.message}</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {sharedAccounts.map((s) => {
+                const meta = assetClassMetaOf(assetClassOfAccountType(s.account.type))
+                const subtitle = [`${s.owner.name}님의 계좌`, s.account.institutionName].filter((p): p is string => !!p).join(' · ')
+                return (
+                  <button
+                    key={s.shareId}
+                    className="mini-hov"
+                    onClick={() => setState({ sharedAccountDetailId: s.account.id })}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8, border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', color: 'inherit', width: '100%' }}
+                  >
+                    <span style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--fill-subtle)', color: meta.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+                      <Icon name={meta.icon} size={17} />
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.account.name}</div>
+                        <ShareBadge title={`${s.owner.name}님과 함께 보는 중`} />
+                      </div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>
+                    </div>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{formatNumber(s.totalValueKrw)}원</div>
+                    <Icon name="chevron_right" size={18} color="var(--text-weak)" ariaHidden />
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* 자산 분포 + 유동성 뷰 (2단) */}
       <div className="asset-2col" style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: 20, alignItems: 'stretch' }}>

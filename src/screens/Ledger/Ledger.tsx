@@ -22,6 +22,7 @@ import {
   yearMonthLabel,
 } from '../../utils/date'
 import { formatNumber } from '../../utils/format'
+import { ownerActivityAuthor } from '../../data/shareView'
 import { openNewEntryUpdater } from '../../state/selectors/entryDraft'
 import { useDebouncedValue } from '../../utils/useDebouncedValue'
 import { useIsMobile } from '../../utils/useMediaQuery'
@@ -52,8 +53,9 @@ import {
   type SubscriptionRow,
 } from '../../data/ledgerView'
 import { useGetAccounts } from '@/services/account'
+import { useGetShares } from '@/services/share'
 import { useGetSubscriptions } from '@/services/subscription'
-import { useGetUserSettings } from '@/services/user'
+import { useGetMe, useGetUserSettings } from '@/services/user'
 import {
   useGetCategoryRankings,
   useGetDailySummaries,
@@ -935,6 +937,11 @@ function LedgerHistory() {
   const accountsQuery = useGetAccounts()
 
   const rows = buildLedgerTransactions(transactionsQuery.data?.content ?? [], accountsQuery.data ?? [])
+  // 공유 계좌에 멤버가 적은 거래에는 이름 배지를 붙인다(계좌 공유, 시안 3번). 이름은 내가 공유한 멤버 목록에서
+  // 찾는다 — 남이 적은 행이 화면에 있을 때만 받는다(공유한 적 없는 사용자에겐 요청이 나가지 않는다).
+  const myUserId = useGetMe().data?.id ?? null
+  const hasForeignAuthor = rows.some((r) => r.createdBy !== null && r.createdBy !== myUserId)
+  const ownerSharesQuery = useGetShares({ side: 'OWNER' }, { enabled: hasForeignAuthor })
   const page = transactionsQuery.data
   const totalPages = page?.totalPages ?? 0
   const currentPage = (page?.number ?? 0) + 1
@@ -1296,7 +1303,9 @@ function LedgerHistory() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {rows.map((t) => (
+              {rows.map((t) => {
+                const author = ownerActivityAuthor(t.createdBy, myUserId, ownerSharesQuery.shares)
+                return (
                 <div
                   key={t.key}
                   className="mini-hov"
@@ -1346,6 +1355,15 @@ function LedgerHistory() {
                         <Icon name="sticky_note_2" size={13} />
                       </span>
                     )}
+                    {/* 공유 멤버가 적은 거래 — 가계부 '수입' 색 배지. 내 거래에는 없다. */}
+                    {author && (
+                      <span
+                        title={`${author}님이 적은 거래`}
+                        style={{ fontSize: 10, fontWeight: 700, color: 'var(--inc-text)', background: 'var(--up-chip)', borderRadius: 6, padding: '2px 7px', flex: 'none', lineHeight: 1.4, whiteSpace: 'nowrap', maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                      >
+                        {author}
+                      </span>
+                    )}
                   </div>
                   {t.tag && (
                     // 태그는 사용자가 직접 지은 계좌명·소분류명이라 길이 제한이 없다(ledgerView.ts
@@ -1359,7 +1377,8 @@ function LedgerHistory() {
                   )}
                   <div style={{ fontSize: 13.5, fontWeight: 700, width: 120, textAlign: 'right', color: t.amountColor }}>{t.amount}</div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
           {totalPages > 1 && (

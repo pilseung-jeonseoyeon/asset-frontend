@@ -34,6 +34,11 @@ export const initialState: AppState = {
 
   openModal: null,
   accountDetailId: null,
+  shareMembersAccountId: null,
+  shareMembersReturnTo: null,
+  sharedAccountDetailId: null,
+  shareInviteConfirmId: null,
+  entryReturnSharedAccountId: null,
   reportOpen: false,
   reportPeriod: null,
   reportSlide: 0,

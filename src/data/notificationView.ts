@@ -10,6 +10,11 @@ const TYPE_ICON: Record<NotificationType, string> = {
   PAYMENT_DUE: 'event_upcoming',
   GOAL_ACHIEVED: 'emoji_events',
   SYSTEM: 'campaign',
+  // 계좌 공유 — 초대는 편지(시안 6번), 그 뒤는 사람이 들어오고 나가는 아이콘.
+  SHARE_INVITED: 'mail',
+  SHARE_ACCEPTED: 'how_to_reg',
+  SHARE_DECLINED: 'person_off',
+  SHARE_ENDED: 'group_off',
 }
 
 export interface NotificationTone {
@@ -29,7 +34,8 @@ export function notificationIconOf(type: NotificationType): string {
 }
 
 export function notificationToneOf(nf: Pick<NotificationResponse, 'type' | 'severity'>): NotificationTone {
-  if (nf.type === 'GOAL_ACHIEVED') return GOAL_TONE
+  // 누군가 참여했다는 소식도 목표 달성처럼 좋은 소식이라 초록으로 둔다.
+  if (nf.type === 'GOAL_ACHIEVED' || nf.type === 'SHARE_ACCEPTED') return GOAL_TONE
   return SEVERITY_TONE[nf.severity] ?? SEVERITY_TONE.INFO
 }
 

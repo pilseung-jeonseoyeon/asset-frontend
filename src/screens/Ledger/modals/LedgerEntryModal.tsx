@@ -15,6 +15,13 @@
 // 유형 전환에 맞춰 소분류·상대 계좌 선택을 초기화하는 흐름을 갖고 있지 않다(등록 시 setEntryType의
 // 리셋 로직을 편집 중 그대로 재사용하면 이전 유형의 선택값이 남는다).
 //
+// **공유 계좌(계좌 공유, 2026-10-15)**: 다른 사람이 '함께 기록' 권한으로 공유해 준 계좌도 수입·지출일 때
+// 계좌 목록에 섞여 나온다(그룹 아이콘 + "OO님의 계좌"). 고르면 카테고리가 **계좌 주인의 분류**로 바뀌고
+// (GET /shares/accounts/{id}/categories), 저장은 POST/PUT/DELETE /shares/accounts/{id}/transactions로 나간다.
+// 이 거래는 주인의 가계부에 기록되고 내 가계부(GET /transactions)에는 들어오지 않는다 — 폼 아래 한 줄로
+// 알린다. 저축·이체에는 공유 계좌를 보여주지 않는다(서버 SHARE_TYPE_NOT_ALLOWED, 상대 계좌가 주인의 다른
+// 계좌라서). 공유 계좌 상세에서 열렸으면(entryReturnSharedAccountId) 닫을 때 그 상세로 돌아간다.
+//
 // 최근 내역 추천: 신규 등록 중 '내용'을 2글자 이상 치면 최근 6개월 거래에서 비슷한 제목을 찾아 칩을
 // 최대 3개까지 입력칸 아래에 보여준다. 칩을 누르면 제목·금액·소분류·계좌(저축·이체는 출금/상대 계좌)를
 // 한 번에 채운다 — 자동으로 채우지는 않는다. 목록은 모달이 열릴 때 한 번 받고(React Query 캐시, 거래를
@@ -40,6 +47,7 @@ import { readLastUsedAccounts, storeLastUsedAccounts } from '../../../utils/ledg
 import { captureEntryDraft } from '../../../state/selectors/entryDraft'
 import { ENTRY_TYPE_TO_CATEGORY_KIND, ENTRY_TYPE_TO_TRANSACTION_TYPE, buildEntrySuggestions, findSubcategoryById } from '../../../data/ledgerView'
 import type { EntrySuggestion } from '../../../data/ledgerView'
+import { describeShareError } from '../../../data/shareView'
 import type { AppState, EntryType } from '../../../state/types'
 import { ApiError } from '@/services/api'
 import { useGetAccounts, type AccountResponse } from '@/services/account'
@@ -49,6 +57,14 @@ import { accountInstitutionLabel, accountInstitutionMeta } from '../../../data/a
 import { useGetCategories } from '@/services/category'
 import { useDeleteTransaction, useGetTransactions, usePostTransaction, usePutTransaction } from '@/services/transaction'
 import type { CreateTransactionRequest, UpdateTransactionRequest } from '@/services/transaction'
+import {
+  useDeleteSharedTransaction,
+  useGetSharedAccountCategories,
+  useGetSharedAccounts,
+  usePostSharedTransaction,
+  usePutSharedTransaction,
+} from '@/services/share'
+import type { CreateSharedTransactionRequest } from '@/services/share'
 
 const LABEL_STYLE: CSSProperties = { fontSize: 12.5, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 8 }
 const FIELD_BORDER_STYLE: CSSProperties = { border: '0.5px solid var(--border)', borderRadius: 10, padding: '13px 16px' }
@@ -95,9 +111,25 @@ export function LedgerEntryModal() {
     const meta = accountInstitutionMeta(a, institutions)
     return meta ? <BankIcon tokenKey={meta.tokenKey} size={size} /> : undefined
   }
+  // 공유받은 계좌 중 내가 기록할 수 있는 것(EDITOR). 수입·지출일 때만 계좌 목록에 섞인다(파일 상단 주석).
+  const sharedAccountsQuery = useGetSharedAccounts({ enabled: isOpen })
+  const editableSharedAccounts = sharedAccountsQuery.sharedAccounts.filter((s) => s.role === 'EDITOR')
+  const sharedById = new Map(editableSharedAccounts.map((s) => [s.account.id, s] as const))
+  const selectableAccounts: AccountResponse[] = needsTransferAccount
+    ? accounts
+    : [...accounts, ...editableSharedAccounts.map((s) => s.account)]
+  // 공유 계좌는 기관 아이콘 대신 그룹 아이콘으로 구분한다 — 드롭다운의 아이콘 슬롯(28px)에 맞춘 작은 사각형.
+  const sharedLeadingIcon = (size: number) => (
+    <span style={{ width: size, height: size, borderRadius: 8, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+      <Icon name="group" size={Math.round(size * 0.57)} ariaHidden />
+    </span>
+  )
   const createTransaction = usePostTransaction()
   const updateTransaction = usePutTransaction()
   const removeTransaction = useDeleteTransaction()
+  const createSharedTransaction = usePostSharedTransaction()
+  const updateSharedTransaction = usePutSharedTransaction()
+  const removeSharedTransaction = useDeleteSharedTransaction()
   // 추천 후보. 신규 등록일 때만 받는다(수정 모드엔 추천을 안 보여주므로 요청도 안 한다).
   const suggestionsEnabled = isOpen && !isEditing
   const recentTransactionsQuery = useGetTransactions(
@@ -135,8 +167,9 @@ export function LedgerEntryModal() {
   // 폼을 열자마자 같은 계좌로 충돌해 첫 저장이 항상 "같은 계좌예요" 에러로 막힌다 — 상대 계좌 기본값은
   // 출금 계좌와 다른 첫 계좌로 잡는다(계좌가 하나뿐이면 notEnoughAccounts가 이미 저장 자체를 막는다).
   // 기억된 상대 계좌도 같은 이유로 출금 계좌와 같으면 쓰지 않는다.
+  const isSelectableAccount = (id: number | null | undefined): id is number => id != null && selectableAccounts.some((a) => a.id === id)
   const rememberedEntryAccountId =
-    remembered && isKnownAccount(remembered.accountId) && (!needsTransferAccount || remembered.accountId !== effectiveWithdrawAccountId)
+    remembered && isSelectableAccount(remembered.accountId) && (!needsTransferAccount || remembered.accountId !== effectiveWithdrawAccountId)
       ? remembered.accountId
       : null
   const entryAccountFallbackId =
@@ -144,24 +177,40 @@ export function LedgerEntryModal() {
     (needsTransferAccount
       ? (accounts.find((a) => a.id !== effectiveWithdrawAccountId)?.id ?? accounts[0]?.id ?? null)
       : (accounts[0]?.id ?? null))
-  const effectiveEntryAccountId = state.entryAccountId ?? entryAccountFallbackId
+  // 공유 계좌를 고른 채 저축·이체 탭으로 바꾸면 그 계좌는 고를 수 없으므로(상단 주석) 내 계좌 폴백으로 돌아간다.
+  // 내 계좌가 그사이 삭제된 경우는 건드리지 않는다 — 그건 저장 시 ACCOUNT_NOT_FOUND로 드러나야지 조용히
+  // 다른 계좌로 바뀌면 안 된다.
+  const entryAccountBlocked = needsTransferAccount && state.entryAccountId !== null && sharedById.has(state.entryAccountId)
+  const effectiveEntryAccountId = entryAccountBlocked ? entryAccountFallbackId : (state.entryAccountId ?? entryAccountFallbackId)
   const ledgerEntryAccountDropdown = useEntityDropdown(
-    'ledgerEntryAcct', accounts, (a) => a.id, (a) => a.name,
+    'ledgerEntryAcct', selectableAccounts, (a) => a.id, (a) => a.name,
     effectiveEntryAccountId,
     (id) => { setState({ entryAccountId: id }); setSameAccountInvalid(false) },
-    (a) => accountInstitutionMeta(a, institutions)?.institutionName,
-    (a) => accountLeadingIcon(a, 28),
+    (a) => {
+      const shared = sharedById.get(a.id)
+      return shared ? `${shared.owner.name}님의 계좌` : accountInstitutionMeta(a, institutions)?.institutionName
+    },
+    (a) => (sharedById.has(a.id) ? sharedLeadingIcon(28) : accountLeadingIcon(a, 28)),
   )
   // 트리거의 보조 줄·아이콘. 계좌명은 좁은 열에서 잘리지만 기관명은 아래 줄에 따로 남아 "어느
   // 기관 계좌를 골랐는지"는 항상 보인다(Dropdown.tsx selectedMeta 주석 참고).
   const withdrawAccount = accounts.find((a) => a.id === effectiveWithdrawAccountId)
-  const entryAccount = accounts.find((a) => a.id === effectiveEntryAccountId)
+  const entryAccount = selectableAccounts.find((a) => a.id === effectiveEntryAccountId)
+  // 지금 고른 계좌가 공유 계좌면 그 공유 정보(주인 이름·계좌 id). 저축·이체에서는 항상 null이다.
+  const sharedSelected = !needsTransferAccount && effectiveEntryAccountId !== null ? (sharedById.get(effectiveEntryAccountId) ?? null) : null
+  // 공유 계좌의 카테고리는 계좌 주인의 소분류여야 한다 — 내 분류 id를 보내면 404 SUBCATEGORY_NOT_FOUND.
+  const sharedCategoriesQuery = useGetSharedAccountCategories(sharedSelected?.account.id ?? null, categoryKind, {
+    enabled: isOpen && !!categoryKind && sharedSelected !== null,
+  })
+  const activeCategoriesQuery = sharedSelected ? sharedCategoriesQuery : categoriesQuery
   const entryDateDefault = isoDateToDisplay(toISODate(new Date()))
   const entryDateDisplay = state.entryDateOverride || entryDateDefault
   const [entryNavY, entryNavM] = entryDateDisplay.split('.').map(Number)
   const entryDateDropdown = useDatePicker('entry', entryDateDisplay, { y: entryNavY, m: entryNavM })
 
-  const activeMutation = isEditing ? updateTransaction : createTransaction
+  const activeMutation = sharedSelected
+    ? (isEditing ? updateSharedTransaction : createSharedTransaction)
+    : (isEditing ? updateTransaction : createTransaction)
   const saveError = activeMutation.error
   const saveErrorCode = saveError instanceof ApiError ? saveError.code : null
 
@@ -172,12 +221,14 @@ export function LedgerEntryModal() {
   const handleMutationError = (err: unknown) => {
     if (!(err instanceof ApiError)) return
     if (err.code === 'ACCOUNT_NOT_FOUND') void accountsQuery.refetch()
-    if (err.code === 'SUBCATEGORY_NOT_FOUND') void categoriesQuery.refetch()
+    // 공유가 끝났거나 권한이 보기만으로 바뀌었으면 공유 계좌 목록을 다시 받아 선택지에서 빠지게 한다.
+    if (err.code === 'SHARE_NOT_FOUND' || err.code === 'SHARE_READ_ONLY') void sharedAccountsQuery.refetch()
+    if (err.code === 'SUBCATEGORY_NOT_FOUND') void activeCategoriesQuery.refetch()
   }
 
   if (!isOpen) return null
 
-  const categories = categoriesQuery.categories
+  const categories = activeCategoriesQuery.categories
   const selected = findSubcategoryById(categories, state.entrySubcategoryId)
   const effectiveCategory = selected?.category ?? categories[0] ?? null
   const effectiveSubcategory = selected?.subcategory ?? effectiveCategory?.subcategories[0] ?? null
@@ -187,7 +238,7 @@ export function LedgerEntryModal() {
   // 카테고리가 선택된 것처럼 보이는데 실제로는 null이 전송돼 SUBCATEGORY_REQUIRED가 난다.
   // 수정 중인 거래의 소분류가 설정에서 삭제됐으면(서버는 논리 삭제라 거래는 옛 id를 그대로 가리킨다) 드롭다운은
   // 첫 소분류를 보여주는데 제출값은 사라진 id라 SUBCATEGORY_NOT_FOUND가 났다 — 화면에 보이는 값을 보내고 그 사실을 알린다.
-  const storedSubcategoryMissing = state.entrySubcategoryId !== null && !selected && categoriesQuery.isSuccess && categories.length > 0
+  const storedSubcategoryMissing = state.entrySubcategoryId !== null && !selected && activeCategoriesQuery.isSuccess && categories.length > 0
   const submitSubcategoryId = storedSubcategoryMissing
     ? (effectiveSubcategory?.id ?? null)
     : (state.entrySubcategoryId ?? effectiveSubcategory?.id ?? null)
@@ -315,6 +366,9 @@ export function LedgerEntryModal() {
       // dpNav도 함께 지운다 — 안 지우면 지난 세션에 넘겨둔 달이 남아 다음에 열 때 엉뚱한 달이 펼쳐진다.
       datePickerViewingMonth: { ...prev.datePickerViewingMonth, entry: undefined },
       openDropdown: null,
+      // 공유 계좌 상세에서 열렸으면 그 상세로 돌아간다(저장했든 안 했든 — 사용자가 보던 자리다).
+      sharedAccountDetailId: prev.entryReturnSharedAccountId ?? prev.sharedAccountDetailId,
+      entryReturnSharedAccountId: null,
     }))
     // 이 모달은 AppShell에 항상 마운트되어 있어 닫아도 언마운트되지 않는다. 로컬 확인/검증 상태와
     // mutation 에러를 직접 지우지 않으면 다음에 열었을 때 지난 세션의 실패·확인창이 그대로 보인다.
@@ -327,6 +381,9 @@ export function LedgerEntryModal() {
     createTransaction.reset()
     updateTransaction.reset()
     removeTransaction.reset()
+    createSharedTransaction.reset()
+    updateSharedTransaction.reset()
+    removeSharedTransaction.reset()
   }
 
   /** 저장하지 않고 닫기(X·Esc·배경 클릭·스와이프). Modal의 onClose가 인자를 넘기지 않으므로 감싼다. */
@@ -418,6 +475,26 @@ export function LedgerEntryModal() {
 
     const accountId = effectiveEntryAccountId
     if (!accountId || !submitSubcategoryId) return
+    if (sharedSelected) {
+      // 공유 계좌 — 계좌는 경로로 고정되고 상대 계좌가 없다. 이 분기는 수입·지출에서만 온다(저축·이체는 위에서 끝났다).
+      const sharedBody: CreateSharedTransactionRequest = {
+        type: type as CreateSharedTransactionRequest['type'],
+        subcategoryId: submitSubcategoryId,
+        amount: state.entryAmount,
+        transactionDate,
+        description,
+        ...keep,
+      }
+      if (isEditing) {
+        updateSharedTransaction.mutate(
+          { accountId, transactionId: state.editingTransactionId as number, body: sharedBody },
+          { onSuccess: closeDiscardingDraft, onError: handleMutationError },
+        )
+      } else {
+        createSharedTransaction.mutate({ accountId, body: sharedBody }, { onSuccess: onCreateSuccess, onError: handleMutationError })
+      }
+      return
+    }
     const body: CreateTransactionRequest | UpdateTransactionRequest = { type, accountId, subcategoryId: submitSubcategoryId, amount: state.entryAmount, transactionDate, description, ...keep }
     if (isEditing) {
       updateTransaction.mutate({ id: state.editingTransactionId as number, body }, { onSuccess: closeDiscardingDraft, onError: handleMutationError })
@@ -428,14 +505,24 @@ export function LedgerEntryModal() {
 
   const handleDelete = () => {
     if (state.editingTransactionId === null) return
+    if (sharedSelected) {
+      removeSharedTransaction.mutate(
+        { accountId: sharedSelected.account.id, transactionId: state.editingTransactionId },
+        { onSuccess: closeDiscardingDraft },
+      )
+      return
+    }
     removeTransaction.mutate(state.editingTransactionId, { onSuccess: closeDiscardingDraft })
   }
 
-  const isBusy = createTransaction.isPending || updateTransaction.isPending || removeTransaction.isPending
-  const noCategoryAvailable = entryCatVisible && !categoriesQuery.isPending && !categoriesQuery.error && categories.length === 0
+  const isDeleting = removeTransaction.isPending || removeSharedTransaction.isPending
+  const isBusy =
+    createTransaction.isPending || updateTransaction.isPending || createSharedTransaction.isPending || updateSharedTransaction.isPending || isDeleting
+  const noCategoryAvailable = entryCatVisible && !activeCategoriesQuery.isPending && !activeCategoriesQuery.error && categories.length === 0
   // 계좌가 하나도 없으면(신규 사용자 등) 저장 버튼을 눌러도 accountId를 채울 수 없다 — 눌러도 아무 일도
-  // 안 일어나는 "죽은 클릭"을 만들지 않도록 아예 비활성화한다.
-  const noAccountAvailable = !accountsQuery.isPending && !accountsQuery.error && accounts.length === 0
+  // 안 일어나는 "죽은 클릭"을 만들지 않도록 아예 비활성화한다. 내 계좌가 없어도 기록할 수 있는 공유 계좌가
+  // 있으면(수입·지출) 저장할 수 있다.
+  const noAccountAvailable = !accountsQuery.isPending && !accountsQuery.error && selectableAccounts.length === 0
   // 이체·저축은 서로 다른 두 계좌가 필요하다. 계좌가 하나뿐이면 두 드롭다운이 같은 계좌로
   // 폴백되어 저장할 때마다 "같은 계좌예요" 에러만 반복되는 막다른 골목이 된다 — 진짜 원인은
   // 계좌가 부족한 것이므로 저장을 막고 그 사실을 그대로 안내한다.
@@ -443,7 +530,7 @@ export function LedgerEntryModal() {
     needsTransferAccount && !accountsQuery.isPending && !accountsQuery.error && accounts.length === 1
   // 카테고리·계좌 목록을 못 불러오면 제출값을 채울 수 없어 저장을 눌러도 조용히 아무 일도 없었다(죽은 클릭) —
   // 버튼을 막고, 각 칸의 오류 문구로 이유를 보여준다.
-  const listLoadFailed = (entryCatVisible && !!categoriesQuery.error) || !!accountsQuery.error
+  const listLoadFailed = (entryCatVisible && !!activeCategoriesQuery.error) || !!accountsQuery.error
   const canSave = !isBusy && !noCategoryAvailable && !noAccountAvailable && !notEnoughAccounts && !listLoadFailed
 
   const categoryErrorMessage =
@@ -457,10 +544,14 @@ export function LedgerEntryModal() {
       ? saveError?.message
       : null
   const transactionNotFoundMessage = saveErrorCode === 'TRANSACTION_NOT_FOUND' ? saveError?.message : null
+  // 공유 계좌 실패(권한·종료·유형)는 "그래서 뭘 하면 되는지"가 붙은 문구로 바꾼다. 그 밖의 코드는 서버 문구 그대로다.
   const genericErrorMessage =
-    saveError && !categoryErrorMessage && !transferAccountErrorMessage && !transactionNotFoundMessage ? saveError.message : null
+    saveError && !categoryErrorMessage && !transferAccountErrorMessage && !transactionNotFoundMessage
+      ? (saveError instanceof ApiError ? describeShareError(saveError.code, saveError.message) : saveError.message)
+      : null
 
-  const deleteErrorMessage = removeTransaction.error?.message ?? null
+  const deleteError = removeSharedTransaction.error ?? removeTransaction.error
+  const deleteErrorMessage = deleteError ? (deleteError instanceof ApiError ? describeShareError(deleteError.code, deleteError.message) : deleteError.message) : null
 
   return (
     <Modal onClose={closeKeepingDraft} zIndex={80} width={480} panelStyle={{ maxHeight: '86vh', overflow: 'auto' }}>
@@ -604,13 +695,17 @@ export function LedgerEntryModal() {
 
         {entryCatVisible && (
           <div>
-            <div style={LABEL_STYLE}>카테고리</div>
-            {categoriesQuery.isPending ? (
+            <div style={LABEL_STYLE}>카테고리{sharedSelected ? ` · ${sharedSelected.owner.name}님의 분류` : ''}</div>
+            {activeCategoriesQuery.isPending ? (
               <div aria-busy style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
-            ) : categoriesQuery.error ? (
-              <div style={ERROR_STYLE}>{categoriesQuery.error.message}</div>
+            ) : activeCategoriesQuery.error ? (
+              <div style={ERROR_STYLE}>{activeCategoriesQuery.error.message}</div>
             ) : categories.length === 0 ? (
-              <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>등록된 카테고리가 없어요. 설정에서 먼저 소분류를 추가해주세요.</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>
+                {sharedSelected
+                  ? `${sharedSelected.owner.name}님이 아직 이 구분의 소분류를 만들지 않았어요.`
+                  : '등록된 카테고리가 없어요. 설정에서 먼저 소분류를 추가해주세요.'}
+              </div>
             ) : (
               <div style={{ display: 'flex', gap: 14 }}>
                 <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
@@ -650,11 +745,21 @@ export function LedgerEntryModal() {
         <div style={{ display: 'flex', gap: 14 }}>
           <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
             <div style={LABEL_STYLE}>{ledgerEntryAcctLabel}</div>
+            {isEditing && sharedSelected ? (
+              // 공유 계좌의 거래는 계좌를 바꿀 수 없다(서버가 경로로 고정) — 드롭다운 대신 고정 칸으로 보여준다.
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 45, boxSizing: 'border-box', ...FIELD_BORDER_STYLE, padding: '7px 16px', background: 'var(--fill-subtle)' }} aria-label={`계좌 ${sharedSelected.account.name}`}>
+                {sharedLeadingIcon(24)}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sharedSelected.account.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>{sharedSelected.owner.name}님의 계좌</div>
+                </div>
+              </div>
+            ) : (
             <Dropdown
               dropdown={ledgerEntryAccountDropdown}
               maxHeight={180}
-              selectedMeta={accountInstitutionLabel(entryAccount, institutions)}
-              selectedLeading={entryAccount && accountLeadingIcon(entryAccount, 24)}
+              selectedMeta={sharedSelected ? `${sharedSelected.owner.name}님의 계좌` : accountInstitutionLabel(entryAccount, institutions)}
+              selectedLeading={sharedSelected ? sharedLeadingIcon(24) : entryAccount && accountLeadingIcon(entryAccount, 24)}
               footer={
                 <>
                   <div style={{ borderTop: '0.5px solid var(--border)', margin: '4px 0' }} />
@@ -669,6 +774,7 @@ export function LedgerEntryModal() {
                 </>
               }
             />
+            )}
             {transferAccountErrorMessage && <div style={ERROR_STYLE}>{transferAccountErrorMessage}</div>}
           </div>
           <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
@@ -676,6 +782,18 @@ export function LedgerEntryModal() {
             <DatePicker dp={entryDateDropdown} />
           </div>
         </div>
+
+        {/* 공유 계좌를 고르면 한 줄 안내(시안 8번). 서버 계약대로 "주인의 가계부에 들어간다"를 분명히 적는다 —
+            내 가계부에 안 보여서 "저장이 안 됐나?" 하고 두 번 적는 사고를 막는다. */}
+        {sharedSelected && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, marginTop: -8, padding: '10px 12px', borderRadius: 10, background: 'var(--accent-soft)', fontSize: 11.5, color: 'var(--text-mid)', lineHeight: 1.55 }}>
+            <Icon name="group" size={14} color="var(--accent)" style={{ flex: 'none', marginTop: 1 }} ariaHidden />
+            <span>
+              공유 계좌에 적은 거래는 <b style={{ color: 'var(--text-strong)' }}>{sharedSelected.owner.name}님의 가계부</b>에 들어가고 함께 보는 사람에게도 보여요.
+              내 가계부 집계에는 들어가지 않고, 카테고리는 {sharedSelected.owner.name}님의 것을 써요.
+            </span>
+          </div>
+        )}
 
         {genericErrorMessage && <div style={ERROR_STYLE}>{genericErrorMessage}</div>}
 
@@ -710,11 +828,11 @@ export function LedgerEntryModal() {
               <button
                 onClick={handleDelete}
                 disabled={isBusy}
-                aria-busy={removeTransaction.isPending}
+                aria-busy={isDeleting}
                 className="qbtn"
                 style={{ flex: 1, padding: 11, borderRadius: 10, border: 'none', background: 'var(--down)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: isBusy ? 'default' : 'pointer', opacity: isBusy ? 0.7 : 1 }}
               >
-                {removeTransaction.isPending ? '삭제 중…' : '삭제할게요'}
+                {isDeleting ? '삭제 중…' : '삭제할게요'}
               </button>
               <button
                 onClick={() => setDeleteConfirmOpen(false)}
