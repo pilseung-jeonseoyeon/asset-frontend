@@ -13,14 +13,18 @@
 
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
+import { ShareBadge } from '../../../components/primitives/ShareBadge/ShareBadge'
 import { sheetStickyHeaderStyle } from '../../../components/primitives/Modal/sheetHeader'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useAppState } from '../../../state/AppStateContext'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
+import { formatNumber } from '../../../utils/format'
 import { assetClassFormPreset, buildAssetClassCards } from '../../../data/assetsView'
 import { connectionOfAccount } from '../../../data/connectionView'
+import { memberCountOf } from '../../../data/shareView'
 import { useGetAssetDistributionByClass } from '@/services/asset'
 import { useGetConnections } from '@/services/connection'
+import { useGetShares } from '@/services/share'
 
 export function AssetCategoryModal() {
   const isMobile = useIsMobile()
@@ -30,6 +34,8 @@ export function AssetCategoryModal() {
   // 연동 배지용. 실패해도 화면을 막지 않는다 — 배지가 안 붙을 뿐이고, 계좌 목록 자체는 이 응답과
   // 무관하다. 그래서 에러 문구를 따로 띄우지 않는다.
   const connectionsQuery = useGetConnections({ enabled: isOpen })
+  // 공유 배지·'멤버 N'용(시안 1번). 연동 배지와 같은 이유로 실패해도 화면을 막지 않는다.
+  const ownerSharesQuery = useGetShares({ side: 'OWNER' }, { enabled: isOpen })
 
   // 다른 18개 모달과 동일하게, 훅 호출(위) 다음 파생 계산(아래 buildAssetClassCards)보다 먼저
   // isOpen 가드를 둔다. `enabled: isOpen`은 리페치만 막을 뿐 캐시 데이터는 계속 흘러들어오므로(같은
@@ -75,6 +81,11 @@ export function AssetCategoryModal() {
         )}
         {selectedAssetClass.accounts.map((ca) => {
           const connection = connectionOfAccount(connectionsQuery.connections, ca.accountId)
+          const memberCount = memberCountOf(ownerSharesQuery.shares, ca.accountId)
+          // 기관명 뒤에 '멤버 N'(시안 1번). 기관 없는 계좌는 '멤버 N'만 남는다.
+          const institutionLine = [ca.institutionName, memberCount > 0 ? `멤버 ${formatNumber(memberCount)}` : null]
+            .filter((p): p is string => !!p)
+            .join(' · ')
           return (
             <div
               key={ca.accountId}
@@ -100,8 +111,10 @@ export function AssetCategoryModal() {
                         연동
                       </span>
                     )}
+                    {/* 공유 배지: 연동 배지와 같은 자리·크기. 함께 보는 사람이 한 명이라도 있을 때만. */}
+                    {memberCount > 0 && <ShareBadge title={`멤버 ${memberCount}명과 함께 보는 중`} />}
                   </div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>{ca.institutionName}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>{institutionLine}</div>
                 </div>
                 <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{ca.amountText}원</div>
               </button>

@@ -8,6 +8,8 @@ import type {
   Market,
   PeriodUnit,
   RecurringExpenseKind,
+  ShareSearchParams,
+  SharedTransactionSearchParams,
   TradeSearchParams,
   TransactionSearchParams,
   YearMonth,
@@ -111,5 +113,15 @@ export const queryKeys = {
   connection: {
     all: () => ['connection'] as const,
     list: () => ['connection', 'list'] as const,
+  },
+  // 계좌 공유. 공유 행 하나가 바뀌면 목록·공유받은 계좌·그 계좌의 거래가 함께 바뀌므로 all()로 묶어 무효화한다.
+  share: {
+    all: () => ['share'] as const,
+    list: (params: ShareSearchParams = {}) => ['share', 'list', params] as const,
+    accounts: () => ['share', 'accounts'] as const,
+    accountTransactions: (accountId: number, params: SharedTransactionSearchParams = {}) =>
+      ['share', 'accountTransactions', accountId, params] as const,
+    accountCategories: (accountId: number, kind?: CategoryKind) =>
+      ['share', 'accountCategories', accountId, { kind }] as const,
   },
 } as const

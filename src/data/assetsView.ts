@@ -538,6 +538,9 @@ export interface AccountActivityRow {
    * 해외 종목 매매는 달러라 '원'을 붙이면 틀린 금액이 된다. */
   amountText: string
   amountColor: string
+  /** 거래를 기록한 사용자 id(가계부 거래만, TransactionResponse.createdBy). 매매는 null. 공유 계좌에서
+   * 멤버가 적은 줄에 이름 배지를 붙이는 데 쓴다(data/shareView.ts의 ownerActivityAuthor). */
+  createdBy: number | null
 }
 
 /**
@@ -554,7 +557,7 @@ const TRADE_AMOUNT_COLOR = 'var(--text-strong)'
  * 받은 계좌(transferAccountId)는 +. 색은 유형 색(저축 보라·이체 중립)을 그대로 둔다.
  * 수입·지출은 가계부 표기 그대로다(이미 +/−가 붙어 있다).
  */
-function accountActivityAmountText(t: LedgerTransactionRow, accountId: number): string {
+export function accountActivityAmountText(t: LedgerTransactionRow, accountId: number): string {
   if (t.type !== 'SAVING' && t.type !== 'TRANSFER') return `${t.amount}원`
   const sign = t.transferAccountId === accountId ? '+' : t.accountId === accountId ? '−' : ''
   return `${sign}${formatNumber(t.amountRaw)}원`
@@ -586,6 +589,7 @@ export function buildAccountActivity(
     tag: accountActivityTag(t, accountId, accounts),
     amountText: accountActivityAmountText(t, accountId),
     amountColor: t.amountColor,
+    createdBy: t.createdBy,
   }))
   const fromTrade: AccountActivityRow[] = tradeRows.map((t) => ({
     key: `trade-${t.id}`,
@@ -595,6 +599,7 @@ export function buildAccountActivity(
     tag: t.tag,
     amountText: t.amountText,
     amountColor: TRADE_AMOUNT_COLOR,
+    createdBy: null,
   }))
   return [...fromTx, ...fromTrade]
     .sort((a, b) => b.isoDate.localeCompare(a.isoDate))

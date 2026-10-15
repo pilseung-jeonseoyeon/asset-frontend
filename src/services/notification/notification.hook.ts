@@ -82,6 +82,10 @@ export function useNotificationStream() {
 
     const refreshNotifications = () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.notification.all() })
+      // 계좌 공유 알림(SHARE_*)은 공유 상태가 바뀌었다는 뜻이다 — 소유자에겐 멤버 목록이, 멤버에겐
+      // 공유받은 계좌 목록이 달라지므로 함께 다시 받는다. 알림 종류를 가려 받지 않는 이유: SSE payload를
+      // 읽어 분기하는 것보다 작은 목록 하나를 더 받는 쪽이 단순하고, 알림이 자주 오는 기능이 아니다.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.share.all() })
     }
 
     const scheduleReconnect = () => {

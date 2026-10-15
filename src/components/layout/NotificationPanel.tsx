@@ -10,15 +10,24 @@
 // - **누르면 다른 화면으로 이동하지 않는다**(2026-09-26 사용자: "이동하는 건 아직 없어") — linkType/linkId는
 //   서버가 주지만 쓰지 않는다. 누르면 읽음 처리 + 잘린 제목·본문을 그 자리에서 펼치고 접는다.
 // - 별도 알림함(전체 알림 화면)은 없다 — 이 패널 안에서 20건씩 받아 맨 아래 '더 보기'로 이어 붙인다.
+// - **예외: 계좌 공유 초대 카드(SHARE_INVITED)에는 버튼이 있다**(2026-10-15, 시안 6번). [확인하기]는 초대 확인
+//   창(ShareInviteConfirmModal)을 열고 거기서 수락한다(바로 수락 아님). [거절]은 그 자리에서 처리한다. 공유 상태는
+//   알림에 없어 내가 받은 공유 목록(GET /shares?side=MEMBER)에서 linkId로 찾고, 처리된 초대는 버튼 자리에
+//   '참여했어요 / 거절했어요 / 기한이 지났어요 / 취소된 초대예요'를 적는다. 여전히 다른 화면으로 이동하지는 않는다.
 
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Icon } from '../primitives/Icon/Icon'
 import { Skeleton } from '../primitives/Skeleton/Skeleton'
+import { useAppState } from '../../state/AppStateContext'
 import { formatNotificationTimeInGroup } from '../../utils/notificationTime'
 import { groupNotificationsByDay, notificationIconOf, notificationToneOf } from '../../data/notificationView'
+import { describeShareError, shareInviteOutcomeLabel } from '../../data/shareView'
+import { ApiError } from '@/services/api'
 import type { NotificationResponse } from '@/services/notification'
 import { useGetNotifications, usePatchAllNotificationsRead, usePatchNotificationRead } from '@/services/notification'
+import { useGetShares, usePatchShare } from '@/services/share'
+import type { ShareStatus } from '@/services/share'
 
 /** 제목·본문이 길어도 목록 리듬이 무너지지 않게 지정한 줄 수에서 …로 자른다. */
 const clampLines = (lines: number): CSSProperties => ({
@@ -44,18 +53,67 @@ interface NotificationPanelProps {
   onClose: () => void
 }
 
+/** 초대 카드 아래 버튼 줄에 필요한 것 — 상태·진행 중·실패 문구·두 동작. SHARE_INVITED 알림에만 만든다. */
+interface InviteActions {
+  /** 내가 받은 공유 목록에서 찾은 상태. 목록에 없으면 null. */
+  status: ShareStatus | null
+  loading: boolean
+  listError: boolean
+  busy: boolean
+  error: string | null
+  onConfirm: () => void
+  onDecline: () => void
+}
+
 export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps) {
+  const { setState } = useAppState()
   const notifQuery = useGetNotifications()
   const patchNotificationRead = usePatchNotificationRead()
   const patchAllNotificationsRead = usePatchAllNotificationsRead()
   const groups = groupNotificationsByDay(notifQuery.notifications)
   const hasNotifs = groups.length > 0
+  // 초대 카드가 하나라도 보일 때만 공유 목록을 받는다 — 초대받은 적 없는 사용자에게까지 요청을 보낼 이유가 없다.
+  const hasInvite = notifQuery.notifications.some((n) => n.type === 'SHARE_INVITED')
+  const memberSharesQuery = useGetShares({ side: 'MEMBER' }, { enabled: hasInvite })
+  const patchShare = usePatchShare()
+  const [inviteError, setInviteError] = useState<{ shareId: number; text: string } | null>(null)
 
   // 여러 개를 동시에 펼쳐 둘 수 있다. 패널을 닫으면(언마운트) 모두 접힌 상태로 돌아간다.
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<number>>(() => new Set())
 
-  const handleClick = (nf: NotificationResponse) => {
+  const markRead = (nf: NotificationResponse) => {
     if (!nf.read && !patchNotificationRead.isPending) patchNotificationRead.mutate(nf.id)
+  }
+
+  const inviteActionsOf = (nf: NotificationResponse): InviteActions | undefined => {
+    if (nf.type !== 'SHARE_INVITED' || nf.linkType !== 'SHARE' || nf.linkId === null) return undefined
+    const shareId = nf.linkId
+    return {
+      status: memberSharesQuery.shares.find((s) => s.id === shareId)?.status ?? null,
+      loading: memberSharesQuery.isPending,
+      listError: !!memberSharesQuery.error,
+      busy: patchShare.isPending && patchShare.variables?.shareId === shareId,
+      error: inviteError?.shareId === shareId ? inviteError.text : null,
+      onConfirm: () => {
+        markRead(nf)
+        setState({ shareInviteConfirmId: shareId })
+      },
+      onDecline: () => {
+        markRead(nf)
+        setInviteError(null)
+        patchShare.mutate(
+          { shareId, body: { status: 'DECLINED' } },
+          {
+            onError: (e) =>
+              setInviteError({ shareId, text: e instanceof ApiError ? describeShareError(e.code, e.message) : e.message }),
+          },
+        )
+      },
+    }
+  }
+
+  const handleClick = (nf: NotificationResponse) => {
+    markRead(nf)
     setExpandedIds((prev) => {
       const next = new Set(prev)
       if (next.has(nf.id)) next.delete(nf.id)
@@ -210,6 +268,7 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
                       isMobile={isMobile}
                       expanded={expandedIds.has(nf.id)}
                       onClick={() => handleClick(nf)}
+                      invite={inviteActionsOf(nf)}
                     />
                   ))}
                 </div>
@@ -258,16 +317,22 @@ interface NotificationRowProps {
   /** 펼치면 제목·본문을 줄 수 제한 없이 전부 보여준다. */
   expanded: boolean
   onClick: () => void
+  /** 계좌 공유 초대 카드에만 있는 버튼 줄. */
+  invite?: InviteActions
 }
 
 // 접힌 상태의 줄 수. 제목 2줄 + 본문 2줄이면 긴 알림도 행 높이가 일정하게 유지된다.
 const TITLE_LINES = 2
 const BODY_LINES = 2
 
-function NotificationRow({ nf, isMobile, expanded, onClick }: NotificationRowProps) {
+const INVITE_BTN_BASE_STYLE: CSSProperties = {
+  flex: 1, padding: '9px 12px', minHeight: 36, borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+}
+
+function NotificationRow({ nf, isMobile, expanded, onClick, invite }: NotificationRowProps) {
   const tone = notificationToneOf(nf)
   const unread = !nf.read
-  return (
+  const row = (
     <button
       className="notif-row"
       onClick={onClick}
@@ -344,5 +409,46 @@ function NotificationRow({ nf, isMobile, expanded, onClick }: NotificationRowPro
         )}
       </div>
     </button>
+  )
+  if (!invite) return row
+
+  // 버튼 줄은 행(<button>) 안에 넣지 않는다 — 상호작용 요소를 중첩하면 안 된다. 행 아래에 형제로 두고
+  // 왼쪽을 아이콘 칩 폭만큼 들여 제목과 시작선을 맞춘다(12 + 36 + 12 / 10 + 36 + 12).
+  const outcome = invite.status ? shareInviteOutcomeLabel(invite.status) : null
+  return (
+    <div>
+      {row}
+      <div style={{ padding: isMobile ? '0 12px 12px 60px' : '0 10px 10px 58px' }}>
+        {invite.status === 'PENDING' ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              className="tap-44 qbtn"
+              onClick={invite.onConfirm}
+              disabled={invite.busy}
+              style={{ ...INVITE_BTN_BASE_STYLE, border: 'none', background: 'var(--accent)', color: '#fff', opacity: invite.busy ? 0.6 : 1 }}
+            >
+              확인하기
+            </button>
+            <button
+              type="button"
+              className="tap-44 qbtn"
+              onClick={invite.onDecline}
+              disabled={invite.busy}
+              style={{ ...INVITE_BTN_BASE_STYLE, border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-mid)', opacity: invite.busy ? 0.6 : 1 }}
+            >
+              {invite.busy ? '처리 중…' : '거절'}
+            </button>
+          </div>
+        ) : outcome ? (
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-weak)' }}>{outcome}</div>
+        ) : invite.listError ? (
+          <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>초대 상태를 불러오지 못했어요. 설정 → 가족 · 커플 공유에서 다시 확인할 수 있어요.</div>
+        ) : invite.loading ? null : (
+          <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>초대 정보를 찾을 수 없어요</div>
+        )}
+        {invite.error && <div role="alert" style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>{invite.error}</div>}
+      </div>
+    </div>
   )
 }

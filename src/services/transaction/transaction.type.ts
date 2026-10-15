@@ -29,6 +29,12 @@ export interface TransactionResponse {
   transactionDate: string
   description: string
   memo: string | null
+  /**
+   * 거래를 기록한 사용자 id(2026-10-15, 계좌 공유). 공유 계좌에 멤버가 기록했으면 그 멤버, 배치가 만든
+   * 거래와 작성자 기록이 생기기 전의 옛 거래는 null. 소유자가 직접 적은 새 거래는 소유자 자신의 id다 —
+   * "남이 적었는지"는 null 여부가 아니라 내 id와 다른지로 본다(data/shareView.ts).
+   */
+  createdBy: number | null
 }
 
 export interface CreateTransactionRequest {

@@ -118,6 +118,27 @@ export interface TransactionSearchParams {
   sort?: string[]
 }
 
+/** GET /shares 조회 조건 — 모두 선택. side를 생략하면 OWNER. 상태값은 share.type.ts의 ShareStatus. */
+export interface ShareSearchParams {
+  side?: 'OWNER' | 'MEMBER'
+  accountId?: number
+  status?: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'REVOKED' | 'EXPIRED'
+}
+
+/**
+ * GET /shares/accounts/{accountId}/transactions 조회 조건. 정산월(year·month)은 받지 않는다 —
+ * 정산월 시작일이 사용자 설정이라 "소유자 기준이냐 멤버 기준이냐"가 생기기 때문(서버 결정).
+ */
+export interface SharedTransactionSearchParams {
+  from?: string
+  to?: string
+  type?: EditableTransactionType
+  keyword?: string
+  /** 서버는 0-base. */
+  page?: number
+  size?: number
+}
+
 export interface TradeSearchParams {
   accountId?: number
   stockId?: number

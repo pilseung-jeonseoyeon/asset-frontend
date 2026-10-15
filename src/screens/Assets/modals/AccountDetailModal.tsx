@@ -28,8 +28,11 @@
 // 백엔드에 계좌별 추이(accountId 필터)가 생기면 그때 이 자리에 선 그래프를 만든다.
 
 import { useState } from 'react'
+import type { CSSProperties } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
+import { AvatarStack } from '../../../components/primitives/AvatarStack/AvatarStack'
+import { ShareBadge } from '../../../components/primitives/ShareBadge/ShareBadge'
 import { sheetStickyHeaderStyle } from '../../../components/primitives/Modal/sheetHeader'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useAppState } from '../../../state/AppStateContext'
@@ -42,14 +45,28 @@ import {
 } from '../../../data/connectionView'
 import { buildLedgerTransactions, describeQueryError } from '../../../data/ledgerView'
 import { buildTradeRows, marketsOfAccountType } from '../../../data/stocksView'
+import { groupOwnerShares, isShareableAccountType, ownerActivityAuthor, shareSeatsLabel } from '../../../data/shareView'
 import { formatNotificationTime } from '../../../utils/notificationTime'
 import { ApiError } from '@/services/api'
 import { useGetAccount, useGetAccounts } from '@/services/account'
 import { useGetConnections, usePostConnectionSync } from '@/services/connection'
+import { useGetShares } from '@/services/share'
 import { useGetTransactions } from '@/services/transaction'
 import { useGetTrades } from '@/services/trade'
+import { useGetMe } from '@/services/user'
 
 const RECENT_TX_SIZE = 5
+
+/** 공유 멤버가 적은 거래의 이름 배지 — 가계부 '수입' 색(시안 3번). */
+const AUTHOR_BADGE_STYLE: CSSProperties = {
+  fontSize: 10, fontWeight: 700, color: 'var(--inc-text)', background: 'var(--up-chip)', borderRadius: 6,
+  padding: '2px 7px', flex: 'none', lineHeight: 1.4, whiteSpace: 'nowrap', maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis',
+}
+const SMALL_BTN_STYLE: CSSProperties = {
+  border: '0.5px solid var(--border)', background: 'var(--surface)', borderRadius: 8,
+  padding: '8px 12px', minHeight: 36, fontSize: 11.5, fontWeight: 700, color: 'var(--text-mid)',
+  cursor: 'pointer', fontFamily: 'inherit', flex: 'none', whiteSpace: 'nowrap',
+}
 
 /**
  * 가져오기 결과 한 줄. accountId를 함께 들고 있는 이유: 이 모달은 계좌를 바꿔 열어도 언마운트되지
@@ -87,6 +104,11 @@ export function AccountDetailModal() {
   const connectionsQuery = useGetConnections({ enabled: isOpen })
   const postSync = usePostConnectionSync()
   const [syncNote, setSyncNote] = useState<SyncNote | null>(null)
+  // 계좌 공유 — '함께 보기' 칸과 거래 작성자 배지. 1단계는 현금·예적금만 공유할 수 있어(시안 결정 5-A)
+  // 그 유형에서만 공유 목록을 받는다. 실패해도 화면을 막지 않는다 — 칸이 안 뜰 뿐이다.
+  const shareable = accountQuery.data ? isShareableAccountType(accountQuery.data.account.type) : false
+  const ownerSharesQuery = useGetShares({ side: 'OWNER', accountId: accountId ?? undefined }, { enabled: isOpen && shareable })
+  const meQuery = useGetMe()
 
   if (!isOpen) return null
 
@@ -119,6 +141,23 @@ export function AccountDetailModal() {
   // 계좌 A를 가져오는 도중 B를 열면 B의 버튼이 누른 적도 없이 잠긴 채로 보이므로,
   // 진행 중인 요청이 정말 이 연동의 것인지(variables) 함께 확인한다.
   const isSyncing = postSync.isPending && connection !== null && postSync.variables === connection.id
+
+  const shareGroups = groupOwnerShares(ownerSharesQuery.shares)
+  const memberCount = shareGroups.members.length
+  const pendingCount = shareGroups.pending.length
+  const myUserId = meQuery.data?.id ?? null
+  const shareBoxCaption = [
+    memberCount > 0 ? `${shareGroups.members.map((s) => s.member.name).join('님, ')}님이 함께 보고 있어요.` : null,
+    pendingCount > 0 ? `수락을 기다리는 초대 ${pendingCount}건이 있어요.` : null,
+  ]
+    .filter((p): p is string => !!p)
+    .join(' ')
+  /** '함께 보는 사람' 모달을 연다. 같은 층(z-index 90)이라 이 상세를 닫고 열며, 그쪽 뒤로 가기가 여기로 돌아온다. */
+  const openShareMembers = () => {
+    setSyncNote(null)
+    postSync.reset()
+    setState({ accountDetailId: null, shareMembersAccountId: accountId, shareMembersReturnTo: 'accountDetail' })
+  }
 
   /**
    * 이 계좌의 연동 가져오기. 성공하면 usePostConnectionSync가 account·asset·trade·stock·dashboard
@@ -184,7 +223,10 @@ export function AccountDetailModal() {
                 <Icon name="account_balance" size={20} />
               </span>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 16.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{header.name}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  <div style={{ fontSize: 16.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{header.name}</div>
+                  {memberCount > 0 && <ShareBadge title={`멤버 ${memberCount}명과 함께 보는 중`} />}
+                </div>
                 <div style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>
                   {header.subtitle}
                   {header.maturityLabel ? ` · ${header.maturityLabel}` : ''}
@@ -292,6 +334,42 @@ export function AccountDetailModal() {
             </div>
           )}
 
+          {/* 함께 보기(계좌 공유) — 현금·예적금 계좌에만, 연동 칸이 있으면 그 아래(시안 2·3번).
+              공유 전에는 점선 배너(계좌 추가 창의 연동 배너와 같은 톤) + [초대하기], 공유 중에는 아바타 겹침 +
+              인원 + [관리]. 둘 다 '함께 보는 사람' 모달로 간다 — 초대 폼이 거기 있다. */}
+          {shareable && !ownerSharesQuery.isPending && !ownerSharesQuery.error && (
+            memberCount === 0 && pendingCount === 0 ? (
+              <div style={{ marginBottom: 18, padding: 13, borderRadius: 10, border: '0.5px dashed var(--text-weak)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+                  <Icon name="group_add" size={16} />
+                </span>
+                <div style={{ flex: 1, minWidth: 130 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)' }}>가족·연인과 함께 보기</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>초대한 사람도 이 계좌의 잔액과 내역을 보고, 함께 기록할 수도 있어요.</div>
+                </div>
+                <button
+                  type="button"
+                  className="qbtn"
+                  onClick={openShareMembers}
+                  style={{ ...SMALL_BTN_STYLE, border: 'none', background: 'var(--accent)', color: '#fff' }}
+                >
+                  초대하기
+                </button>
+              </div>
+            ) : (
+              <div style={{ marginBottom: 18, padding: 13, borderRadius: 10, background: 'var(--fill-subtle)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <AvatarStack names={[meQuery.data?.name ?? '', ...shareGroups.members.map((s) => s.member.name)]} pendingCount={pendingCount} />
+                <div style={{ flex: 1, minWidth: 130 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)' }}>{shareSeatsLabel(memberCount, pendingCount)}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>{shareBoxCaption}</div>
+                </div>
+                <button type="button" className="qbtn" onClick={openShareMembers} style={SMALL_BTN_STYLE}>
+                  관리
+                </button>
+              </div>
+            )
+          )}
+
           <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>최근 거래내역</div>
           {transactionsQuery.isPending || (hasTrades && tradesQuery.isPending) ? (
             <div aria-busy style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
@@ -303,11 +381,15 @@ export function AccountDetailModal() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {activityRows.map((t) => (
+              {activityRows.map((t) => {
+                // 공유 멤버가 적은 거래에만 이름 배지(시안 3번). 내 거래에는 없다 — "내가 적은 것"이 기본값이다.
+                const author = ownerActivityAuthor(t.createdBy, myUserId, ownerSharesQuery.shares)
+                return (
                 <div key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '0.5px solid var(--track)' }}>
                   <div style={{ fontSize: 11.5, color: 'var(--text-weak)', width: 44, flex: 'none' }}>{t.dateLabel}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</div>
+                    {author && <span style={AUTHOR_BADGE_STYLE} title={`${author}님이 적은 거래`}>{author}</span>}
                   </div>
                   {t.tag && (
                     <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 8, whiteSpace: 'nowrap', background: 'var(--fill-subtle)', color: 'var(--text-mid)' }}>
@@ -318,7 +400,8 @@ export function AccountDetailModal() {
                       매매($1,101.75)가 원화로 잘못 읽힌다. */}
                   <div style={{ fontSize: 13.5, fontWeight: 700, width: 110, textAlign: 'right', color: t.amountColor }}>{t.amountText}</div>
                 </div>
-              ))}
+                )
+              })}
               {/* 한쪽만 실패했을 때: 보이는 목록이 전부가 아니라는 사실을 조용히 넘기지 않는다. */}
               {activityError && (
                 <div style={{ fontSize: 11.5, color: 'var(--down)', paddingTop: 10 }}>

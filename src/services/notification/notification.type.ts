@@ -5,15 +5,27 @@
 // 목록 조회는 커서 기반 페이지네이션이다(최신순, 한 페이지 기본 20건).
 
 /** MATURITY 예적금 만기 임박 · RECURRING_EXPENSE 고정지출 자동 기록 · PAYMENT_DUE 고정지출 결제 예정 ·
- *  GOAL_ACHIEVED 자산 목표 달성 · SYSTEM 공지 */
-export type NotificationType = 'MATURITY' | 'RECURRING_EXPENSE' | 'PAYMENT_DUE' | 'GOAL_ACHIEVED' | 'SYSTEM'
+ *  GOAL_ACHIEVED 자산 목표 달성 · SYSTEM 공지 ·
+ *  SHARE_INVITED 계좌 공유 초대(받는 쪽, linkType SHARE · linkId = 공유 id) · SHARE_ACCEPTED 공유 수락(소유자) ·
+ *  SHARE_DECLINED 공유 거절(소유자) · SHARE_ENDED 공유 종료(해제당한 멤버 또는 멤버가 나간 소유자) */
+export type NotificationType =
+  | 'MATURITY'
+  | 'RECURRING_EXPENSE'
+  | 'PAYMENT_DUE'
+  | 'GOAL_ACHIEVED'
+  | 'SYSTEM'
+  | 'SHARE_INVITED'
+  | 'SHARE_ACCEPTED'
+  | 'SHARE_DECLINED'
+  | 'SHARE_ENDED'
 
 /** 서버는 색·아이콘을 주지 않고 이 값으로 매핑하라고 한다(표현은 클라이언트 자유). */
 export type NotificationSeverity = 'INFO' | 'WARN' | 'CRITICAL'
 
 /** 클릭 시 이동 대상. linkId와 세트다 — ACCOUNT 계좌 ID, TRANSACTION 가계부 거래 ID,
- *  RECURRING_EXPENSE 고정지출 ID, GOAL 자산 목표 ID. null이면 이동 대상이 없는 알림. */
-export type NotificationLinkType = 'ACCOUNT' | 'TRANSACTION' | 'RECURRING_EXPENSE' | 'GOAL'
+ *  RECURRING_EXPENSE 고정지출 ID, GOAL 자산 목표 ID, SHARE 계좌 공유 ID(SHARE_INVITED 알림의 초대 카드 버튼이
+ *  이 값으로 수락·거절한다). null이면 이동 대상이 없는 알림. */
+export type NotificationLinkType = 'ACCOUNT' | 'TRANSACTION' | 'RECURRING_EXPENSE' | 'GOAL' | 'SHARE'
 
 export interface NotificationResponse {
   id: number

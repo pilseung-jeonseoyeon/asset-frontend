@@ -574,6 +574,8 @@ export interface LedgerTransactionRow {
   /** 목록에 "메모 있음" 표시를 하고, 수정 모달을 열 때 entryMemo 프리필에 쓴다(입력 UI가 있어
    * 더 이상 보존 전용이 아니다). */
   memo: string | null
+  /** 거래를 기록한 사용자 id — 공유 계좌에 멤버가 적은 거래를 구분한다(TransactionResponse.createdBy 주석). */
+  createdBy: number | null
 }
 
 const TX_TYPE_COLOR: Record<TransactionType, string> = {
@@ -619,6 +621,8 @@ export function buildLedgerTransactions(transactions: TransactionResponse[], acc
       transferAccountId: t.transferAccountId,
       amountRaw: t.amount,
       memo: t.memo,
+      // 계약 변경 전 서버(필드 없음)에 붙어도 undefined가 아니라 null로 통일한다.
+      createdBy: t.createdBy ?? null,
     }
   })
 }

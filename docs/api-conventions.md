@@ -215,9 +215,14 @@ src/services/
     index.ts               위 세 파일 재export
 ```
 
-현재 도메인 18개: `auth` `user` `institution` `account` `asset` `category` `transaction`
+현재 도메인 19개: `auth` `user` `institution` `account` `asset` `category` `transaction`
 `subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification` `export`
-`import` `connection`.
+`import` `connection` `share`.
+
+도메인 폴더끼리 import하지 않는 규칙의 **유일한 예외는 `share`** 입니다 — 서버 응답이 기존 `AccountRes`·
+`TransactionRes`·`CategoryRes`를 그대로 품고 있어 타입을 복제하면 계약이 두 벌로 갈립니다. 그래서
+`import type`(런타임 의존 없음)으로만, `share → 다른 도메인` 한 방향으로만 가져옵니다. 반대 방향은
+금지이고, 값(함수·훅) import는 예외 없이 금지입니다.
 
 도메인 폴더는 백엔드 컨트롤러(OpenAPI 태그) 단위로 나눕니다. 폴더명과 경로가 다른 것: `marketIndex` ↔
 `/indices`, `subscription` ↔ `/subscriptions`(고정지출 포함), `export`/`import` ↔ `/export/excel/*`,
