@@ -34,32 +34,35 @@
 - [`docs/architecture.md`](./docs/architecture.md) — 폴더 구조, 레이어 간 규칙
 - [`docs/state-management.md`](./docs/state-management.md) — AppState / Zustand / React Query / localStorage 상태 경계, 인증 흐름
 - [`docs/code-convention.md`](./docs/code-convention.md) — 명명 규칙, import 순서, 컴포넌트 작성 스타일
-- [`docs/api-conventions.md`](./docs/api-conventions.md) — axios/React Query 기반 API 통신 규칙, 서비스 폴더 구조, 개발 서버 프록시
+- [`docs/api-conventions.md`](./docs/api-conventions.md) — supabase-js/React Query 기반 데이터 접근 규칙(RPC·테이블·Edge Function·Realtime 선택 기준, 오류 매핑), 서비스 폴더 구조
 - [`docs/mobile.md`](./docs/mobile.md) — 모바일 브레이크포인트, 바텀시트/하단탭 규격, 터치 대응
 - [`docs/excel-import.md`](./docs/excel-import.md) — 엑셀 가져오기·내보내기 서버 계약(양식 시트·열 순서·엔드포인트·응답·에러 코드)
 - [`docs/superpowers/specs/2026-08-29-byok-connection-design.md`](./docs/superpowers/specs/2026-08-29-byok-connection-design.md) — 증권사·거래소 API 키 연동 계약과 남은 확인 사항
+- [`supabase/README.md`](./supabase/README.md) — Supabase 백엔드(마이그레이션 5단계·Edge Functions) 정본, 로컬 스택·pgTAP·Deno 테스트 실행법, 운영 push 금지
+- [`docs/superpowers/specs/2026-10-23-supabase-stage3-computed-models-design.md`](./docs/superpowers/specs/2026-10-23-supabase-stage3-computed-models-design.md) — 잔액·보유·손익·가계부 집계·대시보드 계산을 SQL 함수(RPC)로 옮긴 3단계 계약(함수 목록·반올림·null·오류 코드)
 
-**백엔드 API 스펙의 정본은 실행 중인 서버의 OpenAPI 문서입니다.** 별도의 API 스펙 문서는 만들지 마세요.
-- Swagger UI: `http://localhost:8080/docs` (또는 `http://localhost:8080/swagger-ui/index.html`)
-- JSON: `http://localhost:8080/v3/api-docs`
-
-필드 유무·타입·enum·필수 여부(`required`, nullable은 `type: [..., "null"]`)와 에러 코드 전체 표(`ErrorResponse` 설명)는 여기서 직접 확인하세요. 여기에도 없는 세부는 추측하지 말고 사용자에게 확인하세요.
+**백엔드 계약의 정본은 `supabase/migrations/*.sql`(DB 함수·테이블·RLS)과 `supabase/functions/*`(Edge Function)입니다.** 별도의 API 스펙 문서는 만들지 마세요.
+- **`supabase/` 폴더 전체, 서버 SQL이 들어간 설계·계획 문서(`docs/superpowers/plans/`, `docs/superpowers/specs/2026-10-2*`), `docs/release-runbook.md`는 깃에 올리지 않습니다**(.gitignore — 저장소가 공개라 쿼리 세부를 감춤). 이 맥과 클라우드 DB에만 있으니 따로 백업하고, 다른 PC에서는 `supabase db pull`로 구조를 되살립니다.
+- 필드 유무·타입·null 규칙은 함수 본문(`jsonb_build_object`)과 테이블 정의에서, 오류 코드 전체 표는 `src/services/errorMessages.ts`(스프링 ErrorCode 이식, 문구 정본)에서 확인하세요.
+- 로컬 스택: `supabase start` → Studio `http://127.0.0.1:54323`, REST `http://127.0.0.1:54321/rest/v1`, Mailpit(가입 코드 메일) `http://127.0.0.1:54324`.
+- 여기에도 없는 세부는 추측하지 말고 사용자에게 확인하세요.
 
 ## 아키텍처
 
 - 기술 스택: Vite + React 19 + TypeScript. `react-router-dom`(`BrowserRouter`)으로 로그인 후 5개 화면(`/dashboard` `/assets` `/stocks` `/ledger` `/settings`)을 URL에 연결하고, 그 외 경로는 `/dashboard`로 리다이렉트합니다. 화면 내 탭(가계부 개요/내역, 주식 전체/국내/해외)과 모달은 주소와 무관하게 `AppState`로만 관리합니다. CSS 프레임워크 없음. 테스트 러너 없음.
 - 상태는 세 레이어입니다: 앱 자체 reducer/context(`AppState`) + React Query(서버 상태) + Zustand(`src/stores/auth.ts` — 액세스 토큰과 인증 상태, 이것 하나뿐). 기기별 설정 일부는 localStorage에 둡니다. 경계는 `docs/state-management.md`.
-- **데이터는 모두 서버에서 옵니다**(목업 화면 없음). axios + React Query 기반 API 레이어가 `src/services/{domain}/`에 있습니다: `auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification` `export` `import` `connection` `share`.
-- **계좌 공유**(`share`, 가족·커플 함께 보기)는 계좌 소유자가 가입자 이메일로 초대하고, 상대가 알림에서 수락하면 그 계좌의 잔액·거래내역을 함께 보는 기능입니다. 원리는 "권한 위임" — 멤버의 요청은 서버가 소유자 userId로 기존 계산을 돌립니다. 화면 시안은 `docs/plan/view/계좌 공유 A안 화면 시안.html`(로컬 전용), 표기 규칙 정본은 `src/data/shareView.ts`.
-  - **공유받은 계좌는 내 총자산·자산 구성·대시보드에 더하지 않습니다**(서버가 `GET /accounts`·분포에 넣지 않음). 자산 화면의 "함께 보는 계좌" 구역(`Assets.tsx`)과 상세(`SharedAccountDetailModal`)에만 보입니다. 프론트에서 합산하지 마세요.
-  - 권한은 `VIEWER`(보기만)·`EDITOR`(함께 기록) 2종. **EDITOR가 적은 거래는 소유자의 가계부 거래로 저장**되고(`createdBy`만 멤버) 멤버 본인의 가계부에는 안 들어옵니다. 수입·지출만 가능하고 소분류는 **소유자의 것**(`GET /shares/accounts/{id}/categories`)을 씁니다. 가계부 입력 모달(`LedgerEntryModal`)은 EDITOR 공유 계좌를 수입·지출 계좌 목록에 섞어 보여주고 `POST/PUT/DELETE /shares/accounts/{id}/transactions`로 보냅니다.
-  - 진입점: 초대·멤버 관리는 **계좌 상세**(현금·예적금만, `ShareMembersModal`), 받은 초대는 **알림 카드의 [확인하기] → 초대 확인 창**(`ShareInviteConfirmModal`, 바로 수락 아님)과 **설정 → 가족 · 커플 공유**(`FamilyShareModal`). 초대는 7일 뒤 만료(`EXPIRED`는 응답 시점 계산값), 계좌당 10명.
-  - 거래 작성자 배지: `TransactionRes.createdBy`가 내 id와 다를 때만 이름 배지(`ownerActivityAuthor`/`sharedActivityAuthor`). 멤버에게 소유자의 다른 계좌 이름은 '다른 계좌'로 가립니다.
-  - 서버에 없는 것: 초대 재전송(만료된 초대는 새로 `POST`), 공유 일괄 끄기(화면이 하나씩 `DELETE`), 단건 공유 조회(목록에서 찾음).
+- **데이터는 모두 서버(Supabase)에서 옵니다**(목업 화면 없음). supabase-js + React Query 기반 데이터 레이어가 `src/services/{domain}/`에 있습니다: `auth` `user` `institution` `account` `asset` `category` `transaction` `subscription` `stock` `trade` `exchange` `marketIndex` `goal` `dashboard` `notification` `export` `import` `connection` `share`.
+- **가족 · 커플 공유**(`share`, v17 시안 — 설계 `docs/superpowers/specs/2026-10-25-household-share-v17-design.md`)는 두 사람이 **초대 코드로 1:1 연결**하고, 각자 고른 **현금 · 예적금 계좌**를 상단 **'개인 | {공유 화면 이름}'** 전환으로 대시보드·자산·주식·가계부 전체에서 합쳐 보는 기능입니다. 계좌별 이메일 초대·보기만/함께 기록 권한·'함께 보는 계좌' 구역은 없앴습니다(되살리지 마세요).
+  - **범위(`ViewScope`)는 `useViewScope()`(`src/utils/viewScope.ts`) 하나로 정합니다.** 'PERSONAL'은 내 계좌 − 내가 공유 중인 계좌(가계부는 내가 적은 거래), 'SHARED'는 두 사람의 공유 계좌(가계부는 공유 계좌 거래 + 공동·상대 몫 거래). 연결이 없으면 늘 'PERSONAL'이고 숫자는 예전과 같습니다. 범위에 따라 값이 달라지는 훅에는 `{ scope }`를 넘기고 queryKey 마지막 객체에 넣습니다. **합계는 서버가 범위별로 계산합니다 — 프론트에서 더하거나 빼지 마세요.**
+  - 연결: 초대 코드 6자리(0·O·1·I 없음) 10분·1회용, 창이 열려 있는 동안 만료되면 새로 받습니다. 10분에 5번 틀리면 잠금. 수락하면 초대한 사람에게 `SHARE_ACCEPTED`, 해제하면 상대에게 `SHARE_ENDED` 알림. 해제하면 공유 계좌·공유 목표는 지우고 거래는 적은 사람 쪽에 남습니다.
+  - 공유 계좌마다 `includeHistory`(이전 내역도 함께 공유). 끄면 상대에게는 공유 시작일 이후 거래·시점만 보입니다. 상대 계좌는 보기만(`PartnerAccountDetailModal`), 상대에게 공유되지 않은 계좌 이름은 서버가 가려 '다른 계좌'로 그립니다.
+  - 가계부 입력의 **"누구의 수입·지출인가요? 나 · 상대 · 공동"**(`ownerTag` SELF·PARTNER·JOINT)은 연결 중 · 수입/지출만. '상대'로 적은 거래는 상대 '개인' 내역에도 보이되 합계는 적은 사람 쪽에만 더합니다. '우리집' 내역은 이름 · 공동 필터와 "공동 · {결제자} 결제" 설명 줄, 상대가 적은 줄은 읽기 전용입니다. 표기 규칙 정본은 `src/data/shareView.ts`.
+  - '우리집' 대시보드의 목표 카드는 **공유 목표**(연결당 1개, 두 사람 누구나 수정, `get_goals`·`upsert_goal`·`delete_goal`의 `p_scope`). 월간 리포트·엑셀·API 연동은 '개인'(내 계좌) 기준 그대로. '우리집' 정산월은 보는 사람의 월 시작일로 자릅니다.
+  - 진입점: 설정 → 가족 · 커플 공유(`ShareFlowModal` — 홈 · 초대 코드 · 코드 입력 · 초대 확인 · 연결 완료(이름) · 공유할 계좌 선택 · 완료, `AppState.shareFlowStep`), 상단 '공유' 안내 팝오버(`ScopeSegment`), 연결됨 알림의 버튼. 공유 화면 이름은 서버 설정(`user_settings.share_space_name`, 1~8자, 기본 '우리집'), '개인 | 우리집' 마지막 선택은 이 기기 `localStorage`(`monit.viewScope`).
 - **엑셀 가져오기·내보내기**(`import`/`export`)는 거래 내역과 계좌 목록을 다룹니다(내보내기는 매매 내역도). 가져오기는 **한 행이라도 틀리면 전부 등록하지 않는(전체 롤백)** 계약이라 결과 화면도 "N건 등록" 아니면 "틀린 행 목록" 둘 중 하나입니다. 거래·매매 내보내기는 기간(`from`/`to`)을 고르고, 계좌 내보내기는 기간이 없습니다. 계약은 `docs/excel-import.md`.
 - **API 키 연동**(`connection`, BYOK)은 사용자가 기관에서 발급받은 키를 등록하면 서버가 그 키로 기관 API를 대신 호출하는 구조입니다.
   - **첫 동기화가 계좌를 자동 생성**하므로 등록 진입점은 계좌 추가 모달 안(자산 유형이 주식·가상자산일 때만 뜨는 점선 배너 → `ConnectAccountView`)이고, 목록·재동기화·해제는 설정 → 데이터 관리 및 백업(`ConnectionsSection`)에 있습니다.
-  - 지원 기관은 `UPBIT`·`TOSS_INVEST`·`KB_SECURITIES`·`KIWOOM` 4종이고 표기 규칙은 `src/data/connectionView.ts`가 정본입니다. **KB증권은 백엔드 동기화가 아직 없어 '준비 중'으로 비활성**(`PROVIDER_META.supported`)입니다.
+  - 지원 기관은 `UPBIT`·`TOSS_INVEST`·`KB_SECURITIES`·`KIWOOM` 4종이고 표기 규칙은 `src/data/connectionView.ts`가 정본입니다. **KB증권은 백엔드 동기화가 아직 없어, 업비트·토스증권은 허용 IP 등록이 필요한데 Edge Function에 고정 발신 IP가 없어 '준비 중'으로 비활성**(`PROVIDER_META.supported`)입니다 — 지금 연동되는 곳은 키움뿐이고, 계좌 추가 배너도 지원 기관만 셉니다(가상자산은 배너 없음).
   - **앱 시크릿은 응답에 내려오지 않아 수정 API가 없습니다**(바꾸려면 해제 후 재등록).
   - 에러는 `CONNECTION_*` 코드 5종을 `describeConnectionError`가 문구로 바꿉니다. 기관별 발급 절차는 가이드 페이지(`CONNECTION_GUIDE_URL`)에 있습니다.
 - **월간 리포트**(`GET /dashboard/reports`)는 `src/screens/Assets/modals/ReportOverlay.tsx`가 **9:16 스토리 카드 5장**(총자산 변화 → 자산 하이라이트 → 소비 → 전월·전년 비교 → 요약 카드)으로 그리고, 뷰모델은 `src/data/reportView.ts`입니다. **문서형 한 장 레이아웃으로 바꾸지 마세요**(사용자가 원본 시안 느낌을 원해 되돌린 적 있음).
@@ -71,11 +74,12 @@
   - 구조: `src/screens/Dashboard/`의 `cards/*`(카드 하나가 한 파일, **자기 데이터 훅을 직접 부른다**) · `hooks/*`(카드끼리 공유하는 계산) · `layouts/DashboardLayout{A,B,C}.tsx`(배치만) · `Dashboard.tsx`(스위치). 이 규칙을 지키면 카드를 어느 레이아웃에서든 재사용할 수 있습니다.
   - C안의 가계부 카드(수입·지출·저축, 월별 저축률, 지출 순위, 고정 지출)는 **가계부 화면과 같은 색·규격**을 씁니다(월별 저축률 막대는 공용 `SavingsBarChart`).
   - 뷰모델 변환은 `src/data/dashboardView.ts`. 디자인 시안은 claude.ai 캔버스 "Monit 대시보드 레이아웃".
-- **알림**은 SSE(`GET /notifications/stream`, 브라우저 `EventSource`가 헤더를 못 실어 `POST /notifications/stream/tickets`로 1회용 티켓을 받아 쿼리로 붙임)로 받고, 목록은 커서 페이지네이션(최신순 20건 + '더 보기')입니다. 알림 패널은 `NotificationPanel.tsx`.
+- **알림**은 Supabase Realtime(`notifications` 테이블 INSERT, RLS + `user_id` 필터 — `useNotificationStream`)으로 받고, 목록은 DB 함수 `list_notifications`의 커서 페이지네이션(최신순 20건 + '더 보기')입니다. 알림 패널은 `NotificationPanel.tsx`.
   - **새 알림이 오면 알려줍니다**(시안 `docs/plan/view/알림 도착 표시 시안.html`, 로컬 전용). 원칙은 "같은 알림을 두 군데서 동시에 알리지 않는다" — 모닛을 보고 있으면 **화면 위 가운데 배너**(`NotificationBanner.tsx`, 웹·모바일 같은 카드), 다른 탭·앱을 보고 있으면 **맥·PC 알림**(브라우저 Notification, `src/utils/desktopNotification.ts`) + 탭 제목 "(N) Monit". 어디로 보낼지의 규칙 정본은 `useNotificationDelivery.ts` 헤더 표입니다(입력 창이 열려 있으면 미룸, 패널이 열려 있으면 새 줄만 반짝, 재연결로 채운 알림은 안 띄움).
-  - 배너에는 알림 **id만** 담고 내용은 알림 목록 캐시에서 찾습니다 — SSE로 받은 알림은 `useNotificationStream`이 목록 캐시 맨 앞에 끼워 넣습니다. AppState에 알림 내용을 복사하지 마세요.
+  - 배너에는 알림 **id만** 담고 내용은 알림 목록 캐시에서 찾습니다 — Realtime으로 받은 알림은 `useNotificationStream`이 목록 캐시 맨 앞에 끼워 넣습니다. AppState에 알림 내용을 복사하지 마세요.
   - 알림 받는 방식(화면 안 팝업 · 맥·PC 알림 · 내용 보이기)은 **이 기기 `localStorage`**(`monit.notification.prefs`)에만 저장되고 설정 → 일반 및 디스플레이의 '알림' 묶음에서 바꿉니다. 맥·PC 알림은 브라우저 허락이 필요해 **버튼을 누를 때만** 묻습니다(알림 패널 안내 카드 · 설정).
   - **탭·브라우저를 닫은 뒤의 알림과 폰 알림(웹 푸시)은 아직 없습니다** — 서비스 워커와 서버 발송(VAPID 키·구독 등록 API)이 필요한 2단계입니다. 폰에서는 화면 안 배너만 뜹니다.
+- **백엔드는 Supabase입니다**(Postgres 함수 + RLS + pg_cron + Edge Functions + Auth + Realtime). `supabase/`에 1단계(테이블)·2단계(RLS)·3단계(계산 함수·쓰기 규칙)·4단계(배치)·5단계(앱용 API) SQL과 Edge Function 5개가 있고 로컬 도커 스택에서 pgTAP(`scripts/db-test.sh`)·Deno(`scripts/fn-test.sh`)로 검증합니다. **프론트는 `src/services/supabase.ts`의 클라이언트 하나로 Supabase만 봅니다** — 읽기는 RPC(`rpc('get_…')`)나 RLS 테이블, 쓰기는 테이블 직접 쓰기(트리거가 규칙 검증) 또는 RPC, 외부 API·관리자 권한이 필요한 일은 Edge Function(`invoke`). 운영 Supabase 프로젝트에 `supabase db push`·`functions deploy`는 사용자가 따로 결정합니다. 자세한 건 `supabase/README.md`·`docs/api-conventions.md`.
 - 진입점: `src/main.tsx`가 `BrowserRouter` → `QueryClientProvider` → `AppStateProvider`로 감싼 `App`을 `#root`에 마운트합니다. `src/index.css`는 `fonts.css` → `tokens.css` → `bank-tokens.css` → `base.css` 순으로 import합니다. `App.tsx`는 테마를 적용(`useApplyTheme`)하고 `AppShell`을 렌더링합니다. 화면 전환은 `AuthenticatedApp.tsx`의 `<Routes>`가 담당합니다(경로 목록은 `navItems.ts`의 `NAV_ITEMS`를 사이드바/하단탭과 공유).
 - `tsconfig.json`은 project references 구조입니다(`src/`는 `tsconfig.app.json`, Vite 설정은 `tsconfig.node.json`). 전체 빌드는 항상 `tsc -b`로 실행하세요.
 
@@ -91,35 +95,36 @@ src/
     AppStateContext.tsx    Provider + useAppState()
     selectors/             기능별 순수 헬퍼(auth, datePicker, dropdown, entryDraft, modal, nav,
                            tabStyles, stockTabStyles) — 메모이즈하지 않는 가벼운 함수
-  services/              API 통신 레이어. api.ts(axios + ApiError + unwrap), apiBlob.ts(엑셀 등
-                         파일 업·다운로드 — downloadBlobFile), api.types.ts, common.type.ts(도메인 공용
+  services/              데이터 레이어. supabase.ts(클라이언트 + rpc/invoke 래퍼 + 세션 저장소),
+                         supabaseError.ts(Supabase 오류 → ApiError), errorMessages.ts(오류 코드 → 문구 사전, 정본),
+                         api.ts(ApiError 타입), priceRefresh.ts(시세·환율 즉시 수집), common.type.ts(도메인 공용
                          enum), queryKeys.ts(queryKey 레지스트리), queryClient.ts,
                          {domain}/{domain}.service|hook|type.ts
   stores/                Zustand. auth.ts(액세스 토큰 — 메모리 전용) 하나뿐
   data/                  서버 응답 → 화면용 뷰모델 변환(순수 함수): accountView, assetsView,
                          connectionView, dashboardView, ledgerView, notificationView, reportView,
-                         shareView(계좌 공유 표기·에러 문구), stocksView. 자산군 아이콘·색 같은 뷰 상수도 여기 둔다.
+                         shareView(가족·커플 공유 표기 — 누구 몫·설명 줄·이력 문구), stocksView. 자산군 아이콘·색 같은 뷰 상수도 여기 둔다.
                          termsContent.ts — 회원가입 동의서 3종 문안 + TERMS_VERSION. 문안을 고치면
                          버전도 같이 올린다. 운영 주체는 "운영자"(회사 아님)
   design/                bank-institutions.ts(125개 기관 마스터 테이블),
                          bank-archetypes.ts(공용 SVG 아이콘 경로 25종) — BankIcon에 사용
   components/
-    primitives/            원자 단위 UI(Avatar, AvatarStack, BankIcon, Card, DatePicker, DeepCard, DonutChart,
-                           Dropdown, Icon, Modal, SavingsBarChart, SegmentedTab, ShareBadge, Skeleton, StatBadge,
+    primitives/            원자 단위 UI(Avatar, BankIcon, Card, DatePicker, DeepCard, DonutChart,
+                           Dropdown, Icon, Modal, SavingsBarChart, SegmentedTab, Skeleton, StatBadge,
                            Switch, Treemap) + usePopoverAnchor.ts(드롭다운/달력 팝오버를 모달 밖으로
                            띄우는 공용 훅)
     layout/                AppShell, AuthenticatedApp(<Routes>), Header, NotificationPanel, SidebarNav,
-                           NotificationBanner(새 알림 배너 + SSE 구독), useNotificationDelivery.ts(알릴 곳 규칙),
+                           NotificationBanner(새 알림 배너 + Realtime 구독), useNotificationDelivery.ts(알릴 곳 규칙),
                            NotificationPermissionAsk(맥·PC 알림 안내 카드),
+                           ScopeSegment(상단 '개인 | 우리집' + 연결 전 안내 팝오버, useShowsScopeSegment.ts),
                            BottomTabNav(모바일), navItems.ts, BootScreen, ChunkErrorBoundary,
                            ModalErrorBoundary, MonitLogo, useSyncUserTheme.ts,
                            modals/(AccountModal — 전역 계정 오버레이, TermsDetailOverlay — 약관 전문.
-                           가입 1단계·로그인 푸터·설정 하단이 공유, ShareInviteConfirmModal — 계좌 공유
-                           초대 확인 창. 알림 카드·설정이 공유)
+                           가입 1단계·로그인 푸터·설정 하단이 공유)
   screens/               화면별 폴더: Auth, Dashboard, Assets, Stocks, Ledger, Settings
                          Dashboard는 cards/ · hooks/ · layouts/로 나뉜다
-                         Assets/modals에 ShareMembersModal('함께 보는 사람')·SharedAccountDetailModal(공유받은
-                         계좌 상세), Settings/modals에 FamilyShareModal(가족 · 커플 공유)
+                         Assets/modals에 PartnerAccountDetailModal('우리집'에서 연 상대 계좌, 보기만),
+                         Settings/modals/share/에 ShareFlowModal(가족 · 커플 공유 홈 + 연결 흐름 단계 창들)
   styles/                fonts.css(웹폰트), tokens.css(디자인 토큰, 라이트/다크),
                          bank-tokens.css(기관별 색상), base.css(리셋 + 지정된 hover/media 클래스만)
   utils/                 format.ts(formatNumber, formatKrw, formatUsd, formatCurrencyAmount,
@@ -128,6 +133,7 @@ src/
                          download.ts, reportExport.ts, useCurrentSettlementMonth.ts,
                          useMediaQuery.ts(useIsMobile), useDebouncedValue.ts, notificationTime.ts,
                          ledgerLastAccounts.ts(가계부 입력 폼의 거래유형별 마지막 사용 계좌 — localStorage 힌트)
+                         viewScope.ts(useViewScope — '개인 | 우리집' 범위 판정·기억)
 ```
 
 - 화면 컴포넌트는 `useAppState()`와 `@/services/{domain}`의 훅을 직접 호출합니다 — container/presenter 분리나 prop drilling이 없습니다.
@@ -143,7 +149,7 @@ pnpm lint          # oxlint (.oxlintrc.json — react/typescript/oxc 플러그�
 pnpm preview       # 프로덕션 빌드 미리보기
 ```
 
-**개발 서버는 기본으로 로컬 백엔드(`http://localhost:8080` → 로컬 도커 DB)에 붙습니다.** `VITE_API_BASE_URL`이 비어 있으면 `vite.config.ts`의 프록시가 `/api` 요청을 `VITE_DEV_PROXY_TARGET`(기본 `http://localhost:8080`)으로 보냅니다(같은 출처라 CORS·쿠키 설정 없이 로그인 유지가 됩니다). 운영 API로 봐야 할 때만 `.env.local`(gitignore됨)에 `VITE_DEV_PROXY_TARGET=https://api.monit.io.kr`을 넣으세요 — **그때는 등록·삭제가 운영 DB를 실제로 바꾸니** 테스트 계정으로 쓰세요. 개발 중에는 `VITE_API_BASE_URL`에 절대 URL을 넣지 마세요(프록시를 건너뜀). `.env.development` 같은 커밋되는 env 파일은 만들지 않습니다. 자세한 건 `docs/api-conventions.md`.
+**개발 서버는 `.env.local`(gitignore됨)의 `VITE_SUPABASE_URL`·`VITE_SUPABASE_ANON_KEY`가 가리키는 Supabase에 붙습니다** — 기본은 로컬 도커 스택(`supabase start`, `http://127.0.0.1:54321`)입니다. 프록시는 없습니다(브라우저가 supabase-js로 직접 부름). 운영 프로젝트로 봐야 할 때만 두 값을 운영 것으로 바꾸세요 — **그때는 등록·삭제가 운영 데이터를 실제로 바꾸니** 테스트 계정으로 쓰세요. `.env.development` 같은 커밋되는 env 파일은 만들지 않습니다(`.env.example`이 키 목록). 시세·환율·탈퇴·연동 동기화는 Edge Function이라 로컬에서는 `supabase functions serve --env-file supabase/functions/.env`를 함께 띄워야 합니다. 자세한 건 `docs/api-conventions.md`.
 
 테스트 러너가 없으므로, 빌드(`pnpm build`)와 린트(`pnpm lint`)가 깨끗하고 실행 중인 개발 서버(`pnpm dev`)에서 직접 확인했을 때만 변경이 "완료"된 것으로 취급하세요 — 코드를 정적으로 읽은 것만으로 UI가 동작한다고 단정하지 마세요.
 
@@ -177,7 +183,7 @@ pnpm preview       # 프로덕션 빌드 미리보기
   **"이번 달"은 달력 연·월(`todayYearMonth`)이 아니라 `useCurrentSettlementMonth()`(서버 `GET /users/me/settlements/current` 정본)로 잡으세요** — 월 시작일이 오늘 이후면 정산월은 한 달 앞이라, 달력 월을 보내면 아직 오지 않은 기간을 조회해 화면이 빕니다. 임의 날짜의 정산월·경계는 `settlementMonthOf`/`settlementPeriodOf`(`src/utils/date.ts`, 시작일이 속한 달로 라벨링). 가계부 내역 달력은 정산월 첫날~마지막 날로 그립니다. 총자산 추이와 결제 예정일은 날짜 기준이라 달력 그대로입니다.
 - **서버 응답에 없는 값은 화면에 그리지 않습니다.** 주식 현재가, 원금처럼 API가 주지 않는 값은 하드코딩·추정으로 채우지 말고 비워 두고, 사용자에게 알려 백엔드 요청 항목으로 남기세요.
 - **인증**: 백엔드가 JWT 인증을 요구합니다. `AppShell`은 `useAuthStore().status`가 `'authenticated'`면 `AuthenticatedApp`(모든 화면·모달 — 모달은 라우트와 무관하게 항상 마운트)을, `'anonymous'`이거나 `'unknown'`인데 이 브라우저에서 로그인한 적이 없으면(`hasSeenSession()`) `src/screens/Auth/Auth.tsx`(로그인/회원가입/비밀번호 찾기)를, 재방문자의 `'unknown'`이면 `BootScreen`을 그립니다.
-  **회원가입은 4단계입니다**: 약관 동의 → 정보 입력 → 이메일 인증 → 온보딩(프로필 확인). `usePostSignup`은 토큰만 보유하고 `signIn`하지 않으며, 온보딩의 "모닛 시작하기"에서 `useCompleteSignupOnboarding()`이 `authenticated`로 전환합니다. 이 단계에서 새로고침하면 refresh 쿠키로 자동 로그인되어 온보딩은 건너뜁니다(의도된 동작). 경계는 `docs/state-management.md`, 인터셉터는 `docs/api-conventions.md`.
+  **회원가입은 4단계입니다**: 약관 동의 → 정보 입력 → 이메일 인증 → 온보딩(프로필 확인). `usePostSignup`은 토큰만 보유하고 `signIn`하지 않으며, 온보딩의 "모닛 시작하기"에서 `useCompleteSignupOnboarding()`이 `authenticated`로 전환합니다. 이 단계에서 새로고침하면 저장된 Supabase 세션으로 자동 로그인되어 온보딩은 건너뜁니다(의도된 동작). 경계는 `docs/state-management.md`, 오류 매핑은 `docs/api-conventions.md`.
 - **프로필**: 단일 사용자 UI입니다(가족 연동 등은 "준비 중"). 이름·이메일은 `GET /users/me`(`src/services/user`)에서 오고, `useProfileName()`은 로딩·실패 시 빈 문자열을 돌려줍니다 — **하드코딩 폴백 이름을 두지 않습니다**(다른 사람 이름이 잠깐이라도 보이지 않도록). 이름이 비면 `Avatar`가 person 아이콘을 그립니다.
 
 ## 디자인 시스템

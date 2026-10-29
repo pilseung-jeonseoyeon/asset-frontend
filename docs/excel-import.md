@@ -1,41 +1,47 @@
-# 엑셀 가져오기·내보내기 — 서버 계약 요약
+# 엑셀 가져오기·내보내기 — 계약 요약
 
-> 정본은 실행 중인 서버 OpenAPI(`/v3/api-docs`, 태그 "엑셀 가져오기" · "엑셀 내보내기 (2차)")다.
-> 아래는 2026-09-27 스냅샷과 대조한 요약이고, 달라지면 여기와 `src/services/import`·`src/services/export`를 함께 고친다.
-> 경로는 모두 `VITE_API_BASE_URL`(…/api/v1) 뒤에 붙는다.
+> 정본은 DB 함수(`supabase/migrations/20261024000007_app_api.sql` 3·4부 — `import_transactions` · `import_accounts` ·
+> `export_transactions` · `export_trades` · `export_accounts`)와 이 문서다. 2026-10-24에 스프링(POI) 구현을 그대로 옮겼다 —
+> 시트 이름·열 순서·헤더·오류 코드·문구가 스프링 `ExcelConstants`·`LedgerFacadeService`·`AccountFacadeService`와 같아서
+> 예전에 내려받은 양식·내보내기 파일도 그대로 올라간다. 달라지면 여기와 `src/services/import`·`src/services/export`·
+> `src/utils/xlsx`를 함께 고친다.
 
 진입점은 설정 → 데이터 관리 및 백업 모달(`src/screens/Settings/modals/DataModal.tsx`)의
 "엑셀로 가져오기" 행(가계부 거래 / 계좌 탭)과 "전체 내역 내보내기" 행이다.
 
 ## 공통 규칙
 
-- **엑셀 해석은 서버가 한다.** 프론트는 파일을 multipart로 그대로 올리고 양식도 서버에서 받는다
-  (프론트에 xlsx 라이브러리를 넣지 않는다. 이름 → id 매칭도 서버가 한다).
+- **엑셀 파일은 앱이 만들고 읽는다**(SheetJS `xlsx`, `src/utils/xlsx/` — 엑셀 기능을 처음 쓸 때만 내려받는 별도 청크, 약 490KB).
+  **검증·이름 → id 매칭·전체 롤백은 DB 함수가 한다.** 앱은 시트를 "행 번호 + 문자열 칸" 배열로 바꿔 RPC에 넘길 뿐
+  날짜·금액·이름을 해석하지 않는다(해석 규칙이 DB 한 곳에만 있도록).
 - **미리보기 없이 바로 등록**하고 결과 요약만 받는다.
 - **전체 성공 아니면 전체 롤백.** 한 행이라도 틀리면 아무것도 저장하지 않고 틀린 행을 전부 돌려준다.
   사용자는 알려준 행을 고쳐 같은 파일을 다시 올리므로, 파일 input은 고른 뒤 값을 비워 같은 파일을 연달아
   고를 수 있게 둔다.
 - **중복 검사는 하지 않는다** — 같은 파일을 두 번 올리면 두 번 등록된다.
-- 모든 칸이 빈 행은 건너뛰고, 최대 **5,000행**까지 받는다. 데이터는 2행부터(1행은 헤더).
+- 모든 칸이 빈 행은 건너뛰고, 최대 **5,000행**까지 받는다(넘으면 `*_ROW_LIMIT_EXCEEDED`). 데이터는 2행부터(1행은 헤더).
+  파일은 **5MB**까지 — 앱이 올리기 전에 막는다(`INVALID_INPUT`).
+- 셀 읽기 규칙(`src/utils/xlsx/readSheet.ts`, 스프링 `cellText`와 같다): 날짜 서식의 숫자 셀은 `yyyy-MM-dd`(엑셀 일련번호를
+  직접 연·월·일로 풀어 시간대 때문에 하루가 밀리지 않는다), 숫자 셀은 지수 없는 평문(`12000` · `500.02`), 문자열은 앞뒤 공백을
+  떼고, 수식 셀은 저장된 결과값을 읽는다.
 
 ## 양식 내려받기
 
-| 엔드포인트 | 파일명(`Content-Disposition`) |
-|---|---|
-| `GET /import/excel/transactions/template` | `transactions_template.xlsx` |
-| `GET /import/excel/accounts/template` | `accounts_template.xlsx` |
+| 종류 | 파일명 | 1번 시트 | 2번 시트 `등록된 이름` |
+|---|---|---|---|
+| 거래 | `transactions_template.xlsx` | `거래내역` — A~I 헤더 + 예시 1행 | A열 `계좌`(해지 안 한 계좌명) / C~E열 `구분`·`대분류`·`소분류`(내 소분류 조합 전부) |
+| 계좌 | `accounts_template.xlsx` | `계좌` — A~I 헤더 + 예시 1행 | A열 `유형`(현금·예적금·주식·가상자산·연금·기타) / C열 `기관`(등록된 기관명 전체) |
 
-응답은 JSON 봉투가 아니라 XLSX 바이너리다. 프론트는 헤더의 파일명을 쓰고, 못 읽으면 같은 이름으로 폴백한다
-(`downloadBlobFile`, `src/services/apiBlob.ts`). 두 양식 모두 시트가 둘이다 — 입력 시트(1행 헤더 + 2행 예시)와
-**`등록된 이름`** 시트(참고용 이름 목록). 입력 시트의 이름 칸은 `등록된 이름` 시트의 값과 정확히 같아야 한다.
+앱이 `get_accounts`·`get_categories`·`institutions`에서 이름을 읽어 두 시트짜리 파일을 만든다(`downloadImportTemplate`).
+입력 시트의 이름 칸은 `등록된 이름` 시트의 값과 정확히 같아야 한다(앞뒤 공백만 무시). 거래 양식의 예시 행은 내 첫 계좌와
+첫 지출 대분류·소분류(없으면 첫 분류, 그것도 없으면 `식비/외식`)로 채워져 있어 그대로 올려도 등록된다(날짜는 내려받은 날).
+계좌 양식의 예시 행은 `증권계좌 · 주식 · (첫 기관) · 1000000 · 500.02 · (빈칸) · 2026-01-02 · (빈칸) · Y`다.
 
-## 거래 가져오기 — `POST /import/excel/transactions`
+## 거래 가져오기 — `import_transactions(p_rows jsonb)`
 
 `거래내역` 시트(없으면 첫 시트)를 읽는다. 모닛 양식뿐 아니라 **편한가계부 내보내기 xlsx도 그대로** 올릴 수 있다 —
-A~H열이 편한가계부와 같고, I열(상대계좌)만 모닛이 덧붙인 것이다. 1행 헤더가 A~H와 다르면 파일 단위 실패다.
-
-양식의 예시 행은 그 사용자의 첫 계좌와 첫 지출 분류로 채워져 있어 그대로 올려도 등록된다.
-`등록된 이름` 시트에는 해지하지 않은 계좌명과 (구분·대분류·소분류) 조합이 실린다.
+A~H열이 편한가계부와 같고, I열(상대계좌)만 모닛이 덧붙인 것이다. 1행 헤더가 A~H와 다르면 파일 단위 실패
+(`IMPORT_FILE_UNREADABLE`)다 — 앱이 올리기 전에 검사한다.
 
 | 열 | 헤더 | 값 | 필수 |
 |---|---|---|---|
@@ -45,18 +51,13 @@ A~H열이 편한가계부와 같고, I열(상대계좌)만 모닛이 덧붙인 �
 | D | 소분류 | 그 대분류 아래 소분류 이름 | 수입·지출·저축 ✔ |
 | E | 내용 | 거래 제목(1~200자) | ✔ |
 | F | 금액 | 0보다 큰 원 단위 정수(쉼표·`원` 표기 허용) | ✔ |
-| G | 구분 | `수입` `지출` `저축` `이체` | ✔ |
+| G | 구분 | `수입` `지출` `저축` `이체`(enum 이름 `EXPENSE` 등도 허용) | ✔ |
 | H | 메모 | 비워도 됨 | |
 | I | 상대계좌 | **입금 계좌**(돈이 들어가는 쪽) 이름 | 이체·저축 ✔ |
 
-- 계좌·상대계좌 이름은 앞뒤 공백을 무시하고 정확히 일치해야 한다. 해지 전 거래를 올릴 수 있게 **해지한 계좌명도 허용**한다
-  (`등록된 이름` 시트에는 안 나온다).
-- 이체는 대분류·소분류를 무시한다.
-
-### 계좌 두 칸(B열·I열)
-
-I열 '상대계좌'는 곧 입금 계좌, B열 '계좌'는 출금 계좌다. **수입만 예외**로 들어온 돈이 담기는 계좌를 B열에 적는다
-(수입은 `accountId`만 받고 `transferAccountId`를 금지하는 거래 등록 규칙 때문).
+행 하나는 `{ rowNumber, date, account, category, subcategory, description, amount, type, memo, transferAccount }`(rowNumber 외 전부
+문자열)로 넘어가고, DB 함수가 스프링 `resolveImportRow`와 같은 순서(구분 → 날짜 → 금액 → 내용 → 계좌 → 상대계좌 → 분류 →
+거래 규칙 트리거)로 검사한다.
 
 | 구분 | B열 `계좌` | I열 `상대계좌` |
 |---|---|---|
@@ -65,88 +66,91 @@ I열 '상대계좌'는 곧 입금 계좌, B열 '계좌'는 출금 계좌다. **�
 | 저축 | 출금 계좌 | **입금 계좌**(저축액이 쌓이는 곳) |
 | 이체 | 출금 계좌 | **입금 계좌**(받는 곳) |
 
-저축에 I열을 비우면 출금만 잡혀 총자산이 줄어들므로 서버가 막는다. 같은 표가 가져오기 패널에도 있다
+저축에 I열을 비우면 출금만 잡혀 총자산이 줄어들므로 DB가 막는다(`TRANSFER_ACCOUNT_REQUIRED`). 같은 표가 가져오기 패널에도 있다
 (`DataModal.tsx`의 `IMPORT_ACCOUNT_GUIDE`).
 
 ### 에러
 
-- 파일 단위(400, 공통 에러 봉투): `IMPORT_FILE_UNREADABLE`(xlsx가 아니거나 헤더가 다름) · `IMPORT_ROWS_EMPTY` ·
-  `IMPORT_ROW_LIMIT_EXCEEDED`(5,000행 초과) · `INVALID_INPUT`(5MB 초과).
-- 행 단위(200 응답의 `errors`): `IMPORT_*` 코드 또는 일반 `POST /transactions`와 같은 거래 등록 규칙 코드
-  (`SUBCATEGORY_REQUIRED` 등). 백엔드 소스 기준 `IMPORT_*` 행 코드는 `IMPORT_DATE_INVALID` `IMPORT_AMOUNT_INVALID`
-  `IMPORT_TYPE_INVALID` `IMPORT_DESCRIPTION_INVALID` `IMPORT_ACCOUNT_NOT_FOUND` `IMPORT_ACCOUNT_AMBIGUOUS`
-  `IMPORT_CATEGORY_NOT_FOUND` `IMPORT_SUBCATEGORY_NOT_FOUND`이다(OpenAPI에는 목록이 없다). 화면은 코드로 분기하지 않고
-  `message`만 보여준다.
+- 파일 단위(ApiError): `IMPORT_FILE_UNREADABLE`(xlsx가 아니거나 헤더가 다름 — 앱) · `IMPORT_ROWS_EMPTY` ·
+  `IMPORT_ROW_LIMIT_EXCEEDED`(5,000행 초과) · `INVALID_INPUT`(5MB 초과 — 앱) · `EXCEL_MODULE_UNAVAILABLE`(SheetJS 청크를 못 받음).
+- 행 단위(결과의 `errors`): `IMPORT_DATE_INVALID` `IMPORT_AMOUNT_INVALID` `IMPORT_TYPE_INVALID` `IMPORT_DESCRIPTION_INVALID`
+  `IMPORT_ACCOUNT_NOT_FOUND` `IMPORT_ACCOUNT_AMBIGUOUS` `IMPORT_TRANSFER_ACCOUNT_NOT_FOUND` `IMPORT_CATEGORY_NOT_FOUND`
+  `IMPORT_SUBCATEGORY_NOT_FOUND`, 또는 일반 거래 등록과 같은 규칙 코드(`SUBCATEGORY_REQUIRED` 등 — 3단계 트리거).
+  문구는 `private.import_message`가 붙인다(`src/services/errorMessages.ts`와 같은 문장). 화면은 코드로 분기하지 않고 `message`만 보여준다.
 
-## 계좌 가져오기 — `POST /import/excel/accounts`
+## 계좌 가져오기 — `import_accounts(p_rows jsonb)`
 
-`계좌` 시트(없으면 첫 시트)의 A~J열을 읽고 K열 이후는 무시한다. 1행 헤더가 양식과 다르면 파일 단위 실패다.
-**계좌 목록 내보내기 파일도 같은 열이라 그대로 올릴 수 있다.** `등록된 이름` 시트에는 유형·통화 목록과 등록된 기관명이 실린다.
+`계좌` 시트(없으면 첫 시트)의 **A~I열**을 읽고 J열 이후는 무시한다. 1행 헤더 9개가 전부 양식과 같아야 한다
+(`ACCOUNT_IMPORT_FILE_UNREADABLE`). **계좌 목록 내보내기 파일도 같은 열이라 그대로 올릴 수 있다.**
+계좌에는 표시 통화가 없으므로 '통화' 열은 없다(예전 문서의 C열 '통화'는 스프링 구현에도 없던 잘못된 기술 — 2026-10-24 정리).
 
 | 열 | 헤더 | 값 |
 |---|---|---|
 | A | 계좌명 | 1~100자 |
 | B | 유형 | 현금·예적금·주식·가상자산·연금·기타(enum 이름 `STOCK` 등도 허용) |
-| C | 통화 | `KRW`·`USD`, 비우면 KRW |
-| D | 기관 | 등록된 기관명과 정확히 일치(앞뒤 공백 무시), 비우면 무기관 |
-| E | 원화예수금 | 0 이상 원 단위 정수(쉼표·`원` 허용), 비우면 0 |
-| F | 달러예수금 | 0 이상, 소수 둘째 자리까지 |
-| G | 연이율(%) | 0~999.99 |
-| H | 개설일 | `yyyy-MM-dd` |
-| I | 만기일 | `yyyy-MM-dd` |
-| J | 즉시현금화 | `Y`/`N`, 비우면 Y |
+| C | 기관 | 등록된 기관명과 정확히 일치(앞뒤 공백 무시), 비우면 무기관 |
+| D | 원화예수금 | 0 이상 원 단위 정수(쉼표·`원` 허용), 비우면 잔액 줄을 만들지 않음(0과 같다) |
+| E | 달러예수금 | 0 이상, 소수 둘째 자리까지 — 주식·가상자산 계좌만(그 외는 `INITIAL_BALANCE_SINGLE_CURRENCY_ONLY`) |
+| F | 연이율(%) | 0~999.99, 소수 둘째 자리까지(`%` 표기 허용) |
+| G | 개설일 | `yyyy-MM-dd` |
+| H | 만기일 | `yyyy-MM-dd` |
+| I | 즉시현금화 | `Y`/`N`(예/아니오도 됨), 비우면 Y |
+
+행 하나는 `{ rowNumber, name, type, institution, balanceKrw, balanceUsd, interestRate, openedAt, maturityDate, isLiquid }`로 넘어가고
+DB 함수가 행마다 `create_account`를 부른다(초기 잔액 ADJUSTMENT 포함). 달러 줄의 원화 환산에 환율이 필요하므로 환율 테이블이
+비어 있으면 `FX_RATE_NOT_FOUND`가 행 오류로 나온다.
 
 에러:
-- 파일 단위(400): `ACCOUNT_IMPORT_FILE_UNREADABLE` · `ACCOUNT_IMPORT_ROWS_EMPTY` · `ACCOUNT_IMPORT_ROW_LIMIT_EXCEEDED`.
-- 행 단위: `ACCOUNT_IMPORT_*` 코드(예: `ACCOUNT_IMPORT_TYPE_INVALID`) 또는 계좌 등록 규칙 코드. 전체 목록은 OpenAPI에 없다.
+- 파일 단위: `ACCOUNT_IMPORT_FILE_UNREADABLE`(앱) · `ACCOUNT_IMPORT_ROWS_EMPTY` · `ACCOUNT_IMPORT_ROW_LIMIT_EXCEEDED` · `INVALID_INPUT`(5MB) ·
+  `EXCEL_MODULE_UNAVAILABLE`.
+- 행 단위: `ACCOUNT_IMPORT_NAME_INVALID` `ACCOUNT_IMPORT_TYPE_INVALID` `ACCOUNT_IMPORT_INSTITUTION_NOT_FOUND` `ACCOUNT_IMPORT_BALANCE_INVALID`
+  `ACCOUNT_IMPORT_USD_BALANCE_INVALID` `ACCOUNT_IMPORT_RATE_INVALID` `ACCOUNT_IMPORT_DATE_INVALID` `ACCOUNT_IMPORT_LIQUID_INVALID`,
+  또는 계좌 등록 규칙 코드(`INITIAL_BALANCE_*` 등).
 
-## 가져오기 응답
+## 가져오기 결과
 
-두 엔드포인트 모두 `multipart/form-data`, 파트명 **`file`**(`.xlsx`)이고 응답 모양이 같다(`ApiResponse<ImportTransactionsResult>`,
-항상 200).
+두 함수 모두 같은 모양(`ImportTransactionsResult`)을 돌려준다.
 
 ```json
-{ "success": true, "data": { "importedCount": 4, "errors": [] } }
+{ "importedCount": 4, "errors": [] }
 ```
 ```json
-{ "success": true, "data": { "importedCount": 0, "errors": [
+{ "importedCount": 0, "errors": [
     { "rowNumber": 3, "code": "IMPORT_ACCOUNT_NOT_FOUND", "message": "등록된 계좌에서 계좌(B열)와 같은 이름을 찾을 수 없습니다." }
-] } }
+] }
 ```
 
-- `rowNumber`는 엑셀에 보이는 행 번호(헤더 1행, 첫 데이터 2행). `errors`가 하나라도 있으면 `importedCount`는 0이다.
-- **업로드 요청에는 `Content-Type: multipart/form-data`를 명시해야 한다.** 공용 axios 기본 헤더가 JSON이라 그대로 두면
-  axios 1.x가 FormData를 JSON으로 직렬화해 서버가 415로 거절한다. boundary는 브라우저가 붙인다(`import.service.ts`).
-- 타임아웃은 60초(공용 10초 대신).
+- `rowNumber`는 엑셀에 보이는 행 번호(헤더 1행, 첫 데이터 2행 — 빈 행을 건너뛰어도 번호는 원래 자리). `errors`가 하나라도 있으면
+  `importedCount`는 0이다.
 - `importedCount > 0`일 때만 무효화한다: `transaction` · `account` · `asset` · `dashboard` · `goal`, 계좌 가져오기는
   `institution`도(`import.hook.ts`).
 
 ## 내보내기
 
-| 엔드포인트 | 쿼리 | 서버 파일명 |
-|---|---|---|
-| `GET /export/excel/transactions` | `from` `to`(거래일, 선택) | `transactions.xlsx` |
-| `GET /export/excel/trades` | `from` `to`(체결일, 선택) | `trades_{from}_{to}.xlsx` — `from` 생략 시 `all`, `to` 생략 시 내려받은 날짜(KST) |
-| `GET /export/excel/accounts` | 없음 | `accounts.xlsx` |
+| 종류 | DB 함수 | 시트 | 파일명 |
+|---|---|---|---|
+| 거래 | `export_transactions(p_from, p_to)` | `transactions` — 거래일·타입·대분류·소분류·금액·계좌ID·상대계좌ID·내용·메모 | `transactions.xlsx` |
+| 매매 | `export_trades(p_from, p_to)` | `trades` — 체결일·종목명·티커·시장·매수/매도·수량·단가·수수료·세금·환율·메모 | `trades_{from\|all}_{to\|오늘}.xlsx`(`yyyyMMdd`) |
+| 계좌 | `export_accounts()` | `계좌` — 계좌 가져오기 양식과 같은 A~I | `accounts.xlsx` |
 
-- `from`·`to`는 `yyyy-MM-dd`, 양끝 포함, 생략하면 제한 없음. 매매 파일은 체결일 오름차순. 포맷은 xlsx 하나(CSV 없음).
-- 계좌 내보내기는 해지하지 않은 계좌를 **잔액이 아니라 등록 시점 원금**으로 담는다(현재 잔액은 원금 + 가계부 증감이라 파생값).
+- RPC가 `{ headers, rows }`를 돌려주고 앱이 xlsx로 만들어 저장한다(`downloadExportFile` → `buildWorkbook` → `saveFile`).
+  파일명 규칙은 `exportFilename`(`export.service.ts`) — 스프링 Content-Disposition과 같다.
+- `from`·`to`는 `yyyy-MM-dd`, 양끝 포함, 생략하면 제한 없음. 거래는 거래일, 매매는 체결일 오름차순. 거래 내보내기에
+  `ADJUSTMENT`(잔액 정정)·`EXCHANGE`(환전)는 들어가지 않는다. 숫자 문자열은 꼬리 0을 뗀다(`10.00000000` → `10`).
+- 계좌 내보내기는 해지하지 않은 계좌의 **통화별 현재 예수금**(원화·달러 각각 그 통화 금액 그대로 — 환율 미적용, 보유 종목 평가액 제외)이다.
 - 화면: 드롭다운 위쪽에서 기간(전체 기간 · 올해 · 최근 3개월 · 최근 1개월)을 고르고 아래에서 종류(가계부 거래 내역 ·
-  주식 매매 내역 · 계좌 목록)를 누르면 바로 내려받는다. 기간은 거래·매매에만 실리고 계좌 목록은 항상 전체다.
+  주식 매매 내역 · 계좌 목록)를 누르면 바로 저장된다. 기간은 거래·매매에만 실리고 계좌 목록은 항상 전체다.
   '올해'는 1월 1일~오늘, 최근 N개월은 `recentMonthsRange`(`src/utils/date.ts`) — 정산월이 아니라 달력 기준이다.
   '전체 기간'은 `from`·`to`를 모두 생략한다.
-- 헤더에서 파일명을 못 읽으면 `monit-{거래내역|매매내역|계좌목록}-{yyyyMMdd}.xlsx`로 저장한다(`export.service.ts`).
-- blob 클라이언트 타임아웃은 60초. 실패 응답도 Blob이라 `apiBlob.ts`가 텍스트로 읽어 서버 `message`를 복원한다.
+- 저장은 `saveFile`(`src/utils/saveFile.ts`) — 브라우저는 다운로드, 데스크톱 앱은 저장 창. 실패 코드는 `EXPORT_FAILED` ·
+  `EXCEL_MODULE_UNAVAILABLE`.
 
 ## 프론트 쪽 파일
 
-- `src/services/apiBlob.ts` — blob 전용 axios(가져오기 양식·내보내기 공용), `downloadBlobFile`
-- `src/services/import/` — `downloadImportTemplate`, `uploadImportFile`, `useDownloadImportTemplate`, `useUploadImportFile` (`ImportKind = 'transactions' | 'accounts'`)
-- `src/services/export/` — `downloadExportFile`, `useDownloadExportFile` (`ExportKind = 'transactions' | 'trades' | 'accounts'`)
-- `src/utils/download.ts` — `triggerBrowserDownload`
+- `src/utils/xlsx/` — `readSheet`(시트 → 행 번호 + 문자열 칸, 빈 행 제거, `SheetReadError`) · `buildWorkbook`(시트 배열 → xlsx Blob) ·
+  `loader.ts`(SheetJS 지연 로드, `XlsxLoadError`)
+- `src/utils/saveFile.ts` — `saveFile({ blob, filename })`(엑셀·월간 리포트 이미지 공용)
+- `src/services/import/` — `downloadImportTemplate`, `uploadImportFile`, `useDownloadImportTemplate`, `useUploadImportFile`
+  (`ImportKind = 'transactions' | 'accounts'`)
+- `src/services/export/` — `downloadExportFile`, `exportFilename`, `useDownloadExportFile` (`ExportKind = 'transactions' | 'trades' | 'accounts'`)
 - `src/screens/Settings/modals/DataModal.tsx` — 가져오기 패널(탭·양식·업로드·결과)과 내보내기 드롭다운
-
-## 확인 필요
-
-- 계좌 가져오기 C열 '통화'와 F열 설명("외화 표시 계좌 또는 주식·가상자산 계좌만")은 계좌에서 표시 통화가 사라진
-  2026-09-26 계약 변경과 맞지 않는다. 서버 설명이 옛 문구인지, 통화 열이 실제로 무엇에 쓰이는지 백엔드에 확인한다.

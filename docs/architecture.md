@@ -10,7 +10,7 @@
 
 세부 컨벤션은 각 문서를 참고하세요:
 - [`code-convention.md`](./code-convention.md) — 명명 규칙, import 순서, 컴포넌트 작성 스타일
-- [`api-conventions.md`](./api-conventions.md) — axios/React Query 기반 API 통신 규칙
+- [`api-conventions.md`](./api-conventions.md) — supabase-js/React Query 기반 데이터 접근 규칙(RPC·테이블·Edge Function·Realtime)
 - [`state-management.md`](./state-management.md) — AppState / Zustand / React Query 상태 경계
 - [`mobile.md`](./mobile.md) — 모바일 브레이크포인트, 하단탭·바텀시트 규격, 터치 대응
 
@@ -53,21 +53,22 @@ src/
                            함수(auth, datePicker, dropdown, entryDraft, modal, nav, tabStyles,
                            stockTabStyles). 메모이즈하지 않는다
 
-  services/              axios + React Query 기반 API 레이어
-    api.ts                 axios 인스턴스 + ApiError + unwrap + Bearer 부착 + 401 재발급 큐
-    apiBlob.ts             엑셀 등 바이너리 전용 axios 인스턴스(export·import가 공유). 실패 응답도
-                           Blob이라 공용 인터셉터가 에러를 못 읽기 때문에 분리한다
-    api.types.ts           공용 봉투 타입(ApiResponse<T> / ApiErrorPayload)
-    common.type.ts         도메인 공용 enum · 목록 파라미터 · Spring Page<T>
+  services/              supabase-js + React Query 기반 데이터 레이어
+    supabase.ts            Supabase 클라이언트 하나 + rpc()/invoke() 래퍼 + 세션 저장소(sessionAwareStorage)
+    supabaseError.ts       PostgREST·Auth·Edge Function 오류 → ApiError(code, message, status)
+    errorMessages.ts       오류 코드 → 한국어 문구·HTTP 상태 사전(스프링 ErrorCode 이식, 정본)
+    api.ts                 ApiError 타입(화면이 code 로 분기)
+    priceRefresh.ts        매매·연동 직후 시세·환율 즉시 수집(Edge Function 호출, 실패는 삼킨다)
+    common.type.ts         도메인 공용 enum · 목록 파라미터 · Page<T>
     queryKeys.ts           queryKey 중앙 레지스트리(queryKeys)
     queryClient.ts         React Query QueryClient
     {domain}/              {domain}.service.ts / .hook.ts / .type.ts / index.ts
                            auth, user, institution, account, asset, category, transaction,
                            subscription, stock, trade, exchange, marketIndex, goal,
-                           dashboard, notification, export, import, connection
+                           dashboard, notification, export, import, connection, share
 
   stores/                화면 트리와 무관한 전역 상태만 두는 Zustand store
-    auth.ts                액세스 토큰 + 로그인 상태(useAuthStore) — 메모리 전용
+    auth.ts                로그인 상태·userId(useAuthStore). 토큰은 두지 않는다 — Supabase 클라이언트가 세션을 보관
 
   data/                  서버 응답 → 화면용 뷰모델 변환(순수 함수). 색상·아이콘·포맷 문자열 같은
                          디자인 시스템 규칙이 여기 산다
@@ -86,7 +87,7 @@ src/
                            SegmentedTab, Skeleton, StatBadge, Switch, Treemap
                            + usePopoverAnchor.ts(팝오버를 모달 밖으로 띄우는 공용 훅)
     layout/                AppShell(인증 게이팅), AuthenticatedApp(<Routes> + 모달 마운트), Header,
-                           NotificationPanel(헤더 알림), NotificationBanner(새 알림 배너 + SSE 구독),
+                           NotificationPanel(헤더 알림), NotificationBanner(새 알림 배너 + Realtime 구독),
                            useNotificationDelivery.ts(새 알림을 배너/맥·PC 알림 중 어디로 보낼지),
                            NotificationPermissionAsk(맥·PC 알림 안내 카드),
                            SidebarNav(데스크톱), BottomTabNav(모바일),

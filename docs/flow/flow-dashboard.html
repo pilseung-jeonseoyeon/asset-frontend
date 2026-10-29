@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>대시보드 화면 프론트 흐름 — Monit</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --color-paper:#f5f5f5; --color-paper-2:#ececec; --color-ink:#2d3142; --color-muted:#4f5d75;
+  --color-soft:#7a8399; --color-rule:rgba(45,49,66,0.12); --color-rule-solid:rgba(79,93,117,0.25);
+  --color-accent:#eb6c36; --color-accent-tint:rgba(235,108,54,0.08); --color-link:#2e5aa8;
+  --font-sans:'Geist','Apple SD Gothic Neo','Pretendard','Malgun Gothic',system-ui,sans-serif;
+  --font-serif:'Instrument Serif','Apple SD Gothic Neo','Times New Roman',serif;
+  --font-mono:'Geist Mono',ui-monospace,'Apple SD Gothic Neo',Menlo,monospace;
+}
+body { font-family:var(--font-sans); background:var(--color-paper); color:var(--color-ink); padding:3rem 2rem; }
+.container { max-width:1200px; margin:0 auto; }
+.nav { font-family:var(--font-mono); font-size:0.7rem; letter-spacing:0.08em; color:var(--color-soft); margin-bottom:1.5rem; }
+.nav a { color:var(--color-muted); text-decoration:none; }
+.nav a:hover { color:var(--color-accent); }
+.header { margin-bottom:2.5rem; }
+.header-eyebrow, .section-eyebrow {
+  font-family:var(--font-mono); font-size:0.66rem; font-weight:500; letter-spacing:0.18em;
+  text-transform:uppercase; color:var(--color-muted); margin-bottom:0.75rem;
+}
+h1 { font-family:var(--font-serif); font-size:clamp(1.75rem,3vw + 1rem,2.5rem); font-weight:400;
+     letter-spacing:-0.02em; line-height:1.1; margin-bottom:0.5rem; }
+.subtitle { font-size:1rem; line-height:1.55; color:var(--color-muted); max-width:64ch; }
+.section { margin-top:3rem; }
+.section h2 { font-family:var(--font-serif); font-size:1.5rem; font-weight:400; letter-spacing:-0.01em; margin-bottom:0.4rem; }
+.section .lede { font-size:0.9rem; line-height:1.55; color:var(--color-muted); max-width:72ch; margin-bottom:1.25rem; }
+.screen-h { font-size:0.95rem; font-weight:600; margin:2rem 0 0.75rem; padding-left:0.75rem; border-left:3px solid var(--color-accent); }
+.diagram { background:#fff; border:1px solid var(--color-rule); border-radius:6px; padding:1rem; overflow-x:auto; }
+svg { width:100%; min-width:880px; display:block; }
+.caption { font-family:var(--font-mono); font-size:0.68rem; color:var(--color-soft); margin-top:0.6rem; letter-spacing:0.04em; }
+.table-wrap { overflow-x:auto; }
+table.ref { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--color-rule); font-size:0.8125rem; line-height:1.45; }
+table.ref th { text-align:left; font-family:var(--font-mono); font-size:0.62rem; letter-spacing:0.12em; text-transform:uppercase;
+  color:var(--color-muted); padding:0.55rem 0.75rem; border-bottom:1px solid var(--color-rule-solid); background:var(--color-paper-2); }
+table.ref td { padding:0.45rem 0.75rem; border-bottom:1px solid rgba(45,49,66,0.08); vertical-align:top; }
+table.ref td:first-child { color:var(--color-muted); font-weight:500; }
+table.ref tr:last-child td { border-bottom:none; }
+table.ref code, .card code, p code, li code { font-family:var(--font-mono); font-size:0.72rem; color:var(--color-ink); }
+table.ref code { white-space:nowrap; }
+.cards { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-top:1.25rem; }
+@media (max-width:900px){ .cards { grid-template-columns:1fr; } }
+.card { background:#fff; border:1px solid var(--color-rule); border-radius:6px; padding:1.25rem; }
+.card-header { display:flex; align-items:center; gap:0.6rem; margin-bottom:0.875rem; padding-bottom:0.875rem; border-bottom:1px solid rgba(45,49,66,0.08); }
+.card-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.card-dot.ink{background:var(--color-ink);} .card-dot.muted{background:var(--color-muted);}
+.card-dot.coral{background:var(--color-accent);} .card-dot.link{background:var(--color-link);}
+.card h3 { font-size:0.875rem; font-weight:600; }
+.card ul { list-style:none; color:var(--color-muted); font-size:0.8125rem; line-height:1.55; }
+.card li { margin-bottom:0.3rem; padding-left:0.875rem; position:relative; }
+.card li::before { content:'—'; position:absolute; left:0; color:rgba(45,49,66,0.25); font-size:0.75rem; }
+pre.code { background:#fff; border:1px solid var(--color-rule); border-left:3px solid var(--color-accent); border-radius:4px;
+  padding:1rem 1.1rem; font-family:var(--font-mono); font-size:0.75rem; line-height:1.7; color:var(--color-ink); overflow-x:auto; white-space:pre; }
+.note { background:var(--color-accent-tint); border-left:3px solid var(--color-accent); border-radius:4px;
+  padding:0.85rem 1rem; font-size:0.8125rem; line-height:1.6; color:var(--color-muted); margin-top:1rem; }
+.note strong { color:var(--color-ink); }
+.footer { margin-top:3.5rem; padding-top:1.5rem; border-top:1px solid rgba(45,49,66,0.10);
+  font-family:var(--font-mono); font-size:0.72rem; letter-spacing:0.06em; color:var(--color-soft);
+  display:flex; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; }
+
+/* ── sequence diagrams (mermaid) ── */
+.seq-list { display:grid; grid-template-columns:1fr; gap:1.25rem; margin-top:1.25rem; }
+.seq { background:#fff; border:1px solid var(--color-rule); border-radius:6px; padding:1rem 1rem 0.6rem; overflow-x:auto; }
+.seq-title { display:flex; align-items:baseline; gap:0.6rem; flex-wrap:wrap; font-size:0.9rem; font-weight:600; margin-bottom:0.3rem; }
+.seq-title code { font-family:var(--font-mono); font-size:0.7rem; font-weight:500; color:var(--color-accent); white-space:nowrap; }
+.seq-desc { font-size:0.8rem; line-height:1.55; color:var(--color-muted); margin-bottom:0.6rem; max-width:80ch; }
+.seq pre.mermaid { font-family:var(--font-mono); font-size:0.7rem; line-height:1.5; color:var(--color-soft); background:transparent;
+  border:none; padding:0; }
+.seq-toc { display:flex; flex-wrap:wrap; gap:0.4rem 0.8rem; margin:0.5rem 0 0; font-family:var(--font-mono); font-size:0.7rem; }
+.seq-toc a { color:var(--color-link); text-decoration:none; border-bottom:1px dotted rgba(46,90,168,0.4); }
+.seq-toc a:hover { color:var(--color-accent); }
+.seq-steps { margin:0.9rem 0 0.3rem; padding-left:1.4rem; font-size:0.8rem; line-height:1.6; color:var(--color-muted); }
+.seq-steps li { margin-bottom:0.35rem; }
+.seq-steps li strong { color:var(--color-ink); font-weight:600; }
+.seq-steps li em { color:var(--color-accent); font-style:normal; }
+.seq-why { margin-top:0.7rem; padding:0.7rem 0.9rem; background:var(--color-accent-tint); border-left:3px solid var(--color-accent); border-radius:4px; font-size:0.8rem; line-height:1.55; color:var(--color-muted); }
+.seq-why strong { color:var(--color-ink); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="nav"><a href="README.md">← 화면별 프론트 흐름</a> &nbsp;·&nbsp; <a href="flow-assets.html">재산</a> · <a href="flow-stocks.html">주식</a> · <a href="flow-ledger.html">가계부</a> · <a href="flow-settings.html">설정</a> · 대시보드 &nbsp;·&nbsp; <a href="../../../asset/docs/flow/flow-dashboard.html">백엔드 문서 ↗</a></div>
+
+<div class="header">
+  <div class="header-eyebrow">Screen 05 · Frontend Flow</div>
+  <h1>대시보드 — 카드 하나가 훅 하나를 부르고, React Query가 요청을 합친다</h1>
+  <p class="subtitle">대시보드는 <strong>카드 배치 3종(A·B·C)</strong> 중 하나를 그린다. 카드는 각자 자기 데이터 훅을 직접 부르고, 같은 쿼리키는 React Query가 하나로 합쳐 서버에는 한 번만 묻는다. 이 화면이 직접 쓰는 건 목표(<code>PUT/DELETE /goals</code>)뿐이고 나머지는 전부 읽기다.</p>
+</div>
+
+<!-- ── F1. 레이어 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F1 · Layers</div>
+  <h2>사용자 조작이 서버까지 가는 길 — 이 화면의 파일들</h2>
+  <div class="diagram">
+  <svg viewBox="0 0 900 360" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#7a8399"/>
+      </marker>
+    </defs>
+    <g font-family="Geist Mono, monospace" font-size="10.5" fill="#4f5d75">
+      <text x="20" y="24" fill="#4f5d75" font-size="10" letter-spacing="1.6">SCREEN (src/screens/Dashboard)</text>
+      <rect x="20" y="36" width="200" height="34" rx="4" fill="#fff" stroke="#4f5d75"/>
+      <text x="32" y="58" fill="#2d3142" font-size="11.5">Dashboard.tsx (레이아웃 스위치)</text>
+      <rect x="20" y="78" width="200" height="34" rx="4" fill="#fff" stroke="#4f5d75"/>
+      <text x="32" y="100" fill="#2d3142" font-size="11.5">layouts/DashboardLayout{A,B,C}</text>
+      <rect x="20" y="120" width="200" height="34" rx="4" fill="#fff" stroke="#4f5d75"/>
+      <text x="32" y="142" fill="#2d3142" font-size="11.5">cards/* (카드 = 파일 하나)</text>
+      <rect x="20" y="162" width="200" height="34" rx="4" fill="#fff" stroke="#4f5d75"/>
+      <text x="32" y="184" fill="#2d3142" font-size="11.5">hooks/useDashboardHero·Trend</text>
+      <rect x="20" y="204" width="200" height="34" rx="4" fill="#fff" stroke="#eb6c36" stroke-width="1.4"/>
+      <text x="32" y="226" fill="#2d3142" font-size="11.5">modals: AddGoalModal</text>
+      <rect x="20" y="246" width="200" height="34" rx="4" fill="#fff" stroke="#eb6c36" stroke-width="1.4"/>
+      <text x="32" y="268" fill="#2d3142" font-size="11.5">modals: ReportOverlay</text>
+      <rect x="20" y="288" width="200" height="34" rx="4" fill="#fff" stroke="#eb6c36" stroke-width="1.4"/>
+      <text x="32" y="310" fill="#2d3142" font-size="11.5">modals: InstitutionsModal</text>
+
+      <text x="300" y="24" fill="#4f5d75" font-size="10" letter-spacing="1.6">STATE</text>
+      <rect x="300" y="36" width="220" height="60" rx="4" fill="#fff" stroke="#4f5d75"/>
+      <text x="312" y="56" fill="#2d3142" font-size="11.5">AppState (useAppState)</text>
+      <text x="312" y="72" font-size="9.5">dashboardLayout · openModal · reportOpen</text>
+      <text x="312" y="86" font-size="9.5">reportPeriod · reportSlide · amountsHidden</text>
+      <rect x="300" y="108" width="220" height="60" rx="4" fill="#fff" stroke="#4f5d75"/>
+      <text x="312" y="128" fill="#2d3142" font-size="11.5">localStorage (힌트)</text>
+      <text x="312" y="144" font-size="9.5">monit.dashboardLayout → 초기 AppState</text>
+      <text x="312" y="158" font-size="9.5">(서버 필드 없음 — 기기별)</text>
+      <rect x="300" y="180" width="220" height="142" rx="4" fill="#fff" stroke="#eb6c36" stroke-width="1.6"/>
+      <text x="312" y="202" fill="#2d3142" font-size="12.5" font-weight="600">React Query 캐시</text>
+      <text x="312" y="222" font-size="9.5">['dashboard','summary']</text>
+      <text x="312" y="236" font-size="9.5">['dashboard','trend',{from,to,unit}]</text>
+      <text x="312" y="250" font-size="9.5">['dashboard','allocation']</text>
+      <text x="312" y="264" font-size="9.5">['dashboard','report', period|'current']</text>
+      <text x="312" y="278" font-size="9.5">['goal','detail',{}] · ['goal','preview',…]</text>
+      <text x="312" y="292" font-size="9.5">['asset','distribution',{INSTITUTION}]</text>
+      <text x="312" y="306" font-size="9.5">['institution','list'] · ['transaction',…]</text>
+
+      <text x="600" y="24" fill="#4f5d75" font-size="10" letter-spacing="1.6">SERVICES → SERVER</text>
+      <rect x="600" y="36" width="276" height="34" rx="3" fill="#fff" stroke="#2d3142"/>
+      <text x="612" y="58" fill="#2d3142" font-size="11">GET /dashboard/summary</text>
+      <rect x="600" y="78" width="276" height="34" rx="3" fill="#fff" stroke="#2d3142"/>
+      <text x="612" y="100" fill="#2d3142" font-size="11">GET /dashboard/trend?from&amp;to&amp;unit=MONTH</text>
+      <rect x="600" y="120" width="276" height="34" rx="3" fill="#fff" stroke="#2d3142"/>
+      <text x="612" y="142" fill="#2d3142" font-size="11">GET /dashboard/allocation</text>
+      <rect x="600" y="162" width="276" height="34" rx="3" fill="#fff" stroke="#2d3142"/>
+      <text x="612" y="184" fill="#2d3142" font-size="11">GET /dashboard/reports?year&amp;month</text>
+      <rect x="600" y="204" width="276" height="48" rx="3" fill="#fff" stroke="#eb6c36" stroke-width="1.5"/>
+      <text x="612" y="224" fill="#2d3142" font-size="11">GET /goals · GET /goals/preview</text>
+      <text x="612" y="242" fill="#2d3142" font-size="11">PUT /goals · DELETE /goals — 유일한 쓰기</text>
+      <rect x="600" y="260" width="276" height="62" rx="3" fill="#fff" stroke="#2d3142"/>
+      <text x="612" y="280" fill="#2d3142" font-size="11">GET /assets/distribution?groupBy=INSTITUTION</text>
+      <text x="612" y="296" fill="#2d3142" font-size="11">GET /institutions · GET /transactions/*</text>
+      <text x="612" y="312" fill="#2d3142" font-size="11">GET /subscriptions · GET /accounts (C안)</text>
+
+      <line x1="222" y1="137" x2="296" y2="240" stroke="#7a8399" marker-end="url(#fa)"/>
+      <line x1="222" y1="179" x2="296" y2="230" stroke="#7a8399" marker-end="url(#fa)"/>
+      <line x1="222" y1="221" x2="296" y2="275" stroke="#eb6c36" marker-end="url(#fa)"/>
+      <line x1="222" y1="263" x2="296" y2="262" stroke="#eb6c36" marker-end="url(#fa)"/>
+      <line x1="222" y1="305" x2="296" y2="292" stroke="#eb6c36" marker-end="url(#fa)"/>
+      <line x1="222" y1="53" x2="296" y2="60" stroke="#7a8399" marker-end="url(#fa)"/>
+      <line x1="222" y1="95" x2="296" y2="130" stroke="#7a8399" marker-end="url(#fa)"/>
+
+      <line x1="522" y1="222" x2="596" y2="53" stroke="#7a8399" marker-end="url(#fa)"/>
+      <line x1="522" y1="236" x2="596" y2="95" stroke="#7a8399" marker-end="url(#fa)"/>
+      <line x1="522" y1="250" x2="596" y2="137" stroke="#7a8399" marker-end="url(#fa)"/>
+      <line x1="522" y1="264" x2="596" y2="179" stroke="#7a8399" marker-end="url(#fa)"/>
+      <line x1="522" y1="278" x2="596" y2="228" stroke="#eb6c36" marker-end="url(#fa)"/>
+      <line x1="522" y1="296" x2="596" y2="290" stroke="#7a8399" marker-end="url(#fa)"/>
+    </g>
+  </svg>
+  </div>
+  <div class="caption">모든 요청은 src/services/{domain}/{domain}.hook.ts → {domain}.service.ts → api.ts(axios, /api/v1, Bearer, 401 재발급 1회) 순서로 나간다. 화면 컴포넌트는 queryKeys.ts를 직접 import하지 않는다.</div>
+</div>
+
+<!-- ── F2. 카드 → 훅 → API ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F2 · Card → Hook → API</div>
+  <h2>카드가 부르는 훅과 API</h2>
+  <p class="lede">한 카드가 한 파일이고(<code>cards/*.tsx</code>) 자기 훅을 직접 부른다. 어느 레이아웃에서든 같은 카드를 그대로 쓰기 위해서다. 같은 쿼리키를 여러 카드가 불러도 요청은 한 번이다.</p>
+  <div class="table-wrap">
+  <table class="ref">
+    <thead><tr><th>카드 (배치)</th><th>훅</th><th>API · queryKey</th><th>뷰모델 (src/data)</th><th>빈·로딩·에러 분기</th></tr></thead>
+    <tbody>
+      <tr><td>ReportBanner (A·B·C)</td><td><code>useDashboardHero</code></td><td>summary + allocation (아래 공통)</td><td>buildDashboardHero</td><td>hero가 없거나 isEmpty면 배너 자체를 안 그림</td></tr>
+      <tr><td>TotalAssetDeepCard (A)</td><td><code>useDashboardHero</code></td><td><code>GET /dashboard/summary</code> ['dashboard','summary'] + <code>GET /dashboard/allocation</code> ['dashboard','allocation']</td><td>buildDashboardHero · sumAllocationKrw</td><td>'—' / 에러문 / 계좌 없음 → 점선 [계좌 추가] / 스냅샷 없음 → "자산 이력이 쌓이면…"</td></tr>
+      <tr><td>GoalCard (A·B)</td><td><code>useGetGoal({})</code></td><td><code>GET /goals</code> ['goal','detail',{}]</td><td>buildAssetGoals(연간·월간 2줄)</td><td>isUnset(targetDate null)이면 [목표 설정] 유도. 응답 도착 전엔 isUnset=false(깜빡임 방지)</td></tr>
+      <tr><td>YearStatusCard (A)</td><td><code>useDashboardHero</code> + <code>useDashboardTrend</code></td><td><code>GET /dashboard/trend?from=올해-01-01&amp;to=오늘&amp;unit=MONTH</code> ['dashboard','trend',{from,to,unit}]</td><td>buildTrendChart · buildTrendYAxisTicks</td><td>hasSnapshotHistory=false면 "이력이 쌓이면" 안내 / 점 2개 미만이면 선 없음</td></tr>
+      <tr><td>AllocationCard (A·B)</td><td><code>useGetDashboardAllocation</code></td><td><code>GET /dashboard/allocation</code></td><td>buildAllocationSegments(최대잔여법 합 100) · pickTopAllocation</td><td>0원 항목 제외 → 비면 "계좌를 추가하면…"</td></tr>
+      <tr><td>InstitutionsCard (A·B)</td><td><code>useGetAssetDistributionByInstitution</code> + <code>useGetInstitutions</code></td><td><code>GET /assets/distribution?groupBy=INSTITUTION</code> ['asset','distribution',{groupBy}] + <code>GET /institutions</code> ['institution','list']</td><td>buildDashboardInstitutions(금액순 4개, 미지정 버킷 포함)</td><td>[전체 보기 ›] → InstitutionsModal(같은 함수, limit ∞)</td></tr>
+      <tr><td>TrendCanvasDeepCard (B)</td><td><code>useDashboardHero</code> + <code>useDashboardTrend</code></td><td>summary · allocation · trend</td><td>위와 동일</td><td>A안의 총자산 카드 + 올해 추이 카드를 한 딥카드로</td></tr>
+      <tr><td>MonthFlowDeepCard (C)</td><td><code>useGetPeriodSummary('MONTH')</code> + <code>useGetGoal({})</code> + <code>useCurrentSettlementMonth</code></td><td><code>GET /transactions/summary?period=MONTH</code> ['transaction','periodSummary',{period}] + <code>GET /goals</code></td><td>—(응답 그대로)</td><td>수입·지출·저축 전부 0이면 [거래 추가] 유도. 목표 미설정이면 배지 대신 [목표 설정]</td></tr>
+      <tr><td>TotalCompactCard (C)</td><td><code>useDashboardHero</code></td><td>summary · allocation</td><td>buildAllocationSegments</td><td>이번 달 증감·연초 대비·최대 비중 3줄</td></tr>
+      <tr><td>SpendableGoalCard (C)</td><td><code>useGetGoal({})</code></td><td><code>GET /goals</code></td><td>buildAssetGoals(월간 → 연간 순)</td><td>monthlySpendableAmount·monthly.targetAmount가 null이면 "계산할 수 없어요"</td></tr>
+      <tr><td>CategoryRankCard (C)</td><td><code>useGetCategoryRankings({})</code></td><td><code>GET /transactions/rankings</code> ['transaction','rankings',{}]</td><td>buildLedgerCategories 상위 5 (가계부와 같은 색)</td><td>[가계부에서 보기 ›] → <code>navigate('/ledger')</code></td></tr>
+      <tr><td>MonthlySavingsCard (C)</td><td><code>useGetMonthlySummaries(year)</code></td><td><code>GET /transactions/summaries/monthly?year=</code> ['transaction','monthlySummary',{year}]</td><td>buildSavingsBars · computeRecentAverageSavingsRate (공용 SavingsBarChart)</td><td>year·month는 useCurrentSettlementMonth(정산월)</td></tr>
+      <tr><td>UpcomingSubscriptionsCard (C)</td><td><code>useGetSubscriptions('FIXED')</code> + <code>('SUBSCRIPTION')</code> + <code>useGetAccounts()</code></td><td><code>GET /subscriptions?kind=&amp;active=true</code> ×2 + <code>GET /accounts</code></td><td>buildSubscriptionRows → withUpcomingDate(다음 결제일 계산) 가까운 4개</td><td>비면 [고정 지출 추가] → FixedExpenseModal</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="note"><strong>히어로 판정은 두 응답을 합친다.</strong> <code>summary.totalAssetKrw</code>가 0이면 "계좌가 없다"와 "계좌 등록 첫날이라 스냅샷이 없다"를 구분할 수 없어, 실시간 집계인 <code>allocation</code> 합계가 양수면 계좌가 있다고 본다(<code>hasSnapshotHistory=false</code>). 그 동안 증감 배지·올해 추이는 "이력이 쌓이면" 문구로 대체하고, summary가 0인데 allocation이 아직 로딩 중이면 판정을 보류해 빈 상태가 번쩍이지 않게 한다.</div>
+</div>
+
+<!-- ── F3. 상태 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F3 · State</div>
+  <h2>어디에 무엇이 있나 — 세 층의 상태</h2>
+  <div class="cards">
+    <div class="card">
+      <div class="card-header"><span class="card-dot ink"></span><h3>AppState (인터랙션)</h3></div>
+      <ul>
+        <li><code>dashboardLayout</code> 'A'|'B'|'C' — 초기값은 localStorage에서 읽음</li>
+        <li><code>openModal</code> 'addGoal' | 'institutions' · <code>addGoalReturnTo</code> null(대시보드) | 'custom'(설정)</li>
+        <li><code>reportOpen</code> · <code>reportPeriod</code>(null = 현재 정산월) · <code>reportSlide</code>(0~4)</li>
+        <li><code>amountsHidden</code>(기본 true) — 리포트 금액 숨김</li>
+        <li><code>datePickerPicked['goal']</code> — 목표 시점 달력</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot coral"></span><h3>React Query (서버 캐시)</h3></div>
+      <ul>
+        <li>기본 staleTime 30초, 4xx는 재시도 안 함, 5xx·네트워크만 1회</li>
+        <li>summary·allocation·trend·goal은 화면이 뜨는 즉시 요청(enabled 기본)</li>
+        <li>report는 오버레이가 열린 동안만(<code>enabled: open</code>) — 무거운 조회</li>
+        <li>goal preview는 입력이 유효할 때만, 400ms 디바운스, staleTime 60초</li>
+        <li>서버 데이터는 AppState로 복사하지 않는다 — 캐시가 정본</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot muted"></span><h3>localStorage (기기 힌트)</h3></div>
+      <ul>
+        <li><code>monit.dashboardLayout</code> — 설정 → 일반의 레이아웃 버튼이 쓰고, 부팅 시 initialState가 읽음</li>
+        <li>서버 설정에 필드가 없어 기기별로만 남는다. 다른 기기는 A</li>
+        <li>접근 실패(프라이빗 브라우징)는 삼키고 'A'로 폴백</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ── F4. 사용자 여정 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F4 · Journey</div>
+  <h2>사용자는 이 순서로 쓴다</h2>
+  <pre class="code">① 로그인 직후 — 라우트 '/' → '/dashboard'로 replace. AuthenticatedApp 청크가 내려오고 Dashboard가 마운트된다.
+   레이아웃 A가 기본. 카드들이 동시에 훅을 불러 summary·allocation·trend·goal·distribution·institutions가 한꺼번에 나간다.
+
+② 계좌가 하나도 없는 신규 사용자
+   총자산 카드 → "계좌를 추가하고 총자산을 한눈에" + 점선 [계좌 추가] → AddAccountModal(openModal:'addAccount')
+   리포트 배너는 숨김(hero.isEmpty). 목표 카드는 "아직 목표를 설정하지 않았어요" + [목표 설정].
+
+③ 계좌를 막 만든 첫날
+   summary가 0 → allocation 합계로 총자산을 보이되 증감 배지·올해 추이는 "자산 이력이 쌓이면" 문구.
+   (서버 스냅샷 배치 이후부터 증감이 채워진다)
+
+④ 평소
+   총자산 + 이번 달 증감 → 목표 진행률(연간·월간) → 올해 추이 스파크라인 → 자산 구성 도넛 → 보관처 4곳.
+   목표 카드 본문 클릭 → AddGoalModal(수정). 보관처 [전체 보기 ›] → InstitutionsModal.
+   리포트 배너 → ReportOverlay(현재 정산월, 스토리 5장, ←→ 넘기기, 지난달 화살표, 이미지 저장·공유).
+
+⑤ 배치를 바꾸고 싶으면
+   설정 → 일반 및 디스플레이 → 대시보드 레이아웃 A/B/C → 즉시 AppState + localStorage → 대시보드로 돌아오면 바뀌어 있다.
+   B: 총자산·증감·올해 추이를 딥카드 하나로. C: 이번 달 수입·지출·저축이 대표 카드(가계부와 같은 색).</pre>
+</div>
+
+<!-- ── F5. 쓰기 → 무효화 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F5 · Invalidation</div>
+  <h2>이 화면에서 바뀌는 캐시 — 목표 저장·삭제</h2>
+  <pre class="code">usePutGoal.onSuccess    → invalidate ['goal']  +  ['dashboard']
+useDeleteGoal.onSuccess → invalidate ['goal']  +  ['dashboard']
+
+반대로 이 화면이 **받는** 무효화(다른 화면의 쓰기가 대시보드를 흔든다):
+  계좌 등록·수정·해지·잔액 정정   → ['dashboard'] ['goal'] ['asset'] …   (account.hook.ts)
+  가계부 거래 등록·수정·삭제       → ['dashboard'] ['goal'] ['transaction'] ['account'] ['asset']
+  매매·환전 등록·수정·삭제         → ['dashboard'] ['goal'] …
+  엑셀 가져오기(importedCount&gt;0)   → ['dashboard'] ['goal'] …
+  연동 동기화                     → ['dashboard'] ['goal'] …
+  월 시작일(monthStartDay) 변경    → 캐시 전체 무효화(설정 쿼리만 제외) — 정산월 의존 응답이 전부 바뀐다</pre>
+  <div class="note">목표(goal)를 계좌·매매·거래의 무효화 목록에 넣은 이유: <code>GoalResponse.annual</code>은 실시간 총자산 기준 진행률이라 계좌 하나만 추가해도 값이 달라진다. 빠지면 총자산 히어로는 즉시 갱신되는데 목표 카드만 옛 진행률로 남는다.</div>
+</div>
+
+<!-- ── F6. 리포트 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F6 · Report Overlay</div>
+  <h2>월간 리포트 — 스토리 카드 5장과 달 이동</h2>
+  <div class="cards">
+    <div class="card">
+      <div class="card-header"><span class="card-dot coral"></span><h3>열기·닫기</h3></div>
+      <ul>
+        <li>ReportBanner 클릭 → <code>{ reportOpen:true, reportPeriod:null, reportSlide:0 }</code></li>
+        <li>period null = "현재 정산월" — 서버가 어느 달인지 정하고 <code>reportYear/reportMonth</code>로 알려준다</li>
+        <li>닫기: X · Esc · 배경 클릭 → 세 필드 리셋. 다른 모달이 위에 떠 있으면 Esc·←→ 무시</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot link"></span><h3>쿼리 두 개</h3></div>
+      <ul>
+        <li><code>currentQuery</code> = report(undefined) — 열려 있는 내내 살림. "앞으로 넘겨 현재 달에 닿았는가"를 이 응답으로 판정</li>
+        <li><code>periodQuery</code> = report({year,month}) — 지난달을 볼 때만</li>
+        <li>지난달 ← : displayed − 1개월. 다음 달 → : period + 1이 current와 같으면 null로 되돌림(미래 달 불가)</li>
+        <li>보는 달 조회만 에러 화면. current 조회 실패는 첫 장 화살표 옆 작은 "다시 시도"</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot muted"></span><h3>장 구성과 내보내기</h3></div>
+      <ul>
+        <li>① 총자산 변화 → ② 자산 하이라이트 → ③ 소비 → ④ 전월·전년 비교 → ⑤ 요약(buildSummarySentence)</li>
+        <li>buildMonthlyReport: 비율 null은 '—', 금액은 움직였는데 0%면 '1% 미만'</li>
+        <li>금액 숨김(amountsHidden)이면 비율만 — 값은 둘 다 만들어 두고 표시만 바꿈</li>
+        <li>[이미지로 저장]·[공유하기]: renderReportSlidePng → 1080×1920 PNG(html-to-image 지연 로드, 로드된 폰트 조각만 삽입) → 다운로드 / Web Share(미지원이면 다운로드)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ── F7. 카드 상태 분기 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F7 · States &amp; CTA</div>
+  <h2>카드마다 "로딩 → 에러 → 빈 상태 → 정상" — 문구와 버튼까지</h2>
+  <p class="lede">모든 카드는 같은 순서로 분기한다. 로딩이면 '—'(컨테이너에 aria-busy), 에러면 <code>error.message</code>를 작은 빨간 글씨(흰 카드 --down · 딥 카드 --deep-down)로, 데이터가 없으면 <code>EmptyState</code> 안내문(+ 필요하면 점선 CTA 버튼), 그다음 정상 화면이다. 아래는 카드별로 "빈 상태"의 정확한 문구와 버튼이 여는 것, 정상 화면 안에서 한 번 더 갈라지는 지점이다.</p>
+  <div class="table-wrap">
+  <table class="ref">
+    <thead><tr><th>카드 (레이아웃)</th><th>빈 상태 판정 · 문구 · CTA</th><th>정상 안에서 한 번 더 갈리는 곳</th><th>이동</th></tr></thead>
+    <tbody>
+      <tr><td>ReportBanner (A·B·C)</td><td>hero가 없거나(로딩·에러) <code>hero.isEmpty</code>면 아무것도 그리지 않는다 — 데이터 도착 때 깜빡임 방지 + 자산이 없으면 볼 리포트도 없음</td><td>—</td><td>클릭 → <code>{ reportOpen:true, reportPeriod:null, reportSlide:0 }</code> (매번 현재 정산월로 리셋)</td></tr>
+      <tr><td>TotalAssetDeepCard (A)</td><td>"계좌를 추가하고 총자산을 한눈에 확인해보세요" + 점선 [계좌 추가] → <code>{ quickAddOpen:false, openModal:'addAccount' }</code></td><td><code>hasSnapshotHistory &amp;&amp; monthChangeKrw !== null</code>이면 "이번 달 증감액" StatBadge(양수 --deep-up / 음수 --deep-down), 아니면 "자산 이력이 쌓이면 이번 달 증감을 확인할 수 있어요". 1억 이상이면 "약 N억 N만 원" 캡션</td><td>카드 자체 클릭 이동 없음</td></tr>
+      <tr><td>GoalCard (A·B)</td><td><code>isUnset</code>(응답 도착 + targetDate null) → "아직 목표를 설정하지 않았어요. 목표를 설정하면 진행 상황을 확인할 수 있어요." + 점선 [목표 설정]</td><td>줄의 <code>progressPercent</code>가 null이면 막대·% 없이 보조 문구만. 진행률은 100을 넘을 수 있고 막대만 0~100으로 자름. 보조 문구: 달성 "목표를 달성했어요 · 새 목표를 세워볼까요?" / 연간 "D−N · 월 N원 필요"(지났으면 "목표일이 지났어요") / 월간 EXPIRED "목표 기간이 끝났어요…", 아니면 "+N원 초과" · "N원 부족"</td><td>목록 영역·빈 상태 버튼 → <code>{ openModal:'addGoal', addGoalReturnTo:null }</code></td></tr>
+      <tr><td>YearStatusCard (A)</td><td>바깥(hero): "계좌를 추가하면 올해 자산 현황을 볼 수 있어요." / 이력 없음·연 증감 null: "자산 이력이 쌓이면 올해 자산 현황을 볼 수 있어요."</td><td>안쪽(추이)은 그래프 자리에서만 따로 로딩/에러/"데이터가 더 쌓이면 총자산 추이를 볼 수 있어요."(점 2개 미만). 모바일은 제목을 "올해 총자산 추이 · N월 이후 예정"으로 줄임</td><td>없음</td></tr>
+      <tr><td>AllocationCard (A·B)</td><td>"계좌를 추가하면 자산 구성 비율을 볼 수 있어요." (버튼 없음)</td><td>조각 6개 이상이면 최하위 1개는 범례에서 뺌(showLegend). 하단 "최대 비중 {자산군} N%"는 첫 조각</td><td>없음</td></tr>
+      <tr><td>InstitutionsCard (A·B)</td><td>두 쿼리(분포·기관)를 합쳐 판정. "계좌를 추가하면 보관처별 자산을 볼 수 있어요." (<code>DASHBOARD_INSTITUTIONS_EMPTY_TEXT</code>, 전체 보기 모달과 공유)</td><td>기관이 없는 버킷(institutionId null)은 '미지정'으로 포함. 아이콘 키 조인 실패 → 빈 문자열 → BankIcon 기본 아이콘</td><td>"전체 보기 ›" → <code>{ openModal:'institutions' }</code>. 로딩 중·빈 목록 확정일 때는 숨기고, 에러일 때는 보인다</td></tr>
+      <tr><td>TrendCanvasDeepCard (B)</td><td>TotalAssetDeepCard와 같은 기준 + [계좌 추가]</td><td>"이번 달 증감" · "연초 대비" 칸은 값이 없으면 각각 "자산 이력이 쌓이면 확인할 수 있어요". 그래프 로딩/에러/부족은 그래프 자리에서만</td><td>없음</td></tr>
+      <tr><td>MonthFlowDeepCard (C)</td><td>수입·지출·저축이 모두 0 → "이번 달 거래를 등록하면 수입·지출·저축이 보여요" + 점선 [거래 추가] → <code>{ openModal:'ledgerEntry' }</code></td><td>저축률 null(수입 0) → "수입이 없어 저축률을 계산할 수 없어요". 목표 미설정이면 "월 필요 저축까지" 배지를 숨기고 점선 [목표 설정]. 목표값·현재값 중 하나라도 null이면 배지 숨김. shortfall 양수 "N원 부족"(--deep-down) / 0 이하 "N원 초과"(--deep-up)</td><td>거래 추가 · 목표 설정 모달</td></tr>
+      <tr><td>TotalCompactCard (C)</td><td>"계좌를 추가하고 총자산을 한눈에 확인해보세요" + [계좌 추가]</td><td>증감 없으면 줄마다 "이력이 쌓이면 확인할 수 있어요". 최대 비중은 allocation 첫 조각</td><td>"자산 ›" → <code>navigate('/assets')</code></td></tr>
+      <tr><td>SpendableGoalCard (C)</td><td>GoalCard와 같은 문구 + [목표 설정]</td><td>"이번 달 더 써도 되는 금액"(monthlySpendableAmount) · "월 필요 저축액"(monthly.targetAmount)이 null이면 "계산할 수 없어요". 진행률 두 줄은 월간 → 연간 순(GoalCard와 반대)</td><td>"목표 수정 ›"는 로딩·에러 중에도 보인다 → addGoal</td></tr>
+      <tr><td>CategoryRankCard (C)</td><td>"이번 달에는 지출 내역이 없어요." (버튼 없음)</td><td>전월 대비 문구: 전월 0 → "신규 지출", 같으면 "전월 대비 변동 없음", 아니면 "전월 대비 +N / −N"(원 단위 차이, 증감률 아님)</td><td>"가계부에서 보기 ›" → <code>navigate('/ledger')</code></td></tr>
+      <tr><td>MonthlySavingsCard (C)</td><td>"아직 월별 데이터가 없어요."</td><td>가계부와 같은 SavingsBarChart, 목표선·목표 칩만 없음. "최근 6개월 평균 N%"는 수입 있던 달만</td><td>없음</td></tr>
+      <tr><td>UpcomingSubscriptionsCard (C)</td><td>"고정 지출을 등록하면 다음 결제일을 알려드려요" + 점선 [고정 지출 추가] → <code>openModal:'fixedExpense'</code> + 입력 초기값(recurringType 'fixed', 결제일 '25일')</td><td>다음 결제일은 달력 기준 근사값 — 오늘이 결제일을 지났으면 다음 달, 그 달에 없는 날짜(2/30)는 말일. 가까운 순 4개</td><td>"가계부에서 보기 ›" → <code>/ledger</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 style="margin-top:1.4rem">정산월 적용 지점 — 어느 카드가 무엇을 기준으로 "이번 달"을 잡나</h3>
+  <div class="table-wrap">
+  <table class="ref">
+    <thead><tr><th>카드 / 계산</th><th>기준</th><th>방식</th></tr></thead>
+    <tbody>
+      <tr><td>MonthFlowDeepCard 제목 "이번 달 · N월 정산월"</td><td>정산월</td><td><code>useCurrentSettlementMonth()</code> — 서버 <code>GET /users/me/settlements/current</code> 정본, 응답 전에는 로컬 계산</td></tr>
+      <tr><td>MonthFlowDeepCard 수입·지출·저축</td><td>정산월</td><td><code>useGetPeriodSummary('MONTH')</code>에 연·월을 넘기지 않아 서버가 현재 정산월로 계산</td></tr>
+      <tr><td>MonthlySavingsCard</td><td>정산월</td><td><code>useCurrentSettlementMonth()</code>의 연도로 조회, 그 달 막대 강조</td></tr>
+      <tr><td>CategoryRankCard</td><td>정산월</td><td><code>useGetCategoryRankings({})</code> — 연·월 생략 시 서버가 현재 정산월(서비스 주석 기준, OpenAPI에는 기본값 설명 없음)</td></tr>
+      <tr><td>GoalCard / SpendableGoalCard</td><td>서버 계산</td><td><code>useGetGoal({})</code></td></tr>
+      <tr><td>summary의 이번 달 증감</td><td>정산월</td><td>서버가 정산월 시작일 대비로 계산(monthChangeKrw)</td></tr>
+      <tr><td>useDashboardTrend(총자산 추이)</td><td><strong>달력</strong></td><td>올해 1월 1일 ~ 오늘, x축 강조도 달력 월(todayYearMonth)</td></tr>
+      <tr><td>UpcomingSubscriptionsCard 결제 예정일</td><td><strong>달력</strong></td><td><code>new Date()</code> 기준 날짜 계산</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="note">CategoryRankCard·MonthFlowDeepCard는 연·월 없이(<code>{}</code>) 조회하므로 queryKey에 <code>{ year, month }</code>가 없다. 프로젝트 규칙("정산월 의존 쿼리는 키에 연·월 포함")과 비교하면 월 시작일을 바꾼 직후 갱신은 설정 저장의 <em>캐시 전체 무효화</em>에 기대고 있다 — 핸드북 '확인 필요' 항목.</div>
+</div>
+
+<!-- ── F8. 함정 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F8 · Pitfalls</div>
+  <h2>함정 — 이 화면에서 실제로 틀렸거나 틀리기 쉬운 것</h2>
+  <div class="cards">
+    <div class="card">
+      <div class="card-header"><span class="card-dot coral"></span><h3>데이터 흐름</h3></div>
+      <ul>
+        <li><strong>카드가 자기 훅을 부른다.</strong> 레이아웃이 데이터를 불러 prop으로 내려주면 다른 레이아웃에서 재사용이 안 되고, 같은 쿼리를 합쳐 주는 React Query의 이점도 사라진다</li>
+        <li><strong>summary 0 ≠ 계좌 없음.</strong> 스냅샷이 아직 없는 신규 사용자도 0이다. allocation 합으로 보완하고, allocation이 로딩 중이면 판정을 보류(isHeroPending)해 "빈 상태 → 실제 데이터" 깜빡임을 막는다. allocation 실패는 빈 상태가 아니라 에러</li>
+        <li><strong>증감 null은 0이 아니다.</strong> 기준 스냅샷이 없으면 서버가 null을 준다 → 배지 대신 "이력이 쌓이면" 안내</li>
+        <li><strong>목표 미설정은 404가 아니라 0으로 채운 200.</strong> 그대로 계산하면 "0원 초과"라는 거짓 배지가 뜬다 → <code>isUnset</code>으로 배지 숨김</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot ink"></span><h3>추이 그래프</h3></div>
+      <ul>
+        <li><strong>x축은 1~12월 달력 고정.</strong> 데이터 개수로 등간격 배치하면 8월까지의 데이터가 12월까지 늘어나 보인다. 점 x = 600 × (월 − 1) / 11</li>
+        <li><strong>한 달에 점이 여럿이면 마지막 값만,</strong> 날짜순 재정렬(서버가 정렬을 보장하지 않음). 값이 모두 같으면 가운데 평평한 선</li>
+        <li><strong>unit=MONTH의 date는 말일이 아니라 데이터가 있는 마지막 날짜.</strong> "월말 값"이라고 적지 않는다. "N월 N일 기준"이 이 값</li>
+        <li><strong>예측선을 그리지 않는다.</strong> 마지막 데이터 달 이후는 음영만. 강조 달은 마지막 데이터 달이 아니라 오늘 달</li>
+        <li><strong>y축 라벨</strong>은 formatKoreanUnits가 셋 다 '0'이면 원 단위로 대체(소액 구간)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot coral"></span><h3>배치·스타일</h3></div>
+      <ul>
+        <li><strong>.rgrid-institutions와 .rgrid-cards를 같이 쓰지 말 것</strong> — 둘 다 !important라 900px(1열)·767px(2열) 규칙이 충돌</li>
+        <li><strong>B안 모바일의 Goal → Allocation 순서 반전</strong>은 CSS가 아니라 useIsMobile()로 JSX 순서를 바꾼다</li>
+        <li><strong>도넛은 앱 전체에서 두 곳</strong>(이 카드 · 주식 섹터). 다른 카드에 새로 만들지 않는다</li>
+        <li><strong>RAMP 배열이 dashboardView·assetsView에 따로 있다.</strong> 한쪽을 고치면 다른 쪽도</li>
+        <li><strong>cardStyles.ts(상수)와 shared.tsx(컴포넌트)를 나눈 이유</strong> — 한 파일에서 둘을 export하면 Fast Refresh 린트 경고</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot ink"></span><h3>설정·기기</h3></div>
+      <ul>
+        <li><strong>레이아웃 값은 이 기기 localStorage에만</strong> — 다른 기기는 A. 저장 실패(사생활 보호 모드)는 삼키고 이번 세션만 AppState로 동작</li>
+        <li><strong>reportPeriod는 열 때마다 null로.</strong> 지난달을 보다 닫고 다시 열면 "이번 달 리포트" 배너와 다른 달이 뜨는 것을 막는다</li>
+        <li><strong>결제 예정일은 표기용 근사값</strong> — 서버가 실제 며칠에 청구하는지는 계약에 없다</li>
+        <li><strong>헤더 알림을 눌러도 대시보드로 이동하지 않는다.</strong> 리포트는 알림이 아니라 배너로만 연다</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ── F9. 시퀀스 ─────────────────────── -->
+<div class="section" id="seq">
+  <div class="section-eyebrow">F9 · Sequences</div>
+  <h2>대시보드·목표·리포트 — 조작 한 번이 지나가는 순서</h2>
+  <p class="lede">참여자는 사용자(U) → 화면 컴포넌트(V) → AppState(S) → React Query 훅(Q) → api.ts(A) → 서버(API)다. 화살표 라벨은 <strong>무엇을 하는지</strong>를 적고 괄호에 함수·훅 이름을 붙였다. 서버 안쪽 계산은 <a href="../../../asset/docs/flow/flow-dashboard.html#seq">백엔드 E8</a>에 있다.</p>
+  <div class="seq-toc">
+    <a href="#seq-fe0">공통 — 진입·레이아웃·요청 합치기</a><a href="#seq-fe1">총자산 히어로 판정</a><a href="#seq-fe2">올해 추이</a><a href="#seq-fe3">구성 도넛 · 보관처</a><a href="#seq-fe4">목표 설정·미리보기·저장·삭제</a><a href="#seq-fe5">월간 리포트</a><a href="#seq-fe6">리포트 이미지 저장·공유</a><a href="#seq-fe7">C안 가계부 카드</a><a href="#seq-fe8">레이아웃 전환</a><a href="#seq-fe9">다른 화면의 쓰기 → 대시보드 갱신</a>
+  </div>
+  <div class="seq-list">
+
+  <div class="seq" id="seq-fe0">
+    <div class="seq-title">공통 — 대시보드 진입과 요청 합치기 <code>Dashboard.tsx → layouts/* → cards/*</code></div>
+    <div class="seq-desc">카드가 각자 훅을 부르지만 같은 queryKey는 React Query가 하나로 묶는다. 그래서 A안에서 summary·allocation은 카드 셋이 불러도 요청은 한 번이다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant R as AuthenticatedApp(Routes)
+  participant D as Dashboard.tsx
+  participant L as DashboardLayoutA
+  participant C as cards/*
+  participant Q as React Query
+  participant A as api.ts
+  participant API as 서버
+  U->>R: /dashboard 진입 (로그인 직후 '/'는 replace)
+  R->>D: 라우트 매칭 → Dashboard 렌더
+  D->>D: state.dashboardLayout 읽기 ('A' 기본, localStorage 초기값)
+  D->>L: 레이아웃 선택 (switch)
+  L->>C: ReportBanner · TotalAssetDeepCard · GoalCard · YearStatusCard · AllocationCard · InstitutionsCard 마운트
+  C->>Q: 각 카드가 자기 훅 호출 (useDashboardHero ×4, useGetGoal, useDashboardTrend, useGetAssetDistributionByInstitution, useGetInstitutions)
+  Note over Q: 같은 queryKey는 한 요청으로 합침 — summary·allocation은 1번씩
+  Q->>A: GET /dashboard/summary · /dashboard/allocation · /dashboard/trend · /goals · /assets/distribution?groupBy=INSTITUTION · /institutions
+  A->>API: Authorization: Bearer (요청 인터셉터)
+  API-->>A: ApiResponse{data}
+  A-->>Q: unwrap(data) → 캐시 저장 (staleTime 30s)
+  Q-->>C: isPending → data 순으로 리렌더
+  C->>C: src/data/dashboardView.ts로 뷰모델 변환 후 그림
+</pre>
+    <ol class="seq-steps">
+      <li><strong>1~2 라우팅.</strong> 경로의 정본은 <code>navItems.ts</code>의 NAV_ITEMS이고 사이드바·하단탭·Routes가 공유한다. 모르는 경로는 /dashboard로 replace.</li>
+      <li><strong>3~4 레이아웃.</strong> 대시보드 배치는 서버 설정이 아니라 이 기기 localStorage(<code>monit.dashboardLayout</code>)다. initialState가 부팅 때 읽어 AppState에 넣는다.</li>
+      <li><strong>5~7 카드와 훅.</strong> 카드는 레이아웃에서 prop을 받지 않는다 — 자기 데이터 훅을 직접 부르기 때문에 B·C안에서도 그대로 재사용된다.</li>
+      <li><strong>8~12 요청.</strong> 훅 → 서비스 함수 → api.ts. 응답 봉투 <code>{success, data}</code>에서 <code>unwrap</code>이 data만 꺼낸다. 로딩 중 카드는 '—'를 그린다.</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fe1">
+    <div class="seq-title">총자산 히어로 판정 <code>hooks/useDashboardHero.ts · buildDashboardHero</code></div>
+    <div class="seq-desc">"계좌 없음 / 스냅샷 없음 / 정상" 세 갈래를 summary와 allocation 두 응답을 합쳐 가른다. 총자산 딥카드·올해 현황·리포트 배너·C안 총자산 요약이 같은 판정을 공유한다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as TotalAssetDeepCard
+  participant H as useDashboardHero
+  participant Q as React Query
+  participant V as dashboardView
+  C->>H: 훅 호출
+  H->>Q: useGetDashboardSummary() · useGetDashboardAllocation()
+  alt summary 로딩 중
+    H-->>C: isHeroPending=true → '—'
+  else summary.totalAssetKrw === 0 이고 allocation 아직 로딩
+    H-->>C: 판정 보류(isHeroPending) — 빈 상태가 번쩍이지 않게
+  else summary 0 이고 allocation 에러
+    H-->>C: heroError = allocation.error → 빨간 에러문 (빈 상태로 단정하지 않음)
+  else 두 응답 도착
+    H->>V: buildDashboardHero(summary, sumAllocationKrw(allocation))
+    Note over V: hasSnapshotHistory = summary.totalAssetKrw > 0<br/>totalAssetKrw = 스냅샷 있으면 summary, 없으면 allocation 합계<br/>isEmpty = totalAssetKrw ≤ 0
+    V-->>H: hero
+    alt hero.isEmpty
+      H-->>C: 점선 [계좌 추가] → setState({openModal:'addAccount'})
+    else !hasSnapshotHistory
+      H-->>C: 총자산 숫자 + "자산 이력이 쌓이면 이번 달 증감을 확인할 수 있어요"
+    else 정상
+      H-->>C: 총자산 + 이번 달 증감 배지(StatBadge, 부호 명시) + 1억 이상이면 약 N억 캡션
+    end
+  end
+</pre>
+    <ol class="seq-steps">
+      <li><strong>3~5 보류·에러.</strong> allocation은 실시간 집계라 summary(스냅샷)가 0이어도 계좌 유무를 안다. 아직 안 왔으면 기다리고, 실패했으면 "0원"으로 단정하지 않는다.</li>
+      <li><strong>6~8 판정.</strong> <code>hasSnapshotHistory</code>가 false면 증감(monthChangeKrw·yearChangeKrw)을 계산할 근거가 없으니 배지·추이를 그리지 않는다.</li>
+      <li><strong>9~14 분기.</strong> 빈 상태의 CTA는 점선 톤(DASHED_CTA_STYLE_DEEP)이다 — 액센트 채움으로 격상하지 않는다(사용자 결정).</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fe2">
+    <div class="seq-title">올해 자산 추이 <code>hooks/useDashboardTrend.ts · GET /dashboard/trend?unit=MONTH</code></div>
+    <div class="seq-desc">x축은 데이터 개수가 아니라 올해 1~12월 달력이다. 데이터가 있는 달까지만 선을 긋고 그 뒤는 '예정 구간' 음영이다 — 예측선이 아니다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as YearStatusCard
+  participant H as useDashboardTrend
+  participant Q as useGetDashboardTrend
+  participant API as 서버
+  participant V as dashboardView
+  C->>H: 훅 호출
+  H->>H: range = { from: `${올해}-01-01`, to: 오늘(toISODate) }
+  H->>Q: useGetDashboardTrend(range, 'MONTH') — key ['dashboard','trend',{from,to,unit}]
+  Q->>API: GET /dashboard/trend?from&to&unit=MONTH (type 없음 = 총자산)
+  API-->>Q: [{date, totalValueKrw}] (date = 그 달의 데이터 있는 마지막 날)
+  H->>V: buildTrendChart(points) — 날짜 정렬 → 월별 마지막 값만 → x = 600×(월−1)/11, y 정규화
+  V-->>H: { path, lastPoint, futureFromX, dates }
+  H->>V: buildTrendYAxisTicks(points) — 최대/중간/최소를 억·만 축약(전부 '0'이면 원 단위)
+  H->>H: 변화율 = (마지막 − 첫) / 첫 ×100 (점 2개 이상·첫 값≠0일 때만)
+  H-->>C: trendChart · yAxisTicks · trendAsOf(기준일) · trendFutureFromMonth · trendPercentText
+  C->>C: 점 2개 미만이면 "데이터가 더 쌓이면…" / 아니면 SVG path + 예정 구간 rect + 12월 라벨(이번 달 강조)
+</pre>
+    <ol class="seq-steps">
+      <li><strong>2~4 범위.</strong> 올해 1월 1일부터 오늘까지, 월 단위. <code>type</code>을 보내지 않으므로 총자산 추이다(자산군별 추이 그래프는 화면에서 걷어냈다).</li>
+      <li><strong>6~8 뷰모델.</strong> unit=MONTH여도 한 달에 점이 여럿 올 수 있어 월별 마지막 값만 남긴다. 값이 전부 같으면 가운데 높이에 평평하게.</li>
+      <li><strong>10~11 표시.</strong> "N월 N일 기준"은 마지막 점의 날짜다. 모바일은 짧은 문구("올해 총자산 추이 · 9월 이후 예정").</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fe3">
+    <div class="seq-title">자산 구성 도넛 · 주요 보관처 · 전체 보기 <code>AllocationCard · InstitutionsCard · InstitutionsModal</code></div>
+    <div class="seq-desc">도넛은 앱 전체에서 두 곳(여기, 주식 섹터 비중)에만 쓴다. 보관처 카드와 '전체 보기' 모달은 같은 함수(buildDashboardInstitutions)를 limit만 바꿔 쓴다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant AC as AllocationCard
+  participant IC as InstitutionsCard
+  participant Q as React Query
+  participant V as dashboardView
+  participant S as AppState
+  participant M as InstitutionsModal
+  AC->>Q: useGetDashboardAllocation()
+  Q-->>AC: [{assetClass,totalValueKrw}]
+  AC->>V: buildAllocationSegments — 0원 제외 · 금액순 · toPercentages(최대잔여법 합 100) · RAMP 색 · 6개 이상이면 꼴찌 범례 생략
+  AC->>AC: DonutChart + 범례 + "최대 비중 {label} {percent}%"
+  IC->>Q: useGetAssetDistributionByInstitution() + useGetInstitutions()
+  Q-->>IC: byInstitution[] (미지정 버킷 institutionId null 포함) + 기관 마스터
+  IC->>V: buildDashboardInstitutions(groups, institutions, 4) — 0원 제외 · 금액순 · institutionId로 icon(tokenKey) 조인
+  IC->>IC: BankIcon 타일 4개 (모바일 2열)
+  U->>IC: [전체 보기 ›]
+  IC->>S: setState({ openModal: 'institutions' })
+  S-->>M: isOpen → 같은 두 쿼리를 enabled:isOpen으로 (캐시 재사용)
+  M->>V: buildDashboardInstitutions(…, Infinity)
+  M-->>U: 기관 전체 목록(읽기 전용). 실패하면 [다시 시도]가 두 쿼리 refetch
+</pre>
+    <ol class="seq-steps">
+      <li><strong>3 합 100.</strong> 조각마다 따로 반올림하면 99·101%가 되어 도넛에 틈이 생긴다. 최대잔여법은 유동성 막대·섹터 도넛도 같이 쓴다.</li>
+      <li><strong>5~7 조인.</strong> 분포 응답에는 아이콘 키가 없어 GET /institutions와 institutionId로 붙인다. 못 찾으면 tokenKey 빈 문자열 → BankIcon 기본 아이콘.</li>
+      <li><strong>9~13 전체 보기.</strong> 모달은 AuthenticatedApp에 항상 마운트돼 있고 <code>openModal</code>로만 열린다. 기관 추가·수정은 제품상 없다.</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fe4">
+    <div class="seq-title">목표 설정 · 미리보기 · 저장 · 삭제 <code>AddGoalModal · GET /goals/preview · PUT /goals · DELETE /goals</code></div>
+    <div class="seq-desc">목표 카드(또는 설정 → 자산 목표)에서 연다. 입력 중인 값으로 서버 미리보기를 디바운스해 부르고, 저장은 유저당 1행 upsert다. 닫으면 <code>addGoalReturnTo</code>로 돌아간다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant G as GoalCard
+  participant S as AppState
+  participant M as AddGoalModal
+  participant Q as React Query
+  participant API as 서버
+  U->>G: 카드 본문 클릭 / [목표 설정]
+  G->>S: setState({ openModal:'addGoal', addGoalReturnTo:null })
+  S-->>M: isOpen
+  M->>Q: useGetGoal({}, enabled:isOpen) → ['goal','detail',{}] (캐시 있으면 즉시)
+  M->>Q: useGetMonthlySummaries(정산월 year, enabled: isOpen && isUnset) — 제안 수입 폴백용
+  Note over M: 폼 초기화는 useEffect에서 한 번만(formInitialized)<br/>미설정: targetAmount 0 · monthlyIncome = suggestedMonthlyIncome(서버) ?? 최근 3개월 평균 · 목표 시점 = 올해 12/31을 datePickerPicked['goal']에 채움<br/>설정됨: 저장된 targetAmount·monthlyIncome·targetDate
+  U->>M: 목표 자산·시점·월평균 수입 입력
+  M->>M: previewInput 유효(목표>0, 시점>오늘, 수입≥0)면 JSON 키로 400ms 디바운스
+  M->>Q: useGetGoalPreview(params) → ['goal','preview',params] staleTime 60s
+  Q->>API: GET /goals/preview?targetAmount&targetDate&monthlyIncome
+  API-->>M: GoalsRes와 같은 모양 (저장 없음)
+  M-->>U: 월 필요 저축액 · 지출 가능액 / INFEASIBLE면 "맞추기 어려워요 · 월 N원 부족" / TIGHT면 "여유가 많지 않아요"
+  U->>M: [목표 저장]
+  M->>M: 검증: 금액>0, 시점 선택됨, 시점 > 오늘(오늘도 막음 — 남은 개월 0 방지)
+  M->>Q: usePutGoal.mutate({targetAmount, targetDate, monthlyIncome})
+  Q->>API: PUT /goals (upsert)
+  API-->>Q: GoalsRes
+  Q->>Q: invalidate ['goal'] + ['dashboard']
+  M->>S: closeGoalModal — openModal ← addGoalReturnTo, datePicker 'goal' 키 제거, 로컬 폼·mutation reset
+  opt 저장된 목표가 있을 때 [목표 삭제] → 인라인 확인 → [삭제할게요]
+    M->>Q: useDeleteGoal.mutate()
+    Q->>API: DELETE /goals (없으면 404 GOAL_NOT_FOUND)
+    Q->>Q: invalidate ['goal'] + ['dashboard'] → 카드가 "목표 설정" 유도로 돌아감
+  end
+</pre>
+    <ol class="seq-steps">
+      <li><strong>4~6 초기값.</strong> 서버 데이터를 AppState로 복사하지 않는 규칙의 예외는 "폼 초기값 채우기"뿐이고, 렌더 중이 아니라 커밋 후 useEffect에서 한다. 기본 목표 시점을 표시만 하지 않고 datePicker 상태에 실제로 넣는 이유는 그대로 저장을 눌러도 "시점을 선택해주세요"가 안 뜨게 하기 위해서다.</li>
+      <li><strong>8~12 미리보기.</strong> 객체를 그대로 디바운스하면 렌더마다 새 객체라 타이머가 끝없이 재설정된다 — 문자열 키로 비교한다. 서버 규칙 밖 입력이면 요청 자체를 안 보낸다.</li>
+      <li><strong>13~19 저장.</strong> 성공 응답에 진행률이 다 들어 있지만 화면은 캐시 무효화로 수렴시킨다. 닫을 때 <code>addGoalReturnTo</code>가 'custom'이면 설정의 맞춤 설정 모달로 되돌아간다.</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fe5">
+    <div class="seq-title">월간 리포트 열기 · 달 이동 <code>ReportBanner → ReportOverlay · GET /dashboard/reports</code></div>
+    <div class="seq-desc">배너를 누르면 현재 정산월 리포트를 스토리 카드 5장으로 연다. "현재 달" 조회는 열려 있는 내내 살려 두고, 지난달은 별도 키로 받는다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant B as ReportBanner
+  participant S as AppState
+  participant O as ReportOverlay
+  participant Q as React Query
+  participant API as 서버
+  participant V as reportView
+  U->>B: [이번 달 리포트]
+  B->>S: setState({ reportOpen:true, reportPeriod:null, reportSlide:0 })
+  S-->>O: open
+  O->>Q: useGetMonthlyReport(undefined, enabled:open) → ['dashboard','report','current']
+  Q->>API: GET /dashboard/reports (파라미터 없음 → 서버가 현재 정산월 결정)
+  API-->>O: MonthlyReportRes (reportYear·reportMonth 포함, 비율은 모수 0이면 null)
+  O->>V: buildMonthlyReport — 증감 부호·'1% 미만'·지출 TOP3 정렬·막대 최소 2%
+  O-->>U: ① 총자산 변화 장 (스켈레톤 → 카드). ←/→·스와이프·상단 점으로 ②~⑤
+  U->>O: 첫 장 제목 옆 ‹ (지난달)
+  O->>S: reportPeriod = shiftYearMonth(displayed, −1), reportSlide 0
+  O->>Q: useGetMonthlyReport({year,month}, enabled) → ['dashboard','report',{year,month}]
+  Q->>API: GET /dashboard/reports?year&month
+  API-->>O: 지난달 리포트 (current 쿼리는 그대로 유지)
+  U->>O: › (다음 달)
+  O->>O: next = period+1 — current(reportYear/Month)와 같으면 reportPeriod=null, 아니면 next. 미래 달은 불가(canNextMonth)
+  U->>O: X · Esc · 배경 클릭
+  O->>S: { reportOpen:false, reportPeriod:null, reportSlide:0 }
+</pre>
+    <ol class="seq-steps">
+      <li><strong>2 리셋.</strong> 열 때마다 reportPeriod를 null로 되돌린다 — 지난달을 보다 닫고 다시 열면 "이번 달 리포트" 문구와 다른 달이 뜨면 안 된다.</li>
+      <li><strong>4~6 서버가 달을 정한다.</strong> 프론트는 monthStartDay 경계를 계산하지 않는다. 응답의 reportYear·reportMonth가 "현재 달"이고, 그걸로 다음 달 화살표의 상한을 잡는다.</li>
+      <li><strong>10~14 두 키.</strong> 지난달을 보는 동안 current 조회가 실패해도 정상 로드된 지난달 리포트를 에러로 덮지 않는다 — 화살표 옆 "이번 달 확인 실패 · 다시 시도"만 띄운다.</li>
+      <li><strong>16 Esc 규칙.</strong> 계좌 상세(z90) 같은 다른 모달이 위에 있으면 Esc·←→를 무시한다. 입력칸에 포커스가 있을 때도 무시한다.</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fe6">
+    <div class="seq-title">리포트 이미지 저장 · 공유 <code>utils/reportExport.ts · html-to-image</code></div>
+    <div class="seq-desc">마지막 장의 두 버튼은 지금 보이는 장을 1080×1920 PNG로 굽는다. 폰트는 브라우저가 이미 내려받은 조각만 넣는다 — 전부 넣으면 수십 초 멈춘다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant O as ReportOverlay
+  participant E as reportExport
+  participant H as html-to-image(지연 로드)
+  participant BR as 브라우저
+  U->>O: [이미지로 저장] 또는 [공유하기]
+  O->>O: exporting='save'|'share', 안내 문구 초기화
+  O->>E: renderReportSlidePng(slideRef.current)
+  E->>H: import('html-to-image') (초기 청크에 없음)
+  E->>E: buildLoadedFontEmbedCss — document.fonts 중 status=loaded 조각만 @font-face로 (아이콘 없는 장은 Material Symbols 제외). 짝 못 맞추면 null → skipFonts
+  E->>H: toBlob(node, 1080×1920, filter: data-report-export-exclude 제외, 배경색 = 카드 surface)
+  H-->>E: Blob
+  alt 저장
+    E->>BR: triggerBrowserDownload({blob, filename: monit-report-YYYY-MM.png})
+    O-->>U: "이미지로 저장했어요"
+  else 공유
+    E->>BR: navigator.canShare({files}) ?
+    alt 파일 공유 지원
+      E->>BR: navigator.share({files, title})
+      BR-->>E: 'shared' / AbortError → 'cancelled'
+    else 미지원(데스크톱 Firefox 등)
+      E->>BR: 다운로드로 대체 → 'downloaded'
+      O-->>U: "이 기기에서는 공유 창을 열 수 없어 이미지로 저장했어요"
+    end
+  end
+  O->>O: exporting=null. 장을 옮기면 안내 문구는 지움
+</pre>
+    <ol class="seq-steps">
+      <li><strong>4~5 지연 로드와 폰트.</strong> 라이브러리는 이 화면에서만 쓰니 누를 때 받는다. 폰트는 unicode-range 덕에 화면에 쓰인 글자가 든 조각만 로드돼 있어, 그것만 base64로 넣으면 수백 KB로 끝난다.</li>
+      <li><strong>6 제외 요소.</strong> 달 이동 화살표·저장/공유 버튼·상단 진행 점·좌우 화살표는 <code>data-report-export-exclude</code>로 이미지에서 뺀다.</li>
+      <li><strong>저장 규격.</strong> 스토리(9:16) 하나뿐이다. 피드 비율(1080×1350)은 별도 레이아웃이 필요해 만들지 않았다.</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fe7">
+    <div class="seq-title">C안 — 이번 달 흐름 카드들 <code>MonthFlowDeepCard · SpendableGoalCard · CategoryRankCard · MonthlySavingsCard · UpcomingSubscriptionsCard</code></div>
+    <div class="seq-desc">C안은 가계부 화면의 숫자를 대시보드로 끌어온다. 뷰모델 함수를 가계부와 공유해(buildLedgerCategories·buildSavingsBars·buildSubscriptionRows) 두 화면의 색·표기가 갈라지지 않는다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant L as DashboardLayoutC
+  participant MF as MonthFlowDeepCard
+  participant SG as SpendableGoalCard
+  participant CR as CategoryRankCard
+  participant MS as MonthlySavingsCard
+  participant US as UpcomingSubscriptionsCard
+  participant Q as React Query
+  participant API as 서버
+  L->>MF: 마운트
+  MF->>Q: useCurrentSettlementMonth() (GET /users/me/settlements/current, 응답 전엔 설정 monthStartDay로 로컬 계산)
+  MF->>Q: useGetPeriodSummary('MONTH') → GET /transactions/summary?period=MONTH (year/month 생략 = 서버 현재 정산월)
+  MF->>Q: useGetGoal({})
+  MF-->>MF: 저축액 크게 + "수입의 N%" (savingsRatePercent null이면 "수입이 없어…") + 월 필요 저축까지 부족/초과 배지(goal 미설정이면 [목표 설정]) + 수입·지출·저축·전월 지출
+  L->>SG: 마운트
+  SG->>Q: useGetGoal({}) (위와 같은 캐시)
+  SG-->>SG: "이번 달 더 써도 되는 금액"(monthlySpendableAmount) · 월 필요 저축액 · 월간→연간 진행률
+  L->>CR: 마운트
+  CR->>Q: useGetCategoryRankings({}) → GET /transactions/rankings
+  CR-->>CR: buildLedgerCategories 상위 5 + 전월 대비 원 단위 차이. [가계부에서 보기 ›] → navigate('/ledger')
+  L->>MS: 마운트
+  MS->>Q: useGetMonthlySummaries(정산월 year) → GET /transactions/summaries/monthly?year
+  MS-->>MS: buildSavingsBars(12개월, 미래 월은 트랙만) + SavingsBarChart + 최근 6개월 평균(수입 있는 달만)
+  L->>US: 마운트
+  US->>Q: useGetSubscriptions('FIXED') + ('SUBSCRIPTION') + useGetAccounts()
+  US-->>US: buildSubscriptionRows → withUpcomingDate(오늘 지났으면 다음 달, 29~31일은 말일로) → 가까운 4개. 비면 [고정 지출 추가] → FixedExpenseModal
+</pre>
+    <ol class="seq-steps">
+      <li><strong>2 정산월.</strong> "이번 달"은 달력 월이 아니라 <code>useCurrentSettlementMonth()</code>다. 월 시작일이 오늘보다 뒤면 정산월은 한 달 앞이라, 달력 월을 보내면 아직 안 온 기간을 조회해 화면이 빈다.</li>
+      <li><strong>4 목표 배지.</strong> 목표 미설정이면 서버가 0으로 채운 200을 주므로 그대로 계산하면 "0원 초과"가 뜬다 — isUnset이면 배지 대신 [목표 설정]만.</li>
+      <li><strong>15 결제일 표기.</strong> paymentDay만으로는 몇 월인지 모른다. 오늘을 지났으면 다음 달, 그 달에 없는 날짜(2월 30일)는 말일로 당긴다 — 표기용 근사값이다.</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fe8">
+    <div class="seq-title">대시보드 레이아웃 전환 <code>GeneralModal.pickDashboardLayout → utils/dashboardLayout.ts</code></div>
+    <div class="seq-desc">서버 왕복이 없는 유일한 설정이다. 누르는 즉시 AppState와 localStorage에 반영되고, 대시보드로 돌아오면 바뀌어 있다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant G as GeneralModal
+  participant S as AppState
+  participant LS as localStorage
+  participant D as Dashboard.tsx
+  U->>G: 설정 → 일반 및 디스플레이 → [A]/[B]/[C]
+  G->>S: setState({ dashboardLayout: next })
+  G->>LS: storeDashboardLayout(next) → 'monit.dashboardLayout' (실패는 삼킴)
+  U->>D: /dashboard로 이동
+  D->>D: switch(state.dashboardLayout) → LayoutA | B | C
+  Note over D: 카드가 자기 훅을 부르므로 레이아웃이 바뀌어도 이미 받은 캐시를 그대로 쓴다 — 추가 요청 없음(staleTime 안이면)
+  Note over LS: 다음 부팅 때 initialState가 readStoredDashboardLayout()으로 되살린다. 서버 필드가 생기면 테마처럼 "서버 정본 + 캐시"로 바꾼다
+</pre>
+    <ol class="seq-steps">
+      <li><strong>2~3 두 곳에 쓰기.</strong> AppState는 지금 세션, localStorage는 다음 부팅용이다. 서버 조회 실패와 무관하게 항상 누를 수 있다(테마 버튼과 다른 점).</li>
+      <li><strong>5~6 재사용.</strong> B안은 모바일에서 목표 → 구성 순서로 보이도록 <code>useIsMobile()</code>로 렌더 순서만 바꾼다(CSS만으로는 순서 반전이 안 됨).</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fe9">
+    <div class="seq-title">다른 화면의 쓰기가 대시보드를 갱신하는 길 — 무효화 수신 <code>useInvalidateTransaction · queryClient.invalidateQueries · staleTime 30s</code></div>
+    <div class="seq-desc">가계부에서 지출을 적고 대시보드로 오면 숫자가 바로 바뀌어 있다. 대시보드가 스스로 폴링하는 게 아니라, 쓰기 훅이 대시보드 키를 "낡음"으로 표시해 두었기 때문이다. 무효화 목록에서 대시보드가 빠지면 30초 뒤에야 따라잡는다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant L as LedgerEntryModal
+  participant Q as React Query (queryClient)
+  participant API as 서버
+  participant D as 대시보드 카드들
+  U->>L: 가계부에서 [지출 저장]
+  L->>Q: usePostTransaction.mutate(body)
+  Q->>API: POST /transactions
+  API-->>Q: 201
+  Q->>Q: onSuccess → invalidateQueries ['transaction'] ['account'] ['asset'] ['dashboard'] ['goal']
+  Note over Q: 지금 화면에 마운트된 쿼리는 즉시 refetch, 아닌 쿼리는 "낡음" 표시만 남김
+  U->>D: 하단탭·사이드바로 /dashboard 이동
+  D->>Q: useGetDashboardSummary · useGetDashboardAllocation · useGetGoal · useGetPeriodSummary …
+  Q->>API: GET /dashboard/summary · /dashboard/allocation · /goals · /transactions/summary?period=MONTH (낡은 키만 다시, 신선한 키는 캐시)
+  API-->>D: 서버가 원장에서 다시 계산한 값
+  D-->>U: 총자산 · 이번 달 증감 · 목표 진행률 · C안 수입/지출/저축이 새 숫자
+  Note over D: 무효화 없이 30초 안에 돌아오면 옛 숫자(staleTime) — 창 포커스 복귀 refetch는 알림 목록만 켜져 있다
+</pre>
+    <ol class="seq-steps">
+      <li><strong>5 목록이 넓은 이유.</strong> 이 백엔드는 잔액·자산 분포·목표 진행률을 요청마다 원장에서 다시 계산한다. 거래 1건이 계좌 잔액(account) → 자산 구성(asset) → 총자산 카드(dashboard) → 연간 목표 진행률(goal)을 한꺼번에 바꾼다.</li>
+      <li><strong>6 마운트 여부.</strong> 대시보드가 화면에 없을 때 무효화되면 요청은 나가지 않는다. 다음에 카드가 마운트될 때 낡은 키만 다시 받는다 — 이동 직후 '—'가 잠깐 보이는 게 아니라 이전 값을 보여주며 조용히 갱신된다.</li>
+      <li><strong>10 반대 방향.</strong> 대시보드의 쓰기는 목표 저장·삭제뿐이고 ['goal'] ['dashboard']만 무효화한다. 월 시작일 변경(설정)은 설정 쿼리를 뺀 캐시 전체를 무효화해 이 화면의 모든 카드가 새 정산월 경계로 다시 온다.</li>
+    </ol>
+  </div>
+
+  </div>
+</div>
+
+<div class="footer">
+  <span>asset-front/docs/flow/flow-dashboard.html</span>
+  <span>Dashboard.tsx · layouts/* · cards/* · hooks/* · AddGoalModal · ReportOverlay · InstitutionsModal · data/dashboardView.ts · data/reportView.ts</span>
+</div>
+
+</div>
+
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({
+  startOnLoad: true,
+  securityLevel: 'loose',
+  theme: 'base',
+  fontFamily: 'Geist Mono, Apple SD Gothic Neo, Pretendard, monospace',
+  sequence: { actorFontSize: 12, messageFontSize: 11, noteFontSize: 10.5, mirrorActors: false,
+              useMaxWidth: true, wrap: true, width: 230, boxMargin: 8, messageMargin: 30, actorMargin: 44 },
+  themeVariables: {
+    primaryColor: '#ffffff', primaryBorderColor: '#4f5d75', primaryTextColor: '#2d3142',
+    lineColor: '#4f5d75', textColor: '#2d3142',
+    actorBkg: '#ffffff', actorBorder: '#4f5d75', actorTextColor: '#2d3142', actorLineColor: '#c9ccd6',
+    signalColor: '#4f5d75', signalTextColor: '#2d3142',
+    labelBoxBkgColor: '#fdf1eb', labelBoxBorderColor: '#eb6c36', labelTextColor: '#2d3142', loopTextColor: '#4f5d75',
+    noteBkgColor: '#fdf1eb', noteBorderColor: '#eb6c36', noteTextColor: '#2d3142',
+    activationBkgColor: '#ececec', activationBorderColor: '#7a8399', sequenceNumberColor: '#ffffff'
+  }
+});
+</script>
+</body>
+</html>

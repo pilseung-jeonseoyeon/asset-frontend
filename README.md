@@ -18,6 +18,7 @@
 1. [서비스 개요](#1-서비스-개요)
 2. [화면](#2-화면)
 3. [핵심 설계 · 트러블슈팅](#3-핵심-설계--트러블슈팅)
+4. [데스크톱 앱(Electron) 빌드·배포](#4-데스크톱-앱electron-빌드배포)
 
 <br>
 
@@ -65,3 +66,19 @@
 **[결과]**
 
 500 에러가 나면 **요청 경로, 예외 종류와 메시지, 발생 시각, 스택 상위 5줄**이 Slack으로 와서 서버에 들어가지 않고도 어떤 오류인지 바로 압니다. 배포가 끝나면 **커밋·작성자·빌드와 배포 결과·실행 로그 링크**가 와서 어느 커밋에서 왜 실패했는지 폰으로 확인합니다.
+
+## 4. 데스크톱 앱(Electron) 빌드·배포
+
+프론트는 Supabase 를 직접 보는 SPA 이고, 출시 형태는 **Electron 데스크톱 앱**(맥 `.dmg`, 윈도우 NSIS `.exe`)입니다. 웹 빌드(`pnpm build`)도 그대로 됩니다.
+
+| 명령 | 하는 일 |
+|---|---|
+| `pnpm dev` | 브라우저에서 개발(로컬 Supabase 도커 스택, `.env.local`) |
+| `pnpm dev:desktop` | 같은 Vite + Electron 창. `MONIT_SMOKE=out.png pnpm dev:desktop` 은 첫 화면을 찍고 종료(자동 검증용) |
+| `pnpm build:desktop` | `dist/`(화면) + `dist-electron/`(메인·프리로드) → `release/` 설치 파일. 운영 값은 `.env.production.local`(gitignore) |
+| 태그 `v*` 푸시 | `.github/workflows/desktop-release.yml` 이 macOS·Windows 를 빌드해 Release **초안**에 올림(업데이트 메타 포함) |
+
+- 구조: `electron/main.ts`(창·보안·IPC) · `preload.ts`(렌더러에 노출하는 `window.monit` 5가지) · `protocol.ts`(`app://monit` 으로 `dist/` 서빙 + SPA 폴백 + CSP) · `updater.ts`(electron-updater, GitHub Releases). 설정은 `electron-builder.yml`, 아이콘 원본은 `build/icon.png`(1024, `scripts/app-icon`).
+- 보안: `contextIsolation`·`sandbox` 켬, Node 비노출, 외부 링크는 `https:` 만 기본 브라우저로. 앱 코드의 플랫폼 분기는 `src/utils/platform.ts` 를 쓰는 네 곳(파일 저장·배지·외부 링크·리포트 공유)뿐.
+- 자동 업데이트: 앱 시작 10초 뒤 확인, 설정 화면 하단 "새 버전" 줄. **맥은 Apple Developer 서명이 있어야 자동 설치**가 되고, 없으면 릴리스 페이지를 엽니다(첫 실행도 "우클릭 → 열기").
+- 버전은 `package.json` 의 `version` 이 곧 앱 버전·태그 번호입니다(`v1.0.0`).

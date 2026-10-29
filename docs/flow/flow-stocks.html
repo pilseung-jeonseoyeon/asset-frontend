@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주식 화면 프론트 흐름 — Monit</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --color-paper:#f5f5f5; --color-paper-2:#ececec; --color-ink:#2d3142; --color-muted:#4f5d75;
+  --color-soft:#7a8399; --color-rule:rgba(45,49,66,0.12); --color-rule-solid:rgba(79,93,117,0.25);
+  --color-accent:#eb6c36; --color-accent-tint:rgba(235,108,54,0.08); --color-link:#2e5aa8;
+  --font-sans:'Geist','Apple SD Gothic Neo','Pretendard','Malgun Gothic',system-ui,sans-serif;
+  --font-serif:'Instrument Serif','Apple SD Gothic Neo','Times New Roman',serif;
+  --font-mono:'Geist Mono',ui-monospace,'Apple SD Gothic Neo',Menlo,monospace;
+}
+body { font-family:var(--font-sans); background:var(--color-paper); color:var(--color-ink); padding:3rem 2rem; }
+.container { max-width:1200px; margin:0 auto; }
+.nav { font-family:var(--font-mono); font-size:0.7rem; letter-spacing:0.08em; color:var(--color-soft); margin-bottom:1.5rem; }
+.nav a { color:var(--color-muted); text-decoration:none; }
+.nav a:hover { color:var(--color-accent); }
+.header { margin-bottom:2.5rem; }
+.header-eyebrow, .section-eyebrow {
+  font-family:var(--font-mono); font-size:0.66rem; font-weight:500; letter-spacing:0.18em;
+  text-transform:uppercase; color:var(--color-muted); margin-bottom:0.75rem;
+}
+h1 { font-family:var(--font-serif); font-size:clamp(1.75rem,3vw + 1rem,2.5rem); font-weight:400;
+     letter-spacing:-0.02em; line-height:1.1; margin-bottom:0.5rem; }
+.subtitle { font-size:1rem; line-height:1.55; color:var(--color-muted); max-width:64ch; }
+.section { margin-top:3rem; }
+.section h2 { font-family:var(--font-serif); font-size:1.5rem; font-weight:400; letter-spacing:-0.01em; margin-bottom:0.4rem; }
+.section .lede { font-size:0.9rem; line-height:1.55; color:var(--color-muted); max-width:72ch; margin-bottom:1.25rem; }
+.diagram { background:#fff; border:1px solid var(--color-rule); border-radius:6px; padding:1rem; overflow-x:auto; }
+svg { width:100%; min-width:880px; display:block; }
+.caption { font-family:var(--font-mono); font-size:0.68rem; color:var(--color-soft); margin-top:0.6rem; letter-spacing:0.04em; }
+.table-wrap { overflow-x:auto; }
+table.ref { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--color-rule); font-size:0.8125rem; line-height:1.45; }
+table.ref th { text-align:left; font-family:var(--font-mono); font-size:0.62rem; letter-spacing:0.12em; text-transform:uppercase;
+  color:var(--color-muted); padding:0.55rem 0.75rem; border-bottom:1px solid var(--color-rule-solid); background:var(--color-paper-2); }
+table.ref td { padding:0.45rem 0.75rem; border-bottom:1px solid rgba(45,49,66,0.08); vertical-align:top; }
+table.ref td:first-child { color:var(--color-muted); font-weight:500; }
+table.ref tr:last-child td { border-bottom:none; }
+table.ref code, .card code, p code, li code { font-family:var(--font-mono); font-size:0.72rem; color:var(--color-ink); }
+table.ref code { white-space:nowrap; }
+.cards { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-top:1.25rem; }
+@media (max-width:900px){ .cards { grid-template-columns:1fr; } }
+.card { background:#fff; border:1px solid var(--color-rule); border-radius:6px; padding:1.25rem; }
+.card-header { display:flex; align-items:center; gap:0.6rem; margin-bottom:0.875rem; padding-bottom:0.875rem; border-bottom:1px solid rgba(45,49,66,0.08); }
+.card-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.card-dot.ink{background:var(--color-ink);} .card-dot.muted{background:var(--color-muted);}
+.card-dot.coral{background:var(--color-accent);} .card-dot.link{background:var(--color-link);}
+.card h3 { font-size:0.875rem; font-weight:600; }
+.card ul { list-style:none; color:var(--color-muted); font-size:0.8125rem; line-height:1.55; }
+.card li { margin-bottom:0.3rem; padding-left:0.875rem; position:relative; }
+.card li::before { content:'—'; position:absolute; left:0; color:rgba(45,49,66,0.25); font-size:0.75rem; }
+pre.code { background:#fff; border:1px solid var(--color-rule); border-left:3px solid var(--color-accent); border-radius:4px;
+  padding:1rem 1.1rem; font-family:var(--font-mono); font-size:0.75rem; line-height:1.7; color:var(--color-ink); overflow-x:auto; white-space:pre; }
+.note { background:var(--color-accent-tint); border-left:3px solid var(--color-accent); border-radius:4px;
+  padding:0.85rem 1rem; font-size:0.8125rem; line-height:1.6; color:var(--color-muted); margin-top:1rem; }
+.note strong { color:var(--color-ink); }
+.footer { margin-top:3.5rem; padding-top:1.5rem; border-top:1px solid rgba(45,49,66,0.10);
+  font-family:var(--font-mono); font-size:0.72rem; letter-spacing:0.06em; color:var(--color-soft);
+  display:flex; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; }
+.seq-list { display:grid; grid-template-columns:1fr; gap:1.25rem; margin-top:1.25rem; }
+.seq { background:#fff; border:1px solid var(--color-rule); border-radius:6px; padding:1rem 1rem 0.6rem; overflow-x:auto; }
+.seq-title { display:flex; align-items:baseline; gap:0.6rem; flex-wrap:wrap; font-size:0.9rem; font-weight:600; margin-bottom:0.3rem; }
+.seq-title code { font-family:var(--font-mono); font-size:0.7rem; font-weight:500; color:var(--color-accent); white-space:nowrap; }
+.seq-desc { font-size:0.8rem; line-height:1.55; color:var(--color-muted); margin-bottom:0.6rem; max-width:80ch; }
+.seq pre.mermaid { font-family:var(--font-mono); font-size:0.7rem; line-height:1.5; color:var(--color-soft); background:transparent; border:none; padding:0; }
+.seq-toc { display:flex; flex-wrap:wrap; gap:0.4rem 0.8rem; margin:0.5rem 0 0; font-family:var(--font-mono); font-size:0.7rem; }
+.seq-toc a { color:var(--color-link); text-decoration:none; border-bottom:1px dotted rgba(46,90,168,0.4); }
+.seq-toc a:hover { color:var(--color-accent); }
+.seq-steps { margin:0.9rem 0 0.3rem; padding-left:1.4rem; font-size:0.8rem; line-height:1.6; color:var(--color-muted); }
+.seq-steps li { margin-bottom:0.35rem; }
+.seq-steps li strong { color:var(--color-ink); font-weight:600; }
+.seq-steps li em { color:var(--color-accent); font-style:normal; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="nav"><a href="README.md">← 화면별 프론트 흐름</a> &nbsp;·&nbsp; <a href="flow-assets.html">재산</a> · 주식 · <a href="flow-ledger.html">가계부</a> · <a href="flow-settings.html">설정</a> · <a href="flow-dashboard.html">대시보드</a> &nbsp;·&nbsp; <a href="../../../asset/docs/flow/flow-stocks.html">백엔드 문서 ↗</a></div>
+
+<div class="header">
+  <div class="header-eyebrow">Screen 02 · Frontend Flow</div>
+  <h1>주식 — 시세가 없을 수 있다는 전제로 그린다</h1>
+  <p class="subtitle">주식 화면(<code>/stocks</code>)은 아홉 가지 조회를 한꺼번에 띄우고, 시장 탭(전체·국내·해외) 하나로 보유 종목·청산 종목·매매 내역을 함께 거른다. 이 화면의 핵심 함정은 <strong>시세 미확보</strong>다 — 평가액·손익·현재가는 전부 nullable이라 0으로 접지 않고 '아직 확보하지 못했어요'로 그린다. 쓰기는 매매·종목·환전 세 묶음이다.</p>
+</div>
+
+<!-- ── F1 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F1 · Layers</div>
+  <h2>이 화면을 이루는 파일과 상태</h2>
+  <div class="diagram">
+  <svg viewBox="0 0 900 380" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#7a8399"/>
+      </marker>
+    </defs>
+    <g font-family="Geist Mono, monospace" font-size="10.5" fill="#4f5d75">
+      <text x="20" y="24" font-size="10" letter-spacing="1.6">SCREEN (src/screens/Stocks · Assets/modals)</text>
+      <rect x="20" y="36" width="220" height="34" rx="4" fill="#fff" stroke="#4f5d75"/>
+      <text x="32" y="58" fill="#2d3142" font-size="11.5">Stocks.tsx (시장 지표 · 요약 · 외화 ·</text>
+      <rect x="20" y="78" width="220" height="34" rx="4" fill="#fff" stroke="#4f5d75"/>
+      <text x="32" y="100" fill="#2d3142" font-size="11.5">  보유 · 청산 · 매매 내역 · 그룹 · 섹터)</text>
+      <rect x="20" y="120" width="220" height="34" rx="4" fill="#fff" stroke="#eb6c36" stroke-width="1.4"/>
+      <text x="32" y="142" fill="#2d3142" font-size="11.5">QuickStockModal 매수·매도 (z80)</text>
+      <rect x="20" y="162" width="220" height="34" rx="4" fill="#fff" stroke="#eb6c36" stroke-width="1.4"/>
+      <text x="32" y="184" fill="#2d3142" font-size="11.5">AddHoldingsModal 보유 종목 추가</text>
+      <rect x="20" y="204" width="220" height="34" rx="4" fill="#fff" stroke="#eb6c36" stroke-width="1.4"/>
+      <text x="32" y="226" fill="#2d3142" font-size="11.5">TradeEditModal · StockEditModal</text>
+      <rect x="20" y="246" width="220" height="34" rx="4" fill="#fff" stroke="#eb6c36" stroke-width="1.4"/>
+      <text x="32" y="268" fill="#2d3142" font-size="11.5">ExchangeAddModal · ExchangeHistoryModal</text>
+      <rect x="20" y="288" width="220" height="34" rx="4" fill="#fff" stroke="#4f5d75"/>
+      <text x="32" y="310" fill="#2d3142" font-size="11.5">data/stocksView.ts (뷰모델)</text>
+
+      <text x="310" y="24" font-size="10" letter-spacing="1.6">STATE</text>
+      <rect x="310" y="36" width="230" height="106" rx="4" fill="#fff" stroke="#4f5d75"/>
+      <text x="322" y="56" fill="#2d3142" font-size="11.5">AppState</text>
+      <text x="322" y="74" font-size="9.5">stockMarketTab: all|domestic|foreign</text>
+      <text x="322" y="88" font-size="9.5">stockGroupTab: sector|country</text>
+      <text x="322" y="102" font-size="9.5">openModal: quickStock|addHoldings|tradeEdit|stockEdit|exchangeAdd|exchangeHistory</text>
+      <text x="322" y="116" font-size="9.5">stockTradeMode · stockBuyMarket · stockSector('' = 미선택)</text>
+      <text x="322" y="130" font-size="9.5">editingTradeId · editingStockId · editingExchangeId</text>
+      <rect x="310" y="154" width="230" height="196" rx="4" fill="#fff" stroke="#eb6c36" stroke-width="1.6"/>
+      <text x="322" y="176" fill="#2d3142" font-size="12.5" font-weight="600">React Query 캐시</text>
+      <text x="322" y="196" font-size="9.5">['marketIndex','list'] (30s)</text>
+      <text x="322" y="210" font-size="9.5">['stock','holdings',{market}, {accountId}]</text>
+      <text x="322" y="224" font-size="9.5">['stock','holdingGroups',{by}] (sector·market)</text>
+      <text x="322" y="238" font-size="9.5">['stock','closedHoldings',{market}]</text>
+      <text x="322" y="252" font-size="9.5">['stock','search',{keyword}] · ['stock','sectors'] (1h)</text>
+      <text x="322" y="266" font-size="9.5">['trade','list',{}] · ['trade','list',{accountId}]</text>
+      <text x="322" y="280" font-size="9.5">['exchange','summary',{USD}] · ['exchange','list',{}]</text>
+      <text x="322" y="294" font-size="9.5">['dashboard','summary'] (총자산 대비 비중)</text>
+      <text x="322" y="308" font-size="9.5">['account','list',{}] · ['account','list',{type:STOCK}]</text>
+      <text x="322" y="322" font-size="9.5">['institution','list'] (계좌 드롭다운 아이콘)</text>
+
+      <text x="610" y="24" font-size="10" letter-spacing="1.6">SERVER</text>
+      <rect x="610" y="36" width="270" height="62" rx="3" fill="#fff" stroke="#2d3142"/>
+      <text x="622" y="56" fill="#2d3142" font-size="11">GET /indices (Yahoo 실시간 · 느림)</text>
+      <text x="622" y="72" fill="#2d3142" font-size="11">GET /stocks/holdings?market&amp;accountId</text>
+      <text x="622" y="88" fill="#2d3142" font-size="11">GET /stocks/holdings/groups?by · /closed</text>
+      <rect x="610" y="106" width="270" height="62" rx="3" fill="#fff" stroke="#eb6c36" stroke-width="1.5"/>
+      <text x="622" y="126" fill="#2d3142" font-size="11">GET /stocks?keyword · GET /stocks/sectors</text>
+      <text x="622" y="142" fill="#2d3142" font-size="11">POST /stocks (신규 종목) · PUT /stocks/{id}</text>
+      <text x="622" y="158" fill="#2d3142" font-size="11">(409 STOCK_DUPLICATE · 400 INVALID_SECTOR)</text>
+      <rect x="610" y="176" width="270" height="62" rx="3" fill="#fff" stroke="#eb6c36" stroke-width="1.5"/>
+      <text x="622" y="196" fill="#2d3142" font-size="11">GET /trades · POST /trades (settleCash)</text>
+      <text x="622" y="212" fill="#2d3142" font-size="11">PUT /trades/{id} (전체 교체) · DELETE</text>
+      <text x="622" y="228" fill="#2d3142" font-size="11">(409 INSUFFICIENT_HOLDING · 422 FX_RATE_NOT_FOUND)</text>
+      <rect x="610" y="246" width="270" height="62" rx="3" fill="#fff" stroke="#eb6c36" stroke-width="1.5"/>
+      <text x="622" y="266" fill="#2d3142" font-size="11">GET /exchanges/summary?currency=USD</text>
+      <text x="622" y="282" fill="#2d3142" font-size="11">GET·POST /exchanges · PUT·DELETE /exchanges/{id}</text>
+      <text x="622" y="298" fill="#2d3142" font-size="11">(422 FX_RATE_NOT_FOUND → 빈 상태)</text>
+      <rect x="610" y="316" width="270" height="34" rx="3" fill="#fff" stroke="#2d3142"/>
+      <text x="622" y="338" fill="#2d3142" font-size="11">GET /dashboard/summary · /accounts · /institutions</text>
+
+      <line x1="242" y1="53" x2="306" y2="200" stroke="#7a8399" marker-end="url(#fa)"/>
+      <line x1="242" y1="137" x2="306" y2="110" stroke="#eb6c36" marker-end="url(#fa)"/>
+      <line x1="242" y1="179" x2="306" y2="116" stroke="#eb6c36" marker-end="url(#fa)"/>
+      <line x1="242" y1="221" x2="306" y2="124" stroke="#eb6c36" marker-end="url(#fa)"/>
+      <line x1="242" y1="263" x2="306" y2="130" stroke="#eb6c36" marker-end="url(#fa)"/>
+      <line x1="542" y1="200" x2="606" y2="60" stroke="#7a8399" marker-end="url(#fa)"/>
+      <line x1="542" y1="252" x2="606" y2="130" stroke="#eb6c36" marker-end="url(#fa)"/>
+      <line x1="542" y1="266" x2="606" y2="200" stroke="#eb6c36" marker-end="url(#fa)"/>
+      <line x1="542" y1="280" x2="606" y2="270" stroke="#eb6c36" marker-end="url(#fa)"/>
+      <line x1="542" y1="308" x2="606" y2="330" stroke="#7a8399" marker-end="url(#fa)"/>
+    </g>
+  </svg>
+  </div>
+  <div class="caption">QuickStockModal·ExchangeAddModal은 폴더상 Assets/modals에 있지만 주식 화면과 헤더 퀵추가에서 연다. 모달은 전부 AuthenticatedApp에 항상 마운트.</div>
+</div>
+
+<!-- ── F2 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F2 · Element → Hook → API</div>
+  <h2>화면 요소가 부르는 훅과 API</h2>
+  <div class="table-wrap">
+  <table class="ref">
+    <thead><tr><th>화면 요소</th><th>훅</th><th>API · queryKey</th><th>뷰모델 (stocksView)</th><th>시장 탭 영향 · 분기</th></tr></thead>
+    <tbody>
+      <tr><td>시장 지표 4타일 (모바일은 전광판 1줄)</td><td><code>useGetMarketIndices</code></td><td><code>GET /indices</code> ['marketIndex','list'] staleTime 30s</td><td>buildMarketIndexViews (순서 KOSPI→S&amp;P→NASDAQ→USD/KRW, 2자리 고정, 변동률 역산)</td><td>탭 무관. 로딩은 같은 크기 스켈레톤(레이아웃 안 튐). 503 MARKET_INDEX_FETCH_FAILED는 에러문</td></tr>
+      <tr><td>주식 포트폴리오 요약(딥카드)</td><td><code>useGetHoldings(market)</code> + <code>useGetDashboardSummary</code></td><td><code>GET /stocks/holdings?market=</code> ['stock','holdings',{market},{accountId:undefined}] + <code>GET /dashboard/summary</code></td><td>buildPortfolioSummary — 시세 확보 종목만 같은 모수로 합산</td><td>탭 → market(KR/US/undefined). 422 FX_RATE_NOT_FOUND → 회색 "환율 정보가 아직 없어…" / 0건 → 점선 [매수]</td></tr>
+      <tr><td>외화 자산 &amp; 가중 평균 환율</td><td><code>useGetExchangeSummary('USD')</code> + <code>useGetAccounts()</code></td><td><code>GET /exchanges/summary?currency=USD</code> ['exchange','summary',{currency}] + <code>GET /accounts</code></td><td>— (heldKrwValuation 등 서버 값 그대로) + USD 줄 합계</td><td>'환전한 달러'(환전 순액) vs '계좌 달러 예수금 합계'를 따로. [내역]·[+ 환전 추가]는 summary 실패해도 눌림</td></tr>
+      <tr><td>보유 종목 카드</td><td><code>useGetHoldings(market)</code></td><td>위와 같은 캐시</td><td>buildHoldingCards (수익률 내림차순, null은 뒤로, priceMissing 분기)</td><td>섹터 라벨 클릭 → StockEditModal. [매수][매도][보유 종목 추가]</td></tr>
+      <tr><td>청산 종목</td><td><code>useGetClosedHoldings(market)</code></td><td><code>GET /stocks/holdings/closed?market=</code></td><td>buildClosedHoldingCards (서버 정렬 유지)</td><td>탭 영향 O</td></tr>
+      <tr><td>매매 내역(최근 10건)</td><td><code>useGetTrades({})</code></td><td><code>GET /trades</code> (size 생략 = 전 건) ['trade','list',{}]</td><td>buildTradeRows(market, 10) — 무채색 총액, 수수료·세금 별도 캡션</td><td>탭으로 프론트 필터. 행 클릭 → TradeEditModal(같은 캐시에서 id로 찾음)</td></tr>
+      <tr><td>그룹별 수익률(섹터/국가)</td><td><code>useGetHoldingGroups(by)</code></td><td><code>GET /stocks/holdings/groups?by=sector|market</code></td><td>buildGroupReturns (null은 '—', 색도 중립)</td><td>탭 무관(항상 전체 보유) — 캡션에 "국내·해외 전체 보유 기준"</td></tr>
+      <tr><td>섹터 비중 도넛</td><td><code>useGetHoldingGroups('sector')</code></td><td>위 sector 캐시 공유</td><td>buildSectorComposition (최대잔여법 합 100)</td><td>앱의 두 번째이자 마지막 도넛</td></tr>
+      <tr><td>QuickStockModal</td><td><code>useGetStocks(keyword)</code> · <code>useGetHoldings(market)</code> · <code>useGetHoldings(market,{accountId})</code> · <code>useGetAccounts</code> · <code>useGetInstitutions</code> · <code>useGetStockSectors</code> · <code>usePostStock</code> · <code>usePostTrade</code></td><td><code>GET /stocks?keyword</code> · <code>GET /stocks/holdings</code> · <code>GET /stocks/sectors</code> · <code>POST /stocks</code> · <code>POST /trades</code></td><td>buyMarketToMarket · marketToCurrency · filterTradeAccounts · sortHoldingsByReturn · accountInstitutionMeta</td><td>매도 수량 상한 = 고른 계좌의 보유량. settleCash 기본 ON</td></tr>
+      <tr><td>AddHoldingsModal</td><td><code>useGetAccounts</code> · <code>useGetInstitutions</code> · <code>usePostTradesBulk</code> · (AccountHoldingsField) <code>useGetStocks</code></td><td><code>POST /trades</code> ×N 순차</td><td>filterHoldingAccounts · marketsOfAccountType</td><td>부분 실패는 실패한 줄만 남김(index 기준)</td></tr>
+      <tr><td>TradeEditModal</td><td><code>useGetTrades({})</code> · <code>useGetAccounts</code> · <code>usePutTrade</code> · <code>useDeleteTrade</code></td><td><code>PUT /trades/{id}</code> · <code>DELETE /trades/{id}</code></td><td>marketToCurrency</td><td>종목·계좌·매수/매도 읽기 전용. tax·exchangeRate·memo를 되돌려 보냄</td></tr>
+      <tr><td>StockEditModal</td><td><code>useGetHoldings(undefined)</code> · <code>useGetStockSectors</code> · <code>usePutStock</code></td><td><code>PUT /stocks/{id} {name, sector}</code></td><td>MARKET_LABELS</td><td>티커·시장·통화 잠금. 코인은 섹터 칸 없음</td></tr>
+      <tr><td>ExchangeAddModal</td><td><code>useGetAccounts({type:'STOCK'})</code> · <code>useGetInstitutions</code> · <code>useGetExchangeSummary('USD')</code> · <code>usePostExchange</code></td><td><code>POST /exchanges</code></td><td>accountInstitutionLabel</td><td>krwAmount = foreign × rate 자동. 보유 초과 매도는 확인만</td></tr>
+      <tr><td>ExchangeHistoryModal</td><td><code>useGetExchanges({})</code> · <code>useGetAccounts</code> · <code>usePutExchange</code> · <code>useDeleteExchange</code></td><td><code>GET /exchanges</code> · <code>PUT·DELETE /exchanges/{id}</code></td><td>—</td><td>summary가 422여도 열림. editingExchangeId로 목록↔폼 토글</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<!-- ── F3 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F3 · Missing Price</div>
+  <h2>시세 미확보 — 이 화면의 규칙</h2>
+  <div class="cards">
+    <div class="card">
+      <div class="card-header"><span class="card-dot coral"></span><h3>종목 하나가 null일 때</h3></div>
+      <ul>
+        <li><code>priceAsOf === null</code>이면 valuationKrw·unrealizedPnlKrw·returnRatePercent·currentPrice·dayChangePercent가 함께 null</li>
+        <li>카드는 <code>priceMissing</code> → 평가액 대신 총 매수금액(totalCostKrw) + "시세를 아직 확보하지 못했어요"</li>
+        <li>원가가 0(증정주)이면 수익률만 null — 손익 금액은 계속 보여준다</li>
+        <li>정렬·매도 드롭다운은 수익률 null을 맨 뒤로</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot link"></span><h3>요약 합산</h3></div>
+      <ul>
+        <li>총 매수·총 평가·손익·수익률 네 지표는 전부 <strong>시세 확보 종목만</strong>으로 — "평가 − 매수 = 손익"이 화면에서 늘 맞게</li>
+        <li>하나라도 빠졌으면 "일부 종목은 시세를 아직 확보하지 못해 … 제외했어요" 캡션</li>
+        <li>전 종목 미확보면 네 값 모두 '—'</li>
+        <li>총자산 대비 비중은 dashboard summary가 있어야 계산(없으면 캡션 숨김)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot muted"></span><h3>422 FX_RATE_NOT_FOUND</h3></div>
+      <ul>
+        <li>해외 종목 보유 + 환율 미수집이면 holdings·groups·closed·exchanges/summary가 422</li>
+        <li><code>isExchangeRateMissing(error)</code>가 true면 빨간 에러가 아니라 회색 안내</li>
+        <li>매매 저장(POST/PUT /trades)에서도 같은 코드 → "아직 환율 정보를 가져오지 못했어요"</li>
+        <li>환전 내역 모달은 summary가 아니라 목록(GET /exchanges)만 쓰므로 항상 열린다</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ── F4 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F4 · Journey</div>
+  <h2>사용자는 이 순서로 쓴다</h2>
+  <pre class="code">① 보유 종목 0개
+   요약 딥카드 "아직 보유한 주식이 없어요" + 점선 [매수] → QuickStockModal(매수)
+   증권계좌가 없으면 계좌 칸에 "증권계좌를 먼저 추가해주세요" + [계좌 추가](주식 유형 프리셋, addAccountReturnTo:'quickStock')
+
+② 매수 기록 — 국내/해외/가상자산 탭 → 종목 검색(없으면 '새 종목으로 등록' → 티커·종목명·섹터 → POST /stocks)
+   → 수량·단가(종목 통화) → 수수료 → 계좌(기관 아이콘) → 매수일(미래 불가) → '예수금에서 차감' ON → [매수 기록 저장]
+
+③ 이미 들고 있던 종목이 많으면 — [보유 종목 추가]: 계좌 먼저 → 기준일 → 종목 여러 줄 담기 → [종목 N개 등록] (POST /trades 순차)
+
+④ 평소 — 시장 지표 → 요약(총 평가·매수·손익·수익률·보유 N개·총자산 대비) → 외화 카드 → 보유 카드(수익률 순, 현재가·전일 대비)
+   → 청산 종목 → 매매 내역(행 클릭 → 수정·삭제) → 그룹별 수익률(섹터/국가) → 섹터 비중
+
+⑤ 매도 — [매도]: 종목(보유) 드롭다운 → 계좌 고르면 "이 계좌 보유 N주" 상한 → 수량(초과 입력 자동 잘림) → 단가·수수료·증권거래세 → '예수금에 입금'
+
+⑥ 환전 — [+ 환전 추가]: 원→달러/달러→원 → 달러 금액·환율(오늘 고시 환율 플레이스홀더) → 원화 환산 자동 → 주식 계좌 → 환전일
+   [내역] → 환전 목록 → 행 → 수정(계좌 잠금)/삭제
+
+⑦ 종목 이름·섹터를 잘못 적었으면 — 보유 카드의 섹터 라벨 → StockEditModal</pre>
+</div>
+
+<!-- ── F5 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F5 · Invalidation</div>
+  <h2>쓰기 한 번이 흔드는 캐시</h2>
+  <pre class="code">usePostTrade · usePutTrade · useDeleteTrade (useInvalidateTrade)
+  → ['trade'] ['stock'] ['account'] ['asset'] ['dashboard'] ['goal']
+    stock: 보유 수량·평단가 재계산 / account·asset·dashboard: settleCash로 예수금이 움직임 + 평가액 / goal: 실시간 총자산 기준
+usePostTradesBulk → 같은 목록을 onSettled에서 한 번만 (줄마다 무효화하면 수십 번 재조회)
+
+usePostStock  → ['stock']                          — 검색 결과·보유에 새 종목 반영
+usePutStock   → ['stock'] ['trade']                — 종목명이 매매 내역에도 찍힌다
+
+usePostExchange · usePutExchange · useDeleteExchange (useInvalidateExchange)
+  → ['exchange'] ['account'] ['asset'] ['stock'] ['dashboard'] ['goal']
+    환전은 계좌의 원화·달러 예수금과 해외 자산 평가액을 함께 바꾼다
+
+이 화면이 **받는** 무효화: 계좌 등록(holdings → BUY 매매)·해지 → ['stock'] ['trade'] / 연동 동기화 → ['stock'] ['trade'] 외</pre>
+</div>
+
+<!-- ── F6 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F6 · Rules</div>
+  <h2>표기·입력 규칙</h2>
+  <div class="cards">
+    <div class="card">
+      <div class="card-header"><span class="card-dot coral"></span><h3>통화·단위</h3></div>
+      <ul>
+        <li>단가·평단가·현재가는 <strong>종목 통화</strong>(US = $, KR·CRYPTO = ₩). 평가액·손익은 원화(formatKrw, 소수 버림)</li>
+        <li>수량 단위: 주식 '주', 가상자산 '개'. 소수 수량 허용(sanitizeDecimalInput 6자리, 보유 담기는 8자리)</li>
+        <li>매매 내역 금액은 무채색·부호 없음 — 투자 거래는 '이체'로 취급(ds_rules §10-4)</li>
+        <li>증감률은 '+1.2%' / '−1.2%'(U+2212), var(--up)/var(--down)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot link"></span><h3>계좌 드롭다운</h3></div>
+      <ul>
+        <li>매매: 시장에 맞는 유형만(KR·US → STOCK, CRYPTO → CRYPTO) — 서버의 400 INVALID_ACCOUNT_TYPE을 미리 막음</li>
+        <li>환전: STOCK 계좌만 (달러를 담는 건 주식 계좌뿐)</li>
+        <li>보유 추가: 주식·가상자산 계좌 전부, 고른 계좌가 검색 시장 범위를 정함</li>
+        <li>기관 아이콘 + 기관명 보조줄(accountInstitutionMeta). 드롭다운 키는 모달마다 다름(stockAcct·holdingAcct·exchangeAcct)</li>
+        <li>적합 계좌 0개면 빈 드롭다운 대신 [계좌 추가] → 유형 프리셋 + addAccountReturnTo</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot muted"></span><h3>수정은 전체 교체</h3></div>
+      <ul>
+        <li>PUT /trades는 수량·단가·수수료·일자만 편집하되 tax·exchangeRate·memo를 그대로 되돌려 보낸다 — 빼면 0·null로 지워진다</li>
+        <li>PUT /exchanges는 금액·환율이 그대로면 서버 krwAmount를 그대로 보낸다(반올림 1원 어긋남 방지)</li>
+        <li>종목·계좌·매수/매도 방향은 수정 불가 — 삭제 후 재등록</li>
+        <li>settleCash는 등록 전용(PUT에 없음)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ── F7 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F7 · Validation &amp; Errors</div>
+  <h2>모달별 검증 규칙과 에러 문구 — 그리고 누가 어떤 숫자를 계산하나</h2>
+  <p class="lede">주식 화면의 숫자는 대부분 서버가 계산해 주고, 프론트는 문장으로 바꾸거나 여러 종목을 합산만 한다. 먼저 "누가 계산하나" 표를 두고, 그 아래 모달별 검증·에러 문구를 적는다.</p>
+
+  <h3>표시 값 — 서버 값 그대로 vs 프론트 계산</h3>
+  <div class="table-wrap">
+  <table class="ref">
+    <thead><tr><th>표시 값</th><th>누가</th><th>어떻게</th></tr></thead>
+    <tbody>
+      <tr><td>종목별 평가금액·평가손익·수익률</td><td>서버</td><td><code>valuationKrw · unrealizedPnlKrw · returnRatePercent</code> 그대로</td></tr>
+      <tr><td>종목별 매수금액(원가)</td><td>서버</td><td><code>totalCostKrw</code> 그대로 — 시세가 없어도 항상 있다. <code>valuationKrw − unrealizedPnlKrw</code>로 역산하지 않는다</td></tr>
+      <tr><td>현재가·전 영업일 대비</td><td>서버</td><td><code>currentPrice</code>(종목 통화 — $77.00 / 77,000원) · <code>dayChangePercent</code></td></tr>
+      <tr><td>요약: 총 평가금액·총 매수금액·평가손익</td><td><strong>프론트 합산</strong></td><td>시세가 있는 종목만 모아 각각 합계(전용 요약 API 없음). 같은 모수라 "평가 − 매수 = 손익"이 항상 맞는다. 시세 없는 종목이 있으면 캡션 "일부 종목은 시세를 아직 확보하지 못해 총 매수금액·평가금액·손익 계산에서 제외했어요"</td></tr>
+      <tr><td>요약: 평가 수익률</td><td><strong>프론트</strong></td><td>손익 합 / 원가 합 × 100. 원가 합 0이면 '—'</td></tr>
+      <tr><td>요약: 총자산 대비 비중</td><td><strong>프론트</strong></td><td>총 평가금액 / <code>dashboard summary.totalAssetKrw</code> × 100. 총자산 없거나 0이면 숨김. 분자는 현재 탭 보유분</td></tr>
+      <tr><td>그룹별 수익률(섹터·국가)</td><td>서버</td><td><code>/stocks/holdings/groups</code>의 returnRatePercent. null이면 '—' + 회색(손실 빨강 아님), 정렬 맨 뒤</td></tr>
+      <tr><td>섹터 비중 %</td><td><strong>프론트</strong></td><td>그룹별 totalValuationKrw로 <code>toPercentages</code>(최대잔여법, 합 100). 7번째부터 모두 --ramp-6. 합 0이면 빈 배열 → 빈 상태</td></tr>
+      <tr><td>청산 종목 원금·회수금·실현손익·수익률</td><td>서버</td><td><code>principalKrw · proceedsKrw · realizedPnlKrw · returnRatePercent</code>. 청산일 내림차순으로 와서 다시 정렬하지 않음</td></tr>
+      <tr><td>매매 행 금액</td><td><strong>프론트</strong></td><td>수량 × 단가(종목 통화). 수수료+세금 합이 0보다 클 때만 "수수료·세금 … 별도"</td></tr>
+      <tr><td>환전한 달러·원화 평가액·가중평균 환율·환차익·실현 차익</td><td>서버</td><td><code>heldForeignAmount · heldKrwValuation · weightedAvgRate(null이면 '—') · unrealizedGainKrw · realizedGainKrw</code>. /indices의 USDKRW로 근사하지 않는다</td></tr>
+      <tr><td>계좌 달러 예수금 합계</td><td><strong>프론트 합산</strong></td><td>모든 계좌의 <code>accountBalanceOf(a, 'USD')?.amount</code> 합, 센트 단위 반올림. "환전한 달러"와 다른 숫자라 제목을 합치지 않는다</td></tr>
+      <tr><td>시장 지표 변동률</td><td>서버 우선</td><td><code>changeRatePercent</code>가 있으면 그대로, 없으면(옛 응답) changeFromPreviousClose / (currentValue − changeFromPreviousClose) × 100. 변동액 null(USDKRW)·전일 종가 0이면 배지 숨김</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 style="margin-top:1.4rem">QuickStockModal — 매수·매도 (파일은 Assets/modals)</h3>
+  <div class="table-wrap">
+  <table class="ref">
+    <thead><tr><th>상황</th><th>문구 / 동작</th></tr></thead>
+    <tbody>
+      <tr><td>종목 미선택 / 계좌 미선택 / 수량·단가 비움</td><td>"종목을 선택해주세요" / "계좌를 선택해주세요" / "수량과 단가를 입력해주세요"</td></tr>
+      <tr><td>단가 0</td><td>허용(증정주). 수량은 0보다 커야 함. 수량 소수 6자리, 단가·수수료·세금 소수 2자리</td></tr>
+      <tr><td>매도 수량 상한</td><td>고른 계좌의 보유량(계좌 선택 전엔 전체 보유량). 타이핑 중에 상한으로 잘라냄. 고른 계좌에 그 종목이 없으면 "고른 계좌에는 이 종목이 없어요 — 계좌를 확인해주세요"</td></tr>
+      <tr><td>맞는 계좌 0개</td><td>"증권계좌를 먼저 추가해주세요" / "가상자산 계좌를 먼저 추가해주세요" + [계좌 추가] — 유형 프리셋 + <code>addAccountReturnTo:'quickStock'</code></td></tr>
+      <tr><td>새 종목 등록: 티커·이름 비움</td><td>"티커와 종목명을 입력해주세요". 검색어에 한글이 있으면 종목명 칸에, 아니면 대문자로 바꿔 티커 칸에 미리 채움</td></tr>
+      <tr><td>409 <code>STOCK_DUPLICATE</code> 등 종목 등록 실패</td><td>서버 message를 등록 폼 옆에. 400 <code>INVALID_SECTOR</code>면 섹터 목록을 다시 받는다</td></tr>
+      <tr><td>섹터 목록 조회 실패</td><td>"섹터 목록을 불러오지 못했어요. 섹터 없이 등록하면 '기타'로 분류돼요."</td></tr>
+      <tr><td>409 <code>INSUFFICIENT_HOLDING</code></td><td>"보유 수량보다 많이 팔 수 없어요" — 사전 상한이 있어도 경합에 대비한 최종 방어선</td></tr>
+      <tr><td>422 <code>FX_RATE_NOT_FOUND</code></td><td>"아직 환율 정보를 가져오지 못했어요. 잠시 후 다시 시도해주세요." (회색)</td></tr>
+      <tr><td>400 <code>INVALID_ACCOUNT_TYPE</code> · <code>TRADE_DATE_IN_FUTURE</code></td><td>드롭다운에서 맞지 않는 계좌를 빼고, 달력에서 오늘 이후를 막아 정상 조작에서는 만나지 않는다</td></tr>
+      <tr><td>settleCash</td><td>서버 기본값이 false라 항상 실어 보내고 스위치 기본은 켜짐('예수금에서 차감' / 매도는 '예수금에 입금'). 수정(PUT)에는 없음</td></tr>
+      <tr><td>stockSector 기본값</td><td>없음(빈 문자열 = 미선택). 기본값을 두면 사용자가 고르지 않아도 그 섹터가 조용히 전송된다. 등록 성공·모달 닫기 때 비움</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 style="margin-top:1.4rem">AddHoldingsModal · TradeEditModal · StockEditModal</h3>
+  <div class="table-wrap">
+  <table class="ref">
+    <thead><tr><th>모달 · 상황</th><th>문구 / 동작</th></tr></thead>
+    <tbody>
+      <tr><td>AddHoldings — 주식·가상자산 계좌 0개</td><td>빈 드롭다운 대신 "증권계좌를 먼저 추가해주세요" + [계좌 추가](<code>addAccountReturnTo:'addHoldings'</code>)</td></tr>
+      <tr><td>AddHoldings — 담을 수 있는 시장이 바뀌는 계좌로 변경</td><td>담아둔 종목을 비우고 그 사실을 문구로 알림. 증권 계좌끼리 바꾸면 비우지 않음</td></tr>
+      <tr><td>AddHoldings — '추가'를 안 누른 줄</td><td>저장을 막는다(계좌 추가와 같은 문구)</td></tr>
+      <tr><td>AddHoldings — 일부 실패</td><td>실패한 줄만 목록에 남기고 "N개는 등록했고 M개는 실패했어요". 실패 줄은 요청 배열 index로 되짚는다(stockId는 줄마다 유일하지 않음). 성공·실패 무관하게 onSettled에서 무효화 1회</td></tr>
+      <tr><td>TradeEdit — 409 <code>INSUFFICIENT_HOLDING</code></td><td>"보유 수량보다 많이 팔 수 없어요" (수량 칸 아래)</td></tr>
+      <tr><td>TradeEdit — 422 <code>FX_RATE_NOT_FOUND</code></td><td>환율 미수집 안내(회색)</td></tr>
+      <tr><td>TradeEdit — 수수료 칸 비움·0</td><td>fee를 보내지 않는다(지운 것으로 봄). tax·exchangeRate·memo는 원래 값이 있으면 그대로 되돌려 보냄(PUT 전체 교체)</td></tr>
+      <tr><td>TradeEdit — [삭제]</td><td>인라인 확인 한 번 더 → <code>DELETE /trades/{id}</code>. 매수↔매도 전환은 편집 범위 밖(삭제 후 재등록)</td></tr>
+      <tr><td>StockEdit — 종목명 공백</td><td>trim 후 비면 저장 막음(최대 100자). 티커·시장·통화는 읽기 전용</td></tr>
+      <tr><td>StockEdit — 섹터</td><td>고른 칩을 한 번 더 누르면 해제 → <code>sector: null</code>('기타'). 가상자산은 칩 숨기고 항상 null. 마스터 밖 값은 400 <code>INVALID_SECTOR</code> — 프론트에서 섹터 이름을 하드코딩하지 않는다</td></tr>
+      <tr><td>수정 모달 공통 — 대상 못 찾음</td><td>"종목 정보를 찾지 못했어요" — 캐시(useGetTrades({}) / useGetHoldings(undefined))에서 id로 찾는 구조라 쿼리 키를 바꾸면 생긴다</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 style="margin-top:1.4rem">ExchangeAddModal · ExchangeHistoryModal — 환전</h3>
+  <div class="table-wrap">
+  <table class="ref">
+    <thead><tr><th>상황</th><th>문구 / 동작</th></tr></thead>
+    <tbody>
+      <tr><td>계좌 미선택 / 금액·환율 비움 또는 0</td><td>계좌 칸 아래 안내(accountMissing) / 금액 안내(amountMissing)</td></tr>
+      <tr><td>주식 계좌 0개</td><td>[계좌 추가] — 주식 유형 프리셋 + <code>addAccountReturnTo:'exchangeAdd'</code></td></tr>
+      <tr><td>환율 칸 placeholder</td><td>서버 오늘 고시 환율(currentRate). 원화 금액은 입력받지 않고 <code>Math.round(foreignAmount × rate)</code> 캡션 — 세 숫자가 어긋나지 않게(서버 400 <code>FX_AMOUNT_MISMATCH</code>)</td></tr>
+      <tr><td>달러 → 원에서 보유 달러보다 많이 팔기</td><td>서버는 막지 않는다(의도 — 주식 수익으로 달러가 늘었을 수 있음). 저장 직전 "보유 달러(N)보다 많이 환전할까요? …저장하면 보유 달러가 −N이 되고…" 확인([맞아요, 저장할게요] / [금액 다시 볼게요]). 금액·방향을 바꾸면 확인창 닫힘. 요약 조회가 실패하면 확인 없이 저장</td></tr>
+      <tr><td>400 <code>FX_DATE_IN_FUTURE</code> · <code>FX_AMOUNT_MISMATCH</code> · 503 <code>FX_RATE_FETCH_FAILED</code></td><td>서버 message. 미래 날짜는 달력에서 먼저 막는다</td></tr>
+      <tr><td>History — 원화 금액(krwAmount)</td><td>달러 금액·환율을 둘 다 그대로 두면 서버의 원래 원화 금액을 그대로 보낸다. 바꿨을 때만 다시 계산 — 매번 재계산하면 반올림 오차로 1원씩 바뀐다</td></tr>
+      <tr><td>History — 저장 응답이 늦게 올 때</td><td><code>editingIdRef</code>로 여전히 같은 행일 때만 목록으로 복귀</td></tr>
+      <tr><td>History — 요약 422</td><td>이 모달은 목록 API만 쓰므로 요약이 환율 미수집으로 실패해도 항상 열리고 삭제할 수 있다. "내역" 버튼을 요약 성공 여부로 막지 않는다</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<!-- ── F8 ─────────────────────── -->
+<div class="section">
+  <div class="section-eyebrow">F8 · Pitfalls</div>
+  <h2>함정 — 이 화면에서 실제로 틀렸거나 틀리기 쉬운 것</h2>
+  <div class="cards">
+    <div class="card">
+      <div class="card-header"><span class="card-dot coral"></span><h3>null과 0</h3></div>
+      <ul>
+        <li><strong>null을 0으로 접지 말 것.</strong> 시세 없는 종목의 평가값을 <code>?? 0</code>으로 바꾸면 요약 합계에 섞여 틀린 숫자가 나오고, <code>formatNumber(null)</code>은 크래시한다. buildHoldingCards·buildPortfolioSummary가 명시적으로 거른다</li>
+        <li><strong><code>null &gt;= 0</code>은 true.</strong> 그대로 계산하면 "+0.0%"가 찍혀 계산 불가가 손익 0처럼 보인다 → <code>rate !== null &amp;&amp; rate &gt;= 0</code></li>
+        <li><strong>요약 네 숫자는 같은 모수.</strong> 시세 있는 종목만으로 평가·매수·손익·수익률을 계산해야 "평가 − 매수 = 손익"이 화면에서 맞는다. 대가로 총 매수금액이 실제 투입액보다 작게 보일 수 있어 캡션으로 밝힌다</li>
+        <li><strong>원가는 역산하지 않는다.</strong> 항상 서버 totalCostKrw. 수익률 정렬도 서버 returnRatePercent</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot ink"></span><h3>서로 다른 숫자를 합치지 말 것</h3></div>
+      <ul>
+        <li><strong>"환전한 달러"는 계좌에 든 달러가 아니다.</strong> heldForeignAmount는 환전 기록으로 사고판 달러의 순액이라 계좌 등록 때 넣은 달러·해외 매도 대금은 빠진다. 계좌 달러는 "계좌 달러 예수금 합계"로 따로 — 제목을 "총 보유 달러"로 바꾸지 않는다</li>
+        <li><strong>그룹별 수익률·섹터 비중은 탭을 따르지 않는다.</strong> 서버가 시장 필터를 받지 않아 항상 전체 보유 기준. 캡션 " · 국내·해외 전체 보유 기준"을 지우지 않는다</li>
+        <li><strong>"전체" 탭에는 가상자산도 섞여 있다.</strong> all → market undefined. 가상자산 전용 탭은 없다</li>
+        <li><strong>코인은 KRW 고정.</strong> 업비트 원화 마켓 기준이라 USD로 등록하면 환율이 두 번 곱해진다(marketToCurrency)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot coral"></span><h3>캐시와 모달</h3></div>
+      <ul>
+        <li><strong>매매 내역은 최근 10건.</strong> GET /trades를 size 없이 전 건 받아 시장으로 거른 뒤 10건만 자른다(TRADE_HISTORY_LIMIT). 더 오래된 매매는 이 화면에서 수정할 방법이 없다 — 계좌 상세의 거래내역은 재산 문서</li>
+        <li><strong>수정 모달은 캐시에서 대상을 찾는다.</strong> TradeEditModal은 useGetTrades({}), StockEditModal은 useGetHoldings(undefined). 쿼리 키(파라미터)를 바꾸면 화면과 캐시를 공유하지 못해 요청이 한 번 더 나가거나 "찾지 못했어요"가 뜬다</li>
+        <li><strong>폼 초기값은 대상이 바뀔 때 한 번만.</strong> 세 수정 모달 모두 syncedId/loadedFor로 "이미 채운 id"를 기억해 입력 중 캐시가 다시 와도 덮지 않는다. 채우기 전 한 프레임은 '—'</li>
+        <li><strong>드롭다운 키 충돌.</strong> holdingAcct(보유 추가) · stockAcct(매매) · exchangeAcct(환전)를 따로 — 같은 openDropdown 키를 쓰면 한쪽을 열 때 다른 쪽도 열린 것으로 판정</li>
+        <li><strong>"내역" 진입점과 매매 내역 섹션을 지우지 말 것.</strong> 잘못 입력한 매매·환전을 되돌리는 유일한 입구</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot ink"></span><h3>등록·동시성</h3></div>
+      <ul>
+        <li><strong>보유 종목 일괄 등록은 POST /trades 순차 반복.</strong> 전용 API가 없고, 동시에 보내면 같은 계좌의 보유 수량·잔액 재계산이 경합한다. 계좌 생성의 holdings는 새 계좌에만</li>
+        <li><strong>실패 줄은 index로.</strong> 같은 종목을 두 줄로 담을 수 있어 stockId로 거르면 성공한 줄이 다시 남고 재시도 때 같은 매수가 두 번 기록된다(되돌리는 방법은 삭제뿐)</li>
+        <li><strong>평단가에 환율을 곱하지 않는다.</strong> 해외=달러, 국내·코인=원화 그대로</li>
+        <li><strong>응답에 있지만 안 그리는 값</strong>: avgCostPrice·avgCostPriceKrw·종목별 realizedPnlKrw — 카드에 없다고 서버가 안 주는 게 아니다</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ── F9 ─────────────────────── -->
+<div class="section" id="seq">
+  <div class="section-eyebrow">F9 · Sequences</div>
+  <h2>주식의 모든 기능 — 조작 한 번이 지나가는 순서</h2>
+  <p class="lede">참여자: 사용자(U) → 화면/모달(V) → AppState(S) → React Query 훅(Q) → api.ts(A) → 서버(API). 서버 안쪽(평단가·손익·환율 계산)은 <a href="../../../asset/docs/flow/flow-stocks.html#seq">백엔드 B9</a>.</p>
+  <div class="seq-toc">
+    <a href="#seq-fb0">진입 · 시장 탭</a><a href="#seq-fb1">매수 — 검색·신규 종목·저장</a><a href="#seq-fb2">매도 — 보유량 상한</a><a href="#seq-fb3">보유 종목 추가(순차 POST)</a><a href="#seq-fb4">매매 수정·삭제</a><a href="#seq-fb5">종목 정보 수정</a><a href="#seq-fb6">환전 등록</a><a href="#seq-fb7">환전 내역 수정·삭제</a><a href="#seq-fb8">환율 미확보 표시</a><a href="#seq-fb9">시장 지표 타일 · 전광판</a>
+  </div>
+  <div class="seq-list">
+
+  <div class="seq" id="seq-fb0">
+    <div class="seq-title">진입과 시장 탭 전환 <code>Stocks.tsx · stockMarketTab → market</code></div>
+    <div class="seq-desc">아홉 조회가 동시에 나간다. 시장 탭은 서버 파라미터(holdings·closed)와 프론트 필터(trades)를 함께 바꾸고, 그룹·섹터는 서버가 시장 필터를 받지 않아 항상 전체 기준이다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant V as Stocks.tsx
+  participant S as AppState
+  participant Q as React Query
+  participant API as 서버
+  participant VM as stocksView
+  U->>V: /stocks 진입
+  V->>S: stockMarketTab('all') → market = undefined · stockGroupTab('sector')
+  V->>Q: useGetMarketIndices · useGetHoldings(market) · useGetDashboardSummary · useGetHoldingGroups(by) · useGetHoldingGroups('sector') · useGetExchangeSummary('USD') · useGetAccounts · useGetClosedHoldings(market) · useGetTrades({})
+  Q->>API: GET /indices · /stocks/holdings · /dashboard/summary · /stocks/holdings/groups?by=sector · /exchanges/summary?currency=USD · /accounts · /stocks/holdings/closed · /trades
+  Note over V: 시장 지표는 느리다 — 로딩 중 같은 크기 스켈레톤 4칸(모바일은 전광판 자리 1줄)
+  V->>VM: buildMarketIndexViews · buildPortfolioSummary(holdings, summary.totalAssetKrw) · buildHoldingCards · buildClosedHoldingCards · buildTradeRows(trades, market, 10) · buildGroupReturns · buildSectorComposition
+  V-->>U: 지표 → 요약 딥카드 + 외화 카드 → 보유 카드 → 청산 → 매매 내역 → 그룹 수익률 + 섹터 도넛
+  U->>V: [국내 주식] 탭 (딥카드·보유 카드 두 곳의 탭이 같은 state)
+  V->>S: setState({ stockMarketTab:'domestic' }) → market 'KR'
+  V->>Q: holdings·closed 키가 바뀌어 재조회(캐시 있으면 즉시) · trades는 같은 캐시를 프론트에서 KR만 필터
+  Note over V: 그룹별 수익률·섹터 비중은 그대로 — 캡션에 "· 국내·해외 전체 보유 기준"을 붙인다
+  U->>V: [국가] 세그먼트
+  V->>S: stockGroupTab 'country' → useGetHoldingGroups('market')
+  Note over Q: by='sector' 쿼리는 그룹 탭이 '섹터'일 때 섹터 도넛과 같은 캐시를 공유한다
+</pre>
+    <ol class="seq-steps">
+      <li><strong>3~4 아홉 조회.</strong> 외화 카드의 '계좌 달러 예수금 합계'를 위해 GET /accounts도 부른다 — 환전 순액(heldForeignAmount)과 실제 예수금은 다른 값이라 둘 다 보여준다.</li>
+      <li><strong>5 스켈레톤.</strong> Yahoo를 매 요청 실시간 조회하는 API라 '—' 한 줄 대신 실제 카드 크기로 자리를 잡아 값이 와도 아래 블록이 밀리지 않게 한다.</li>
+      <li><strong>8~10 탭.</strong> 요약 딥카드와 보유 카드 묶음이 한 <code>stockMarketTab</code>을 읽는다. 매매 내역은 전 건을 받아 두고 탭으로 거른다.</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fb1">
+    <div class="seq-title">매수 — 종목 검색 · 신규 종목 등록 · 매매 저장 <code>QuickStockModal · GET /stocks → POST /stocks → POST /trades</code></div>
+    <div class="seq-desc">주식 화면 [매수], 헤더 퀵추가 [주식 매수], 빈 상태 CTA가 연다. 마스터에 없는 종목은 먼저 POST /stocks로 만들어 stockId를 얻는다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant S as AppState
+  participant M as QuickStockModal
+  participant Q as React Query
+  participant API as 서버
+  U->>S: [매수] → { openModal:'quickStock', stockTradeMode:'buy' }
+  S-->>M: isOpen → useGetAccounts · useGetInstitutions (enabled)
+  U->>M: 국내 주식 / 해외 주식 / 가상자산 탭 (switchMarket — 검색·선택 초기화, stockSector '')
+  U->>M: 종목명·티커 입력
+  M->>Q: useGetStocks(디바운스 keyword, enabled: buy && !stockId) → GET /stocks?keyword
+  API-->>M: StockRes[] → 현재 시장(KR/US/CRYPTO)만 필터해 인라인 목록
+  alt 결과 있음
+    U->>M: 선택 → stockId · "삼성전자 (005930)" 칩 + [변경]
+  else 결과 없음 → [새 종목으로 등록]
+    M->>M: 검색어가 한글이면 종목명 칸, 영문·숫자면 티커 칸(대문자)에 미리 채움
+    M->>Q: useGetStockSectors(enabled: newStockMode) → GET /stocks/sectors (1시간 캐시) — 코인은 섹터 칸 없음
+    U->>M: 티커 · 종목명 · 섹터 칩(토글, 미선택 가능) → [종목 등록]
+    M->>Q: usePostStock.mutate({ ticker, name, market, currency: marketToCurrency(market), sector? })
+    Q->>API: POST /stocks (409 STOCK_DUPLICATE는 인라인 / 400 INVALID_SECTOR면 섹터 목록 refetch)
+    API-->>M: StockRes → stockId 자동 선택, stockSector '' 로 비움
+  end
+  U->>M: 수량 · 매수 단가(종목 통화 기호) → "예상 총액" 캡션 · 수수료(선택) · 계좌(filterTradeAccounts) · 매수일(오늘 기본, 미래 불가) · '예수금에서 차감' 스위치(기본 ON)
+  U->>M: [매수 기록 저장]
+  M->>M: 검증: 종목 · 계좌 · 수량>0 · 단가≥0 (0 허용)
+  M->>Q: usePostTrade.mutate({ accountId, stockId, side:'BUY', quantity, price, tradeDate, fee?, settleCash })
+  Q->>API: POST /trades
+  alt 성공
+    Q->>Q: invalidate trade·stock·account·asset·dashboard·goal
+    M->>S: resetAndClose — openModal null, stockSector '', datePicker 'stockTrade' 제거, 로컬 폼 전부 초기화, mutation reset
+  else 422 FX_RATE_NOT_FOUND
+    M-->>U: 회색 "아직 환율 정보를 가져오지 못했어요"
+  else 그 외
+    M-->>U: 서버 message
+  end
+</pre>
+    <ol class="seq-steps">
+      <li><strong>3 탭 전환.</strong> 시장이 바뀌면 고른 종목·검색어·신규 등록 폼을 전부 비운다. 계좌 드롭다운도 그 시장의 유형만 남는다.</li>
+      <li><strong>9~13 신규 종목.</strong> 섹터 칩은 서버 마스터(GET /stocks/sectors)다 — 하드코딩하면 서버에 없는 이름이 끼어 등록이 실패했었다. <code>stockSector</code>는 기본값이 없다(빈 문자열 = 미선택). 기본값을 채우면 안 고른 섹터가 조용히 전송된다.</li>
+      <li><strong>14 settleCash.</strong> 서버 기본값은 false라 안 보내면 매수해도 예수금이 그대로다. 대부분의 기대("사면 예수금이 준다")에 맞춰 기본 ON. 예수금을 따로 맞춰 둔 경우만 끈다.</li>
+      <li><strong>17~18 저장.</strong> 계좌 추가에서 돌아올 때(addAccountReturnTo:'quickStock') 적던 값은 로컬 state라 남아 있다 — 모달이 언마운트되지 않기 때문.</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fb2">
+    <div class="seq-title">매도 — 보유량 상한과 예수금 입금 <code>QuickStockModal(sell) · GET /stocks/holdings?accountId → POST /trades(SELL)</code></div>
+    <div class="seq-desc">매도는 검색 대신 보유 종목 드롭다운이고, 수량 상한은 전 계좌 합계가 아니라 고른 계좌의 보유량이다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant M as QuickStockModal
+  participant Q as React Query
+  participant API as 서버
+  U->>M: [매도] → stockTradeMode 'sell'
+  M->>Q: useGetHoldings(market, enabled: sell) → GET /stocks/holdings?market= (전 계좌)
+  M-->>U: 종목(보유) 드롭다운 — sortHoldingsByReturn 순. 0건이면 "보유 중인 종목이 없어요"
+  U->>M: 종목 선택 → "전체 보유 N주"
+  U->>M: 계좌 선택
+  M->>Q: useGetHoldings(market, { accountId }) → GET /stocks/holdings?market&accountId
+  API-->>M: 그 계좌의 보유만 → quantityMax = 이 종목의 quantity (없으면 0 → "고른 계좌에는 이 종목이 없어요")
+  U->>M: 수량 입력 — quantityMax를 넘기면 타이핑 중 바로 잘라냄
+  U->>M: 매도 단가 · 수수료 · 증권거래세(매도에만) · 매도일 · '예수금에 입금'(기본 ON)
+  U->>M: [매도 기록 저장]
+  M->>Q: usePostTrade.mutate({ …, side:'SELL', tax?, settleCash })
+  Q->>API: POST /trades
+  alt 409 INSUFFICIENT_HOLDING (경합 등)
+    M-->>U: 수량 칸 아래 "보유 수량보다 많이 팔 수 없어요"
+  else 성공
+    Q->>Q: invalidate trade·stock·account·asset·dashboard·goal → 전량 매도면 청산 종목으로 이동
+  end
+</pre>
+    <ol class="seq-steps">
+      <li><strong>2~7 두 번의 holdings.</strong> 드롭다운은 전 계좌 보유로, 상한은 계좌별 보유로 잡는다. 합계로 상한을 잡으면 그 종목이 없는 계좌를 골랐을 때 서버가 409로 거절했었다.</li>
+      <li><strong>8 타이핑 중 클램프.</strong> 서버 409는 경합에 대비한 최종 방어선으로 남긴다.</li>
+      <li><strong>9 세금.</strong> 증권거래세(tax)는 실현손익에서 빠지는 금액이라 수수료와 따로 받는다. 수정 때 되돌려 보내지 않으면 0으로 지워진다(FB4).</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fb3">
+    <div class="seq-title">보유 종목 추가 — 기존 계좌에 여러 줄 한 번에 <code>AddHoldingsModal · usePostTradesBulk · POST /trades ×N</code></div>
+    <div class="seq-desc">서버에 "기존 계좌 일괄 보유 등록" API가 없어 줄 수만큼 POST /trades(BUY)를 순차로 보낸다. 부분 실패는 실패한 줄만 남겨 다시 시도하게 한다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant M as AddHoldingsModal
+  participant F as AccountHoldingsField
+  participant H as usePostTradesBulk
+  participant API as 서버
+  U->>M: [보유 종목 추가] → openModal 'addHoldings'
+  M->>M: useGetAccounts → filterHoldingAccounts(주식·가상자산만) · useGetInstitutions
+  U->>M: 계좌 선택 (pickAccount) → markets = marketsOfAccountType(type) — STOCK이면 ['KR','US'], CRYPTO면 ['CRYPTO']
+  Note over M: 담을 수 있는 시장 범위가 바뀌는 계좌로 옮기면 담은 줄을 비우고 "비웠어요" 안내. 같은 범위(증권↔증권)면 유지
+  U->>M: 기준일(매수일, 오늘 기본)
+  M->>F: AccountHoldingsField(key=marketsKey, markets, hint: "위 기준일에 매수한 것으로…")
+  U->>F: 검색 → 선택 → 수량·평단가 → [추가] 반복 (재산 문서 FA4)
+  U->>M: [종목 N개 등록]
+  M->>M: 검증: 계좌 · 1줄 이상 · '추가' 안 누른 줄 없음
+  M->>H: mutate(bodies[]) — 각 { accountId, stockId, side:'BUY', quantity, price(종목 통화), tradeDate }
+  loop bodies 순서대로
+    H->>API: POST /trades
+    API-->>H: 성공 → succeeded++ / 실패 → failed.push({ index, body, message }) 하고 계속
+  end
+  H->>H: onSettled: invalidate trade·stock·account·asset·dashboard·goal (한 번만)
+  alt 전부 성공
+    M->>M: resetAndClose
+  else 일부 실패
+    M->>M: holdings를 failed index만 남김 + "N개는 등록했고 M개는 실패했어요 (사유). 남은 종목만 다시 시도해주세요"
+  end
+</pre>
+    <ol class="seq-steps">
+      <li><strong>3 계좌 먼저.</strong> 매수 모달은 시장 탭이 먼저지만 여기는 "이 계좌에 담긴 것을 채운다"가 머릿속 순서라 계좌가 먼저다. 계좌가 검색 범위를 정한다.</li>
+      <li><strong>11~13 순차.</strong> 매매는 보유 수량·예수금을 다시 계산하는 쓰기라 동시에 쏘면 같은 계좌에 경합이 난다. 중간 실패도 멈추지 않고 끝까지 보내되 실패한 줄만 돌려준다 — 전부 롤백할 방법이 없어서다.</li>
+      <li><strong>16 index 기준.</strong> 같은 종목을 평단가 나눠 두 줄 담을 수 있어 stockId로 되짚으면 성공한 줄까지 남겨 두 번 기록된다.</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fb4">
+    <div class="seq-title">매매 수정·삭제 <code>TradeEditModal · PUT /trades/{id} · DELETE /trades/{id}</code></div>
+    <div class="seq-desc">매매 내역 행을 누르면 연다. 단건 조회 API가 없어 매매 내역이 쓰는 같은 캐시(['trade','list',{}])에서 id로 찾는다 — 추가 요청 없음.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant S as AppState
+  participant M as TradeEditModal
+  participant Q as React Query
+  participant API as 서버
+  U->>S: 매매 내역 행 클릭 → { openModal:'tradeEdit', editingTradeId }
+  S-->>M: isOpen → useGetTrades({}) 캐시에서 find(id) · useGetAccounts(계좌명 표시)
+  M->>M: useEffect(syncedId !== trade.id): quantityStr·priceStr·feeStr 채움, datePicker 'tradeEditDate' 초기화, mutation reset
+  M-->>U: 종목(잠금) · 거래유형·시장(잠금) · 계좌(잠금) · 수량 · 단가(종목 통화) · 수수료 · 매수/매도일
+  U->>M: [변경사항 저장]
+  M->>M: 검증: 수량>0 · 단가≥0
+  M->>Q: usePutTrade.mutate({ id, body:{ side, quantity, price, tradeDate, fee?, tax: trade.tax, exchangeRate: trade.exchangeRate, memo: trade.memo } })
+  Q->>API: PUT /trades/{id} (전체 교체)
+  alt 성공
+    Q->>Q: invalidate trade·stock·account·asset·dashboard·goal → resetAndClose
+  else 409 INSUFFICIENT_HOLDING / 422 FX_RATE_NOT_FOUND
+    M-->>U: 수량 칸 아래 / 회색 안내
+  end
+  opt [삭제] → 인라인 확인 "보유 수량·평단가가 다시 계산돼요" → [삭제할게요]
+    M->>Q: useDeleteTrade.mutate(id) → DELETE /trades/{id} → 같은 무효화 → 닫힘
+  end
+</pre>
+    <ol class="seq-steps">
+      <li><strong>2 캐시에서 찾기.</strong> 주식 화면이 이미 전 건을 받아 두었으므로 네트워크 요청이 없다. 캐시가 무효화돼 다시 오는 사이에도 syncedId로 폼을 덮어쓰지 않는다.</li>
+      <li><strong>7 되돌려 보내기.</strong> PUT은 전체 교체라 이 모달이 편집하지 않는 세금·환율·메모를 빼면 저장할 때마다 지워진다(과거 일자 해외 매매에 오늘 환율이 다시 적용되는 등).</li>
+      <li><strong>매수↔매도 전환 금지.</strong> API상 side는 수정 가능하지만 경제적 사건 자체가 바뀌어 편집 범위에서 뺐다 — 삭제 후 재등록.</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fb5">
+    <div class="seq-title">종목 정보 수정 <code>StockEditModal · PUT /stocks/{id}</code></div>
+    <div class="seq-desc">보유 카드의 섹터 라벨을 누르면 연다. 종목명·섹터만 고칠 수 있고 티커·시장·통화는 서버가 수정을 받지 않는다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant S as AppState
+  participant M as StockEditModal
+  participant Q as React Query
+  participant API as 서버
+  U->>S: 보유 카드 섹터 라벨 → { openModal:'stockEdit', editingStockId }
+  S-->>M: isOpen → useGetHoldings(undefined, enabled) 캐시(전체 보유)에서 stockId로 찾음
+  M->>Q: useGetStockSectors(enabled: !isCrypto) → GET /stocks/sectors
+  M->>M: useEffect(loadedFor !== stockId): name·sector 채움 (입력 중 캐시가 다시 와도 안 덮음)
+  M-->>U: 티커·시장(잠금) · 종목명 · 섹터 칩(한 번 더 누르면 해제 → '기타')
+  U->>M: [변경사항 저장]
+  M->>Q: usePutStock.mutate({ id, body:{ name, sector: isCrypto ? null : sector } })
+  Q->>API: PUT /stocks/{id}
+  Q->>Q: invalidate ['stock'] ['trade'] → 보유 카드·그룹 수익률·매매 내역의 종목명이 함께 바뀜
+  M->>S: close — { openModal:null, editingStockId:null }
+</pre>
+    <ol class="seq-steps">
+      <li><strong>2 보유 캐시.</strong> 단건 조회가 없어 화면이 받아 둔 보유 목록에서 찾는다. 못 찾으면(청산됨 등) "창을 닫고 다시 열어주세요".</li>
+      <li><strong>9 두 도메인 무효화.</strong> 종목명은 매매 내역 행에도 찍히므로 trade도 함께 다시 받는다.</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fb6">
+    <div class="seq-title">환전 등록 <code>ExchangeAddModal · GET /exchanges/summary → POST /exchanges</code></div>
+    <div class="seq-desc">원화 금액은 직접 입력하지 않고 외화 × 환율로 자동 계산한다. 보유 달러보다 많이 파는 건 서버가 막지 않으므로 저장 전에 확인만 받는다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant M as ExchangeAddModal
+  participant Q as React Query
+  participant API as 서버
+  U->>M: [+ 환전 추가] → openModal 'exchangeAdd'
+  M->>Q: useGetAccounts({type:'STOCK'}) · useGetInstitutions · useGetExchangeSummary('USD') (enabled)
+  Q->>API: GET /accounts?type=STOCK · GET /exchanges/summary?currency=USD
+  M-->>U: 원→달러 / 달러→원 · 달러 금액 · 적용 환율(플레이스홀더 = 오늘 고시 currentRate) · "원화 환산 총액" 자동 · 계좌(주식만) · 환전일 · 메모
+  U->>M: 달러→원 + 금액 입력
+  M->>M: heldUsd = summary.heldForeignAmount → 금액이 더 크면 "보유 달러 $N · 보유보다 많아요"
+  U->>M: [환전 기록 저장]
+  M->>M: 검증: 계좌 · 금액>0 · 환율>0
+  alt 보유 초과 매도이고 아직 확인 전
+    M-->>U: "보유 달러($N)보다 많이 환전할까요? … 저장하면 보유 달러가 −$M로 표시되고…" [맞아요, 저장할게요] / [금액 다시 볼게요]
+  end
+  M->>Q: usePostExchange.mutate({ accountId, side, currency:'USD', foreignAmount, krwAmount: round(foreign×rate), rate, exchangedAt, memo? })
+  Q->>API: POST /exchanges
+  Q->>Q: invalidate exchange·account·asset·stock·dashboard·goal
+  M->>M: resetAndClose — side BUY, 로컬 폼 초기화, datePicker 'exchangeDate' 제거
+</pre>
+    <ol class="seq-steps">
+      <li><strong>2 주식 계좌만.</strong> 달러를 담는 건 주식 계좌뿐이다. 0개면 [계좌 추가](주식 프리셋, addAccountReturnTo:'exchangeAdd').</li>
+      <li><strong>6·9 초과 매도.</strong> 주식 수익으로 불어난 달러를 환전하는 경우가 있어 서버는 막지 않는다. 초과분은 보유 달러를 음수로 남기고 다음 매수부터 0에서 다시 쌓인다 — 입력 실수(0 하나 더)만 걸러주는 확인이다.</li>
+      <li><strong>summary 실패.</strong> 422면 heldUsd·currentRate가 없어 확인과 플레이스홀더만 빠진다. 저장 자체는 된다.</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fb7">
+    <div class="seq-title">환전 내역 — 목록 · 수정 · 삭제 <code>ExchangeHistoryModal · GET /exchanges · PUT·DELETE /exchanges/{id}</code></div>
+    <div class="seq-desc">한 모달 안에서 목록과 수정 폼을 토글한다(editingExchangeId). 외화 카드의 summary가 422여도 이 모달은 목록만 쓰므로 항상 열린다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant S as AppState
+  participant M as ExchangeHistoryModal
+  participant Q as React Query
+  participant API as 서버
+  U->>S: [내역] → { openModal:'exchangeHistory', editingExchangeId:null }
+  S-->>M: useGetExchanges({}) · useGetAccounts (enabled)
+  Q->>API: GET /exchanges (전 통화, size 생략 = 전 건)
+  M-->>U: 환전일·id 내림차순 목록 — 원→달러 행은 액센트색
+  U->>M: 행 클릭 → setState({ editingExchangeId })
+  M->>M: useEffect(syncedId !== editing.id): side·foreignAmount·rate 채움, datePicker 'exchangeEditDate' 초기화
+  M-->>U: 방향 · 금액 · 환율 · 원화 환산 · 계좌(잠금 — UpdateExchangeRequest에 accountId 없음) · 환전일
+  U->>M: [변경사항 저장]
+  M->>M: krwAmount = (금액·환율이 그대로면 editing.krwAmount) 아니면 round(foreign×rate)
+  M->>Q: usePutExchange.mutate({ id, body:{ side, currency:'USD', foreignAmount, krwAmount, rate, exchangedAt, memo: editing.memo } })
+  Q->>API: PUT /exchanges/{id}
+  Q->>Q: invalidate exchange·account·asset·stock·dashboard·goal
+  M->>M: onSuccess: editingIdRef가 아직 같은 id면 backToList (그 사이 다른 행을 열었으면 건드리지 않음)
+  opt [삭제] → 인라인 확인 → [삭제할게요]
+    M->>Q: useDeleteExchange.mutate(id) → DELETE → backToList
+  end
+</pre>
+    <ol class="seq-steps">
+      <li><strong>9 1원 어긋남 방지.</strong> 날짜·방향만 고쳤는데 외화 × 환율로 다시 계산해 덮으면 반올림으로 정본 원화 금액이 1원씩 바뀐다 — 값이 그대로면 서버 값을 그대로 보낸다.</li>
+      <li><strong>13 ref 확인.</strong> 저장 응답이 늦게 오는 사이 사용자가 목록으로 돌아가 다른 행을 열었을 수 있어, 응답 시점의 editingExchangeId를 ref로 비교한다.</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fb8">
+    <div class="seq-title">환율·시세 미확보 — 빨간 에러가 아닌 회색 안내 <code>isExchangeRateMissing · priceMissing</code></div>
+    <div class="seq-desc">서버 장애가 아니라 "데이터 미준비"다. 훅이 에러 코드를 보고 플래그를 돌려주고, 화면은 그 플래그를 에러보다 먼저 분기한다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant V as Stocks.tsx
+  participant Q as useGetHoldings 등
+  participant A as api.ts
+  participant API as 서버
+  V->>Q: 조회
+  Q->>A: GET /stocks/holdings?market=US
+  API-->>A: 422 { error:{ code:'FX_RATE_NOT_FOUND' } }
+  A-->>Q: reject ApiError(code, message, 422) — 4xx라 재시도 없음
+  Q-->>V: { error, isExchangeRateMissing: error.code === 'FX_RATE_NOT_FOUND' }
+  alt isExchangeRateMissing
+    V-->>V: 회색 "해외 주식 환율 정보가 아직 없어 평가금액을 계산할 수 없어요" (요약·보유·청산·그룹·섹터·외화 카드 각각)
+  else 그 외 error
+    V-->>V: 빨간 error.message
+  end
+  Note over V: 종목 단위 null(priceAsOf null)은 200 응답 안에서 온다 — buildHoldingCards가 priceMissing으로 바꾸고 요약 합산에서 제외
+</pre>
+    <ol class="seq-steps">
+      <li><strong>4 ApiError.</strong> api.ts의 응답 인터셉터가 서버 봉투의 code·message를 <code>ApiError</code>로 정규화한다. 호출부는 code로 분기한다.</li>
+      <li><strong>6~8 순서.</strong> 분기 순서가 "로딩 → 환율 없음 → 에러 → 빈 → 정상"이다. 환율 없음을 에러 뒤에 두면 빨갛게 보인다.</li>
+    </ol>
+  </div>
+
+  <div class="seq" id="seq-fb9">
+    <div class="seq-title">시장 지표 — 데스크톱 타일 4칸 · 모바일 전광판 3.5초 <code>useGetMarketIndices · buildMarketIndexViews · MarketIndexTicker</code></div>
+    <div class="seq-desc">서버가 매 요청 외부 시세를 부르는 느린 API라, 데스크톱은 스켈레톤 4칸을 먼저 깔아 아래 블록이 밀리지 않게 하고, 모바일은 한 줄 전광판이 지표를 돌아가며 보여준다.</div>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant V as Stocks.tsx
+  participant Q as React Query
+  participant API as 서버
+  participant VM as buildMarketIndexViews
+  participant T as MarketIndexTicker(모바일)
+  participant U as 사용자
+  V->>Q: useGetMarketIndices() (staleTime 30초 명시)
+  Q->>API: GET /indices
+  V-->>U: 데스크톱: MARKET_INDEX_COUNT(4) 만큼 같은 크기 Skeleton 타일 / 모바일: 제목 옆 한 줄 자리
+  API-->>Q: [{ symbol, currentValue, changeFromPreviousClose, changeRatePercent, asOf }] — 일부 심볼 실패 시 그 심볼만 빠진 200
+  V->>VM: KOSPI → S&P 500(SPX) → NASDAQ(IXIC) → USD/KRW 순 정렬(목록에 없는 심볼은 뒤에), 값은 소수 2자리 고정
+  VM->>VM: 변동률 = changeRatePercent ?? 변동액으로 역산. 변동액 null(USDKRW)·전일 종가 0이면 배지 숨김
+  alt 데스크톱
+    V-->>U: 타일 그리드(.rgrid-indices — 900px 이하 2열) 라벨 · 값 · ±N.NN% 배지
+  else 모바일(useIsMobile)
+    V->>T: views
+    T->>T: 지표 2개 이상이면 3.5초(TICKER_INTERVAL_MS)마다 cursor+1, cursor % views.length로 읽음(응답 개수가 줄어도 범위 안)
+    T-->>U: 한 줄 슬라이드 인(.mindex-ticker-item). aria-live는 일부러 없음(곁눈질용)
+  end
+  Note over V: 전체 실패는 503 MARKET_INDEX_FETCH_FAILED → 에러 문구. 배열 길이·순서를 가정하지 않고 symbol로 찾는다
+</pre>
+    <ol class="seq-steps">
+      <li><strong>3 스켈레톤.</strong> 지표 API가 느릴 수 있다는 전제로 자리부터 잡는다 — 데이터가 늦게 와도 아래 요약 카드가 위아래로 튀지 않는다.</li>
+      <li><strong>4 부분 실패.</strong> 심볼별 외부 호출이 격리돼 있어 하나가 실패하면 200 + 짧은 배열이 온다. "+0"으로 그리지 않고 그 타일만 빠진다.</li>
+      <li><strong>10 범위.</strong> 재조회로 지표 수가 줄어도 cursor가 배열 밖을 가리키지 않게 나머지 연산으로 읽는다.</li>
+    </ol>
+  </div>
+
+  </div>
+</div>
+
+<div class="footer">
+  <span>asset-front/docs/flow/flow-stocks.html</span>
+  <span>Stocks.tsx · QuickStockModal · AddHoldingsModal · TradeEditModal · StockEditModal · ExchangeAddModal · ExchangeHistoryModal · data/stocksView.ts</span>
+</div>
+
+</div>
+
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({
+  startOnLoad: true,
+  securityLevel: 'loose',
+  theme: 'base',
+  fontFamily: 'Geist Mono, Apple SD Gothic Neo, Pretendard, monospace',
+  sequence: { actorFontSize: 12, messageFontSize: 11, noteFontSize: 10.5, mirrorActors: false,
+              useMaxWidth: true, wrap: true, width: 230, boxMargin: 8, messageMargin: 30, actorMargin: 44 },
+  themeVariables: {
+    primaryColor: '#ffffff', primaryBorderColor: '#4f5d75', primaryTextColor: '#2d3142',
+    lineColor: '#4f5d75', textColor: '#2d3142',
+    actorBkg: '#ffffff', actorBorder: '#4f5d75', actorTextColor: '#2d3142', actorLineColor: '#c9ccd6',
+    signalColor: '#4f5d75', signalTextColor: '#2d3142',
+    labelBoxBkgColor: '#fdf1eb', labelBoxBorderColor: '#eb6c36', labelTextColor: '#2d3142', loopTextColor: '#4f5d75',
+    noteBkgColor: '#fdf1eb', noteBorderColor: '#eb6c36', noteTextColor: '#2d3142',
+    activationBkgColor: '#ececec', activationBorderColor: '#7a8399', sequenceNumberColor: '#ffffff'
+  }
+});
+</script>
+</body>
+</html>
