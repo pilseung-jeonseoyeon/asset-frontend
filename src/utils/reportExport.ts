@@ -8,7 +8,8 @@
 // 숨김 상태)가 찍히고, 웹폰트는 같은 출처(src/styles/fonts.css)라 그대로 포함된다. 라이브러리는 이
 // 화면에서만 쓰므로 초기 청크에 넣지 않고 누를 때 불러온다.
 
-import { triggerBrowserDownload } from './download'
+import { isDesktopApp } from './platform'
+import { saveFile } from './saveFile'
 
 export const REPORT_EXPORT_WIDTH = 1080
 export const REPORT_EXPORT_HEIGHT = 1920
@@ -108,16 +109,16 @@ export function reportImageFilename(year: number, month: number): string {
 export type ShareOutcome = 'shared' | 'downloaded' | 'cancelled'
 
 /**
- * OS 공유 창(Web Share API)으로 이미지를 넘긴다. 파일 공유를 지원하지 않는 브라우저(데스크톱 Firefox 등)면
- * 대신 다운로드로 떨어뜨리고 'downloaded'를 돌려준다 — 호출부가 "공유 창을 열 수 없어 저장했다"고
- * 알릴 수 있게. 사용자가 공유 창을 닫으면(AbortError) 'cancelled'.
+ * OS 공유 창(Web Share API)으로 이미지를 넘긴다. 파일 공유를 지원하지 않는 브라우저(데스크톱 Firefox 등)와
+ * 데스크톱 앱(Electron — Web Share 없음, 플랫폼 분기 네 곳 중 하나)은 대신 저장으로 떨어뜨리고 'downloaded'를 돌려준다 — 호출부가
+ * "공유 창을 열 수 없어 저장했다"고 알릴 수 있게. 사용자가 공유 창을 닫으면(AbortError) 'cancelled'.
  */
 export async function shareReportImage(blob: Blob, filename: string, title: string): Promise<ShareOutcome> {
   const file = new File([blob], filename, { type: 'image/png' })
   const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean }
   const canShareFiles = typeof nav.share === 'function' && typeof nav.canShare === 'function' && nav.canShare({ files: [file] })
-  if (!canShareFiles) {
-    triggerBrowserDownload({ blob, filename })
+  if (isDesktopApp() || !canShareFiles) {
+    await saveFile({ blob, filename })
     return 'downloaded'
   }
   try {

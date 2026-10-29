@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../queryKeys'
+import { refreshPricesFor } from '../priceRefresh'
 import type { AccountListParams } from '../common.type'
 import {
   deleteAccount,
@@ -64,7 +65,11 @@ export function usePostAccount() {
   const invalidate = useInvalidateAccount()
   return useMutation({
     mutationFn: (body: CreateAccountRequest) => postAccount(body),
-    onSuccess: invalidate,
+    onSuccess: (_account, body) => {
+      invalidate()
+      // 보유 종목을 함께 등록했으면 그 종목들의 시세를 바로 받아온다
+      if (body.holdings && body.holdings.length > 0) void refreshPricesFor(body.holdings.map((h) => h.stockId))
+    },
   })
 }
 

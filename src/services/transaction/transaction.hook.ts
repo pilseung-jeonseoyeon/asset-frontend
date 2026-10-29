@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../queryKeys'
-import type { PeriodUnit, TransactionSearchParams, YearMonth } from '../common.type'
+import type { PeriodUnit, TransactionSearchParams, ViewScope, YearMonth } from '../common.type'
 import {
   deleteTransaction,
   getCategoryDetail,
@@ -16,6 +16,8 @@ import type { CreateTransactionRequest, UpdateTransactionRequest } from './trans
 
 interface QueryOptions {
   enabled?: boolean
+  /** 화면 범위. 생략하면 'PERSONAL' */
+  scope?: ViewScope
 }
 
 /**
@@ -37,8 +39,8 @@ export function useGetTransactions(
 
 export function useGetDailySummaries(period: YearMonth, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: queryKeys.transaction.dailySummary(period),
-    queryFn: () => getDailySummaries(period),
+    queryKey: queryKeys.transaction.dailySummary(period, options?.scope ?? 'PERSONAL'),
+    queryFn: () => getDailySummaries(period, options?.scope),
     enabled: options?.enabled,
   })
   return { ...query, summaries: query.data ?? [] }
@@ -50,16 +52,16 @@ export function useGetPeriodSummary(
 ) {
   const yearMonth = options?.yearMonth ?? {}
   return useQuery({
-    queryKey: queryKeys.transaction.periodSummary(period, yearMonth),
-    queryFn: () => getPeriodSummary(period, yearMonth),
+    queryKey: queryKeys.transaction.periodSummary(period, yearMonth, options?.scope ?? 'PERSONAL'),
+    queryFn: () => getPeriodSummary(period, yearMonth, options?.scope),
     enabled: options?.enabled,
   })
 }
 
 export function useGetMonthlySummaries(year: number, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: queryKeys.transaction.monthlySummary(year),
-    queryFn: () => getMonthlySummaries(year),
+    queryKey: queryKeys.transaction.monthlySummary(year, options?.scope ?? 'PERSONAL'),
+    queryFn: () => getMonthlySummaries(year, options?.scope),
     enabled: options?.enabled,
   })
   return { ...query, summaries: query.data ?? [] }
@@ -67,8 +69,8 @@ export function useGetMonthlySummaries(year: number, options?: QueryOptions) {
 
 export function useGetCategoryRankings(period: Partial<YearMonth>, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: queryKeys.transaction.rankings(period),
-    queryFn: () => getCategoryRankings(period),
+    queryKey: queryKeys.transaction.rankings(period, options?.scope ?? 'PERSONAL'),
+    queryFn: () => getCategoryRankings(period, options?.scope),
     enabled: options?.enabled,
   })
   return { ...query, rankings: query.data ?? [] }
@@ -80,8 +82,8 @@ export function useGetCategoryDetail(
   options?: QueryOptions,
 ) {
   return useQuery({
-    queryKey: queryKeys.transaction.categoryDetail(categoryId ?? 0, period),
-    queryFn: () => getCategoryDetail(categoryId as number, period),
+    queryKey: queryKeys.transaction.categoryDetail(categoryId ?? 0, period, options?.scope ?? 'PERSONAL'),
+    queryFn: () => getCategoryDetail(categoryId as number, period, options?.scope),
     enabled: categoryId !== null && options?.enabled !== false,
   })
 }

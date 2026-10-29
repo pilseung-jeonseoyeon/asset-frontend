@@ -30,7 +30,7 @@ import { buildMonthlyReport, buildSummarySentence } from '../../../data/reportVi
 import type { ChangeDirection, MonthlyReportView } from '../../../data/reportView'
 import { useAppState } from '../../../state/AppStateContext'
 import { shiftYearMonth } from '../../../utils/date'
-import { triggerBrowserDownload } from '../../../utils/download'
+import { saveFile } from '../../../utils/saveFile'
 import { REPORT_EXPORT_EXCLUDE_ATTR, renderReportSlidePng, reportImageFilename, shareReportImage } from '../../../utils/reportExport'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import type { YearMonth } from '@/services/common.type'
@@ -459,7 +459,7 @@ export function ReportOverlay() {
       const blob = await renderReportSlidePng(node)
       const filename = reportImageFilename(view.period.year, view.period.month)
       if (kind === 'save') {
-        triggerBrowserDownload({ blob, filename })
+        await saveFile({ blob, filename })
         setExportNotice('이미지로 저장했어요')
       } else {
         const outcome = await shareReportImage(blob, filename, `Monit ${view.periodLabel} 리포트`)

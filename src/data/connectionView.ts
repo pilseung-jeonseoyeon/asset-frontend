@@ -6,15 +6,15 @@
 //
 // 설계: docs/superpowers/specs/2026-08-29-byok-connection-design.md
 
+import { CONNECTION_PROVIDER_LABELS } from '@/services/connection'
 import type { ConnectionProvider, ConnectionResponse, SyncResponse } from '@/services/connection'
 import type { AssetClass } from '@/services/common.type'
 
 /**
  * 기관별 발급 안내.
  *
- * label은 **아직 연동한 적 없는 기관**을 그려야 하는 자리(계좌 추가 배너, 기관 선택)에서만 쓰는
- * 폴백이다. 이미 연동한 기관은 서버가 주는 providerDescription을 우선한다 — 기관 표시명이 바뀌면
- * 프론트 배포 없이 따라가야 한다.
+ * label은 CONNECTION_PROVIDER_LABELS(서비스 레이어 정본 — DB provider_meta 와 같은 값)를 그대로 가리킨다. 이미 연동한
+ * 기관은 응답의 providerDescription 을 쓰는데 그것도 같은 표에서 나오므로 두 표기가 갈릴 일이 없다.
  *
  * keyLabel/secretLabel이 기관마다 다른 이유: 각 기관 발급 화면에 실제로 적힌 용어를 그대로 써야
  * 사용자가 어느 값을 복사해 붙일지 헷갈리지 않는다.
@@ -36,23 +36,25 @@ export interface ProviderMeta {
 
 export const PROVIDER_META: Record<ConnectionProvider, ProviderMeta> = {
   UPBIT: {
-    label: '업비트',
+    label: CONNECTION_PROVIDER_LABELS.UPBIT,
     assetClass: 'CRYPTO',
     keyLabel: 'Access key',
     secretLabel: 'Secret key',
     guide: 'PC 웹 업비트 → 마이페이지 → Open API 관리에서 발급받으세요. 권한은 자산조회·주문조회만 체크합니다.',
-    supported: true,
+    // 키에 허용 IP 를 등록해야 하는데 Edge Function 은 고정 발신 IP 가 없다 — 고정 IP 중계가 생길 때까지 막는다(2026-10-28 출시 결정).
+    supported: false,
   },
   TOSS_INVEST: {
-    label: '토스증권',
+    label: CONNECTION_PROVIDER_LABELS.TOSS_INVEST,
     assetClass: 'STOCK',
     keyLabel: 'client_id',
     secretLabel: 'client_secret',
     guide: 'PC 웹 토스증권 → 설정 → Open API에서 바로 발급됩니다.',
-    supported: true,
+    // 업비트와 같은 이유(허용 IP 필수, Edge Function 고정 IP 없음)로 막아 둔다.
+    supported: false,
   },
   KB_SECURITIES: {
-    label: 'KB증권',
+    label: CONNECTION_PROVIDER_LABELS.KB_SECURITIES,
     assetClass: 'STOCK',
     keyLabel: 'appKey',
     secretLabel: 'appSecret',
@@ -61,7 +63,7 @@ export const PROVIDER_META: Record<ConnectionProvider, ProviderMeta> = {
     supported: false,
   },
   KIWOOM: {
-    label: '키움증권',
+    label: CONNECTION_PROVIDER_LABELS.KIWOOM,
     assetClass: 'STOCK',
     keyLabel: 'appkey',
     secretLabel: 'secretkey',

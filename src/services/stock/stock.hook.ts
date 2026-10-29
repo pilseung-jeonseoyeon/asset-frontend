@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '../api'
+import { ensureFxRatesOnce } from '../priceRefresh'
 import { queryKeys } from '../queryKeys'
 import type { Market } from '../common.type'
 import {
@@ -23,6 +25,24 @@ interface QueryOptions {
  */
 export function isExchangeRateMissing(error: unknown): boolean {
   return error instanceof ApiError && error.code === 'FX_RATE_NOT_FOUND'
+}
+
+/**
+ * 환율이 한 번도 수집되지 않은 새 환경(FX_RATE_NOT_FOUND)이면 세션당 1회 환율 수집을 요청하고 다시 읽는다 —
+ * 스프링의 "DB에 없으면 라이브 조회" 폴백과 같은 효과. 실패하면 조용히 미준비 상태로 남긴다.
+ */
+export function useFxRateFallback(error: unknown, refetch: () => unknown): void {
+  const missing = isExchangeRateMissing(error)
+  useEffect(() => {
+    if (!missing) return
+    let cancelled = false
+    void ensureFxRatesOnce().then((collected) => {
+      if (collected && !cancelled) refetch()
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [missing, refetch])
 }
 
 export function useGetStocks(keyword: string, options?: QueryOptions) {
@@ -54,6 +74,7 @@ export function useGetHoldings(market?: Market, options?: QueryOptions & { accou
     queryFn: () => getHoldings(market, accountId),
     enabled: options?.enabled,
   })
+  useFxRateFallback(query.error, query.refetch)
   return {
     ...query,
     holdings: query.data ?? [],
@@ -67,6 +88,7 @@ export function useGetHoldingGroups(by: 'sector' | 'market', options?: QueryOpti
     queryFn: () => getHoldingGroups(by),
     enabled: options?.enabled,
   })
+  useFxRateFallback(query.error, query.refetch)
   return {
     ...query,
     groups: query.data ?? [],

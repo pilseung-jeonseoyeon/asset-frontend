@@ -6,19 +6,29 @@ import { BankIcon } from '../../../components/primitives/BankIcon/BankIcon'
 import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { buildDashboardInstitutions, DASHBOARD_INSTITUTIONS_EMPTY_TEXT } from '../../../data/dashboardView'
+import { ownerNameOf } from '../../../data/shareView'
+import { useAuthStore } from '../../../stores/auth'
+import { useViewScope } from '../../../utils/viewScope'
 import { useGetAssetDistributionByInstitution } from '@/services/asset'
 import { useGetInstitutions } from '@/services/institution'
+import { useProfileName } from '@/services/user'
 import { CARD_LINK_STYLE, CARD_TITLE_STYLE, EMPTY_TEXT_STYLE, ERROR_TEXT_STYLE } from './cardStyles'
 import { EmptyState } from './shared'
 
 export function InstitutionsCard() {
   const { setState } = useAppState()
   const isMobile = useIsMobile()
-  const institutionDistribution = useGetAssetDistributionByInstitution()
+  // '우리집'이면 공유 계좌만 모은 보관처 + 누구 계좌인지(시안 v16)
+  const { scope, partnerName } = useViewScope()
+  const myUserId = useAuthStore((s) => s.userId)
+  const myName = useProfileName()
+  const institutionDistribution = useGetAssetDistributionByInstitution({ scope })
   const institutionsQuery = useGetInstitutions()
   const dashboardInstitutions = buildDashboardInstitutions(
     institutionDistribution.groups,
     institutionsQuery.data ?? [],
+    4,
+    scope === 'SHARED' ? (ownerId) => ownerNameOf(ownerId, myUserId, myName, partnerName) : undefined,
   )
   const institutionsPending = institutionDistribution.isPending || institutionsQuery.isPending
   const institutionsError = institutionDistribution.error ?? institutionsQuery.error
@@ -65,6 +75,7 @@ export function InstitutionsCard() {
                 {institution.amountText}
                 <span style={{ fontSize: 12, color: 'var(--text-weak)' }}>원</span>
               </div>
+              {institution.owner && <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>{institution.owner}</div>}
             </div>
           ))}
         </div>

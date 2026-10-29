@@ -1,4 +1,5 @@
 // 자산 목표 추가·수정 모달. GET/PUT /goals에 연결돼 있다. z-index 80, 너비 440px, maxHeight 86vh.
+// 상단이 '우리집'(가족·커플 공유 v17)이면 두 사람이 같이 보는 공유 목표를 고친다(useViewScope의 범위).
 // 닫으면 `addGoalReturnTo`로 돌아간다(이 모달을 연 화면/모달 — 대시보드는 null, 설정의 CustomModal은
 // 'custom'을 넘긴다). closeAddAccount와 같은 return-to 패턴이다.
 //
@@ -19,6 +20,7 @@ import { useDatePicker } from '../../../state/selectors/datePicker'
 import { formatNumber, parseAmount } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate, yearEndISODate } from '../../../utils/date'
 import { useCurrentSettlementMonth } from '../../../utils/useCurrentSettlementMonth'
+import { useViewScope } from '../../../utils/viewScope'
 import { useDeleteGoal, useGetGoal, useGetGoalPreview, usePutGoal } from '@/services/goal'
 import { useDebouncedValue } from '../../../utils/useDebouncedValue'
 import { useGetMonthlySummaries } from '@/services/transaction'
@@ -36,14 +38,15 @@ export function AddGoalModal() {
   const { state, setState } = useAppState()
   const isOpen = state.openModal === 'addGoal'
 
-  const goalQuery = useGetGoal({}, { enabled: isOpen })
+  const { scope, spaceName } = useViewScope()
+  const goalQuery = useGetGoal({}, { enabled: isOpen, scope })
   const { goal, isUnset } = goalQuery
   const putGoal = usePutGoal()
 
   // 월별 요약은 정산월 라벨로 오므로 "이번 달"도 정산월 기준으로 잡아야 최근 3개월이 어긋나지 않는다.
   const { year: currentYear, month: currentMonth } = useCurrentSettlementMonth()
   // 목표를 아직 등록하지 않았을 때만 필요한 제안값이라, 그 경우에만 불러온다.
-  const monthlySummaryQuery = useGetMonthlySummaries(currentYear, { enabled: isOpen && isUnset })
+  const monthlySummaryQuery = useGetMonthlySummaries(currentYear, { enabled: isOpen && isUnset, scope })
   const recentIncomeMonths = [...monthlySummaryQuery.summaries]
     .sort((a, b) => a.month - b.month)
     .filter((s) => s.month <= currentMonth)
@@ -118,7 +121,7 @@ export function AddGoalModal() {
   // 객체는 렌더마다 새로 만들어져 그대로 디바운스하면 타이머가 끝없이 다시 걸린다 — 문자열 키로 비교한다.
   const previewKey = previewInput ? JSON.stringify(previewInput) : ''
   const debouncedPreviewKey = useDebouncedValue(previewKey, 400)
-  const previewQuery = useGetGoalPreview(debouncedPreviewKey ? (JSON.parse(debouncedPreviewKey) as typeof previewInput) : null)
+  const previewQuery = useGetGoalPreview(debouncedPreviewKey ? (JSON.parse(debouncedPreviewKey) as typeof previewInput) : null, scope)
 
   if (!isOpen) return null
 
@@ -161,7 +164,7 @@ export function AddGoalModal() {
     setFormError(null)
 
     const body: UpsertGoalRequest = { targetAmount, targetDate, monthlyIncome }
-    putGoal.mutate(body, {
+    putGoal.mutate({ body, scope }, {
       onSuccess: closeGoalModal,
       onError: (err) => setFormError(err.message),
     })
@@ -187,7 +190,7 @@ export function AddGoalModal() {
           <span style={{ width: 38, height: 38, borderRadius: 8, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="flag" size={20} />
           </span>
-          <div style={{ fontSize: 16.5, fontWeight: 700 }}>자산 목표 설정</div>
+          <div style={{ fontSize: 16.5, fontWeight: 700 }}>{scope === 'SHARED' ? `'${spaceName}' 공유 목표` : '자산 목표 설정'}</div>
         </div>
         <button
           onClick={closeGoalModal}
@@ -300,7 +303,7 @@ export function AddGoalModal() {
                 {deleteGoal.error && <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{deleteGoal.error.message}</div>}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
-                    onClick={() => deleteGoal.mutate(undefined, { onSuccess: closeGoalModal })}
+                    onClick={() => deleteGoal.mutate(scope, { onSuccess: closeGoalModal })}
                     disabled={isBusy}
                     aria-busy={deleteGoal.isPending}
                     className="qbtn"

@@ -48,10 +48,8 @@ import { AddGoalModal } from '../../screens/Assets/modals/AddGoalModal'
 import { InstitutionsModal } from '../../screens/Assets/modals/InstitutionsModal'
 import { ReportOverlay } from '../../screens/Assets/modals/ReportOverlay'
 import { AccountDetailModal } from '../../screens/Assets/modals/AccountDetailModal'
-import { ShareMembersModal } from '../../screens/Assets/modals/ShareMembersModal'
-import { SharedAccountDetailModal } from '../../screens/Assets/modals/SharedAccountDetailModal'
-import { FamilyShareModal } from '../../screens/Settings/modals/FamilyShareModal'
-import { ShareInviteConfirmModal } from './modals/ShareInviteConfirmModal'
+import { PartnerAccountDetailModal } from '../../screens/Assets/modals/PartnerAccountDetailModal'
+import { ShareFlowModal } from '../../screens/Settings/modals/share/ShareFlowModal'
 import { CategoryDetailModal } from '../../screens/Ledger/modals/CategoryDetailModal'
 
 const SCREEN_COMPONENTS: Record<Screen, ComponentType> = {
@@ -205,19 +203,13 @@ export function AuthenticatedApp() {
       <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="카테고리 상세">
         <CategoryDetailModal />
       </ModalErrorBoundary>
-      {/* 계좌 공유(가족·커플 함께 보기). 네 모달 모두 openModal이 아니라 전용 필드로 열린다 —
-          설정의 가족·커플 공유만 openModal('familyShare')이다. */}
-      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="가족 · 커플 공유">
-        <FamilyShareModal />
+      {/* 가족·커플 공유(v17). 설정 › 가족 · 커플 공유는 openModal('familyShare') 하나에서 단계(shareFlowStep)를 바꾼다.
+          상대 계좌 상세는 '우리집' 자산 화면에서 연다(partnerAccountDetailId). */}
+      <ModalErrorBoundary onReset={resetModalState({ openModal: null, shareFlowStep: 'home' })} zIndex={80} title="가족 · 커플 공유">
+        <ShareFlowModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={resetModalState({ shareMembersAccountId: null, shareMembersReturnTo: null })} zIndex={90} title="함께 보는 사람">
-        <ShareMembersModal />
-      </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={resetModalState({ sharedAccountDetailId: null })} zIndex={90} title="함께 보는 계좌">
-        <SharedAccountDetailModal />
-      </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={resetModalState({ shareInviteConfirmId: null })} zIndex={90} title="초대 확인">
-        <ShareInviteConfirmModal />
+      <ModalErrorBoundary onReset={resetModalState({ partnerAccountDetailId: null })} zIndex={90} title="함께 보는 계좌">
+        <PartnerAccountDetailModal />
       </ModalErrorBoundary>
     </>
   )

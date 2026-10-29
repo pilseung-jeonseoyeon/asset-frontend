@@ -5,7 +5,8 @@
 
 import type { DashboardLayout } from '../utils/dashboardLayout'
 import type { NotificationPrefs } from '../utils/notificationPrefs'
-import type { AccountType, AssetClass, YearMonth } from '@/services/common.type'
+import type { AccountType, AssetClass, ViewScope, YearMonth } from '@/services/common.type'
+import type { OwnerTag } from '@/services/transaction'
 
 export type Screen = 'dashboard' | 'asset' | 'stock' | 'ledger' | 'settings'
 export type AssetTab = 'overview' | 'accounts' | 'goals'
@@ -80,6 +81,10 @@ export interface EntryDraft {
   datePickerViewingMonthEntry: unknown
 }
 
+/** 설정 › 가족 · 커플 공유의 단계(v17 시안). home 홈 · invite 초대 코드(초대하는 사람) · code 코드 입력 ·
+ *  accept 초대 확인(초대받은 사람) · linked 연결 완료 + 공유 화면 이름 · pick 공유할 계좌 선택 · done 공유 시작 완료 */
+export type ShareFlowStep = 'home' | 'invite' | 'code' | 'accept' | 'linked' | 'pick' | 'done'
+
 export interface AppState {
   // navigation
   assetTab: AssetTab
@@ -95,19 +100,18 @@ export interface AppState {
   /** 계좌 상세 모달 대상 accountId. null이면 닫혀 있음(AccountDetailModal). */
   accountDetailId: number | null
 
-  // 계좌 공유(가족·커플 함께 보기). 계약은 services/share, 표기 규칙은 data/shareView.ts.
-  /** '함께 보는 사람'(ShareMembersModal) 대상 — 내가 소유한 계좌 id. null이면 닫혀 있음. */
-  shareMembersAccountId: number | null
-  /** ShareMembersModal을 계좌 상세에서 열었으면 'accountDetail' — 뒤로 가기가 그 계좌 상세를 다시 연다.
-   * 설정 화면에서 열었으면 null(닫으면 설정 모달이 그대로 남아 있다). */
-  shareMembersReturnTo: 'accountDetail' | null
-  /** 공유받은 계좌 상세(SharedAccountDetailModal) 대상 — 소유자의 계좌 id. null이면 닫혀 있음. */
-  sharedAccountDetailId: number | null
-  /** 초대 확인 창(ShareInviteConfirmModal) 대상 shareId. 알림 카드·설정의 [확인하기]가 연다. */
-  shareInviteConfirmId: number | null
-  /** 공유 계좌 상세에서 [수입·지출 기록]으로 가계부 입력 모달을 열었을 때, 입력 모달을 닫으면 되돌아갈
-   * 공유 계좌 id. 두 모달이 같은 층에 겹치지 않도록 상세를 닫고 열기 때문에 필요하다. */
-  entryReturnSharedAccountId: number | null
+  // 가족·커플 공유(v17). 계약은 services/share, 표기 규칙은 data/shareView.ts.
+  /** 상단 '개인 | {공유 화면 이름}'에서 고른 범위. 연결이 없으면 무시되고 '개인'으로 보인다 — 실제 범위는
+   * utils/viewScope.ts의 useViewScope()로만 읽는다. 이 기기 localStorage(monit.viewScope)에 기억한다. */
+  viewScope: ViewScope
+  /** 연결 전 상단 '공유' 탭을 눌렀을 때 뜨는 안내 팝오버. */
+  scopeHintOpen: boolean
+  /** 설정 › 가족 · 커플 공유(openModal 'familyShare') 안의 단계. 닫으면 'home'으로 되돌린다. */
+  shareFlowStep: ShareFlowStep
+  /** 공유할 계좌 선택 창이 처음 설정(연결 직후)인지, 홈의 '공유 계좌 관리'인지. */
+  sharePickMode: 'onboard' | 'manage'
+  /** '우리집'에서 연 상대 계좌의 읽기 전용 상세(PartnerAccountDetailModal). null이면 닫혀 있음. */
+  partnerAccountDetailId: number | null
   reportOpen: boolean
   /** 리포트 오버레이가 보고 있는 정산월. null이면 '현재 정산월'(서버가 결정 — 열 때마다 null로 리셋). */
   reportPeriod: YearMonth | null
@@ -215,6 +219,8 @@ export interface AppState {
   entryDescription: string
   /** 메모(선택 입력, CreateTransactionReq.memo). 빈 문자열이면 미입력 — 제출 시 키 자체를 뺀다. */
   entryMemo: string
+  /** 누구의 수입·지출인지(가족·커플 공유 v17). 연결 중 · 수입/지출일 때만 칩이 보이고 그 밖엔 SELF로 저장된다. */
+  entryOwnerTag: OwnerTag
   ledgerPage: number
   entryDateOverride: string | null
   /**
@@ -245,6 +251,8 @@ export interface AppState {
    * 전체 기간에서 찾는다 — "지난번에 그거 언제였지"를 달을 넘겨가며 찾지 않아도 되게 하기 위함이다.
    */
   ledgerSearch: string
+  /** '우리집' 내역의 누구 몫 필터(전체 · 나 · 상대 · 공동). '개인'에서는 쓰지 않는다. */
+  ledgerWho: 'all' | 'me' | 'pt' | 'jt'
   /**
    * 가계부 거래 입력 모달에서 저장하지 않고 닫았을 때 보관해 두는 초안(사용자 요청).
    * 배경 클릭으로도 모달이 닫히게 되면서(primitives/Modal의 handleScrimPointerDown) 실수로 닫아도

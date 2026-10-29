@@ -1,8 +1,7 @@
-import { api, unwrap } from '../api'
-import type { ApiResponse } from '../api.types'
+import { invoke } from '../supabase'
 import type { MarketIndexResponse } from './marketIndex.type'
 
-/** Yahoo Finance를 매 요청 실시간 호출하므로 응답이 느리다. 실패 시 503 MARKET_INDEX_FETCH_FAILED. */
+/** 코스피·S&P 500·나스닥(야후, 60초 서버 캐시) + 원/달러(고시 환율). 실패한 심볼은 배열에서 빠진다. */
 export async function getMarketIndices() {
-  return unwrap(await api.get<ApiResponse<MarketIndexResponse[]>>('/indices'))
+  return invoke<MarketIndexResponse[]>('market-indices', { method: 'GET' })
 }

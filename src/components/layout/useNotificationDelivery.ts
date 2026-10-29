@@ -17,19 +17,19 @@
 // 알리고, 안 보는 탭은 잠깐 기다렸다가 그 신호가 없을 때만 맥·PC 알림을 띄운다(보이는 탭 배너 + 숨은 탭
 // 맥 알림이 겹치지 않게). 숨은 탭끼리는 같은 tag라 맥 알림이 하나로 합쳐진다.
 //
-// 탭 제목: 탭이 안 보일 때 안 읽은 알림이 있으면 "(N) Monit", 돌아오면 "Monit".
+// 안 읽은 수: 브라우저는 탭이 안 보일 때 탭 제목 "(N) Monit"(돌아오면 "Monit"), 데스크톱 앱은 독 아이콘 배지(setUnreadBadge).
 
 import { useEffect, useRef } from 'react'
 import { useAppState } from '../../state/AppStateContext'
 import { isAnyModalOpen } from '../../state/selectors/modal'
-import { isDesktopNotificationSupported, showDesktopNotification } from '../../utils/desktopNotification'
+import { APP_TITLE, isDesktopNotificationSupported, setUnreadBadge, showDesktopNotification } from '../../utils/desktopNotification'
 import type { NotificationBanner } from '../../state/types'
 import type { NotificationResponse } from '@/services/notification'
 import { useGetNotifications, usePatchNotificationRead } from '@/services/notification'
 
-const BASE_TITLE = 'Monit'
+const BASE_TITLE = APP_TITLE
 const BROADCAST_CHANNEL = 'monit.notification'
-/** 숨은 탭이 "보고 있는 탭이 배너를 띄웠다"는 신호를 기다리는 시간. 같은 SSE 이벤트라 거의 동시에 도착한다. */
+/** 숨은 탭이 "보고 있는 탭이 배너를 띄웠다"는 신호를 기다리는 시간. 같은 Realtime 이벤트라 거의 동시에 도착한다. */
 const DESKTOP_HANDOFF_WAIT_MS = 500
 
 function isLooking(): boolean {
@@ -154,10 +154,10 @@ export function useNotificationDelivery() {
     }
   }, [state.notificationOpen, state.notificationBanners.length, state.notificationPendingIds.length, setState])
 
-  // 탭 제목에 안 읽은 수.
+  // 안 읽은 수 — 탭 제목(브라우저) 또는 독 배지(데스크톱).
   useEffect(() => {
     const apply = () => {
-      document.title = document.visibilityState === 'hidden' && unreadCount > 0 ? `(${unreadCount > 99 ? '99+' : unreadCount}) ${BASE_TITLE}` : BASE_TITLE
+      void setUnreadBadge(unreadCount)
     }
     apply()
     document.addEventListener('visibilitychange', apply)
@@ -167,7 +167,7 @@ export function useNotificationDelivery() {
   // 로그아웃(이 훅을 쓰는 화면이 내려감) 때 다음 사용자에게 이전 배너·제목이 남지 않게.
   useEffect(
     () => () => {
-      document.title = BASE_TITLE
+      void setUnreadBadge(0)
       setState({ notificationBanners: [], notificationPendingIds: [], notificationFocusId: null })
     },
     [setState],

@@ -23,6 +23,7 @@ import { useGetConnections, usePostConnection, usePostConnectionSync } from '@/s
 import type { ConnectionProvider, ConnectionResponse, SyncResponse } from '@/services/connection'
 import type { AssetClass } from '@/services/common.type'
 import { ApiError } from '@/services/api'
+import { externalLinkProps } from '@/utils/externalLink'
 import {
   CONNECTION_GUIDE_URL,
   CONNECTION_KEY_MAX_LENGTH,
@@ -207,9 +208,7 @@ export function ConnectAccountView({ assetClass, onDone }: ConnectAccountViewPro
           })}
         </div>
         <a
-          href={CONNECTION_GUIDE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
+          {...externalLinkProps(CONNECTION_GUIDE_URL)}
           style={GUIDE_LINK_STYLE}
         >
           기관별 발급 방법 보기
@@ -251,7 +250,7 @@ export function ConnectAccountView({ assetClass, onDone }: ConnectAccountViewPro
           <span>{meta.guide}</span>
           {/* 권한 범위·허용 IP·시크릿 1회 노출 같은 세부는 여기 다 적으면 폼이 화면 밖으로 밀린다.
               새 창으로 여는 이유: 같은 창에서 이동하면 입력하던 키가 날아간다. */}
-          <a href={CONNECTION_GUIDE_URL} target="_blank" rel="noopener noreferrer" style={GUIDE_LINK_STYLE}>
+          <a {...externalLinkProps(CONNECTION_GUIDE_URL)} style={GUIDE_LINK_STYLE}>
             {meta.label} 발급 방법 자세히
             <Icon name="open_in_new" size={14} ariaHidden />
           </a>

@@ -22,6 +22,8 @@ import { NAV_ITEMS } from './navItems'
 import { Auth } from '../../screens/Auth/Auth'
 import { hasSeenSession } from '@/stores/auth'
 import { useRestoreSession } from '@/services/auth'
+import { useAppState } from '@/state/AppStateContext'
+import { initialState } from '@/state/initialState'
 
 const AuthenticatedApp = lazy(() =>
   import('./AuthenticatedApp').then((m) => ({ default: m.AuthenticatedApp })),
@@ -33,6 +35,7 @@ export function AppShell() {
   const authStatus = useRestoreSession()
   const navigate = useNavigate()
   const location = useLocation()
+  const { setState } = useAppState()
   // 로그아웃(직접 로그아웃 또는 토큰 재발급 실패로 인한 강제 로그아웃) 시점에만 URL을
   // 대시보드로 되돌린다. 'authenticated' → 'anonymous' 전환만 감지하고, 부팅 시
   // 'unknown' → 'anonymous'(새로고침 세션 복원 실패 포함)는 건드리지 않는다 — 그 경로는
@@ -42,14 +45,13 @@ export function AppShell() {
   useEffect(() => {
     const prevAuthStatus = prevAuthStatusRef.current
     prevAuthStatusRef.current = authStatus
-    if (
-      prevAuthStatus === 'authenticated' &&
-      authStatus === 'anonymous' &&
-      location.pathname !== HOME_PATH
-    ) {
-      navigate(HOME_PATH, { replace: true })
-    }
-  }, [authStatus, location.pathname, navigate])
+    if (prevAuthStatus !== 'authenticated' || authStatus !== 'anonymous') return
+    if (location.pathname !== HOME_PATH) navigate(HOME_PATH, { replace: true })
+    // 열려 있던 모달·입력 중이던 폼·탭 같은 인터랙션 상태를 전부 처음 값으로 되돌린다. AppStateProvider 는 로그인 화면
+    // 위에 그대로 살아 있어서, 비우지 않으면 다음에 로그인하는 사람이 이전 사용자의 탈퇴 확인창·입력값을 그대로 본다.
+    // 기기 설정(테마·대시보드 배치·알림 받는 방식)은 사람이 아니라 기기의 것이라 남긴다.
+    setState((s) => ({ ...initialState, theme: s.theme, dashboardLayout: s.dashboardLayout, notificationPrefs: s.notificationPrefs }))
+  }, [authStatus, location.pathname, navigate, setState])
 
   if (authStatus === 'unknown') {
     if (!hasSeenSession()) return <Auth />

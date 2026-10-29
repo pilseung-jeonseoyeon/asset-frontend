@@ -1,9 +1,9 @@
 import type { Currency, ThemeType } from '../common.type'
 
-// GET/PATCH /users/me (UserProfileRes). JWT 인증이 붙은 뒤로는 user_id를 서버가 토큰에서 읽는다.
+// 내 정보(profiles + user_agreements). 사용자 id 는 Supabase Auth 의 uuid 문자열이다.
 
 export interface UserResponse {
-  id: number
+  id: string
   name: string
   email: string
   hasMarketingOptIn: boolean

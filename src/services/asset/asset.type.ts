@@ -14,6 +14,8 @@ export interface DistributionAccount {
    */
   kind?: string
   kindName?: string
+  /** 계좌 주인 id — '우리집' 화면에서 보관처·계좌에 소유자 이름을 붙인다. */
+  ownerId: string
 }
 
 export interface AssetClassGroup {

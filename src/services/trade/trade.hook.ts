@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../queryKeys'
+import { refreshPricesFor } from '../priceRefresh'
 import type { TradeSearchParams } from '../common.type'
 import { deleteTrade, getTrades, postTrade, putTrade } from './trade.service'
 import type { CreateTradeRequest, UpdateTradeRequest } from './trade.type'
@@ -34,7 +35,11 @@ export function usePostTrade() {
   const invalidate = useInvalidateTrade()
   return useMutation({
     mutationFn: (body: CreateTradeRequest) => postTrade(body),
-    onSuccess: invalidate,
+    onSuccess: (_trade, body) => {
+      invalidate()
+      // 방금 매매한 종목의 시세를 바로 받아와 평가액을 채운다(배치 전까지 빈칸으로 두지 않는다)
+      void refreshPricesFor([body.stockId])
+    },
   })
 }
 
@@ -77,7 +82,10 @@ export function usePostTradesBulk() {
     },
     // 한 건이라도 들어갔으면 캐시를 갱신해야 하므로 성공/실패와 무관하게(onSettled) 한 번만 무효화한다
     // — 줄마다 무효화하면 같은 화면을 수십 번 다시 불러온다.
-    onSettled: invalidate,
+    onSettled: (_result, _error, bodies) => {
+      invalidate()
+      void refreshPricesFor(bodies.map((b) => b.stockId))
+    },
   })
 }
 

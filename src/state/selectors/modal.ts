@@ -25,8 +25,6 @@ export function isAnyModalOpen(state: AppState): boolean {
     state.assetClassDetail !== null ||
     state.accountDetailId !== null ||
     state.reportOpen ||
-    state.shareMembersAccountId !== null ||
-    state.sharedAccountDetailId !== null ||
-    state.shareInviteConfirmId !== null
+    state.partnerAccountDetailId !== null
   )
 }

@@ -22,7 +22,8 @@ import {
   yearMonthLabel,
 } from '../../utils/date'
 import { formatNumber } from '../../utils/format'
-import { ownerActivityAuthor } from '../../data/shareView'
+import { ledgerOwnerCaption } from '../../data/shareView'
+import { useViewScope } from '../../utils/viewScope'
 import { openNewEntryUpdater } from '../../state/selectors/entryDraft'
 import { useDebouncedValue } from '../../utils/useDebouncedValue'
 import { useIsMobile } from '../../utils/useMediaQuery'
@@ -53,7 +54,6 @@ import {
   type SubscriptionRow,
 } from '../../data/ledgerView'
 import { useGetAccounts } from '@/services/account'
-import { useGetShares } from '@/services/share'
 import { useGetSubscriptions } from '@/services/subscription'
 import { useGetMe, useGetUserSettings } from '@/services/user'
 import {
@@ -405,12 +405,15 @@ function LedgerOverview() {
   const isPastMonth = period === 'month' && monthOffset !== 0
   const viewedYearMonth = isPastMonth ? { year: viewedMonth.year, month: viewedMonth.month } : {}
 
-  const summary = useGetPeriodSummary(period === 'month' ? 'MONTH' : 'YEAR', { yearMonth: viewedYearMonth })
-  const rankings = useGetCategoryRankings(viewedYearMonth)
-  const fixed = useGetSubscriptions('FIXED')
-  const subscriptionsQuery = useGetSubscriptions('SUBSCRIPTION')
-  const monthly = useGetMonthlySummaries(today.year)
-  const accountsQuery = useGetAccounts()
+  // '개인 | 우리집'(가족·커플 공유 v17) — 개요의 모든 집계가 같은 범위를 쓴다. '우리집'의 고정 지출·구독은
+  // 공유 계좌에서 나가는 것만 서버가 준다. 계좌 이름 조인도 그 범위의 계좌 목록으로 한다.
+  const { scope } = useViewScope()
+  const summary = useGetPeriodSummary(period === 'month' ? 'MONTH' : 'YEAR', { yearMonth: viewedYearMonth, scope })
+  const rankings = useGetCategoryRankings(viewedYearMonth, { scope })
+  const fixed = useGetSubscriptions('FIXED', { scope })
+  const subscriptionsQuery = useGetSubscriptions('SUBSCRIPTION', { scope })
+  const monthly = useGetMonthlySummaries(today.year, { scope })
+  const accountsQuery = useGetAccounts({ scope: scope === 'SHARED' ? 'SHARED' : 'ALL' })
 
   const accounts = accountsQuery.data ?? []
   const summaryErr = describeQueryError(summary.error)
@@ -914,34 +917,37 @@ function LedgerHistory() {
   // 하루도 무시한다(검색이 기간보다 우선).
   // 정렬은 보내지 않는다 — 서비스 기본값(transactionDate,desc + id,desc)이 같은 날 거래를 최근 등록 순으로
   // 고정해 준다. 예전엔 여기서 날짜 정렬만 보내 id 2차 키가 빠져 같은 날 순서가 들쭉날쭉했다(2026-09-26).
+  // '개인 | 우리집' 범위와 '우리집'의 누구 몫 필터(전체 · 나 · 상대 · 공동). 필터는 서버가 페이지 전에 거른다.
+  const { scope, linked, partnerName } = useViewScope()
+  const shared = scope === 'SHARED'
+  const who = shared && state.ledgerWho !== 'all' ? state.ledgerWho : undefined
   const transactionsQuery = useGetTransactions(
     isSearching
-      ? { keyword: searchTerm, page: state.ledgerPage, size: 5 }
+      ? { keyword: searchTerm, page: state.ledgerPage, size: 5, scope, who }
       : selectedDate
-        ? { from: selectedDate, to: selectedDate, page: state.ledgerPage, size: 5 }
+        ? { from: selectedDate, to: selectedDate, page: state.ledgerPage, size: 5, scope, who }
         : isWeek
-          ? { from: weekAnchor, to: weekEnd, page: state.ledgerPage, size: 5 }
-          : { year: cursor.year, month: cursor.month, page: state.ledgerPage, size: 5 },
+          ? { from: weekAnchor, to: weekEnd, page: state.ledgerPage, size: 5, scope, who }
+          : { year: cursor.year, month: cursor.month, page: state.ledgerPage, size: 5, scope, who },
   )
-  const dailyQueryA = useGetDailySummaries(weekStartMonth)
-  const dailyQueryB = useGetDailySummaries(weekEndMonth, { enabled: needsSecondMonth })
+  const dailyQueryA = useGetDailySummaries(weekStartMonth, { scope })
+  const dailyQueryB = useGetDailySummaries(weekEndMonth, { enabled: needsSecondMonth, scope })
   // 달력의 이체 줄: 서버의 일별 요약(DailySummaryResponse)은 수입·지출·저축 세 가지만 내려주므로
   // 이체는 거래 목록에서 TRANSFER만 따로 받아 날짜별로 합산한다. 기간 조건은 위 목록 조회와 똑같이
   // 주간은 from/to, 월간은 정산월 year/month를 쓴다 — 달력과 목록이 다른 기간을 보면 안 된다.
   // 서버가 일별 요약에 이체 합계를 추가해주면 이 조회는 통째로 지울 수 있다.
   const transferQuery = useGetTransactions(
     isWeek
-      ? { from: weekAnchor, to: weekEnd, type: 'TRANSFER', page: 1, size: CALENDAR_TRANSFER_SIZE }
-      : { year: cursor.year, month: cursor.month, type: 'TRANSFER', page: 1, size: CALENDAR_TRANSFER_SIZE },
+      ? { from: weekAnchor, to: weekEnd, type: 'TRANSFER', page: 1, size: CALENDAR_TRANSFER_SIZE, scope }
+      : { year: cursor.year, month: cursor.month, type: 'TRANSFER', page: 1, size: CALENDAR_TRANSFER_SIZE, scope },
   )
-  const accountsQuery = useGetAccounts()
+  const accountsQuery = useGetAccounts({ scope: shared ? 'SHARED' : 'ALL' })
 
   const rows = buildLedgerTransactions(transactionsQuery.data?.content ?? [], accountsQuery.data ?? [])
-  // 공유 계좌에 멤버가 적은 거래에는 이름 배지를 붙인다(계좌 공유, 시안 3번). 이름은 내가 공유한 멤버 목록에서
-  // 찾는다 — 남이 적은 행이 화면에 있을 때만 받는다(공유한 적 없는 사용자에겐 요청이 나가지 않는다).
+  // 줄 아래 설명(공동 · 결제자 / 이름)과 상대 거래(읽기 전용) 판정 — data/shareView.ts
   const myUserId = useGetMe().data?.id ?? null
-  const hasForeignAuthor = rows.some((r) => r.createdBy !== null && r.createdBy !== myUserId)
-  const ownerSharesQuery = useGetShares({ side: 'OWNER' }, { enabled: hasForeignAuthor })
+  const myName = useGetMe().data?.name ?? ''
+  const whoCounts = transactionsQuery.data?.whoCounts
   const page = transactionsQuery.data
   const totalPages = page?.totalPages ?? 0
   const currentPage = (page?.number ?? 0) + 1
@@ -1252,6 +1258,32 @@ function LedgerHistory() {
             {transactionsQuery.isFetching && !transactionsQuery.isPending && (
               <span aria-busy style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>불러오는 중…</span>
             )}
+            {/* '우리집'의 이름 · 공동 필터(시안 v16). 건수는 필터 전 기준(서버 whoCounts) */}
+            {shared && (
+              <div role="group" aria-label="누구 몫으로 거르기" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginLeft: isMobile ? 0 : 'auto', width: isMobile ? '100%' : undefined }}>
+                {(['all', 'me', 'pt', 'jt'] as const).map((k) => {
+                  const active = state.ledgerWho === k
+                  const label = k === 'all' ? '전체' : k === 'me' ? (myName || '나') : k === 'pt' ? (partnerName ?? '상대') : '공동'
+                  const count = whoCounts ? whoCounts[k] : null
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setState({ ledgerWho: k, ledgerPage: 1 })}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6, minHeight: isMobile ? 44 : 32, padding: '0 12px', borderRadius: 8,
+                        border: `0.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`, background: active ? 'var(--accent-soft)' : 'var(--surface)',
+                        color: active ? 'var(--accent)' : 'var(--text-mid)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {label}
+                      {count !== null && <span style={{ fontWeight: 600 }}>{count}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
             {selectedDate && (
               <>
                 {/* 하루로 좁힌 상태를 되돌리는 칩. 터치 최소치(44px)를 지킨다(docs/mobile.md §5). */}
@@ -1304,14 +1336,17 @@ function LedgerHistory() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {rows.map((t) => {
-                const author = ownerActivityAuthor(t.createdBy, myUserId, ownerSharesQuery.shares)
+                // 상대가 적은 거래(공유 계좌·공동·상대 몫)는 보기만 한다 — 수정 창을 열지 않는다
+                const readOnly = t.type === 'ADJUSTMENT' || t.type === 'EXCHANGE' || (myUserId !== null && t.userId !== myUserId)
+                const caption = ledgerOwnerCaption(t, { linked, shared, myUserId, myName, partnerName })
                 return (
                 <div
                   key={t.key}
                   className="mini-hov"
-                  // 키보드로도 수정 창을 열 수 있게 버튼 역할을 준다(서버가 만든 행은 열리지 않아 제외).
-                  role={t.type === 'ADJUSTMENT' || t.type === 'EXCHANGE' ? undefined : 'button'}
-                  tabIndex={t.type === 'ADJUSTMENT' || t.type === 'EXCHANGE' ? undefined : 0}
+                  // 키보드로도 수정 창을 열 수 있게 버튼 역할을 준다(서버가 만든 행·상대 거래는 열리지 않아 제외).
+                  role={readOnly ? undefined : 'button'}
+                  tabIndex={readOnly ? undefined : 0}
+                  title={readOnly && t.type !== 'ADJUSTMENT' && t.type !== 'EXCHANGE' ? `${partnerName ?? '상대'}님이 기록한 거래예요` : undefined}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault()
@@ -1325,7 +1360,7 @@ function LedgerHistory() {
                     // 바뀌어 섞여 들어와도 저장 시점에 에러가 나는 편집 모달이 열리지 않도록 방어로
                     // 남겨 둔다 — 잔액을 다시 맞추려면 계좌 수정 화면의 '현재 잔액'을 고친다.
                     // 환전(EXCHANGE)도 서버가 만드는 행이라 여기서 고치지 않는다(주식 화면의 환전 내역에서 고친다).
-                    if (t.type === 'ADJUSTMENT' || t.type === 'EXCHANGE') return
+                    if (readOnly || t.type === 'ADJUSTMENT' || t.type === 'EXCHANGE') return
                     setState({
                       openModal: 'ledgerEntry',
                       entryType: TRANSACTION_TYPE_TO_ENTRY_TYPE[t.type],
@@ -1340,30 +1375,26 @@ function LedgerHistory() {
                       entryAmount: t.amountRaw,
                       entryDescription: t.description,
                       entryMemo: t.memo ?? '',
+                      entryOwnerTag: t.ownerTag,
                       entryDateOverride: isoDateToDisplay(t.isoDate),
                       editingTransactionId: t.id,
                       openDropdown: null,
                     })
                   }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8, cursor: t.type === 'ADJUSTMENT' || t.type === 'EXCHANGE' ? 'default' : 'pointer' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8, cursor: readOnly ? 'default' : 'pointer' }}
                 >
                   <div style={{ fontSize: 11.5, color: 'var(--text-weak)', width: 44, flex: 'none' }}>{t.dateLabel}</div>
-                  <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</div>
-                    {t.memo && (
-                      <span title={t.memo} style={{ display: 'flex', flex: 'none', color: 'var(--text-weak)' }}>
-                        <Icon name="sticky_note_2" size={13} />
-                      </span>
-                    )}
-                    {/* 공유 멤버가 적은 거래 — 가계부 '수입' 색 배지. 내 거래에는 없다. */}
-                    {author && (
-                      <span
-                        title={`${author}님이 적은 거래`}
-                        style={{ fontSize: 10, fontWeight: 700, color: 'var(--inc-text)', background: 'var(--up-chip)', borderRadius: 6, padding: '2px 7px', flex: 'none', lineHeight: 1.4, whiteSpace: 'nowrap', maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis' }}
-                      >
-                        {author}
-                      </span>
-                    )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</div>
+                      {t.memo && (
+                        <span title={t.memo} style={{ display: 'flex', flex: 'none', color: 'var(--text-weak)' }}>
+                          <Icon name="sticky_note_2" size={13} />
+                        </span>
+                      )}
+                    </div>
+                    {/* 누구의 거래인지(시안 v16) — '우리집'은 모든 줄, '개인'은 공동·상대 몫 줄만 */}
+                    {caption && <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{caption}</div>}
                   </div>
                   {t.tag && (
                     // 태그는 사용자가 직접 지은 계좌명·소분류명이라 길이 제한이 없다(ledgerView.ts

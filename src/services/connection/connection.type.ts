@@ -4,11 +4,23 @@
 // API 키를 등록하면 서버가 그 키로 기관 API를 대신 호출하는 구조다. 계약 요약은
 // docs/superpowers/specs/2026-08-29-byok-connection-design.md 참고.
 //
-// 주의: 앱 시크릿은 서버가 암호화해 보관하고 응답에 절대 내려오지 않는다. 즉 등록 후에는 화면에서
+// 주의: 앱 시크릿은 DB 함수가 Vault 에 보관하고 응답에 절대 내려오지 않는다. 즉 등록 후에는 화면에서
 // 시크릿을 다시 볼 방법이 없고 수정 API도 없다 — 바꾸려면 삭제 후 재등록이다.
+// 동기화는 Edge Function `connections`(supabase/functions/connections) 가 기관 API 를 부르고 apply_connection_sync 로 반영한다.
 
-/** 연동 가능한 기관. 라이브 OpenAPI 기준 4종. */
+/** 연동 가능한 기관. 4종. */
 export type ConnectionProvider = 'UPBIT' | 'TOSS_INVEST' | 'KB_SECURITIES' | 'KIWOOM'
+
+/**
+ * 기관 표시명(스프링 Provider.description · DB private.provider_meta.label 과 같다). 동기화가 자동 생성하는 계좌·기관
+ * 이름도 이 값이라 화면 표기와 데이터가 어긋나지 않는다. ConnectionRes.providerDescription 은 이 표에서 채운다.
+ */
+export const CONNECTION_PROVIDER_LABELS: Record<ConnectionProvider, string> = {
+  UPBIT: '업비트',
+  TOSS_INVEST: '토스증권',
+  KB_SECURITIES: 'KB증권',
+  KIWOOM: '키움증권',
+}
 
 export interface CreateConnectionRequest {
   provider: ConnectionProvider
@@ -26,9 +38,9 @@ export interface CreateConnectionRequest {
 export interface ConnectionResponse {
   id: number
   provider: ConnectionProvider
-  /** 기관 표시명(예: '업비트'). 화면에 찍는 이름은 프론트 상수가 아니라 이 값을 우선한다. */
+  /** 기관 표시명(예: '업비트') — CONNECTION_PROVIDER_LABELS. 화면은 이 값을 쓴다. */
   providerDescription: string
-  /** 서버가 마스킹해 내려준 앱 키(예: 'acce****'). 프론트에서 따로 마스킹하지 않는다. */
+  /** 마스킹된 앱 키(앞 4자 + * + 뒤 4자, account_connections_masked 뷰). 프론트에서 따로 마스킹하지 않는다. */
   appKey: string
   /** 연결된 계좌 id. 첫 동기화 전이면 null. */
   accountId: number | null
@@ -49,4 +61,6 @@ export interface SyncResponse {
   skipped: number
   /** 검증에 걸려 거부된 체결 건수 */
   rejected: number
+  /** 이번 동기화로 보유·체결이 생긴 종목 id — 시세 즉시 수집에 쓴다(스프링엔 없던 필드, 생략 가능). */
+  stockIds?: number[]
 }

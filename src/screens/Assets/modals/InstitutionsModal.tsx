@@ -10,14 +10,19 @@
 // (buildDashboardInstitutions가 이미 필터링).
 // 대시보드 '주요 자산 보관처' 카드와 조인 규칙이 완전히 같아(limit만 다름) buildDashboardInstitutions를
 // 그대로 재사용한다 — 같은 규칙을 두 곳에 따로 구현하지 않기 위해서다.
+// 상단이 '우리집'(가족·커플 공유 v17)이면 공유 계좌만 모으고 기관 이름 아래에 누구 계좌인지 적는다.
 
 import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
 import { BankIcon } from '../../../components/primitives/BankIcon/BankIcon'
 import { useAppState } from '../../../state/AppStateContext'
 import { buildDashboardInstitutions, DASHBOARD_INSTITUTIONS_EMPTY_TEXT } from '../../../data/dashboardView'
 import { describeQueryError } from '../../../data/ledgerView'
+import { ownerNameOf } from '../../../data/shareView'
+import { useAuthStore } from '../../../stores/auth'
+import { useViewScope } from '../../../utils/viewScope'
 import { useGetAssetDistributionByInstitution } from '@/services/asset'
 import { useGetInstitutions } from '@/services/institution'
+import { useProfileName } from '@/services/user'
 import type { CSSProperties } from 'react'
 
 // GeneralModal.tsx/AddAccountModal.tsx의 재시도 배너와 동일한 텍스트 버튼 규격.
@@ -30,7 +35,10 @@ export function InstitutionsModal() {
   const { state, setState } = useAppState()
   const isOpen = state.openModal === 'institutions'
 
-  const distribution = useGetAssetDistributionByInstitution({ enabled: isOpen })
+  const { scope, partnerName } = useViewScope()
+  const myUserId = useAuthStore((s) => s.userId)
+  const myName = useProfileName()
+  const distribution = useGetAssetDistributionByInstitution({ enabled: isOpen, scope })
   const institutionsQuery = useGetInstitutions({ enabled: isOpen })
 
   if (!isOpen) return null
@@ -48,6 +56,7 @@ export function InstitutionsModal() {
     distribution.groups,
     institutionsQuery.data ?? [],
     Number.POSITIVE_INFINITY,
+    scope === 'SHARED' ? (ownerId) => ownerNameOf(ownerId, myUserId, myName, partnerName) : undefined,
   )
 
   return (
@@ -72,8 +81,11 @@ export function InstitutionsModal() {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 <BankIcon tokenKey={institution.tokenKey} size={32} />
-                <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {institution.name}
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {institution.name}
+                  </span>
+                  {institution.owner && <span style={{ display: 'block', fontSize: 11, color: 'var(--text-weak)', marginTop: 2 }}>{institution.owner}</span>}
                 </span>
               </div>
               <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '-.02em', textAlign: 'right', flex: 'none' }}>

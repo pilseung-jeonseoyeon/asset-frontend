@@ -23,6 +23,7 @@ import { DeepCard } from '../../components/primitives/DeepCard/DeepCard'
 import { DonutChart } from '../../components/primitives/DonutChart/DonutChart'
 import { SegmentedTab } from '../../components/primitives/SegmentedTab/SegmentedTab'
 import { Skeleton } from '../../components/primitives/Skeleton/Skeleton'
+import { useViewScope } from '../../utils/viewScope'
 import { useAppState } from '../../state/AppStateContext'
 import { stockDeepTabStyle, stockLightTabStyle } from '../../state/selectors/stockTabStyles'
 import { formatNumber, formatKrw, formatKoreanUnits, formatUsd } from '../../utils/format'
@@ -119,7 +120,44 @@ function TotalValueKoreanUnitsCaption({ amountKrw }: { amountKrw: number }) {
   )
 }
 
+/**
+ * 상단이 '우리집'(가족·커플 공유 v17)이면 빈 화면 — 공유는 현금 · 예적금 계좌만 할 수 있어 공유된 주식 계좌가 없다(시안 v16).
+ */
 export function Stocks() {
+  const { scope } = useViewScope()
+  return scope === 'SHARED' ? <SharedStocksEmpty /> : <PersonalStocks />
+}
+
+function SharedStocksEmpty() {
+  const { spaceName, setScope } = useViewScope()
+  return (
+    <section
+      style={{
+        background: 'var(--surface)', borderRadius: 10, border: '0.5px solid var(--border)', boxShadow: 'var(--shadow-card)',
+        padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
+      }}
+    >
+      <span style={{ width: 44, height: 44, borderRadius: 10, background: 'var(--track)', color: 'var(--text-weak)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="show_chart" size={22} />
+      </span>
+      <div style={{ fontSize: 15, fontWeight: 700, marginTop: 16 }}>'{spaceName}'에 공유된 주식 계좌가 없어요</div>
+      <div style={{ fontSize: 12.5, color: 'var(--text-weak)', lineHeight: 1.7, marginTop: 6 }}>
+        지금은 현금 · 예적금 계좌만 공유할 수 있어요.
+        <br />
+        주식 계좌는 '개인'에서 확인해 주세요.
+      </div>
+      <button
+        type="button"
+        onClick={() => setScope('PERSONAL')}
+        style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-strong)', background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '7px 13px', minHeight: 36, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', marginTop: 18 }}
+      >
+        개인으로 보기
+      </button>
+    </section>
+  )
+}
+
+function PersonalStocks() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
   const stockMarketTab = state.stockMarketTab

@@ -3,6 +3,7 @@
 
 import { Card } from '../../../components/primitives/Card/Card'
 import { useAppState } from '../../../state/AppStateContext'
+import { useViewScope } from '../../../utils/viewScope'
 import { buildAssetGoals } from '../../../data/dashboardView'
 import { formatNumber } from '../../../utils/format'
 import { useGetGoal } from '@/services/goal'
@@ -27,8 +28,9 @@ function StatBox({ label, valueText }: { label: string; valueText: string | null
 
 export function SpendableGoalCard() {
   const { setState } = useAppState()
-  const goalQuery = useGetGoal({})
-  const assetGoals = goalQuery.goal ? buildAssetGoals(goalQuery.goal) : []
+  const { scope } = useViewScope()
+  const goalQuery = useGetGoal({}, { scope })
+  const assetGoals = goalQuery.goal ? buildAssetGoals(goalQuery.goal, new Date(), scope === 'SHARED') : []
   // GoalCard와 반대로 여기는 월간 → 연간 순서로 보여준다.
   const orderedGoals = [...assetGoals].sort((a, b) => (a.id === 'monthly' ? -1 : 1) - (b.id === 'monthly' ? -1 : 1))
   const openAddGoal = () => setState({ openModal: 'addGoal', addGoalReturnTo: null })

@@ -7,6 +7,7 @@
 // 합이 101%가 되는 등 어긋났다(2026-09-26). 블록 넓이·티어·'기타' 병합 판정은 정밀한 계산값(percent)으로 한다.
 // 자산군별 수익률은 어떤 API도 주지 않으므로 다루지 않는다.
 
+import { HIDDEN_ACCOUNT_LABEL } from './shareView'
 import type { TreemapBlock } from '../components/primitives/Treemap/Treemap'
 import { formatNumber, formatCurrencyAmount } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
@@ -177,6 +178,8 @@ export interface AssetClassCardAccount {
   institutionName: string
   amount: number
   amountText: string
+  /** 계좌 주인 — '우리집' 화면에서 내 계좌(수정 가능)와 상대 계좌(보기만)를 가른다 */
+  ownerId: string
 }
 
 export interface AssetClassCard {
@@ -233,6 +236,7 @@ export function buildAssetClassCards(groups: AssetClassGroup[]): AssetClassCard[
             institutionName: a.institutionName ?? '',
             amount: a.valueKrw,
             amountText: formatNumber(a.valueKrw),
+            ownerId: a.ownerId,
           })),
       }
     })
@@ -540,7 +544,7 @@ export interface AccountActivityRow {
   amountColor: string
   /** 거래를 기록한 사용자 id(가계부 거래만, TransactionResponse.createdBy). 매매는 null. 공유 계좌에서
    * 멤버가 적은 줄에 이름 배지를 붙이는 데 쓴다(data/shareView.ts의 ownerActivityAuthor). */
-  createdBy: number | null
+  createdBy: string | null
 }
 
 /**
@@ -569,7 +573,8 @@ export function accountActivityAmountText(t: LedgerTransactionRow, accountId: nu
  */
 function accountActivityTag(t: LedgerTransactionRow, accountId: number, accounts: AccountResponse[]): string {
   if (t.type !== 'TRANSFER' || t.transferAccountId !== accountId) return t.tag
-  return accounts.find((a) => a.id === t.accountId)?.name ?? t.tag
+  if (t.accountHidden) return HIDDEN_ACCOUNT_LABEL
+  return accounts.find((a) => a.id === t.accountId)?.name ?? t.accountName ?? t.tag
 }
 
 export function buildAccountActivity(

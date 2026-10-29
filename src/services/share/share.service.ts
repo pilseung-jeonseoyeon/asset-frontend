@@ -1,78 +1,57 @@
-import { api, unwrap } from '../api'
-import type { ApiResponse } from '../api.types'
-import type { CategoryKind, Page, ShareSearchParams, SharedTransactionSearchParams } from '../common.type'
-// 타입 전용·share → 다른 도메인 한 방향 import(share.type.ts 상단 주석).
-import type { CategoryResponse } from '../category'
-import type { TransactionResponse } from '../transaction'
-import type {
-  CreateShareRequest,
-  CreateSharedTransactionRequest,
-  SharedAccountResponse,
-  ShareResponse,
-  UpdateShareRequest,
-  UpdateSharedTransactionRequest,
-} from './share.type'
+import { ApiError } from '../api'
+import { errorMessageOf } from '../errorMessages'
+import { currentUserId, rpc, supabase, unwrapResult } from '../supabase'
+import type { ShareCodeCheckResponse, ShareInvite, SharedAccountRequest, ShareStatusResponse } from './share.type'
 
-/** 내가 보낸(OWNER, 기본) / 받은(MEMBER) 공유 목록. 계좌당 최대 10명이라 페이징이 없다. */
-export async function getShares(params: ShareSearchParams = {}) {
-  return unwrap(await api.get<ApiResponse<ShareResponse[]>>('/shares', { params }))
+// 공유 RPC(security definer)만 부른다 — 공유 테이블은 RLS 정책이 없어 직접 읽을 수 없다.
+// 틀린 초대 코드는 서버가 시도 기록을 남겨야 해서 예외 대신 { error } 로 돌려준다 → 여기서 ApiError 로 바꾼다.
+
+function throwIfCodeError<T extends object>(result: T | { error: string }): T {
+  if ('error' in result) throw new ApiError(result.error, errorMessageOf(result.error), 400)
+  return result
 }
 
-/** 이메일로 초대. PENDING 행이 생기고 상대에게 SHARE_INVITED 알림이 간다(메일은 보내지 않는다). */
-export async function postShare(body: CreateShareRequest) {
-  return unwrap(await api.post<ApiResponse<ShareResponse>>('/shares', body))
+export async function getShareStatus() {
+  return rpc<ShareStatusResponse>('get_share_status')
 }
 
-/** 멤버의 수락·거절(status) 또는 소유자의 역할 변경(role) — 둘 중 하나만. */
-export async function patchShare(shareId: number, body: UpdateShareRequest) {
-  return unwrap(await api.patch<ApiResponse<ShareResponse>>(`/shares/${shareId}`, body))
+/** 새 초대 코드(10분). 이전 코드는 폐기된다. 연결 중이면 SHARE_ALREADY_LINKED. */
+export async function issueShareCode() {
+  return rpc<ShareInvite>('issue_share_code')
 }
 
-/** 소유자의 초대 취소·해제 / 멤버의 나가기. 행은 지우지 않고 REVOKED로 남는다(204). */
-export async function deleteShare(shareId: number) {
-  await api.delete(`/shares/${shareId}`)
+export async function cancelShareCode() {
+  await rpc<void>('cancel_share_code')
 }
 
-/** 내가 수락한 공유 중 해지되지 않은 계좌를 잔액·평가액과 함께. */
-export async function getSharedAccounts() {
-  return unwrap(await api.get<ApiResponse<SharedAccountResponse[]>>('/shares/accounts'))
+/** 받은 코드 확인 → 초대한 사람 이름. 틀리면 SHARE_CODE_INVALID, 10분에 5번 틀리면 SHARE_CODE_LOCKED. */
+export async function checkShareCode(code: string) {
+  return throwIfCodeError(await rpc<ShareCodeCheckResponse | { error: string }>('check_share_code', { p_code: code }))
 }
 
-/**
- * 공유받은 계좌의 가계부 거래. 정산월(year·month)은 받지 않고 거래일 구간·유형·검색어만 받는다.
- * 정렬은 가계부 목록과 같은 규칙으로 서버가 정한다(transaction.service.ts의 DEFAULT_TRANSACTION_SORT와 같은 이유로
- * 2차 키까지 못 박는다).
- */
-export async function getSharedAccountTransactions(accountId: number, params: SharedTransactionSearchParams = {}) {
-  return unwrap(
-    await api.get<ApiResponse<Page<TransactionResponse>>>(`/shares/accounts/${accountId}/transactions`, {
-      params: { sort: ['transactionDate,desc', 'id,desc'], ...params },
-    }),
+/** 수락하고 연결. 응답은 연결된 뒤의 공유 상태. */
+export async function acceptShareCode(code: string) {
+  return throwIfCodeError(await rpc<ShareStatusResponse | { error: string }>('accept_share_code', { p_code: code }))
+}
+
+export async function unlinkShare() {
+  await rpc<void>('unlink_share')
+}
+
+/** 공유할 계좌 저장 — 목록 전체 교체. 이미 공유 중이던 계좌는 공유 시작일이 그대로다. */
+export async function setSharedAccounts(items: SharedAccountRequest[]) {
+  return rpc<ShareStatusResponse>('set_shared_accounts', { p_items: items })
+}
+
+/** 공유 화면 이름(내 설정, 1~8자). 빈 값은 null로 저장해 기본 '우리집'으로 돌아간다. */
+export async function patchShareSpaceName(name: string) {
+  const uid = await currentUserId()
+  const trimmed = name.trim()
+  unwrapResult(
+    await supabase
+      .from('user_settings')
+      .update({ share_space_name: trimmed === '' ? null : trimmed })
+      .eq('user_id', uid)
+      .select('user_id'),
   )
-}
-
-/** 공유 계좌 소유자의 분류(대분류 + 소유자 소분류). EDITOR 입력 폼용이지만 역할은 묻지 않는다. */
-export async function getSharedAccountCategories(accountId: number, kind?: CategoryKind) {
-  return unwrap(
-    await api.get<ApiResponse<CategoryResponse[]>>(`/shares/accounts/${accountId}/categories`, { params: { kind } }),
-  )
-}
-
-/** EDITOR의 수입·지출 등록. 소유자의 가계부 거래로 저장되고 작성자(createdBy)만 나로 남는다. */
-export async function postSharedTransaction(accountId: number, body: CreateSharedTransactionRequest) {
-  return unwrap(
-    await api.post<ApiResponse<TransactionResponse>>(`/shares/accounts/${accountId}/transactions`, body),
-  )
-}
-
-/** 내가 기록한 거래만 전체 교체. 다른 사람 거래는 403 TRANSACTION_NOT_AUTHOR. */
-export async function putSharedTransaction(accountId: number, transactionId: number, body: UpdateSharedTransactionRequest) {
-  return unwrap(
-    await api.put<ApiResponse<TransactionResponse>>(`/shares/accounts/${accountId}/transactions/${transactionId}`, body),
-  )
-}
-
-/** 내가 기록한 거래 삭제(204). */
-export async function deleteSharedTransaction(accountId: number, transactionId: number) {
-  await api.delete(`/shares/accounts/${accountId}/transactions/${transactionId}`)
 }

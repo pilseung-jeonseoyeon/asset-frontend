@@ -29,13 +29,27 @@ export interface TransactionResponse {
   transactionDate: string
   description: string
   memo: string | null
+  /** 거래를 기록한 사용자 id. 배치가 만든 거래(고정 지출 자동 기록)는 null. */
+  createdBy: string | null
   /**
-   * 거래를 기록한 사용자 id(2026-10-15, 계좌 공유). 공유 계좌에 멤버가 기록했으면 그 멤버, 배치가 만든
-   * 거래와 작성자 기록이 생기기 전의 옛 거래는 null. 소유자가 직접 적은 새 거래는 소유자 자신의 id다 —
-   * "남이 적었는지"는 null 여부가 아니라 내 id와 다른지로 본다(data/shareView.ts).
+   * 계좌 주인(돈이 나간·들어온 사람) id. 가족·커플 공유(v17) 화면에서 상대 거래를 가른다 — 내 id와 다르면
+   * 상대가 적은 거래이고 읽기 전용이다(수정·삭제 불가).
    */
-  createdBy: number | null
+  userId: string
+  /** 누구 몫 — SELF 나 · PARTNER 상대 · JOINT 공동(적은 사람 기준). */
+  ownerTag: OwnerTag
+  /** 거래 계좌 이름. 보는 사람에게 공유되지 않은 상대 계좌면 null(accountHidden = true → '다른 계좌'). */
+  accountName: string | null
+  accountHidden: boolean
+  /** 상대 계좌가 보는 사람에게 공유되지 않은 계좌면 true(transferAccountName = null → '다른 계좌'). */
+  transferAccountHidden: boolean
 }
+
+/**
+ * 누구의 수입·지출인지(가족·커플 공유 v17). 공유 연결 중에만, 수입·지출에만 SELF 외 값을 쓸 수 있다
+ * (아니면 400 OWNER_TAG_NOT_ALLOWED / 409 SHARE_NOT_LINKED). 기본 SELF.
+ */
+export type OwnerTag = 'SELF' | 'PARTNER' | 'JOINT'
 
 export interface CreateTransactionRequest {
   type: TransactionType
@@ -47,6 +61,8 @@ export interface CreateTransactionRequest {
   transactionDate: string
   description: string
   memo?: string
+  /** 생략하면 SELF. PUT에서도 다시 실어야 한다(전체 교체). */
+  ownerTag?: OwnerTag
 }
 
 /**

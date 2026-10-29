@@ -10,8 +10,9 @@ import { useDashboardHero } from '../hooks/useDashboardHero'
 
 export function ReportBanner() {
   const { setState } = useAppState()
-  const { hero } = useDashboardHero()
-  if (!hero || hero.isEmpty) return null
+  const { hero, scope } = useDashboardHero()
+  // 월간 리포트는 '개인' 기준이라 '우리집'에서는 배너를 숨긴다
+  if (!hero || hero.isEmpty || scope === 'SHARED') return null
 
   // 열 때마다 reportPeriod를 null(현재 정산월)로 되돌린다 — 지난달을 보다 닫은 뒤 다시 열면
   // "이번 달 리포트"라는 배너 문구와 다른 달이 뜨면 안 된다.

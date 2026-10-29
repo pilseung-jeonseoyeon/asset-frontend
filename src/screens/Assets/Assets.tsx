@@ -3,33 +3,37 @@
 // 데이터: GET /assets/distribution?groupBy=CLASS(자산 구성 카드 + 트리맵),
 // GET /assets/liquidity(유동성 뷰), GET /transactions/summary?period=MONTH
 // (유동성 캡션의 "월 지출 기준 약 N개월치" 계산). 파생 로직은 src/data/assetsView.ts.
+//
+// 상단 '개인 | 우리집'(가족·커플 공유 v17, utils/viewScope.ts)에 따라 같은 카드가 범위만 바꿔 그린다.
+// '개인'은 서버가 내가 공유 중인 계좌를 빼고 주고, '우리집'은 두 사람의 공유 계좌(현금 · 예적금)만 준다 —
+// 그래서 '우리집'에서는 현금 · 예적금 카드만 보이고, 부동산 '준비 중' 카드와 [계좌 추가] 대신 [공유 계좌 관리]를 둔다.
 
 import type { CSSProperties } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
 import { Card } from '../../components/primitives/Card/Card'
-import { ShareBadge } from '../../components/primitives/ShareBadge/ShareBadge'
 import { Treemap } from '../../components/primitives/Treemap/Treemap'
 import { useAppState } from '../../state/AppStateContext'
 import { useIsMobile } from '../../utils/useMediaQuery'
-import { formatNumber } from '../../utils/format'
-import { assetClassMetaOf, assetClassOfAccountType, buildAssetClassCards, buildLiquidityView, buildMapTiers, countMaturingAccounts, liquidityMonthsOfExpense, pickNearestMaturity } from '../../data/assetsView'
+import { useViewScope } from '../../utils/viewScope'
+import { buildAssetClassCards, buildLiquidityView, buildMapTiers, countMaturingAccounts, liquidityMonthsOfExpense, pickNearestMaturity } from '../../data/assetsView'
 import { useGetAssetDistributionByClass, useGetAssetLiquidity } from '@/services/asset'
-import { useGetSharedAccounts } from '@/services/share'
 import { useGetPeriodSummary } from '@/services/transaction'
 
-function EmptyAccountsState({ onAdd, style }: { onAdd: () => void; style?: CSSProperties }) {
+function EmptyAccountsState({ onAdd, shared, style }: { onAdd: () => void; shared: boolean; style?: CSSProperties }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, ...style }}>
       <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>
-        등록된 계좌가 없어요. 계좌를 추가하면 자산 구성을 볼 수 있어요.
+        {shared
+          ? '아직 함께 보는 계좌가 없어요. 공유 계좌 관리에서 함께 볼 현금 · 예적금 계좌를 골라주세요.'
+          : '등록된 계좌가 없어요. 계좌를 추가하면 자산 구성을 볼 수 있어요.'}
       </div>
       <button
         className="qbtn"
         onClick={onAdd}
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 13, borderRadius: 10, border: '0.5px dashed var(--text-weak)', background: 'transparent', color: 'var(--text-weak)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', transition: 'transform .12s', fontFamily: 'inherit' }}
       >
-        <Icon name="add" size={16} />
-        계좌 추가
+        <Icon name={shared ? 'checklist' : 'add'} size={16} />
+        {shared ? '공유 계좌 관리' : '계좌 추가'}
       </button>
     </div>
   )
@@ -38,10 +42,13 @@ function EmptyAccountsState({ onAdd, style }: { onAdd: () => void; style?: CSSPr
 export function Assets() {
   const { setState } = useAppState()
   const isMobile = useIsMobile()
-  const distribution = useGetAssetDistributionByClass()
-  const liquidity = useGetAssetLiquidity()
+  const { scope, spaceName } = useViewScope()
+  const shared = scope === 'SHARED'
+  const distribution = useGetAssetDistributionByClass({ scope })
+  const liquidity = useGetAssetLiquidity({ scope })
 
-  const assetClassCards = buildAssetClassCards(distribution.groups)
+  // '우리집'은 현금 · 예적금만 공유되므로 그 두 카드만(시안 v16 shareableCatIds)
+  const assetClassCards = buildAssetClassCards(distribution.groups).filter((c) => !shared || c.id === 'CASH' || c.id === 'DEPOSIT')
   const mapBlocks = buildMapTiers(distribution.groups, (assetClass) => setState({ assetClassDetail: assetClass }))
   // 서버는 5개 자산군을 항상 고정 배열로 내려준다(계좌가 하나도 없어도 totalValueKrw:0인 빈 항목들이 옴).
   // groups.length만으로는 "데이터 없음"을 판별할 수 없어 합계 금액까지 함께 확인한다.
@@ -63,7 +70,7 @@ export function Assets() {
   // 기준 월 지출은 **지난 정산월(끝난 달)** 지출이다 — 진행 중인 이번 달로 나누면 정산월 초에는 지출이 아직
   // 적어 '약 40개월치'처럼 부풀었다(2026-09-26 통합테스트). 지난달 기록이 없으면(가계부를 막 시작함)
   // 이번 달 지출로 대신한다.
-  const periodSummaryQuery = useGetPeriodSummary('MONTH')
+  const periodSummaryQuery = useGetPeriodSummary('MONTH', { scope })
   const baseMonthlyExpense = periodSummaryQuery.data
     ? periodSummaryQuery.data.expenseTotalPrevious > 0
       ? periodSummaryQuery.data.expenseTotalPrevious
@@ -71,13 +78,9 @@ export function Assets() {
     : null
   const liquidityMonths = liquidityView ? liquidityMonthsOfExpense(liquidityView.liquidAmt, baseMonthlyExpense) : null
 
-  // 다른 사람이 공유해 준 계좌(GET /shares/accounts). 서버가 내 계좌 목록·자산 분포·총자산에 넣지 않으므로
-  // 위 자산 구성 카드와 섞지 않고 구역을 따로 둔다. 공유받은 게 없으면 구역 자체를 그리지 않는다.
-  const sharedQuery = useGetSharedAccounts()
-  const sharedAccounts = sharedQuery.sharedAccounts
-  const showShared = sharedAccounts.length > 0 || !!sharedQuery.error
-
   const openAddAccount = () => setState({ quickAddOpen: false, openModal: 'addAccount' })
+  const openShareManage = () => setState({ quickAddOpen: false, openModal: 'familyShare', shareFlowStep: 'home' })
+  const onEmptyAction = shared ? openShareManage : openAddAccount
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -87,20 +90,24 @@ export function Assets() {
           <div style={{ fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap' }}>자산 구성</div>
           <button
             className="qbtn"
-            onClick={openAddAccount}
+            onClick={shared ? openShareManage : openAddAccount}
             style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'transform .12s' }}
           >
-            <Icon name="add" size={16} />
-            계좌 추가
+            <Icon name={shared ? 'checklist' : 'add'} size={16} />
+            {shared ? '공유 계좌 관리' : '계좌 추가'}
           </button>
         </div>
-        <div style={{ fontSize: 12.5, color: 'var(--text-mid)', marginBottom: 18 }}>카테고리 블록을 클릭하면 소속 계좌 목록을 확인하고 수정할 수 있어요</div>
+        <div style={{ fontSize: 12.5, color: 'var(--text-mid)', marginBottom: 18 }}>
+          {shared
+            ? `'${spaceName}'에서 두 사람이 공유한 계좌예요 · 카테고리를 누르면 누구 계좌인지 볼 수 있어요`
+            : '카테고리 블록을 클릭하면 소속 계좌 목록을 확인하고 수정할 수 있어요'}
+        </div>
         {distribution.isPending ? (
           <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>—</div>
         ) : distribution.error ? (
           <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{distribution.error.message}</div>
         ) : !hasDistributionData ? (
-          <EmptyAccountsState onAdd={openAddAccount} />
+          <EmptyAccountsState onAdd={onEmptyAction} shared={shared} />
         ) : (
           <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
             {assetClassCards.map((ac) => (
@@ -132,7 +139,7 @@ export function Assets() {
                 0원 대신 "준비 중" 배지를 둔다 — 0원이라고 적으면 "부동산이 0원인 사람"으로 읽힌다.
                 맵(트리맵) 뷰와 대시보드 도넛에는 넣지 않는다: 둘은 비중을 그리는 화면이라 금액 없는
                 항목이 낄 자리가 없고, 서버 값만 그리는 게 이 저장소 규칙이다. */}
-            <button
+            {!shared && <button
               className="dkblk-hov aclass-card"
               onClick={() => setState({ openModal: 'realEstateSoon' })}
               style={{ textAlign: 'left', cursor: 'pointer', background: 'var(--fill-subtle)', border: '0.5px solid var(--border)', borderRadius: 10, padding: 18, fontFamily: 'inherit', color: 'var(--text-strong)' }}
@@ -152,53 +159,10 @@ export function Assets() {
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-mid)', marginTop: 6 }}>곧 등록할 수 있어요</div>
               </div>
-            </button>
+            </button>}
           </div>
         )}
       </Card>
-
-      {/* 함께 보는 계좌 — 다른 사람이 공유해 준 계좌. 행 모양은 자산군 목록(AssetCategoryModal)의 계좌 행과 같고,
-          기관명 자리에 "OO님의 계좌"가 온다(시안 1번). 금액은 서버 totalValueKrw(예수금 + 보유 종목). */}
-      {showShared && (
-        <Card style={{ padding: 26 }} aria-busy={sharedQuery.isPending}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap' }}>함께 보는 계좌</div>
-            <ShareBadge />
-          </div>
-          <div style={{ fontSize: 12.5, color: 'var(--text-mid)', marginBottom: 14 }}>다른 사람이 공유해 준 계좌예요 · 내 총자산에는 들어가지 않아요</div>
-          {sharedQuery.error ? (
-            <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{sharedQuery.error.message}</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {sharedAccounts.map((s) => {
-                const meta = assetClassMetaOf(assetClassOfAccountType(s.account.type))
-                const subtitle = [`${s.owner.name}님의 계좌`, s.account.institutionName].filter((p): p is string => !!p).join(' · ')
-                return (
-                  <button
-                    key={s.shareId}
-                    className="mini-hov"
-                    onClick={() => setState({ sharedAccountDetailId: s.account.id })}
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 8px', borderBottom: '0.5px solid var(--track)', borderRadius: 8, border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', color: 'inherit', width: '100%' }}
-                  >
-                    <span style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--fill-subtle)', color: meta.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-                      <Icon name={meta.icon} size={17} />
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                        <div style={{ fontSize: 13.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.account.name}</div>
-                        <ShareBadge title={`${s.owner.name}님과 함께 보는 중`} />
-                      </div>
-                      <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>
-                    </div>
-                    <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{formatNumber(s.totalValueKrw)}원</div>
-                    <Icon name="chevron_right" size={18} color="var(--text-weak)" ariaHidden />
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </Card>
-      )}
 
       {/* 자산 분포 + 유동성 뷰 (2단) */}
       <div className="asset-2col" style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: 20, alignItems: 'stretch' }}>
@@ -212,7 +176,7 @@ export function Assets() {
           ) : distribution.error ? (
             <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{distribution.error.message}</div>
           ) : !hasDistributionData ? (
-            <EmptyAccountsState onAdd={openAddAccount} />
+            <EmptyAccountsState onAdd={onEmptyAction} shared={shared} />
           ) : isMobile ? (
             // 좁은 폭에서는 블록의 최소 너비(Treemap 내부 고정값)가 카드 폭을 넘어설 수 있어 잘라내는
             // 대신 가로 스크롤로 감싼다 — 렌더 티어·5% 미만 '기타' 병합 로직 자체는 그대로 둔다.
@@ -232,7 +196,7 @@ export function Assets() {
           ) : liquidity.error ? (
             <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 18 }}>{liquidity.error.message}</div>
           ) : !hasLiquidityData || !liquidityView ? (
-            <EmptyAccountsState onAdd={openAddAccount} style={{ marginTop: 18 }} />
+            <EmptyAccountsState onAdd={onEmptyAction} shared={shared} style={{ marginTop: 18 }} />
           ) : (
             <>
               <div style={{ display: 'flex', height: 16, borderRadius: 8, overflow: 'hidden', background: 'var(--track)', marginTop: 18 }}>
@@ -270,7 +234,7 @@ export function Assets() {
                   {liquidityMonths !== null && (
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                       <Icon name="check_circle" size={17} color="var(--accent)" style={{ flex: 'none' }} ariaHidden />
-                      <span>즉시 현금화 가능 자산은 월 지출 기준 약 {liquidityMonths}개월치예요</span>
+                      <span>즉시 현금화 가능 자산은 {shared ? `'${spaceName}' ` : ''}월 지출 기준 약 {liquidityMonths}개월치예요</span>
                     </div>
                   )}
                   {nearestMaturity && (

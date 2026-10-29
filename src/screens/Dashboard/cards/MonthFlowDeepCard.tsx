@@ -4,6 +4,7 @@
 import { StatBadge } from '../../../components/primitives/StatBadge/StatBadge'
 import { DeepCard } from '../../../components/primitives/DeepCard/DeepCard'
 import { useAppState } from '../../../state/AppStateContext'
+import { useViewScope } from '../../../utils/viewScope'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { formatNumber } from '../../../utils/format'
 import { useCurrentSettlementMonth } from '../../../utils/useCurrentSettlementMonth'
@@ -34,8 +35,9 @@ export function MonthFlowDeepCard() {
   const currentSettlement = useCurrentSettlementMonth()
   const { setState } = useAppState()
   const isMobile = useIsMobile()
-  const summaryQuery = useGetPeriodSummary('MONTH')
-  const goalQuery = useGetGoal({})
+  const { scope } = useViewScope()
+  const summaryQuery = useGetPeriodSummary('MONTH', { scope })
+  const goalQuery = useGetGoal({}, { scope })
   const summary = summaryQuery.data
 
   const hasTransactions = !!summary && (summary.incomeTotal > 0 || summary.expenseTotal > 0 || summary.savingTotal > 0)

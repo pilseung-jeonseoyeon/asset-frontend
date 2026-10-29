@@ -13,9 +13,11 @@
 import { useRef, useState } from 'react'
 import { Icon } from '../../components/primitives/Icon/Icon'
 import { TermsDetailOverlay } from '../../components/layout/modals/TermsDetailOverlay'
+import { UpdateNotice } from '../../components/layout/UpdateNotice'
 import { useAppState } from '../../state/AppStateContext'
 import { TERMS_DOCUMENTS } from '../../data/termsContent'
 import type { TermsDocumentKey } from '../../data/termsContent'
+import { useGetShareStatus } from '@/services/share'
 
 interface SettingsCardDef {
   icon: string
@@ -28,14 +30,20 @@ const CARDS: SettingsCardDef[] = [
   { icon: 'tune', title: '일반 및 디스플레이', description: '앱의 시각적인 테마와 기본적인 사용 환경을 세팅합니다.', modal: 'general' },
   { icon: 'database', title: '데이터 관리 및 백업', description: '기록을 안전하게 이관하고 보존합니다.', modal: 'data' },
   { icon: 'dashboard_customize', title: '자산 · 가계부 맞춤 설정', description: '라이프스타일에 맞게 자산 관리 기준을 조율합니다.', modal: 'custom' },
-  // 계좌 공유(A안). 새 초대는 여기서 보내지 않고 계좌 상세에서 보낸다 — 여기는 받은 초대·공유 중·참여 중 관리.
-  { icon: 'group', title: '가족 · 커플 공유', description: '함께 보는 계좌와 받은 초대를 한곳에서 관리합니다.', modal: 'familyShare' },
+  // 가족·커플 공유(v17) — 연결·초대 코드·공유할 계좌를 모두 여기서(ShareFlowModal). 연결 중이면 설명이 바뀐다(아래).
+  { icon: 'group', title: '가족 · 커플 공유', description: '함께 보는 구성원과 계좌, 받은 초대를 한곳에서 관리합니다.', modal: 'familyShare' },
 ]
 
 const TERMS_LINKS: TermsDocumentKey[] = ['service', 'privacy', 'marketing']
 
 export function Settings() {
   const { setState } = useAppState()
+  // 연결 중이면 공유 카드 설명을 지금 상태로(시안 v16 shareCardSub). 계좌 수는 두 사람이 공유한 계좌 합계
+  const { shareStatus } = useGetShareStatus()
+  const shareCardSub =
+    shareStatus?.status === 'LINKED'
+      ? `'${shareStatus.spaceName}'에서 ${shareStatus.partner?.name ?? '상대'}님과 계좌 ${shareStatus.myAccounts.length + shareStatus.partnerAccountCount}개를 함께 보고 있어요.`
+      : null
   const [viewDoc, setViewDoc] = useState<TermsDocumentKey | null>(null)
   const viewTriggerRef = useRef<HTMLButtonElement | null>(null)
 
@@ -48,7 +56,7 @@ export function Settings() {
           <button
             type="button"
             key={card.modal}
-            onClick={() => setState({ openModal: card.modal })}
+            onClick={() => setState(card.modal === 'familyShare' ? { openModal: card.modal, shareFlowStep: 'home' } : { openModal: card.modal })}
             style={{
               cursor: 'pointer', background: 'var(--surface)', borderRadius: 10, border: '0.5px solid var(--border)',
               boxShadow: 'var(--shadow-card)', padding: 28, minHeight: 200, display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
@@ -60,7 +68,7 @@ export function Settings() {
                 <Icon name={card.icon} size={22} />
               </span>
               <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{card.title}</div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-weak)', lineHeight: 1.5 }}>{card.description}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-weak)', lineHeight: 1.5 }}>{card.modal === 'familyShare' && shareCardSub ? shareCardSub : card.description}</div>
             </div>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 3 }}>
               자세히 보기
@@ -89,6 +97,7 @@ export function Settings() {
             </span>
           ))}
         </div>
+        <UpdateNotice />
         <div>© 2026 Monit</div>
       </footer>
 

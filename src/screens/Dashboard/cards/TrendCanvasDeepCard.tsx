@@ -6,23 +6,20 @@
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { DeepCard } from '../../../components/primitives/DeepCard/DeepCard'
 import { StatBadge } from '../../../components/primitives/StatBadge/StatBadge'
-import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { isoDateToDisplay } from '../../../utils/date'
 import { useDashboardHero } from '../hooks/useDashboardHero'
 import { useDashboardTrend } from '../hooks/useDashboardTrend'
 import { DASHED_CTA_STYLE_DEEP, EMPTY_TEXT_STYLE_DEEP, ERROR_TEXT_STYLE_DEEP, TREND_MONTH_LABELS } from './cardStyles'
-import { KoreanUnitsCaption } from './shared'
+import { KoreanUnitsCaption, ShareScopeNote } from './shared'
 
 export function TrendCanvasDeepCard() {
-  const { setState } = useAppState()
   const isMobile = useIsMobile()
-  const { hero, isHeroPending, heroError } = useDashboardHero()
+  const { hero, isHeroPending, heroError, emptyCta } = useDashboardHero()
   const {
     trendQuery, trendChart, trendAsOf, yAxisTicks, currentMonth, trendFutureFromMonth, hasFutureRange,
     trendPercentText, trendPositive,
   } = useDashboardTrend()
-  const openAddAccount = () => setState({ quickAddOpen: false, openModal: 'addAccount' })
   const chartHeight = isMobile ? 140 : 180
 
   return (
@@ -46,10 +43,10 @@ export function TrendCanvasDeepCard() {
           >
             <Icon name="add_card" size={20} color="var(--deep-value)" />
           </span>
-          <div style={EMPTY_TEXT_STYLE_DEEP}>계좌를 추가하고 총자산을 한눈에 확인해보세요</div>
-          <button onClick={openAddAccount} className="qbtn" style={DASHED_CTA_STYLE_DEEP}>
-            <Icon name="add" size={16} />
-            계좌 추가
+          <div style={EMPTY_TEXT_STYLE_DEEP}>{emptyCta.text}</div>
+          <button onClick={emptyCta.onClick} className="qbtn" style={DASHED_CTA_STYLE_DEEP}>
+            <Icon name={emptyCta.icon} size={16} />
+            {emptyCta.label}
           </button>
         </div>
       ) : (
@@ -89,6 +86,7 @@ export function TrendCanvasDeepCard() {
                 )}
               </div>
               <KoreanUnitsCaption amountKrw={hero.totalAssetKrw} deep />
+              <ShareScopeNote deep />
             </div>
 
             <div style={{ display: 'flex', gap: 28, paddingTop: isMobile ? 0 : 6, textAlign: isMobile ? 'left' : 'right' }}>

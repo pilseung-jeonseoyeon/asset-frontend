@@ -3,17 +3,14 @@
 
 import { useNavigate } from 'react-router-dom'
 import { Card } from '../../../components/primitives/Card/Card'
-import { useAppState } from '../../../state/AppStateContext'
 import { buildAllocationSegments, pickTopAllocation } from '../../../data/dashboardView'
 import { useDashboardHero } from '../hooks/useDashboardHero'
 import { CARD_TITLE_STYLE, EMPTY_TEXT_STYLE, ERROR_TEXT_STYLE } from './cardStyles'
-import { EmptyState, KoreanUnitsCaption } from './shared'
+import { EmptyState, KoreanUnitsCaption, ShareScopeNote } from './shared'
 
 export function TotalCompactCard() {
   const navigate = useNavigate()
-  const { setState } = useAppState()
-  const { hero, isHeroPending, heroError, allocationQuery } = useDashboardHero()
-  const openAddAccount = () => setState({ quickAddOpen: false, openModal: 'addAccount' })
+  const { hero, isHeroPending, heroError, allocationQuery, emptyCta } = useDashboardHero()
 
   const allocationSegments = buildAllocationSegments(allocationQuery.allocation)
   const topAllocation = pickTopAllocation(allocationSegments)
@@ -33,9 +30,10 @@ export function TotalCompactCard() {
       ) : !hero || hero.isEmpty ? (
         <EmptyState
           style={{ flex: 1, justifyContent: 'center' }}
-          text="계좌를 추가하고 총자산을 한눈에 확인해보세요"
-          ctaLabel="계좌 추가"
-          onCta={openAddAccount}
+          text={emptyCta.text}
+          ctaLabel={emptyCta.label}
+          ctaIcon={emptyCta.icon}
+          onCta={emptyCta.onClick}
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, justifyContent: 'center' }}>
@@ -45,6 +43,7 @@ export function TotalCompactCard() {
               <span style={{ fontSize: 13, color: 'var(--text-weak)', fontWeight: 600, marginLeft: 2 }}>원</span>
             </div>
             <KoreanUnitsCaption amountKrw={hero.totalAssetKrw} />
+            <ShareScopeNote />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 12, borderTop: '0.5px solid var(--track)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>

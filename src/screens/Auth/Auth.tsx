@@ -23,7 +23,7 @@ const FOOTER_LINKS: TermsDocumentKey[] = ['service', 'privacy']
 const BRAND_POINTS: { icon: string; label: string }[] = [
   { icon: 'account_balance_wallet', label: '흩어진 계좌를 한 곳에서 확인' },
   { icon: 'flag', label: '월간 · 연간 목표까지 남은 거리 계산' },
-  { icon: 'group', label: '개인 자산과 공유 자산을 따로 (준비 중)' },
+  { icon: 'group', label: '개인 자산과 공유 자산을 따로' },
 ]
 
 function AuthLogo() {
@@ -92,7 +92,7 @@ export function Auth() {
   const footerTriggerRef = useRef<HTMLButtonElement | null>(null)
 
   // AppShell only mounts this component when authStatus flips to 'anonymous' — both on manual
-  // logout (AccountModal's doLogout) and on the axios interceptor's forced signOut() after a
+  // logout (AccountModal's doLogout) and on the forced signOut() when Supabase reports the session ended after a
   // failed token refresh (services/api.ts). AppStateProvider lives above AppShell, so authScreen/
   // authStep from a previous session (e.g. mid-signup 'onboard') would otherwise still be sitting
   // there and this component would render whatever step the user was last on instead of the login

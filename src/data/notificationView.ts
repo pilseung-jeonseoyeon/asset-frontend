@@ -11,10 +11,8 @@ const TYPE_ICON: Record<NotificationType, string> = {
   GOAL_ACHIEVED: 'emoji_events',
   SYSTEM: 'campaign',
   // 계좌 공유 — 초대는 편지(시안 6번), 그 뒤는 사람이 들어오고 나가는 아이콘.
-  SHARE_INVITED: 'mail',
-  SHARE_ACCEPTED: 'how_to_reg',
-  SHARE_DECLINED: 'person_off',
-  SHARE_ENDED: 'group_off',
+  SHARE_ACCEPTED: 'link',
+  SHARE_ENDED: 'link_off',
 }
 
 export interface NotificationTone {
@@ -46,10 +44,8 @@ const TYPE_KIND_LABEL: Record<NotificationType, string> = {
   PAYMENT_DUE: '결제 예정',
   GOAL_ACHIEVED: '목표 달성',
   SYSTEM: '공지',
-  SHARE_INVITED: '계좌 공유',
-  SHARE_ACCEPTED: '계좌 공유',
-  SHARE_DECLINED: '계좌 공유',
-  SHARE_ENDED: '계좌 공유',
+  SHARE_ACCEPTED: '가족 · 커플 공유',
+  SHARE_ENDED: '가족 · 커플 공유',
 }
 
 /** 종류별 개수를 처음 나온 순서대로 이어 붙인다. 예: "결제 예정 1 · 자동 기록 2". */

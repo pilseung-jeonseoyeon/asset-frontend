@@ -4,6 +4,7 @@ import { mondayOf, todayYearMonth, toISODate } from '../utils/date'
 import { readStoredDashboardLayout } from '../utils/dashboardLayout'
 import { readStoredNotificationPrefs } from '../utils/notificationPrefs'
 import { readStoredTheme } from '../utils/theme'
+import { readStoredViewScope } from '../utils/viewScope'
 import type { AccountForm } from './types'
 import type { AppState } from './types'
 
@@ -35,11 +36,11 @@ export const initialState: AppState = {
 
   openModal: null,
   accountDetailId: null,
-  shareMembersAccountId: null,
-  shareMembersReturnTo: null,
-  sharedAccountDetailId: null,
-  shareInviteConfirmId: null,
-  entryReturnSharedAccountId: null,
+  viewScope: readStoredViewScope(),
+  scopeHintOpen: false,
+  shareFlowStep: 'home',
+  sharePickMode: 'onboard',
+  partnerAccountDetailId: null,
   reportOpen: false,
   reportPeriod: null,
   reportSlide: 0,
@@ -101,6 +102,7 @@ export const initialState: AppState = {
   entryAmount: 0,
   entryDescription: '',
   entryMemo: '',
+  entryOwnerTag: 'SELF',
   ledgerPage: 1,
   entryDateOverride: null,
   // ledgerCursorFollowsCurrent가 true인 동안은 쓰이지 않는 자리값 — 서버 정산월을 모르는 부팅 시점이라
@@ -111,6 +113,7 @@ export const initialState: AppState = {
   ledgerWeekAnchor: mondayOf(toISODate(new Date())),
   ledgerSelectedDate: null,
   ledgerSearch: '',
+  ledgerWho: 'all',
   entryDraft: null,
   entryDraftRestored: false,
 

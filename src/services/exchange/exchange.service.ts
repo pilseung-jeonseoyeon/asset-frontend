@@ -1,40 +1,35 @@
-import { api, unwrap } from '../api'
-import type { ApiResponse } from '../api.types'
+import { ApiError } from '../api'
+import { errorMessageOf } from '../errorMessages'
+import { currentUserId, rpc, supabase, unwrapResult } from '../supabase'
 import type { Currency, ExchangeSearchParams, Page } from '../common.type'
-import type {
-  CreateExchangeRequest,
-  ExchangeResponse,
-  ExchangeSummaryResponse,
-  UpdateExchangeRequest,
-} from './exchange.type'
+import type { CreateExchangeRequest, ExchangeResponse, ExchangeSummaryResponse, UpdateExchangeRequest } from './exchange.type'
 
-/**
- * currency는 선택 — 생략하면 전 통화를 함께 내려준다. 서버는 size 생략 시 조건에 맞는 전 건을
- * 한 페이지로 내려준다.
- */
+/** currency 를 생략하면 전 통화. size 생략 시 전 건 한 페이지(최대 200). 환전일·id 내림차순. */
 export async function getExchanges(params: ExchangeSearchParams = {}) {
-  return unwrap(await api.get<ApiResponse<Page<ExchangeResponse>>>('/exchanges', { params }))
+  return rpc<Page<ExchangeResponse>>('list_exchanges', {
+    p: { currency: params.currency, from: params.from, to: params.to, page: params.page, size: params.size },
+  })
 }
 
-/** 보유 외화보다 많이 팔면 409 FX_INSUFFICIENT_BALANCE. */
+/** 원화·외화 금액이 환율과 5% 넘게 어긋나면 FX_AMOUNT_MISMATCH, 미래 환전일은 FX_DATE_IN_FUTURE. */
 export async function postExchange(body: CreateExchangeRequest) {
-  return unwrap(await api.post<ApiResponse<ExchangeResponse>>('/exchanges', body))
+  return rpc<ExchangeResponse>('create_exchange', { p: body })
 }
 
 export async function putExchange(exchangeId: number, body: UpdateExchangeRequest) {
-  return unwrap(await api.put<ApiResponse<ExchangeResponse>>(`/exchanges/${exchangeId}`, body))
+  return rpc<ExchangeResponse>('update_exchange', { p_id: exchangeId, p: body })
 }
 
-/** 204 No Content */
+/** 환전 행(EXCHANGE 거래) 삭제. */
 export async function deleteExchange(exchangeId: number) {
-  await api.delete(`/exchanges/${exchangeId}`)
+  const uid = await currentUserId()
+  const deleted = unwrapResult(
+    await supabase.from('transactions').delete().eq('id', exchangeId).eq('user_id', uid).eq('type', 'EXCHANGE').select('id'),
+  )
+  if (!deleted || deleted.length === 0) throw new ApiError('EXCHANGE_NOT_FOUND', errorMessageOf('EXCHANGE_NOT_FOUND'), 404)
 }
 
-/** 환율이 아직 수집되지 않았으면 422 FX_RATE_NOT_FOUND — 빈 상태로 다룰 것. */
+/** 환율이 아직 수집되지 않았으면 FX_RATE_NOT_FOUND — 빈 상태로 다룰 것(훅이 1회 수집을 요청한다). */
 export async function getExchangeSummary(currency: Currency) {
-  return unwrap(
-    await api.get<ApiResponse<ExchangeSummaryResponse>>('/exchanges/summary', {
-      params: { currency },
-    }),
-  )
+  return rpc<ExchangeSummaryResponse>('get_fx_summary', { p_currency: currency })
 }

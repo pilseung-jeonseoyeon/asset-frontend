@@ -21,6 +21,7 @@ import {
   tradeNounFor,
 } from '../../../data/connectionView'
 import { ApiError } from '@/services/api'
+import { externalLinkProps } from '@/utils/externalLink'
 import { useDeleteConnection, useGetConnections, usePostConnectionSync } from '@/services/connection'
 import type { ConnectionProvider } from '@/services/connection'
 
@@ -145,9 +146,7 @@ export function ConnectionsSection() {
               아직 연동한 기관이 없어요. 자산 화면의 <b style={{ color: 'var(--text-strong)' }}>계좌 추가</b>에서
               주식·가상자산을 고르면 연동할 수 있어요.{' '}
               <a
-                href={CONNECTION_GUIDE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
+                {...externalLinkProps(CONNECTION_GUIDE_URL)}
                 style={{ color: 'var(--accent)', fontWeight: 700, textDecoration: 'none' }}
               >
                 발급 방법 보기 ↗

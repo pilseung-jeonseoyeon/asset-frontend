@@ -20,6 +20,8 @@ export interface SubscriptionResponse {
   endedAt: string | null
   /** 삭제(종료)해도 목록에서 사라지지 않고 false로 바뀐다 — 화면에서 걸러야 한다. */
   isActive: boolean
+  /** 주인 id — '우리집'에서는 두 사람의 공유 계좌 항목이 섞여 온다. 내 것이 아니면 수정할 수 없다. */
+  userId: string
 }
 
 export interface CreateSubscriptionRequest {

@@ -3,13 +3,15 @@
 
 import { Card } from '../../../components/primitives/Card/Card'
 import { DonutChart } from '../../../components/primitives/DonutChart/DonutChart'
+import { useViewScope } from '../../../utils/viewScope'
 import { buildAllocationSegments, pickTopAllocation } from '../../../data/dashboardView'
 import { useGetDashboardAllocation } from '@/services/dashboard'
 import { CARD_TITLE_STYLE, EMPTY_TEXT_STYLE, ERROR_TEXT_STYLE } from './cardStyles'
 import { EmptyState } from './shared'
 
 export function AllocationCard() {
-  const allocationQuery = useGetDashboardAllocation()
+  const { scope } = useViewScope()
+  const allocationQuery = useGetDashboardAllocation({ scope })
   const allocationSegments = buildAllocationSegments(allocationQuery.allocation)
   const topAllocation = pickTopAllocation(allocationSegments)
   const hasAllocationData = allocationSegments.length > 0

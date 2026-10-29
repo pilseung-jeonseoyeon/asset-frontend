@@ -90,8 +90,8 @@ function exportRangeParams(range: ExportRange): ExportFileParams | undefined {
   return recentMonthsRange(range === 'recent3' ? 3 : 1)
 }
 
-// 계좌 양식(서버 '계좌' 시트 A~J열) — 양식을 받기 전에도 무엇을 채우는지 알 수 있게 적어둔다.
-const ACCOUNT_IMPORT_COLUMNS = '계좌명 · 유형 · 통화 · 기관 · 원화예수금 · 달러예수금 · 연이율(%) · 개설일 · 만기일 · 즉시현금화'
+// 계좌 양식('계좌' 시트 A~I열, docs/excel-import.md) — 양식을 받기 전에도 무엇을 채우는지 알 수 있게 적어둔다.
+const ACCOUNT_IMPORT_COLUMNS = '계좌명 · 유형 · 기관 · 원화예수금 · 달러예수금 · 연이율(%) · 개설일 · 만기일 · 즉시현금화'
 
 // 양식 1번 시트의 A~I 열 순서(서버 IMPORT_TRANSACTION_HEADERS, docs/excel-import.md) — 양식을 내려받기 전에도
 // 무엇을 채워야 하는지 알 수 있게 적어둔다. 이름은 양식 2번 시트("등록된 이름")에 있는 것과 같아야 한다.

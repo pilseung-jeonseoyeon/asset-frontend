@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '../queryKeys'
+import type { ViewScope } from '../common.type'
 import { getAssetDistribution, getAssetLiquidity } from './asset.service'
 
 interface AssetQueryOptions {
@@ -8,13 +9,15 @@ interface AssetQueryOptions {
    * 요청하도록 거는 가드. 생략하면 기본값(useQuery 기본 enabled: true)대로 즉시 요청한다.
    */
   enabled?: boolean
+  /** 화면 범위. 생략하면 'PERSONAL' */
+  scope?: ViewScope
 }
 
 /** 자산군(5분류)별 분포. 자산 화면의 카테고리 카드·트리맵이 쓴다. */
 export function useGetAssetDistributionByClass(options?: AssetQueryOptions) {
   const query = useQuery({
-    queryKey: queryKeys.asset.distribution('CLASS'),
-    queryFn: () => getAssetDistribution('CLASS'),
+    queryKey: queryKeys.asset.distribution('CLASS', options?.scope ?? 'PERSONAL'),
+    queryFn: () => getAssetDistribution('CLASS', options?.scope),
     enabled: options?.enabled,
   })
   return { ...query, groups: query.data?.byClass ?? [] }
@@ -23,8 +26,8 @@ export function useGetAssetDistributionByClass(options?: AssetQueryOptions) {
 /** 금융기관별 분포. 기관별 보유액 모달이 쓴다. */
 export function useGetAssetDistributionByInstitution(options?: AssetQueryOptions) {
   const query = useQuery({
-    queryKey: queryKeys.asset.distribution('INSTITUTION'),
-    queryFn: () => getAssetDistribution('INSTITUTION'),
+    queryKey: queryKeys.asset.distribution('INSTITUTION', options?.scope ?? 'PERSONAL'),
+    queryFn: () => getAssetDistribution('INSTITUTION', options?.scope),
     enabled: options?.enabled,
   })
   return { ...query, groups: query.data?.byInstitution ?? [] }
@@ -32,8 +35,8 @@ export function useGetAssetDistributionByInstitution(options?: AssetQueryOptions
 
 export function useGetAssetLiquidity(options?: AssetQueryOptions) {
   return useQuery({
-    queryKey: queryKeys.asset.liquidity(),
-    queryFn: getAssetLiquidity,
+    queryKey: queryKeys.asset.liquidity(options?.scope ?? 'PERSONAL'),
+    queryFn: () => getAssetLiquidity(options?.scope),
     enabled: options?.enabled,
   })
 }

@@ -2,19 +2,10 @@ import { useEffect, useRef } from 'react'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth'
-import { API_BASE_URL } from '../api'
+import { supabase } from '../supabase'
 import { queryKeys } from '../queryKeys'
-import {
-  getNotifications,
-  issueStreamTicket,
-  patchAllNotificationsRead,
-  patchNotificationRead,
-} from './notification.service'
-import type { NotificationListResponse, NotificationResponse } from './notification.type'
-
-// 재연결 대기: 3초에서 시작해 두 배씩, 최대 1분.
-const STREAM_RETRY_BASE_MS = 3_000
-const STREAM_RETRY_MAX_MS = 60_000
+import { getNotifications, patchAllNotificationsRead, patchNotificationRead } from './notification.service'
+import type { NotificationListResponse, NotificationResponse, NotificationType } from './notification.type'
 
 interface QueryOptions {
   enabled?: boolean
@@ -62,17 +53,19 @@ export function usePatchAllNotificationsRead() {
   })
 }
 
-/** SSE `notification` 이벤트의 data(JSON)를 알림 1건으로 읽는다. 모양이 다르면 null — 그때는 목록만 다시 받는다. */
-function parseNotificationEvent(event: Event): NotificationResponse | null {
-  try {
-    const parsed: unknown = JSON.parse((event as MessageEvent<string>).data)
-    if (typeof parsed !== 'object' || parsed === null) return null
-    const nf = parsed as Partial<NotificationResponse>
-    return typeof nf.id === 'number' && typeof nf.title === 'string' && typeof nf.type === 'string'
-      ? (parsed as NotificationResponse)
-      : null
-  } catch {
-    return null
+/** Realtime 이 전달한 notifications 행(snake_case)을 NotificationRes 로. 모양이 다르면 null — 그때는 목록만 다시 받는다. */
+function toNotificationResponse(row: Record<string, unknown>): NotificationResponse | null {
+  if (typeof row.id !== 'number' || typeof row.title !== 'string' || typeof row.type !== 'string') return null
+  return {
+    id: row.id,
+    type: row.type as NotificationType,
+    severity: (row.severity as NotificationResponse['severity']) ?? 'INFO',
+    title: row.title,
+    body: typeof row.body === 'string' ? row.body : null,
+    linkType: (row.link_type as NotificationResponse['linkType']) ?? null,
+    linkId: typeof row.link_id === 'number' ? row.link_id : null,
+    read: row.read_at !== null && row.read_at !== undefined,
+    createdAt: typeof row.created_at === 'string' ? row.created_at : new Date().toISOString(),
   }
 }
 
@@ -101,16 +94,16 @@ interface NotificationStreamOptions {
 }
 
 /**
- * 알림 실시간 구독(SSE). 로그인 중에만 연결하고, `notification` 이벤트가 오면 그 알림을 목록 캐시에 끼워 넣고
- * `onNotification`으로 넘긴 뒤 알림 쿼리를 무효화한다. 서버가 30초마다 보내는 `heartbeat`는 연결 유지용이라 무시한다.
- * 티켓은 1회용이라 브라우저 자동 재연결은 401로 실패한다 — onerror에서 직접 닫고 티켓을 다시 받아 연다.
- * 서버가 끊긴 동안의 알림을 다시 보내주지 않으므로 재연결(두 번째 connect 이벤트부터)마다 목록을 다시 불러온다 —
+ * 알림 실시간 구독(Supabase Realtime, notifications INSERT). 로그인 중에만 구독하고, 새 행이 오면 그 알림을 목록 캐시에
+ * 끼워 넣고 `onNotification`으로 넘긴 뒤 알림 쿼리를 무효화한다. RLS 가 내 행만 흘려 주지만 filter 로 한 번 더 좁힌다.
+ * 끊겼다 다시 붙으면(두 번째 SUBSCRIBED 부터) 그 사이 알림을 놓쳤을 수 있으므로 목록을 다시 불러온다 —
  * 이때 채워지는 알림은 `onNotification`을 거치지 않는다(한꺼번에 배너로 뜨면 시끄럽다).
  * 로그인 화면 내내 한 번만 마운트되는 곳(NotificationBanner)에서 부른다.
  */
 export function useNotificationStream({ onNotification }: NotificationStreamOptions = {}) {
   const queryClient = useQueryClient()
-  const signedIn = useAuthStore((s) => s.accessToken !== null)
+  const signedIn = useAuthStore((s) => s.status === 'authenticated')
+  const userId = useAuthStore((s) => s.userId)
   // 콜백이 바뀔 때마다 다시 연결하지 않도록 최신 콜백은 ref로 들고 있는다.
   const onNotificationRef = useRef(onNotification)
   useEffect(() => {
@@ -118,63 +111,45 @@ export function useNotificationStream({ onNotification }: NotificationStreamOpti
   })
 
   useEffect(() => {
-    if (!signedIn) return
-
-    let source: EventSource | null = null
-    let retryTimer: number | undefined
-    let retryCount = 0
-    let connectedOnce = false
-    let disposed = false
+    if (!signedIn || !userId) return
+    let subscribedOnce = false
 
     const refreshNotifications = () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.notification.all() })
-      // 계좌 공유 알림(SHARE_*)은 공유 상태가 바뀌었다는 뜻이다 — 소유자에겐 멤버 목록이, 멤버에겐
-      // 공유받은 계좌 목록이 달라지므로 함께 다시 받는다. 알림 종류를 가려 받지 않는 이유: SSE payload를
-      // 읽어 분기하는 것보다 작은 목록 하나를 더 받는 쪽이 단순하고, 알림이 자주 오는 기능이 아니다.
+      // 공유 상태는 알림과 함께 바뀌는 일이 많다(상대가 연결함·해제함) — 작은 조회 하나라 알림마다 다시 받는다.
       void queryClient.invalidateQueries({ queryKey: queryKeys.share.all() })
     }
-
-    const scheduleReconnect = () => {
-      if (disposed) return
-      const delay = Math.min(STREAM_RETRY_BASE_MS * 2 ** retryCount, STREAM_RETRY_MAX_MS)
-      retryCount += 1
-      retryTimer = window.setTimeout(() => void connect(), delay)
-    }
-
-    const connect = async () => {
-      try {
-        const { ticket } = await issueStreamTicket()
-        if (disposed) return
-        source = new EventSource(`${API_BASE_URL}/notifications/stream?ticket=${encodeURIComponent(ticket)}`)
-        source.addEventListener('connect', () => {
-          retryCount = 0
-          if (connectedOnce) refreshNotifications()
-          connectedOnce = true
-        })
-        source.addEventListener('notification', (event) => {
-          const nf = parseNotificationEvent(event)
-          if (nf) {
-            insertIntoNotificationLists(queryClient, nf)
-            onNotificationRef.current?.(nf)
-          }
-          refreshNotifications()
-        })
-        source.onerror = () => {
-          source?.close()
-          source = null
-          scheduleReconnect()
-        }
-      } catch {
-        scheduleReconnect()
+    // 가족·커플 공유 알림(SHARE_*)은 '개인'(공유 중 계좌가 빠짐)·'우리집' 숫자가 바뀌었다는 뜻이다 — 범위 쿼리도 다시 받는다
+    const refreshScopedData = () => {
+      for (const key of [queryKeys.account.all(), queryKeys.asset.all(), queryKeys.dashboard.all(), queryKeys.transaction.all(),
+        queryKeys.goal.all(), queryKeys.subscription.all()]) {
+        void queryClient.invalidateQueries({ queryKey: key })
       }
     }
 
-    void connect()
+    const channel = supabase
+      .channel(`notifications:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const nf = toNotificationResponse(payload.new as Record<string, unknown>)
+          if (nf) {
+            insertIntoNotificationLists(queryClient, nf)
+            onNotificationRef.current?.(nf)
+            if (nf.type === 'SHARE_ACCEPTED' || nf.type === 'SHARE_ENDED') refreshScopedData()
+          }
+          refreshNotifications()
+        },
+      )
+      .subscribe((status) => {
+        if (status !== 'SUBSCRIBED') return
+        if (subscribedOnce) refreshNotifications()
+        subscribedOnce = true
+      })
 
     return () => {
-      disposed = true
-      window.clearTimeout(retryTimer)
-      source?.close()
+      void supabase.removeChannel(channel)
     }
-  }, [signedIn, queryClient])
+  }, [signedIn, userId, queryClient])
 }

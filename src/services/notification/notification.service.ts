@@ -1,25 +1,25 @@
-import { api, unwrap } from '../api'
-import type { ApiResponse } from '../api.types'
-import type { NotificationListParams, NotificationListResponse, StreamTicketResponse } from './notification.type'
+import { currentUserId, rpc, supabase, unwrapResult } from '../supabase'
+import type { NotificationListParams, NotificationListResponse } from './notification.type'
 
+/** 커서(id) 페이지네이션. 최신순, limit 기본 20·최대 100. unreadCount 는 페이지와 무관한 전체 값. */
 export async function getNotifications(params: NotificationListParams = {}) {
-  return unwrap(await api.get<ApiResponse<NotificationListResponse>>('/notifications', { params }))
+  return rpc<NotificationListResponse>('list_notifications', {
+    p_cursor: params.cursor ?? null,
+    p_limit: params.limit ?? 20,
+    p_unread_only: params.unreadOnly ?? false,
+  })
 }
 
-/**
- * 읽음 처리. 서버는 read: true만 받는다 — false로 "읽음 취소"를 시도하면 400이다.
- * 응답에 data가 없어(Void) unwrap을 쓰지 않는다.
- */
+/** 읽음 처리(read_at). 읽음 취소는 없다. 다른 열은 트리거가 막는다(NOTIFICATION_READ_ONLY). */
 export async function patchNotificationRead(notificationId: number) {
-  await api.patch(`/notifications/${notificationId}`, { read: true })
+  const uid = await currentUserId()
+  unwrapResult(
+    await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', notificationId).eq('user_id', uid).is('read_at', null).select('id'),
+  )
 }
 
-/** 전체 읽음 처리. 본문 규칙은 위와 같다. */
+/** 내 안 읽은 알림 전체 읽음 처리. */
 export async function patchAllNotificationsRead() {
-  await api.patch('/notifications', { read: true })
-}
-
-/** SSE 접속용 1회용 티켓 발급. */
-export async function issueStreamTicket() {
-  return unwrap(await api.post<ApiResponse<StreamTicketResponse>>('/notifications/stream/tickets'))
+  const uid = await currentUserId()
+  unwrapResult(await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('user_id', uid).is('read_at', null).select('id'))
 }

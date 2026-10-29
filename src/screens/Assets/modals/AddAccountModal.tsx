@@ -82,7 +82,7 @@ import { describeQueryError } from '../../../data/ledgerView'
 import { AccountHoldingsField } from './AccountHoldingsField'
 import type { DraftHolding } from './AccountHoldingsField'
 import { ConnectAccountView } from './ConnectAccountView'
-import { providerLabelsFor, providersFor } from '../../../data/connectionView'
+import { PROVIDER_META, providerLabelsFor, providersFor } from '../../../data/connectionView'
 import { useGetInstitutions } from '@/services/institution'
 import { usePostAccount } from '@/services/account'
 import { isExchangeRateMissing } from '@/services/stock'
@@ -458,7 +458,9 @@ export function AddAccountModal() {
 
   // 이 자산 유형에 연동 가능한 기관이 있는지. 주식·가상자산만 해당한다. 하드코딩하지 않고 기관
   // 목록에서 역산하므로, 지원 기관이 늘거나 줄어도 이 조건을 따로 고칠 필요가 없다.
-  const connectProviders = providersFor(selectedAssetClass)
+  // '준비 중'(supported: false) 기관은 세지 않는다 — 가상자산처럼 후보가 전부 준비 중이면 배너가
+  // 기관 이름 없이 뜨고, '연동하기'가 막혀 있어야 할 키 입력 화면으로 바로 들어가 버린다.
+  const connectProviders = providersFor(selectedAssetClass).filter((p) => PROVIDER_META[p].supported)
   const openConnect = () => {
     // 후보가 하나뿐이면(가상자산 = 업비트) 칩 하나짜리 선택 화면을 거치게 하지 않고 바로 키 입력으로.
     if (connectProviders.length === 1) setState({ connectView: 'form', connectProvider: connectProviders[0] })

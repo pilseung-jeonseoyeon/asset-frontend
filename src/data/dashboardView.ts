@@ -261,6 +261,8 @@ export interface DashboardInstitutionView {
   name: string
   amount: number
   amountText: string
+  /** '우리집'에서만 — 이 기관에 공유 계좌를 둔 사람 이름('민지 · 지훈'). '개인'은 null(시안 v16 hasOwner) */
+  owner: string | null
 }
 
 /**
@@ -276,6 +278,8 @@ export function buildDashboardInstitutions(
   groups: AssetInstitutionGroup[],
   institutions: InstitutionResponse[],
   limit = 4,
+  /** '우리집'이면 계좌 주인 id → 이름. 주면 기관마다 소유자 이름을 붙인다 */
+  ownerNameOf?: (ownerId: string) => string,
 ): DashboardInstitutionView[] {
   return [...groups]
     .filter((g) => g.totalValueKrw > 0)
@@ -292,6 +296,7 @@ export function buildDashboardInstitutions(
         name: g.institutionName ?? '미지정',
         amount: g.totalValueKrw,
         amountText: formatNumber(g.totalValueKrw),
+        owner: ownerNameOf ? [...new Set(g.accounts.map((a) => ownerNameOf(a.ownerId)))].join(' · ') : null,
       }
     })
 }
@@ -341,7 +346,7 @@ export function goalDDay(targetDate: string | null, today: Date = new Date()): n
  * null일 수 있으므로 각자 따로 분기한다(과거처럼 한쪽 값으로 둘 다 판정하지 않는다).
  * 목표 미설정(targetDate === null)이면 빈 배열 — 화면에서 등록 유도 UI를 띄울 것.
  */
-export function buildAssetGoals(goal: GoalResponse, today: Date = new Date()): AssetGoalView[] {
+export function buildAssetGoals(goal: GoalResponse, today: Date = new Date(), shared = false): AssetGoalView[] {
   if (goal.targetDate === null) return []
 
   const dDay = goalDDay(goal.targetDate, today)
@@ -359,7 +364,7 @@ export function buildAssetGoals(goal: GoalResponse, today: Date = new Date()): A
   return [
     {
       id: 'annual',
-      name: '연간 · 총자산',
+      name: shared ? '연간 · 공유 자산' : '연간 · 총자산',
       color: 'var(--accent)',
       percent: goal.annual.progressPercent,
       barPercent: annualHasData ? Math.max(0, Math.min(100, goal.annual.progressPercent as number)) : 0,
@@ -384,7 +389,7 @@ export function buildAssetGoals(goal: GoalResponse, today: Date = new Date()): A
     },
     {
       id: 'monthly',
-      name: '월간 · 필요 저축',
+      name: shared ? '월간 · 공동 저축' : '월간 · 필요 저축',
       color: 'var(--accent)',
       percent: goal.monthly.progressPercent,
       barPercent: monthlyHasData ? Math.max(0, Math.min(100, goal.monthly.progressPercent as number)) : 0,

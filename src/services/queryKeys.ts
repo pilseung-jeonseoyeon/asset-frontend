@@ -8,10 +8,9 @@ import type {
   Market,
   PeriodUnit,
   RecurringExpenseKind,
-  ShareSearchParams,
-  SharedTransactionSearchParams,
   TradeSearchParams,
   TransactionSearchParams,
+  ViewScope,
   YearMonth,
 } from './common.type'
 
@@ -27,6 +26,7 @@ import type {
 // 1) 배열 첫 요소 = 도메인 이름(src/services 폴더명과 동일)
 // 2) 파라미터는 반드시 "마지막 하나의 객체"로 — prefix 부분 무효화(queryKeys.account.all())를 유지하기 위함
 // 3) 정산월에 의존하는 쿼리는 { year, month }를 키에 반드시 포함(monthStartDay가 바뀌면 값이 달라짐)
+// 3-1) '개인 | 우리집'(ViewScope)에 따라 값이 달라지는 쿼리는 마지막 객체에 { scope }를 반드시 포함
 // 4) 화면 컴포넌트는 이 파일을 직접 import하지 않는다 — 훅 안에 캡슐화한다
 
 export const queryKeys = {
@@ -48,9 +48,9 @@ export const queryKeys = {
   },
   asset: {
     all: () => ['asset'] as const,
-    distribution: (groupBy: 'CLASS' | 'INSTITUTION') =>
-      ['asset', 'distribution', { groupBy }] as const,
-    liquidity: () => ['asset', 'liquidity'] as const,
+    distribution: (groupBy: 'CLASS' | 'INSTITUTION', scope: ViewScope) =>
+      ['asset', 'distribution', { groupBy, scope }] as const,
+    liquidity: (scope: ViewScope) => ['asset', 'liquidity', { scope }] as const,
   },
   category: {
     all: () => ['category'] as const,
@@ -59,16 +59,17 @@ export const queryKeys = {
   transaction: {
     all: () => ['transaction'] as const,
     list: (params: TransactionSearchParams) => ['transaction', 'list', params] as const,
-    dailySummary: (period: YearMonth) => ['transaction', 'dailySummary', period] as const,
-    monthlySummary: (year: number) => ['transaction', 'monthlySummary', { year }] as const,
-    periodSummary: (period: PeriodUnit, yearMonth: Partial<YearMonth> = {}) => ['transaction', 'periodSummary', { period, ...yearMonth }] as const,
-    rankings: (period: Partial<YearMonth>) => ['transaction', 'rankings', period] as const,
-    categoryDetail: (categoryId: number, period: Partial<YearMonth>) =>
-      ['transaction', 'categoryDetail', categoryId, period] as const,
+    dailySummary: (period: YearMonth, scope: ViewScope) => ['transaction', 'dailySummary', { ...period, scope }] as const,
+    monthlySummary: (year: number, scope: ViewScope) => ['transaction', 'monthlySummary', { year, scope }] as const,
+    periodSummary: (period: PeriodUnit, yearMonth: Partial<YearMonth>, scope: ViewScope) =>
+      ['transaction', 'periodSummary', { period, ...yearMonth, scope }] as const,
+    rankings: (period: Partial<YearMonth>, scope: ViewScope) => ['transaction', 'rankings', { ...period, scope }] as const,
+    categoryDetail: (categoryId: number, period: Partial<YearMonth>, scope: ViewScope) =>
+      ['transaction', 'categoryDetail', categoryId, { ...period, scope }] as const,
   },
   subscription: {
     all: () => ['subscription'] as const,
-    list: (kind?: RecurringExpenseKind) => ['subscription', 'list', { kind }] as const,
+    list: (kind: RecurringExpenseKind | undefined, scope: ViewScope) => ['subscription', 'list', { kind, scope }] as const,
   },
   stock: {
     all: () => ['stock'] as const,
@@ -93,15 +94,16 @@ export const queryKeys = {
   },
   goal: {
     all: () => ['goal'] as const,
-    detail: (period: Partial<YearMonth>) => ['goal', 'detail', period] as const,
-    preview: (params: { targetAmount: number; targetDate: string; monthlyIncome: number }) => ['goal', 'preview', params] as const,
+    detail: (period: Partial<YearMonth>, scope: ViewScope) => ['goal', 'detail', { ...period, scope }] as const,
+    preview: (params: { targetAmount: number; targetDate: string; monthlyIncome: number }, scope: ViewScope) =>
+      ['goal', 'preview', { ...params, scope }] as const,
   },
   dashboard: {
     all: () => ['dashboard'] as const,
-    summary: () => ['dashboard', 'summary'] as const,
-    trend: (range: DateRange, unit: 'DAY' | 'MONTH', type?: AccountType) =>
-      ['dashboard', 'trend', { ...range, unit, type }] as const,
-    allocation: () => ['dashboard', 'allocation'] as const,
+    summary: (scope: ViewScope) => ['dashboard', 'summary', { scope }] as const,
+    trend: (range: DateRange, unit: 'DAY' | 'MONTH', type: AccountType | undefined, scope: ViewScope) =>
+      ['dashboard', 'trend', { ...range, unit, type, scope }] as const,
+    allocation: (scope: ViewScope) => ['dashboard', 'allocation', { scope }] as const,
     // period가 없으면 '현재 정산월' — 규칙 3(정산월 의존 쿼리는 { year, month }를 키에 포함)을 지키되,
     // 현재 달은 서버가 정하므로 키에는 'current' 표식만 둔다.
     report: (period?: YearMonth) => ['dashboard', 'report', period ?? 'current'] as const,
@@ -116,14 +118,10 @@ export const queryKeys = {
     all: () => ['connection'] as const,
     list: () => ['connection', 'list'] as const,
   },
-  // 계좌 공유. 공유 행 하나가 바뀌면 목록·공유받은 계좌·그 계좌의 거래가 함께 바뀌므로 all()로 묶어 무효화한다.
+  // 가족·커플 공유(v17). 연결·공유 계좌가 바뀌면 '개인'·'우리집' 숫자가 함께 바뀌므로 share 훅의 mutation은
+  // 범위 쿼리 전체(account·asset·dashboard·transaction·goal·subscription)를 함께 무효화한다(share.hook.ts).
   share: {
     all: () => ['share'] as const,
-    list: (params: ShareSearchParams = {}) => ['share', 'list', params] as const,
-    accounts: () => ['share', 'accounts'] as const,
-    accountTransactions: (accountId: number, params: SharedTransactionSearchParams = {}) =>
-      ['share', 'accountTransactions', accountId, params] as const,
-    accountCategories: (accountId: number, kind?: CategoryKind) =>
-      ['share', 'accountCategories', accountId, { kind }] as const,
+    status: () => ['share', 'status'] as const,
   },
 } as const

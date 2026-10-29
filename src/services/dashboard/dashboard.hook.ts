@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '../queryKeys'
-import type { AccountType, DateRange, YearMonth } from '../common.type'
+import type { AccountType, DateRange, ViewScope, YearMonth } from '../common.type'
 import {
   getDashboardAllocation,
   getDashboardSummary,
@@ -11,12 +11,14 @@ import type { TrendUnit } from './dashboard.type'
 
 interface QueryOptions {
   enabled?: boolean
+  /** 화면 범위. 생략하면 'PERSONAL' */
+  scope?: ViewScope
 }
 
 export function useGetDashboardSummary(options?: QueryOptions) {
   return useQuery({
-    queryKey: queryKeys.dashboard.summary(),
-    queryFn: getDashboardSummary,
+    queryKey: queryKeys.dashboard.summary(options?.scope ?? 'PERSONAL'),
+    queryFn: () => getDashboardSummary(options?.scope),
     enabled: options?.enabled,
   })
 }
@@ -29,8 +31,8 @@ export function useGetDashboardTrend(
   options?: QueryOptions & { type?: AccountType },
 ) {
   const query = useQuery({
-    queryKey: queryKeys.dashboard.trend(range, unit, options?.type),
-    queryFn: () => getDashboardTrend(range, unit, options?.type),
+    queryKey: queryKeys.dashboard.trend(range, unit, options?.type, options?.scope ?? 'PERSONAL'),
+    queryFn: () => getDashboardTrend(range, unit, options?.type, options?.scope),
     enabled: options?.enabled,
   })
   return { ...query, points: query.data ?? [] }
@@ -38,8 +40,8 @@ export function useGetDashboardTrend(
 
 export function useGetDashboardAllocation(options?: QueryOptions) {
   const query = useQuery({
-    queryKey: queryKeys.dashboard.allocation(),
-    queryFn: getDashboardAllocation,
+    queryKey: queryKeys.dashboard.allocation(options?.scope ?? 'PERSONAL'),
+    queryFn: () => getDashboardAllocation(options?.scope),
     enabled: options?.enabled,
   })
   return { ...query, allocation: query.data ?? [] }

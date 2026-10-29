@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../queryKeys'
-import type { RecurringExpenseKind } from '../common.type'
+import type { RecurringExpenseKind, ViewScope } from '../common.type'
 import {
   deleteSubscription,
   getSubscriptions,
@@ -11,11 +11,11 @@ import type { CreateSubscriptionRequest, UpdateSubscriptionRequest } from './sub
 
 export function useGetSubscriptions(
   kind?: RecurringExpenseKind,
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; scope?: ViewScope },
 ) {
   const query = useQuery({
-    queryKey: queryKeys.subscription.list(kind),
-    queryFn: () => getSubscriptions(kind),
+    queryKey: queryKeys.subscription.list(kind, options?.scope ?? 'PERSONAL'),
+    queryFn: () => getSubscriptions(kind, options?.scope),
     enabled: options?.enabled,
   })
   return {

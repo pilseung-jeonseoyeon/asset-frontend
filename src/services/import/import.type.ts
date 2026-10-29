@@ -1,20 +1,20 @@
-// 엑셀 가져오기(거래 내역 · 계좌 목록). 정본은 서버 OpenAPI(`GET /import/excel/{transactions,accounts}/template`,
-// `POST /import/excel/{transactions,accounts}`)다. 결과 타입은 두 종류가 같은 모양이라 하나(ImportTransactionsResult)를 같이 쓴다.
-// 전체 계약(엑셀 열 순서·에러 코드·전체 롤백 규칙)은 docs/excel-import.md 참고.
+// 엑셀 가져오기(거래 내역 · 계좌 목록). 정본은 DB 함수 `import_transactions(p_rows)` · `import_accounts(p_rows)`
+// (supabase/migrations/20261024000007_app_api.sql 3부)와 docs/excel-import.md(엑셀 열 순서·에러 코드·전체 롤백 규칙)다.
+// 결과 타입은 두 종류가 같은 모양이라 하나(ImportTransactionsResult)를 같이 쓴다.
 //
 // 결정 사항:
-// - 엑셀 해석은 서버가 한다. 프론트는 파일을 multipart로 그대로 올리고, 양식(템플릿)도 서버에서 받는다
-// → 프론트에 xlsx 라이브러리를 넣지 않는다(번들 +400KB 회피). 계좌·카테고리 "이름 → id" 매칭도 서버.
+// - 엑셀 파일은 앱이 읽고 만든다(SheetJS, 필요할 때만 내려받는 별도 청크 — src/utils/xlsx). 앱은 시트를 "행 번호 + 문자열 칸"으로
+//   바꿔 넘길 뿐, 날짜·금액·이름 해석과 "이름 → id" 매칭은 DB 함수가 한 곳에서 한다.
 // - 미리보기 단계 없이 바로 등록하고 결과 요약만 받는다.
 //
-// 서버 계약(백엔드 `TransactionImportRes` 스키마 설명 그대로):
+// 계약(스프링 `TransactionImportRes` 그대로):
 // **한 행이라도 실패하면 아무것도 저장하지 않고** `importedCount`가 0, `errors`에 실패한 행이 전부 담긴다.
 // 전부 통과했을 때만 저장되고 `errors`는 빈 배열이다. 즉 "일부만 등록"은 없다 — 화면은 errors가 비어
 // 있으면 성공, 아니면 "고친 뒤 다시 올려주세요"로 안내한다.
-// 파일 자체를 못 읽거나(IMPORT_FILE_UNREADABLE) 행이 없거나(IMPORT_ROWS_EMPTY) 5,000행을 넘으면
-// (IMPORT_ROW_LIMIT_EXCEEDED) 200이 아니라 공통 에러 봉투(ApiError)로 온다.
+// 파일 자체를 못 읽거나 헤더가 다르면(IMPORT_FILE_UNREADABLE — 앱이 올리기 전에 검사) 행이 없거나(IMPORT_ROWS_EMPTY)
+// 5,000행을 넘으면(IMPORT_ROW_LIMIT_EXCEEDED) 결과가 아니라 ApiError 로 온다.
 
-/** accounts: 계좌 일괄 등록(POST /import/excel/accounts) — 응답 모양(importedCount + errors, 전체 롤백)은 거래와 같다. */
+/** accounts: 계좌 일괄 등록(import_accounts) — 응답 모양(importedCount + errors, 전체 롤백)은 거래와 같다. */
 export type ImportKind = 'transactions' | 'accounts'
 
 /** 실패한 엑셀 한 행. `rowNumber`는 엑셀 화면에 보이는 번호 그대로(헤더가 1행, 첫 데이터는 2행). */
@@ -30,4 +30,10 @@ export interface ImportTransactionsResult {
   /** 등록된 거래 수. errors가 하나라도 있으면 0이다(전체 롤백). */
   importedCount: number
   errors: ImportRowError[]
+}
+
+/** 가져오기 양식 파일. 저장은 훅(saveFile)이 한다. */
+export interface ImportTemplateResult {
+  blob: Blob
+  filename: string
 }

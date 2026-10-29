@@ -2,6 +2,7 @@
 
 import { Card } from '../../../components/primitives/Card/Card'
 import { useAppState } from '../../../state/AppStateContext'
+import { useViewScope } from '../../../utils/viewScope'
 import { buildAssetGoals } from '../../../data/dashboardView'
 import { useGetGoal } from '@/services/goal'
 import { CARD_TITLE_STYLE, EMPTY_TEXT_STYLE, ERROR_TEXT_STYLE } from './cardStyles'
@@ -9,8 +10,10 @@ import { EmptyState } from './shared'
 
 export function GoalCard() {
   const { setState } = useAppState()
-  const goalQuery = useGetGoal({})
-  const assetGoals = goalQuery.goal ? buildAssetGoals(goalQuery.goal) : []
+  // '우리집'이면 공유 목표(두 사람이 같이 보는 목표 하나)
+  const { scope } = useViewScope()
+  const goalQuery = useGetGoal({}, { scope })
+  const assetGoals = goalQuery.goal ? buildAssetGoals(goalQuery.goal, new Date(), scope === 'SHARED') : []
   const openAddGoal = () => setState({ openModal: 'addGoal', addGoalReturnTo: null })
 
   return (

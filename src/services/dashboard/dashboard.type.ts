@@ -9,6 +9,12 @@ export interface DashboardSummaryResponse {
   monthChangeKrw: number | null
   /** 올해 1월 1일 대비 증감 (음수 가능). 기준 스냅샷이 없으면 null(0이 아니다). */
   yearChangeKrw: number | null
+  /**
+   * 공유 계좌 개수·합계(가족·커플 공유 v17). '개인'이면 '우리집'으로 빠진 내 계좌,
+   * '우리집'이면 합산한 두 사람의 공유 계좌. 연결이 없으면 0.
+   */
+  sharedAccountCount: number
+  sharedTotalKrw: number
 }
 
 export interface TrendPointResponse {

@@ -5,13 +5,15 @@ import { Card } from '../../../components/primitives/Card/Card'
 import { SavingsBarChart } from '../../../components/primitives/SavingsBarChart/SavingsBarChart'
 import { buildSavingsBars, computeRecentAverageSavingsRate } from '../../../data/ledgerView'
 import { useCurrentSettlementMonth } from '../../../utils/useCurrentSettlementMonth'
+import { useViewScope } from '../../../utils/viewScope'
 import { CARD_TITLE_STYLE, EMPTY_TEXT_STYLE, ERROR_TEXT_STYLE } from './cardStyles'
 import { useGetMonthlySummaries } from '@/services/transaction'
 
 export function MonthlySavingsCard() {
   // 막대 강조·연도는 오늘이 속한 정산월 기준 — 월별 요약도 정산월 라벨로 온다.
   const today = useCurrentSettlementMonth()
-  const monthlyQuery = useGetMonthlySummaries(today.year)
+  const { scope } = useViewScope()
+  const monthlyQuery = useGetMonthlySummaries(today.year, { scope })
   const bars = buildSavingsBars(monthlyQuery.summaries, today.month)
   const recentAverage = computeRecentAverageSavingsRate(bars)
 

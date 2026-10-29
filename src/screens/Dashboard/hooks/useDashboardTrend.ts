@@ -6,13 +6,15 @@
 // 않으므로 선을 연장하지 말 것.
 
 import { todayYearMonth, toISODate } from '../../../utils/date'
+import { useViewScope } from '../../../utils/viewScope'
 import { buildTrendChart, buildTrendYAxisTicks } from '../../../data/dashboardView'
 import { useGetDashboardTrend } from '@/services/dashboard'
 
 export function useDashboardTrend() {
   const currentYear = todayYearMonth().year
   const trendRange = { from: `${currentYear}-01-01`, to: toISODate(new Date()) }
-  const trendQuery = useGetDashboardTrend(trendRange, 'MONTH')
+  const { scope } = useViewScope()
+  const trendQuery = useGetDashboardTrend(trendRange, 'MONTH', { scope })
   const trendChart = buildTrendChart(trendQuery.points)
   const trendAsOf = trendChart.dates.length > 0 ? trendChart.dates[trendChart.dates.length - 1] : null
   const yAxisTicks = buildTrendYAxisTicks(trendQuery.points)

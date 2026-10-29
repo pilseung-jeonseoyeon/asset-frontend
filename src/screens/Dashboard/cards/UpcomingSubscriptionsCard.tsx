@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { Card } from '../../../components/primitives/Card/Card'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { useAppState } from '../../../state/AppStateContext'
+import { useViewScope } from '../../../utils/viewScope'
 import { daysInMonth } from '../../../utils/date'
 import { buildSubscriptionRows, type SubscriptionRow } from '../../../data/ledgerView'
 import { CARD_LINK_STYLE, CARD_TITLE_STYLE, DASHED_CTA_STYLE, EMPTY_TEXT_STYLE, ERROR_TEXT_STYLE } from './cardStyles'
@@ -55,9 +56,11 @@ function sortByUpcomingPaymentDay(rows: UpcomingRow[]): UpcomingRow[] {
 export function UpcomingSubscriptionsCard() {
   const { setState } = useAppState()
   const navigate = useNavigate()
-  const fixedQuery = useGetSubscriptions('FIXED')
-  const subscriptionQuery = useGetSubscriptions('SUBSCRIPTION')
-  const accountsQuery = useGetAccounts()
+  // '우리집'이면 공유 계좌에서 나가는 두 사람의 고정 지출·구독
+  const { scope } = useViewScope()
+  const fixedQuery = useGetSubscriptions('FIXED', { scope })
+  const subscriptionQuery = useGetSubscriptions('SUBSCRIPTION', { scope })
+  const accountsQuery = useGetAccounts({ scope: scope === 'SHARED' ? 'SHARED' : 'ALL' })
 
   const isPending = fixedQuery.isPending || subscriptionQuery.isPending || accountsQuery.isPending
   const error = fixedQuery.error ?? subscriptionQuery.error ?? accountsQuery.error

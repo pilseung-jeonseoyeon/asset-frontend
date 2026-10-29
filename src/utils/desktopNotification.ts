@@ -7,8 +7,14 @@
 // - 허락 요청(requestPermission)은 버튼을 누른 순간에만 부른다 — 브라우저가 사용자 동작 없는 요청을
 //   막거나 조용히 무시하고, 한 번 '차단'되면 사이트가 다시 물을 수 없다.
 // - 허락 상태는 사용자가 주소창 사이트 설정에서 언제든 바꿀 수 있어서, 창 포커스·탭 복귀 때 다시 읽는다.
+// - 데스크톱 앱(Electron)에서도 같은 Notification API 가 그대로 동작한다(허락은 처음부터 granted). 다른 점은 안 읽은 수를
+//   탭 제목 대신 독 아이콘 배지로 보여 주는 것뿐이다(setUnreadBadge — 플랫폼 분기 네 곳 중 하나).
 
 import { useSyncExternalStore } from 'react'
+import { desktopApi, isDesktopApp } from './platform'
+
+/** 탭 제목의 기본값. 안 읽은 알림이 있으면 브라우저에선 "(N) Monit" 이 된다(setUnreadBadge). */
+export const APP_TITLE = 'Monit'
 
 export type DesktopNotificationPermission = NotificationPermission | 'unsupported'
 
@@ -17,6 +23,7 @@ const DESKTOP_NOTIFICATION_ICON = '/pwa/icon-192.png'
 const PHONE_USER_AGENT = /Android|iPhone|iPad|iPod/i
 
 export function isDesktopNotificationSupported(): boolean {
+  if (isDesktopApp()) return typeof window !== 'undefined' && 'Notification' in window
   if (typeof window === 'undefined' || !('Notification' in window) || !window.isSecureContext) return false
   const userAgent = window.navigator.userAgent
   if (PHONE_USER_AGENT.test(userAgent)) return false
@@ -107,4 +114,22 @@ export function showDesktopNotification({ title, body, tag, onClick }: DesktopNo
   } catch {
     // 생성자를 막는 브라우저(안드로이드 크롬 등)는 위 지원 판정에서 걸러지지만, 남은 예외도 삼킨다.
   }
+}
+
+/**
+ * 안 읽은 알림 수 표시. 브라우저는 탭이 안 보일 때만 탭 제목을 "(N) Monit" 으로(돌아오면 "Monit"), 데스크톱 앱은 독 아이콘
+ * 배지(0 이면 지움). 로그아웃 때 0 으로 불러 다음 사용자에게 남지 않게 한다.
+ */
+export async function setUnreadBadge(count: number): Promise<void> {
+  const desktop = desktopApi()
+  if (desktop) {
+    try {
+      await desktop.setBadgeCount(count > 0 ? count : 0)
+    } catch {
+      // 배지를 못 그려도 앱 동작엔 영향 없음
+    }
+    return
+  }
+  const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden'
+  document.title = hidden && count > 0 ? `(${count > 99 ? '99+' : count}) ${APP_TITLE}` : APP_TITLE
 }

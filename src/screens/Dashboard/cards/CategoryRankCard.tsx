@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import { Card } from '../../../components/primitives/Card/Card'
 import { buildLedgerCategories } from '../../../data/ledgerView'
 import { formatNumber } from '../../../utils/format'
+import { useViewScope } from '../../../utils/viewScope'
 import { CARD_LINK_STYLE, CARD_TITLE_STYLE, EMPTY_TEXT_STYLE, ERROR_TEXT_STYLE } from './cardStyles'
 import { EmptyState } from './shared'
 import { useGetCategoryRankings } from '@/services/transaction'
@@ -21,7 +22,8 @@ function changeLabel(current: number, previous: number): string {
 
 export function CategoryRankCard() {
   const navigate = useNavigate()
-  const rankingsQuery = useGetCategoryRankings({})
+  const { scope } = useViewScope()
+  const rankingsQuery = useGetCategoryRankings({}, { scope })
   const rankings = rankingsQuery.rankings
   const rows = buildLedgerCategories(rankings).slice(0, TOP_N)
   const rankingByCategoryId = new Map(rankings.map((r) => [r.categoryId, r]))

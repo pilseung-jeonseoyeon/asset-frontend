@@ -90,9 +90,18 @@ export interface DateRange {
 // --- 목록 조회 파라미터 ---------------------------------------------------
 // queryKeys.ts와 각 도메인 서비스가 함께 쓰므로 여기에 둔다(순환 import 방지).
 
+/**
+ * 화면 범위(가족·커플 공유 v17). 'PERSONAL' = 상단 '개인'(내 계좌 − 내가 공유 중인 계좌, 가계부는 내가 적은 거래),
+ * 'SHARED' = 상단 '{공유 화면 이름}'(연결된 두 사람의 공유 계좌, 가계부는 공유 계좌 거래 + 공동·상대 몫 거래).
+ * 정하는 곳은 utils/viewScope.ts의 useViewScope 하나 — 범위에 따라 숫자가 달라지는 쿼리는 queryKey에 반드시 넣는다.
+ */
+export type ViewScope = 'PERSONAL' | 'SHARED'
+
 export interface AccountListParams {
   type?: AccountType
   institutionId?: number
+  /** 생략하면 'ALL'(내 계좌 전부 — 입력 폼 선택지·관리용). 자산 화면은 useViewScope의 범위를 넘긴다. */
+  scope?: 'ALL' | ViewScope
 }
 
 export interface TransactionSearchParams {
@@ -108,6 +117,10 @@ export interface TransactionSearchParams {
    * 날짜 조건(year·month / from·to)을 모두 생략하면 전체 기간에서 찾는다.
    */
   keyword?: string
+  /** 생략하면 'PERSONAL'. 'PERSONAL'에는 상대가 '내 몫'으로 적은 거래도 읽기 전용으로 섞여 온다(userId가 나와 다름). */
+  scope?: ViewScope
+  /** 'SHARED' 내역의 누구 몫 필터(보는 사람 기준) — me 내 것 · pt 상대 것 · jt 공동 */
+  who?: 'me' | 'pt' | 'jt'
   /** 서버는 0-base. 화면의 1-base 페이지는 훅에서 변환한다. */
   page?: number
   size?: number
@@ -119,26 +132,6 @@ export interface TransactionSearchParams {
 }
 
 /** GET /shares 조회 조건 — 모두 선택. side를 생략하면 OWNER. 상태값은 share.type.ts의 ShareStatus. */
-export interface ShareSearchParams {
-  side?: 'OWNER' | 'MEMBER'
-  accountId?: number
-  status?: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'REVOKED' | 'EXPIRED'
-}
-
-/**
- * GET /shares/accounts/{accountId}/transactions 조회 조건. 정산월(year·month)은 받지 않는다 —
- * 정산월 시작일이 사용자 설정이라 "소유자 기준이냐 멤버 기준이냐"가 생기기 때문(서버 결정).
- */
-export interface SharedTransactionSearchParams {
-  from?: string
-  to?: string
-  type?: EditableTransactionType
-  keyword?: string
-  /** 서버는 0-base. */
-  page?: number
-  size?: number
-}
-
 export interface TradeSearchParams {
   accountId?: number
   stockId?: number
@@ -176,4 +169,6 @@ export interface Page<T> {
   first: boolean
   last: boolean
   // numberOfElements·empty는 서버 PageRes에 없다(2026-09-26 OpenAPI 대조) — 선언하면 쓰는 순간 undefined라 뺐다.
+  /** list_transactions(scope SHARED)만 — 누구 몫 필터 칩의 건수(필터 전, 보는 사람 기준) */
+  whoCounts?: { all: number; me: number; pt: number; jt: number }
 }

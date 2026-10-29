@@ -5,16 +5,13 @@
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { DeepCard } from '../../../components/primitives/DeepCard/DeepCard'
 import { StatBadge } from '../../../components/primitives/StatBadge/StatBadge'
-import { useAppState } from '../../../state/AppStateContext'
 import { formatNumber } from '../../../utils/format'
 import { useDashboardHero } from '../hooks/useDashboardHero'
 import { DASHED_CTA_STYLE_DEEP, EMPTY_TEXT_STYLE_DEEP, ERROR_TEXT_STYLE_DEEP } from './cardStyles'
-import { KoreanUnitsCaption } from './shared'
+import { KoreanUnitsCaption, ShareScopeNote } from './shared'
 
 export function TotalAssetDeepCard() {
-  const { setState } = useAppState()
-  const { hero, isHeroPending, heroError } = useDashboardHero()
-  const openAddAccount = () => setState({ quickAddOpen: false, openModal: 'addAccount' })
+  const { hero, isHeroPending, heroError, emptyCta } = useDashboardHero()
 
   return (
     <DeepCard aria-busy={isHeroPending}>
@@ -37,10 +34,10 @@ export function TotalAssetDeepCard() {
           >
             <Icon name="add_card" size={20} color="var(--deep-value)" />
           </span>
-          <div style={EMPTY_TEXT_STYLE_DEEP}>계좌를 추가하고 총자산을 한눈에 확인해보세요</div>
-          <button onClick={openAddAccount} className="qbtn" style={DASHED_CTA_STYLE_DEEP}>
-            <Icon name="add" size={16} />
-            계좌 추가
+          <div style={EMPTY_TEXT_STYLE_DEEP}>{emptyCta.text}</div>
+          <button onClick={emptyCta.onClick} className="qbtn" style={DASHED_CTA_STYLE_DEEP}>
+            <Icon name={emptyCta.icon} size={16} />
+            {emptyCta.label}
           </button>
         </div>
       ) : (
@@ -71,6 +68,7 @@ export function TotalAssetDeepCard() {
               자산 이력이 쌓이면 이번 달 증감을 확인할 수 있어요
             </div>
           )}
+          <ShareScopeNote deep />
         </div>
       )}
     </DeepCard>

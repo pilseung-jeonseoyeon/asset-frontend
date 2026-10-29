@@ -1,10 +1,9 @@
 // 회원가입 4단계: 1/3 약관 동의 → 2/3 정보 입력 → 3/3 이메일 인증 → 온보딩(프로필 확인).
 // 1단계 — 서버 호출 없음(동의 상태는 클라이언트에만 있다)
-// 2단계 — '인증 메일 받기'가 usePostSignupCode 호출
-// 3단계 — '인증 완료'가 1~2단계에서 모은 값으로 usePostSignup 호출
+// 2단계 — '인증 메일 받기'가 usePostSignup 호출(계정 생성 + 6자리 코드 메일. 이름·약관은 이때 함께 보낸다)
+// 3단계 — '인증 완료'가 useVerifySignupCode 호출(코드 확인 → 세션)
 // 4단계 — 자동 생성된 아바타를 확인하고 useCompleteSignupOnboarding으로 비로소 로그인 상태가
-// 된다(signIn을 usePostSignup의 onSuccess가 아니라 여기까지 미루는 이유는
-// auth.hook.ts의 usePostSignup 헤더 주석 참고)
+// 된다(signIn을 코드 확인 직후가 아니라 여기까지 미루는 이유는 auth.hook.ts의 usePostSignup 헤더 주석 참고)
 //
 // 동의 항목 4개(만 14세·이용약관·개인정보·마케팅) 중 문서가 있는 3개의 '보기 ›'는 약관 전문을 연다
 // (data/termsContent.ts의 문안을 components/layout/modals/TermsDetailOverlay.tsx가 렌더). 만 14세
@@ -44,7 +43,8 @@ import {
 import {
   useCompleteSignupOnboarding,
   usePostSignup,
-  usePostSignupCode,
+  useResendSignupCode,
+  useVerifySignupCode,
   PASSWORD_PATTERN,
   PASSWORD_RULE_TEXT,
 } from '@/services/auth'
@@ -79,8 +79,9 @@ export function SignupForm() {
   const { state, setState } = useAppState()
   const goAuthScreen = useGoAuthScreen()
   const markCodeSent = useMarkAuthCodeSent()
-  const codeMutation = usePostSignupCode()
   const signupMutation = usePostSignup()
+  const verifyMutation = useVerifySignupCode()
+  const resendMutation = useResendSignupCode()
   const completeOnboarding = useCompleteSignupOnboarding()
   const resendCooldown = useResendCooldown(state.authCodeSentAt)
 
@@ -146,13 +147,33 @@ export function SignupForm() {
       setValidationError('비밀번호가 서로 일치하지 않아요.')
       return
     }
+    if (!allRequiredAgreed) {
+      setValidationError('필수 약관에 모두 동의해 주세요.')
+      setState({ authStep: 'terms' })
+      return
+    }
     setValidationError(null)
-    codeMutation.mutate({ email: state.authEmail }, { onSuccess: markCodeSent })
+    signupMutation.mutate(
+      {
+        email: state.authEmail,
+        name: state.authName.trim(),
+        password,
+        // 서버는 boolean 하나가 아니라 "동의한 문서 + 그 버전" 목록을 받는다. 문서가 있고 체크된
+        // 항목만 담고(만 14세 확인은 문서가 없어 제외), 각 항목에는 방금 화면이 보여준 문서의
+        // 버전(TERMS_VERSION)을 그대로 붙인다.
+        agreements: AGREEMENT_ITEMS.flatMap((item) =>
+          item.document && state.authAgreements[item.key]
+            ? [{ code: AGREEMENT_CODE_BY_KEY[item.document], version: TERMS_VERSION }]
+            : [],
+        ),
+      },
+      { onSuccess: markCodeSent },
+    )
   }
 
   function handleResend() {
-    if (resendCooldown > 0 || codeMutation.isPending) return
-    codeMutation.mutate({ email: state.authEmail }, { onSuccess: markCodeSent })
+    if (resendCooldown > 0 || resendMutation.isPending) return
+    resendMutation.mutate({ email: state.authEmail }, { onSuccess: markCodeSent })
   }
 
   function handleSubmit(e: FormEvent) {
@@ -169,40 +190,31 @@ export function SignupForm() {
       return
     }
     setValidationError(null)
-    signupMutation.mutate(
-      {
-        email: state.authEmail,
-        code: state.authCode,
-        name: state.authName.trim(),
-        password,
-        // 서버는 boolean 하나가 아니라 "동의한 문서 + 그 버전" 목록을 받는다. 문서가 있고 체크된
-        // 항목만 담고(만 14세 확인은 문서가 없어 제외), 각 항목에는 방금 화면이 보여준 문서의
-        // 버전(TERMS_VERSION)을 그대로 붙인다.
-        agreements: AGREEMENT_ITEMS.flatMap((item) =>
-          item.document && state.authAgreements[item.key]
-            ? [{ code: AGREEMENT_CODE_BY_KEY[item.document], version: TERMS_VERSION }]
-            : [],
-        ),
-      },
+    verifyMutation.mutate(
+      { email: state.authEmail, code: state.authCode },
       { onSuccess: () => setState({ authStep: 'onboard' }) },
     )
   }
 
-  /** 온보딩 화면의 "모닛 시작하기" — usePostSignup이 이미 받아둔 토큰(컴포넌트 로컬 상태)으로
+  /** 온보딩 화면의 "모닛 시작하기" — 코드 확인(useVerifySignupCode)이 이미 받아둔 세션(컴포넌트 로컬 상태)으로
    * 실제 로그인 상태를 확정하고 앱으로 진입한다. authStep은 더 오래 사는 AppState에 있어서, 어떤
-   * 이유로든 이 컴포넌트가 리마운트되면 signupMutation.data가 소실된 채로 이 화면만 남을 수 있다
-   * — 그 경우 조용히 무반응이 되지 않도록 안내 메시지를 띄운다. */
+   * 이유로든 이 컴포넌트가 리마운트되면 verifyMutation.data가 소실된 채로 이 화면만 남을 수 있다
+   * — 그 경우 조용히 무반응이 되지 않도록 안내 메시지를 띄운다(새로고침하면 저장된 세션으로 자동 로그인된다). */
   function handleEnterApp() {
-    if (!signupMutation.data) {
+    if (!verifyMutation.data) {
       setValidationError('세션이 만료되었어요. 다시 로그인해 주세요.')
       return
     }
-    completeOnboarding(signupMutation.data.accessToken)
+    completeOnboarding(verifyMutation.data)
   }
 
   const errorMessage =
     validationError ??
-    (step === 'sent' ? signupMutation.error?.message : step === 'form' ? codeMutation.error?.message : null) ??
+    (step === 'sent'
+      ? (verifyMutation.error?.message ?? resendMutation.error?.message)
+      : step === 'form'
+        ? signupMutation.error?.message
+        : null) ??
     null
 
   return (
@@ -323,7 +335,7 @@ export function SignupForm() {
               // 코드 발송 요청이 이 이메일로 나가 있는 동안 값을 바꾸면, 3단계 안내 문구는 새 이메일을
               // 보여주는데 실제 코드는 옛 이메일로 발급된 채라 최종 가입 요청이 반드시 실패한다 —
               // 요청이 끝날 때까지 잠근다.
-              disabled={codeMutation.isPending}
+              disabled={signupMutation.isPending}
               onInput={filterEmailInput}
               onChange={(e) => setState({ authEmail: e.target.value })}
               style={authInputStyle}
@@ -409,15 +421,15 @@ export function SignupForm() {
           <button
             type="submit"
             className="pill-btn"
-            disabled={!emailValid || codeMutation.isPending}
-            style={emailValid && !codeMutation.isPending ? authPrimaryButtonStyle : authPrimaryButtonDisabledStyle}
+            disabled={!emailValid || signupMutation.isPending}
+            style={emailValid && !signupMutation.isPending ? authPrimaryButtonStyle : authPrimaryButtonDisabledStyle}
           >
-            {codeMutation.isPending ? '코드 보내는 중…' : '인증 메일 받기'}
+            {signupMutation.isPending ? '코드 보내는 중…' : '인증 메일 받기'}
           </button>
-          {/* codeMutation이 진행 중일 때 1단계로 돌아가면, 응답이 도착한 시점에 markCodeSent가
+          {/* signupMutation이 진행 중일 때 1단계로 돌아가면, 응답이 도착한 시점에 markCodeSent가
               authStep을 무조건 'sent'로 덮어써 약관 화면을 보고 있던 사용자가 갑자기 3단계로
               튕긴다 — 요청이 끝날 때까지 "이전"을 눌러 화면을 벗어날 수 없게 막는다. */}
-          <button type="button" className="pill-btn" disabled={codeMutation.isPending} onClick={() => goStep({ authStep: 'terms' })} style={authSecondaryButtonStyle}>
+          <button type="button" className="pill-btn" disabled={signupMutation.isPending} onClick={() => goStep({ authStep: 'terms' })} style={authSecondaryButtonStyle}>
             이전
           </button>
         </form>
@@ -437,14 +449,14 @@ export function SignupForm() {
             메일이 보이지 않으면 스팸함도 확인해 주세요.
           </div>
 
-          <CodeInput value={state.authCode} onChange={(code) => setState({ authCode: code })} disabled={signupMutation.isPending} />
+          <CodeInput value={state.authCode} onChange={(code) => setState({ authCode: code })} disabled={verifyMutation.isPending} />
 
           <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginBottom: 20 }}>
             코드를 받지 못하셨나요?{' '}
             <button
               type="button"
               onClick={handleResend}
-              disabled={resendCooldown > 0 || codeMutation.isPending}
+              disabled={resendCooldown > 0 || resendMutation.isPending}
               style={{
                 border: 'none',
                 background: 'transparent',
@@ -465,8 +477,8 @@ export function SignupForm() {
             </div>
           )}
 
-          <button type="submit" className="pill-btn" disabled={signupMutation.isPending} style={signupMutation.isPending ? authPrimaryButtonDisabledStyle : authPrimaryButtonStyle}>
-            {signupMutation.isPending ? '가입하는 중…' : '인증 완료'}
+          <button type="submit" className="pill-btn" disabled={verifyMutation.isPending} style={verifyMutation.isPending ? authPrimaryButtonDisabledStyle : authPrimaryButtonStyle}>
+            {verifyMutation.isPending ? '확인하는 중…' : '인증 완료'}
           </button>
           <button
             type="button"

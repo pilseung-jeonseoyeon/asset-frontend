@@ -23,6 +23,8 @@ export interface AccountBalanceResponse {
 
 export interface AccountResponse {
   id: number
+  /** 계좌 주인 id — '우리집' 화면에서 내 계좌(수정 가능)와 상대 계좌(보기만)를 가른다. */
+  ownerId: string
   name: string
   type: AccountType
   institutionId: number | null
@@ -41,6 +43,15 @@ export interface AccountResponse {
   sortOrder: number
   /** 해지 시각 — 활성 계좌는 null */
   closedAt: string | null
+  /** 지금 공유 중이면 공유 설정(GET /accounts만 채운다). 공유 중이 아니거나 다른 응답이면 null/없음. */
+  share?: AccountShareInfo | null
+}
+
+export interface AccountShareInfo {
+  /** true면 공유 전 거래도 상대에게 보인다. false면 sharedAt(KST 날짜) 이후만. */
+  includeHistory: boolean
+  /** ISO-8601 */
+  sharedAt: string
 }
 
 /**

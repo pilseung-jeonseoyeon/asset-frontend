@@ -4,11 +4,16 @@
 // 한 번이다.
 
 import { buildDashboardHero, sumAllocationKrw } from '../../../data/dashboardView'
+import { useAppState } from '../../../state/AppStateContext'
+import { useViewScope } from '../../../utils/viewScope'
 import { useGetDashboardAllocation, useGetDashboardSummary } from '@/services/dashboard'
 
 export function useDashboardHero() {
-  const summaryQuery = useGetDashboardSummary()
-  const allocationQuery = useGetDashboardAllocation()
+  // '개인 | 우리집'(가족·커플 공유 v17) — 히어로·리포트 배너·올해 현황이 같은 범위를 쓴다
+  const { scope } = useViewScope()
+  const { setState } = useAppState()
+  const summaryQuery = useGetDashboardSummary({ scope })
+  const allocationQuery = useGetDashboardAllocation({ scope })
   // summary(스냅샷 기반)가 0이면 "계좌 없음"과 "계좌 등록 첫날이라 스냅샷이 아직 없음"을 구분할 수
   // 없다 — allocation(실시간 집계) 합계로 보완해서 판정한다.
   // allocation이 아직 로딩 중일 때 곧바로 판정해버리면 "빈 상태" → "실제 데이터"로 바뀌는 깜빡임이
@@ -25,7 +30,25 @@ export function useDashboardHero() {
       ? buildDashboardHero(summaryQuery.data, sumAllocationKrw(allocationQuery.allocation))
       : null
 
+  // 빈 상태의 안내·버튼 — '우리집'은 계좌 추가가 아니라 공유할 계좌 고르기다
+  const emptyCta =
+    scope === 'SHARED'
+      ? {
+          text: '아직 함께 보는 계좌가 없어요. 공유 계좌 관리에서 함께 볼 계좌를 골라주세요',
+          label: '공유 계좌 관리',
+          icon: 'checklist',
+          onClick: () => setState({ quickAddOpen: false, openModal: 'familyShare', shareFlowStep: 'home' }),
+        }
+      : {
+          text: '계좌를 추가하고 총자산을 한눈에 확인해보세요',
+          label: '계좌 추가',
+          icon: 'add',
+          onClick: () => setState({ quickAddOpen: false, openModal: 'addAccount' }),
+        }
+
   return {
+    scope,
+    emptyCta,
     summaryQuery,
     allocationQuery,
     hero,

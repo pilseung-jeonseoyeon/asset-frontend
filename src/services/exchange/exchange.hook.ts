@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../queryKeys'
 import type { Currency, ExchangeSearchParams } from '../common.type'
-import { isExchangeRateMissing } from '../stock/stock.hook'
+import { isExchangeRateMissing, useFxRateFallback } from '../stock/stock.hook'
 import {
   deleteExchange,
   getExchangeSummary,
@@ -31,6 +31,7 @@ export function useGetExchangeSummary(currency: Currency, options?: QueryOptions
     queryFn: () => getExchangeSummary(currency),
     enabled: options?.enabled,
   })
+  useFxRateFallback(query.error, query.refetch)
   return { ...query, isExchangeRateMissing: isExchangeRateMissing(query.error) }
 }
 

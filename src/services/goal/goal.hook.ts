@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../queryKeys'
-import type { YearMonth } from '../common.type'
+import type { ViewScope, YearMonth } from '../common.type'
 import { deleteGoal, getGoal, getGoalPreview, putGoal } from './goal.service'
 import type { UpsertGoalRequest } from './goal.type'
 
 interface QueryOptions {
   enabled?: boolean
+  /** 화면 범위. 'SHARED'면 공유 목표. 생략하면 'PERSONAL' */
+  scope?: ViewScope
 }
 
 /**
@@ -18,8 +20,8 @@ interface QueryOptions {
  */
 export function useGetGoal(period: Partial<YearMonth> = {}, options?: QueryOptions) {
   const query = useQuery({
-    queryKey: queryKeys.goal.detail(period),
-    queryFn: () => getGoal(period),
+    queryKey: queryKeys.goal.detail(period, options?.scope ?? 'PERSONAL'),
+    queryFn: () => getGoal(period, options?.scope),
     enabled: options?.enabled,
   })
   return {
@@ -32,7 +34,7 @@ export function useGetGoal(period: Partial<YearMonth> = {}, options?: QueryOptio
 export function usePutGoal() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (body: UpsertGoalRequest) => putGoal(body),
+    mutationFn: ({ body, scope }: { body: UpsertGoalRequest; scope: ViewScope }) => putGoal(body, scope),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.goal.all() })
       // 대시보드의 "자산 목표" 위젯이 같은 값을 읽는다.
@@ -45,10 +47,10 @@ export function usePutGoal() {
  * 목표 설정 모달의 미리보기. params가 null이면(입력이 아직 유효하지 않음) 부르지 않는다. 호출부가 입력을
  * 디바운스해서 넘긴다 — 글자마다 계산 요청이 나가지 않게.
  */
-export function useGetGoalPreview(params: UpsertGoalRequest | null) {
+export function useGetGoalPreview(params: UpsertGoalRequest | null, scope: ViewScope = 'PERSONAL') {
   return useQuery({
-    queryKey: params ? queryKeys.goal.preview(params) : ['goal', 'preview', 'idle'],
-    queryFn: () => getGoalPreview(params as UpsertGoalRequest),
+    queryKey: params ? queryKeys.goal.preview(params, scope) : ['goal', 'preview', 'idle'],
+    queryFn: () => getGoalPreview(params as UpsertGoalRequest, scope),
     enabled: params !== null,
     // 같은 입력으로 다시 계산할 필요가 없다.
     staleTime: 60_000,
@@ -58,7 +60,7 @@ export function useGetGoalPreview(params: UpsertGoalRequest | null) {
 export function useDeleteGoal() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: deleteGoal,
+    mutationFn: (scope: ViewScope) => deleteGoal(scope),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.goal.all() })
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() })

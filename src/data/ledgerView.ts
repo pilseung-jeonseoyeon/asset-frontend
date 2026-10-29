@@ -14,13 +14,8 @@ import type { LedgerPeriod } from '../state/types'
 import type { AccountResponse } from '@/services/account'
 import type { CategoryResponse, SubcategoryResponse } from '@/services/category'
 import type { SubscriptionResponse } from '@/services/subscription'
-import type {
-  CategoryRankingResponse,
-  DailySummaryResponse,
-  MonthlySummaryResponse,
-  PeriodSummaryResponse,
-  TransactionResponse,
-} from '@/services/transaction'
+import type { CategoryRankingResponse, DailySummaryResponse, MonthlySummaryResponse, OwnerTag, PeriodSummaryResponse, TransactionResponse } from '@/services/transaction'
+import { HIDDEN_ACCOUNT_LABEL } from './shareView'
 import type { CategoryKind, DateRange, EditableTransactionType, TransactionType } from '@/services/common.type'
 
 // ---------- 공용: 요청 실패 표시 ----------
@@ -574,8 +569,14 @@ export interface LedgerTransactionRow {
   /** 목록에 "메모 있음" 표시를 하고, 수정 모달을 열 때 entryMemo 프리필에 쓴다(입력 UI가 있어
    * 더 이상 보존 전용이 아니다). */
   memo: string | null
-  /** 거래를 기록한 사용자 id — 공유 계좌에 멤버가 적은 거래를 구분한다(TransactionResponse.createdBy 주석). */
-  createdBy: number | null
+  createdBy: string | null
+  /** 계좌 주인(결제한 사람) id — 내 id와 다르면 상대가 적은 거래이고 읽기 전용이다(가족·커플 공유 v17). */
+  userId: string
+  /** 누구 몫(적은 사람 기준) — 설명 줄·필터는 data/shareView.ts의 ledgerWhoOf·ledgerOwnerCaption으로 */
+  ownerTag: OwnerTag
+  /** 보는 사람에게 공유되지 않은 상대 계좌면 이름이 null이고 hidden이 true('다른 계좌') */
+  accountName: string | null
+  accountHidden: boolean
 }
 
 const TX_TYPE_COLOR: Record<TransactionType, string> = {
@@ -604,7 +605,9 @@ export function buildLedgerTransactions(transactions: TransactionResponse[], acc
     const sign = t.type === 'INCOME' ? '+' : t.type === 'EXPENSE' ? '−' : ''
     const tag =
       t.type === 'TRANSFER'
-        ? (t.transferAccountName ?? accounts.find((a) => a.id === t.transferAccountId)?.name ?? '계좌 이체')
+        ? t.transferAccountHidden
+          ? HIDDEN_ACCOUNT_LABEL
+          : (t.transferAccountName ?? accounts.find((a) => a.id === t.transferAccountId)?.name ?? '계좌 이체')
         : (t.subcategoryName ?? '')
     return {
       id: t.id,
@@ -623,6 +626,10 @@ export function buildLedgerTransactions(transactions: TransactionResponse[], acc
       memo: t.memo,
       // 계약 변경 전 서버(필드 없음)에 붙어도 undefined가 아니라 null로 통일한다.
       createdBy: t.createdBy ?? null,
+      userId: t.userId,
+      ownerTag: t.ownerTag ?? 'SELF',
+      accountName: t.accountName ?? null,
+      accountHidden: t.accountHidden ?? false,
     }
   })
 }
