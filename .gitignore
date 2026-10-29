@@ -29,6 +29,7 @@ secret/
 *.njsproj
 *.sln
 *.sw?
+.claude/settings.local.json
 
 # 개인 작업 메모 (공유하지 않음)
 TODO.md
@@ -36,3 +37,52 @@ review.md
 
 # 기획·설계 HTML (설계안·프로토타입 — 공유하지 않음)
 docs/plan/
+
+# Edge Function 로컬 시크릿
+supabase/functions/.env
+
+# Electron 빌드 산출물(메인·프리로드 번들, 설치 파일)
+dist-electron/
+release/
+
+# ---------- 보안: 절대 올리지 않는 것 ----------
+# 모든 .env 변형(키 목록인 .env.example 만 올린다)
+.env*
+!.env.example
+.dev.vars
+# 키 · 인증서 · 코드 서명(Apple .p8, Windows .pfx, Supabase JWT 키 등)
+*.pem
+*.p12
+*.pfx
+*.p8
+*.key
+*.cer
+*.crt
+*.csr
+*.der
+*.jks
+*.keystore
+*.mobileprovision
+signing_keys.json
+*service-account*.json
+*credentials*.json
+# 운영 데이터 복사본(개인정보). 덤프는 저장소 밖(~/monit-backup)에 두지만 실수로 들어와도 올라가지 않게
+*.dump
+*.pgdump
+*.backup
+*.bak
+*.sql.gz
+*dump*.sql
+*backup*.sql
+*.sqlite
+*.sqlite3
+# 예전 Spring 운영 DB → Supabase 데이터 이전 도구(일회용 · 로컬 전용)
+scripts/legacy-migrate/
+# 작업 장부
+.superpowers/
+# 서버(Supabase) 원본 — SQL · 시험 · 함수 코드 · 설정. 이 맥과 클라우드에만 둔다(저장소가 공개라 쿼리 세부를 올리지 않음)
+supabase/
+# 서버 SQL 이 들어간 설계 · 계획 문서와 출시 런북(로컬 전용)
+docs/superpowers/plans/
+docs/superpowers/specs/2026-10-2*
+docs/release-runbook.md
