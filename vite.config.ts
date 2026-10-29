@@ -1,60 +1,56 @@
 import { fileURLToPath } from 'node:url'
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import electron from 'vite-plugin-electron/simple'
 
-// 개발 서버(pnpm dev)가 `/api` 요청을 대신 전달할 백엔드 주소.
-//
-// 기본값은 로컬 백엔드(localhost:8080 → 로컬 도커 DB)다(2026-09-26 사용자 결정 — 운영 DB를 건드리지
-// 않고 개발하기 위해). 브라우저는 같은 출처(localhost:5173)로만 요청하고 개발 서버가 대신 백엔드를
-// 부르므로, 백엔드의 CORS 허용 목록이나 refresh_token 쿠키의 SameSite 설정과 무관하게 로그인 유지가
-// 동작한다. VITE_API_BASE_URL은 상대 경로(/api/v1)로 두거나 비워 둔다 — 절대 URL을 넣으면 브라우저가
-// 프록시를 건너뛰고 직접 부른다.
-//
-// 로컬 백엔드 없이 운영 API에 붙어야 할 때는 .env.local(gitignore됨)에 한 줄을 넣는다:
-//   VITE_DEV_PROXY_TARGET=https://api.monit.io.kr
-// 주의: 그렇게 붙은 곳은 운영 DB다 — 로컬 화면에서 등록·삭제하면 실제 데이터가 바뀐다.
-const DEFAULT_DEV_PROXY_TARGET = 'http://localhost:8080'
-
+// 백엔드는 Supabase 다. 개발 서버 프록시는 없다 — 브라우저가 .env.local 의 VITE_SUPABASE_URL(기본 로컬 스택
+// http://127.0.0.1:54321)을 직접 부른다(supabase-js, CORS 는 Supabase 가 허용). 운영 프로젝트에 붙이려면 .env.local 의
+// 두 값만 바꾼다(그때 등록·삭제는 운영 데이터를 실제로 바꾼다).
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-  const proxyTarget = env.VITE_DEV_PROXY_TARGET || DEFAULT_DEV_PROXY_TARGET
+// ELECTRON=1 (pnpm dev:desktop · build:desktop) 일 때만 Electron 메인·프리로드를 함께 빌드하고 개발 중엔 Electron 창을 띄운다.
+// 그냥 pnpm dev / pnpm build 는 지금처럼 브라우저용이다(web 빌드 유지).
+const desktop = process.env.ELECTRON === '1'
 
-  return {
-    plugins: [react()],
-    resolve: {
-      alias: {
-        '@': fileURLToPath(new URL('./src', import.meta.url)),
-      },
+export default defineConfig({
+  plugins: [
+    react(),
+    ...(desktop
+      ? [
+          electron({
+            main: {
+              entry: 'electron/main.ts',
+              vite: {
+                build: {
+                  outDir: 'dist-electron',
+                  // electron-updater·electron-log 는 번들하지 않고 node_modules 에서 읽는다(dependencies 에 있어야 설치 파일에 들어간다)
+                  rollupOptions: { external: ['electron-updater', /^electron-log/] },
+                },
+              },
+            },
+            preload: {
+              input: 'electron/preload.ts',
+              vite: {
+                build: {
+                  outDir: 'dist-electron',
+                  // sandbox: true 인 렌더러의 프리로드는 CommonJS 여야 한다. package.json 이 type: module 이라 .cjs 로 낸다
+                  rollupOptions: { output: { format: 'cjs', entryFileNames: '[name].cjs' } },
+                },
+              },
+            },
+          }),
+        ]
+      : []),
+  ],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
-    server: {
-      host: false,
-      proxy: {
-        '/api': {
-          target: proxyTarget,
-          // Host 헤더를 대상 도메인으로 바꾼다. 안 바꾸면 운영 Nginx가 localhost 호스트를 몰라
-          // 다른 사이트나 404로 보낼 수 있다.
-          changeOrigin: true,
-          secure: true,
-          // 서버가 Set-Cookie에 Domain=monit.io.kr을 붙여도 localhost 쿠키로 저장되게 Domain을 지운다.
-          cookieDomainRewrite: '',
-          configure(proxy) {
-            // 브라우저가 붙이는 Origin 헤더를 떼고 보낸다. 운영 백엔드는 허용 목록에 없는 Origin을
-            // 403 "Invalid CORS request"로 거부하는데(2026-09-12 확인: localhost:5173만 허용), 개발 서버
-            // 포트가 5174·5175로 밀리면 그대로 막힌다. Origin이 없으면 같은 출처 요청으로 취급되어 통과한다.
-            proxy.on('proxyReq', (proxyReq) => {
-              proxyReq.removeHeader('origin')
-            })
-            // 개발 서버는 http라, `Secure`가 붙은 쿠키를 브라우저에 따라(특히 Safari) 저장하지 않는다.
-            // refresh_token 쿠키가 저장되지 않으면 새로고침할 때마다 로그인이 풀리므로 개발 서버에서만 떼어낸다.
-            proxy.on('proxyRes', (proxyRes) => {
-              const cookies = proxyRes.headers['set-cookie']
-              if (!cookies) return
-              proxyRes.headers['set-cookie'] = cookies.map((cookie) => cookie.replace(/;\s*secure(?=;|$)/gi, ''))
-            })
-          },
-        },
-      },
-    },
-  }
+  },
+  // Electron 개발 창이 5173 을 보므로 포트를 고정한다(밀리면 빈 창). clearScreen: Electron 메인 로그가 Vite 화면 지우기에 묻히지 않게.
+  clearScreen: false,
+  server: {
+    host: false,
+    port: 5173,
+    strictPort: true,
+  },
 })

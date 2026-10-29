@@ -1,0 +1,57 @@
+# 데스크톱 앱 릴리스 — 태그 v* 를 푸시하면 macOS·Windows 설치 파일을 만들어 GitHub Release **초안**에 올린다
+# (electron-builder --publish always, 업데이트 메타 latest-mac.yml·latest.yml 포함). 초안을 공개하는 건 사람이 한다.
+#
+# 필요한 저장소 설정:
+#   Variables: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY   (운영 Supabase — anon 키는 공개 가능)
+#   Secrets(선택, 맥 서명·공증): CSC_LINK(.p12 base64), CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
+#   없으면 서명 없이 빌드한다(첫 실행 때 "우클릭 → 열기", 자동 업데이트는 릴리스 페이지 열기로 대체).
+name: desktop-release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # 맥 서명 — 시크릿이 없으면 electron-builder 가 서명을 건너뛰도록 자동 탐색을 끈다
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Check env
+        shell: bash
+        run: |
+          test -n "$VITE_SUPABASE_URL" || { echo "::error::VITE_SUPABASE_URL variable is empty"; exit 1; }
+          test -n "$VITE_SUPABASE_ANON_KEY" || { echo "::error::VITE_SUPABASE_ANON_KEY variable is empty"; exit 1; }
+
+      - name: Build and publish (draft release)
+        run: pnpm build:desktop --publish always

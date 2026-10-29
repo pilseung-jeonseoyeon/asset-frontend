@@ -1,0 +1,46 @@
+# Electron 설치 파일 만들기(electron-builder). `pnpm build:desktop` → release/.
+# 아이콘은 build/icon.png(1024, scripts/app-icon 에서 뽑음) 하나로 icns·ico 를 자동 생성한다.
+appId: kr.io.monit.desktop
+productName: Monit
+copyright: Copyright © 2026 Monit
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+asar: true
+mac:
+  category: public.app-category.finance
+  icon: build/icon.png
+  # Apple Developer 인증서가 없어 임시(ad-hoc) 서명한다. 서명을 건너뛰면 Electron 원본 서명만 남아 번들이 '깨진 서명'이 되고,
+  # 내려받은 앱이 애플 칩 맥에서 "손상되었기 때문에 열 수 없습니다"로 막힌다(임시 서명이면 '그래도 열기'로 열린다).
+  # 임시 서명에서는 hardened runtime 이 Electron 프레임워크를 거부하므로 끈다. 인증서가 생기면 identity 줄을 지우고
+  # hardenedRuntime 을 true 로 되돌린다(공증에 필요).
+  identity: "-"
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+dmg:
+  sign: false
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  shortcutName: Monit
+# 태그 푸시 때 GitHub Actions 가 `--publish always` 로 Release 초안에 설치 파일과 업데이트 메타(latest*.yml)를 올린다.
+publish:
+  provider: github
+  owner: pilseung-jeonseoyeon
+  repo: asset-frontend
+  releaseType: draft
