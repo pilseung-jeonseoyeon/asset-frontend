@@ -5,15 +5,24 @@ export function formatNumber(n: number): string {
 }
 
 /**
- * 원화 금액 표시. 원은 소수점을 쓰지 않으므로 소수부를 **버린다**(사용자 요청).
+ * 원화 금액 표시. 원은 소수점을 쓰지 않으므로 소수부를 **반올림한다**(사용자 요청, 2026-10-31).
  * 해외 종목의 원화 환산액(HoldingRes.valuationKrw 등)은 달러 시세 × 환율이라 소수가 섞여 오는데,
  * 그대로 formatNumber()에 넣으면 주식 화면에 `6,665,311.125원`처럼 나왔다.
- * 반올림이 아니라 버림인 이유는 없는 돈이 생기지 않게 하기 위함이고, Math.trunc라 음수(손익)도
- * 0 방향으로 줄어든다 — −1,234.9원이 −1,235원으로 커지지 않는다.
+ * 예전엔 버렸는데(Math.trunc), 코인 5.66572237개 × 1,765원 = 9,999.99998원이 '9,999원'으로 찍혀 거래소 앱의
+ * 매수금액 10,000원과 어긋났다. 0.5는 0에서 먼 쪽으로 올린다 — Math.round는 음수에서 위로 올려(−1,234.5 → −1,234)
+ * 손익 부호에 따라 결과가 갈리기 때문이다. `|| 0`은 −0.4원이 '-0'으로 찍히지 않게 한다.
  * 수량(주/개)에는 쓰지 말 것 — 해외주식·코인은 소수점 수량이 정상이다(3.5주).
  */
 export function formatKrw(n: number): string {
-  return formatNumber(Math.trunc(n))
+  return formatNumber(Math.sign(n) * Math.round(Math.abs(n)) || 0)
+}
+
+/**
+ * 비중(정수 %) 표기. 반올림하면 0%지만 금액이 있으면 '1% 미만'으로 적는다 — '0%'는 "없음"으로 읽힌다
+ * (2026-10-31 사용자 요청: 가상자산 0.36%가 자산 분포에 '0%'로 보였다). 월간 리포트(reportView)와 같은 규칙.
+ */
+export function formatSharePercent(percent: number, amount: number): string {
+  return percent === 0 && amount > 0 ? '1% 미만' : `${percent}%`
 }
 
 /**
@@ -25,6 +34,11 @@ export function formatKrw(n: number): string {
  */
 export function formatCurrencyAmount(n: number, currency: Currency): string {
   if (currency === 'KRW') return formatKrw(n)
+  return n.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+/** 환율 표기 '1,337.98' — 모닛의 환율은 소수 둘째 자리까지다(2026-10-31 사용자 결정, 서버도 둘째 자리로 저장). */
+export function formatRate(n: number): string {
   return n.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
