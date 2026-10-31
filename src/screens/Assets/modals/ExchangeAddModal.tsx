@@ -16,12 +16,16 @@
 // 음수(−20달러)로 남기고, 그 뒤 원→달러로 다시 사면 결손을 환차손익 없이 0으로 털고 새로 산 달러부터
 // 다시 쌓는다(평균 매입 환율도 새 매수분만으로 다시 계산). 그래서 막지 않고, 저장 전에 "주식 수익 등으로
 // 불어난 달러가 맞는지" 한 번 확인만 받는다 — 입력 실수(0을 더 친 경우)로 총자산이 크게 틀어지는 걸 막는 용도다.
+// - '예수금에 반영' 스위치(CreateExchangeRequest.settleCash)는 기본으로 켠다 — 켜면 원→달러는 원화 예수금이 줄고 달러
+// 예수금이 늘어난다(달러→원은 반대). 은행 창구처럼 이 계좌 밖에서 바꾼 돈이라 예수금은 그대로 두고 환율 기록만 남길 때 끈다
+// (2026-10-30 사용자 요청). 꺼도 환전 내역·평균 매입 환율·환차익에는 그대로 들어간다.
 
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
 import { Dropdown } from '../../../components/primitives/Dropdown/Dropdown'
+import { Switch } from '../../../components/primitives/Switch/Switch'
 import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker'
 import { useAppState } from '../../../state/AppStateContext'
 import { BLANK_ACCOUNT_FORM } from '../../../state/initialState'
@@ -64,6 +68,7 @@ export function ExchangeAddModal() {
   const [amountMissing, setAmountMissing] = useState(false)
   // 보유 달러 초과 매도 확인창 — 금액·방향을 바꾸면 다시 물어야 하므로 그때마다 닫는다.
   const [overSellConfirmOpen, setOverSellConfirmOpen] = useState(false)
+  const [settleCash, setSettleCash] = useState(true)
 
   // 달러를 담는 건 주식 계좌뿐이라 주식 계좌만 받는다(2026-09-26 사용자 결정 — 예전엔 현금·연금 계좌까지 떴다).
   const accountsQuery = useGetAccounts({ type: 'STOCK' }, { enabled: isOpen })
@@ -122,6 +127,7 @@ export function ExchangeAddModal() {
     setAccountMissing(false)
     setAmountMissing(false)
     setOverSellConfirmOpen(false)
+    setSettleCash(true)
     setMemo('')
     postExchange.reset()
   }
@@ -155,6 +161,7 @@ export function ExchangeAddModal() {
       krwAmount: krwAmountEstimate,
       rate,
       exchangedAt,
+      settleCash,
       ...(memo.trim() ? { memo: memo.trim() } : {}),
     }
     postExchange.mutate(body, { onSuccess: resetAndClose })
@@ -267,6 +274,17 @@ export function ExchangeAddModal() {
             onChange={(e) => setMemo(e.target.value)}
             style={{ width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13, fontWeight: 500, fontFamily: 'inherit', outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box' }}
           />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-mid)' }}>예수금에 반영</div>
+            <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3, lineHeight: 1.5 }}>
+              {settleCash
+                ? side === 'BUY' ? '계좌의 원화 예수금이 줄고 달러 예수금이 늘어요' : '계좌의 달러 예수금이 줄고 원화 예수금이 늘어요'
+                : '예수금은 그대로 두고 환전 기록만 남겨요'}
+            </div>
+          </div>
+          <Switch label="예수금에 반영" checked={settleCash} onChange={setSettleCash} disabled={postExchange.isPending} />
         </div>
         {genericError && <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{genericError}</div>}
         {overSellConfirmOpen && isOverSell && heldUsd !== null && heldAfterSell !== null && (

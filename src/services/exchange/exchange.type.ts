@@ -15,6 +15,8 @@ export interface ExchangeResponse {
   rate: number
   exchangedAt: string
   memo: string | null
+  /** false면 기록만 남기고 계좌 예수금(원화·달러)은 바꾸지 않은 환전. 환전 내역·평균 환율·환차익에는 그대로 들어간다. */
+  settleCash: boolean
 }
 
 export interface CreateExchangeRequest {
@@ -26,9 +28,11 @@ export interface CreateExchangeRequest {
   rate: number
   exchangedAt: string
   memo?: string
+  /** 생략 시 true(예수금에 반영). false면 환전 기록만 남기고 예수금은 그대로 둔다. */
+  settleCash?: boolean
 }
 
-/** PUT은 전체 교체. accountId는 수정 불가. */
+/** PUT은 전체 교체. accountId는 수정 불가. settleCash를 생략하면 서버가 지금 값을 그대로 둔다. */
 export type UpdateExchangeRequest = Omit<CreateExchangeRequest, 'accountId'>
 
 export interface ExchangeSummaryResponse {

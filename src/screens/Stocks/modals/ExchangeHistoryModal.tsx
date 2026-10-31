@@ -13,12 +13,16 @@
 //
 // UpdateExchangeRequest는 accountId를 받지 않으므로 계좌는 읽기 전용으로 보여준다
 // (LedgerEntryModal/TradeEditModal과 같은 이유).
+//
+// '예수금에 반영'(settleCash)은 수정에서도 바꿀 수 있다 — 환전 행 하나의 표시라 바꾸면 계좌 예수금이 그만큼 다시
+// 계산된다(ExchangeAddModal 헤더 주석). 목록에는 꺼 둔 환전만 '예수금 미반영'을 덧붙인다.
 
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal, ModalHeader } from '../../../components/primitives/Modal/Modal'
 import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker'
+import { Switch } from '../../../components/primitives/Switch/Switch'
 import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useDatePicker } from '../../../state/selectors/datePicker'
@@ -67,6 +71,7 @@ export function ExchangeHistoryModal() {
   const [rateStr, setRateStr] = useState('')
   const [amountMissing, setAmountMissing] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [settleCash, setSettleCash] = useState(true)
   const [syncedId, setSyncedId] = useState<number | null>(null)
 
   // 저장(PUT) 요청 응답이 도착했을 때 여전히 같은 레코드를 편집 중인지 확인하기 위한 참조. state는
@@ -94,6 +99,7 @@ export function ExchangeHistoryModal() {
     setSide(editing.side)
     setForeignAmountStr(String(editing.foreignAmount))
     setRateStr(String(editing.rate))
+    setSettleCash(editing.settleCash)
     setSyncedId(editing.id)
     setAmountMissing(false)
     setDeleteConfirmOpen(false)
@@ -120,6 +126,7 @@ export function ExchangeHistoryModal() {
     setRateStr('')
     setAmountMissing(false)
     setDeleteConfirmOpen(false)
+    setSettleCash(true)
     setSyncedId(null)
     putExchange.reset()
     deleteExchange.reset()
@@ -166,6 +173,7 @@ export function ExchangeHistoryModal() {
       krwAmount: amountsUnchanged ? editing.krwAmount : krwAmountEstimate,
       rate,
       exchangedAt,
+      settleCash,
       ...(editing.memo !== null ? { memo: editing.memo } : {}),
     }
     const savingId = editing.id
@@ -219,7 +227,7 @@ export function ExchangeHistoryModal() {
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: r.side === 'BUY' ? 'var(--accent)' : 'var(--text-strong)' }}>{sideLabel(r.side)}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>
-                      {isoDateToDisplay(r.exchangedAt)} · {formatNumber(r.rate)}원
+                      {isoDateToDisplay(r.exchangedAt)} · {formatNumber(r.rate)}원{!r.settleCash && ' · 예수금 미반영'}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flex: 'none' }}>
@@ -299,6 +307,17 @@ export function ExchangeHistoryModal() {
             <div style={{ position: 'relative' }}>
               <div style={LABEL_STYLE}>환전일</div>
               <DatePicker dp={dpExchangeDate} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-mid)' }}>예수금에 반영</div>
+                <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3, lineHeight: 1.5 }}>
+                  {settleCash
+                    ? side === 'BUY' ? '계좌의 원화 예수금이 줄고 달러 예수금이 늘어요' : '계좌의 달러 예수금이 줄고 원화 예수금이 늘어요'
+                    : '예수금은 그대로 두고 환전 기록만 남겨요'}
+                </div>
+              </div>
+              <Switch label="예수금에 반영" checked={settleCash} onChange={setSettleCash} disabled={isBusy} />
             </div>
 
             {genericError && <div style={ERROR_STYLE}>{genericError}</div>}
