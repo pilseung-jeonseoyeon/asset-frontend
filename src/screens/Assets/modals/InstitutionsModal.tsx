@@ -6,8 +6,8 @@
 // 목록은 GET /assets/distribution?groupBy=INSTITUTION(금액 기준 그룹)을 기준으로 순회하고,
 // GET /institutions(아이콘 키)는 institutionId로 보조 조인만 한다 — institutions를 기준으로 순회하면
 // 기관 미연결 버킷(institutionId: null, '미지정')이 영원히 빠진다(buildDashboardInstitutions의 주석
-// 참고). 이 화면의 목적이 '내 자산이 어디에 있나'이므로 보유액이 0원인 항목은 제외한다
-// (buildDashboardInstitutions가 이미 필터링).
+// 참고). 잔액 0원 계좌만 있는 기관도 '0원'으로 보여준다 — 계좌를 추가했는데 목록에 없으면 등록이 안 된
+// 것처럼 보인다(2026-10-30 사용자 요청). 금액순이라 0원 기관은 뒤에 온다.
 // 대시보드 '주요 자산 보관처' 카드와 조인 규칙이 완전히 같아(limit만 다름) buildDashboardInstitutions를
 // 그대로 재사용한다 — 같은 규칙을 두 곳에 따로 구현하지 않기 위해서다.
 // 상단이 '우리집'(가족·커플 공유 v17)이면 공유 계좌만 모으고 기관 이름 아래에 누구 계좌인지 적는다.

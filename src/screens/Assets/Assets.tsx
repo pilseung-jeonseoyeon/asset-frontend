@@ -51,9 +51,11 @@ export function Assets() {
   const assetClassCards = buildAssetClassCards(distribution.groups).filter((c) => !shared || c.id === 'CASH' || c.id === 'DEPOSIT')
   const mapBlocks = buildMapTiers(distribution.groups, (assetClass) => setState({ assetClassDetail: assetClass }))
   // 서버는 5개 자산군을 항상 고정 배열로 내려준다(계좌가 하나도 없어도 totalValueKrw:0인 빈 항목들이 옴).
-  // groups.length만으로는 "데이터 없음"을 판별할 수 없어 합계 금액까지 함께 확인한다.
-  const hasDistributionData =
-    distribution.groups.length > 0 && distribution.groups.some((g) => g.totalValueKrw > 0)
+  // groups.length만으로는 "데이터 없음"을 판별할 수 없어 실린 계좌가 있는지로 가른다 — 금액으로 가르면
+  // 잔액 0원 계좌만 있을 때 "등록된 계좌가 없어요"가 떴다(2026-10-30).
+  const hasDistributionData = distribution.groups.some((g) => g.accounts.length > 0)
+  // 맵은 금액 비중으로 그리므로 0원 계좌만 있으면 그릴 블록이 없다 — 이때는 계좌 없음과 다른 안내를 둔다
+  const hasMapBlocks = mapBlocks.length > 0
 
   const liquidityData = liquidity.data
   const liquidityView = liquidityData
@@ -177,6 +179,8 @@ export function Assets() {
             <div style={{ fontSize: 11.5, color: 'var(--down)' }}>{distribution.error.message}</div>
           ) : !hasDistributionData ? (
             <EmptyAccountsState onAdd={onEmptyAction} shared={shared} />
+          ) : !hasMapBlocks ? (
+            <div style={{ fontSize: 12.5, color: 'var(--text-weak)' }}>계좌에 잔액이 생기면 자산 분포를 볼 수 있어요.</div>
           ) : isMobile ? (
             // 좁은 폭에서는 블록의 최소 너비(Treemap 내부 고정값)가 카드 폭을 넘어설 수 있어 잘라내는
             // 대신 가로 스크롤로 감싼다 — 렌더 티어·5% 미만 '기타' 병합 로직 자체는 그대로 둔다.

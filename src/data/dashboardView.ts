@@ -63,6 +63,7 @@ function signedText(n: number): string {
  * 못한다. 같은 화면의 `GET /dashboard/allocation`은 잔액을 실시간
  * 집계하므로, summary가 0이어도 allocation 합계가 양수면 계좌가 있다고 판정하고 총자산 표시값을
  * allocation 합계로 보완한다. summary가 양수면(정상 스냅샷 보유) 그대로 summary 값을 쓴다.
+ * 빈 상태(isEmpty)는 금액이 아니라 서버 `hasAccounts`로 가른다 — 잔액 0원 계좌만 있어도 "0원"을 보여준다.
  */
 export function buildDashboardHero(
   summary: DashboardSummaryResponse,
@@ -78,7 +79,7 @@ export function buildDashboardHero(
     monthChangeText: summary.monthChangeKrw === null ? null : signedText(summary.monthChangeKrw),
     yearChangeKrw: summary.yearChangeKrw,
     yearChangeText: summary.yearChangeKrw === null ? null : signedText(summary.yearChangeKrw),
-    isEmpty: totalAssetKrw <= 0,
+    isEmpty: !summary.hasAccounts,
     hasSnapshotHistory,
   }
 }
@@ -249,7 +250,7 @@ export function pickTopAllocation(segments: DonutLegendItem[]): DonutLegendItem 
 
 /**
  * 보관처 목록이 비었을 때 쓰는 안내 문구. 대시보드 카드와 InstitutionsModal(전체 보기)이 같은
- * 상황(보유 자산 0)을 가리키므로 문구를 하나로 공유한다.
+ * 상황(계좌 없음)을 가리키므로 문구를 하나로 공유한다.
  */
 export const DASHBOARD_INSTITUTIONS_EMPTY_TEXT = '계좌를 추가하면 보관처별 자산을 볼 수 있어요.'
 
@@ -272,7 +273,8 @@ export interface DashboardInstitutionView {
  * 이 함수를 재사용한다(limit만 다르고 나머지 규칙은 동일).
  * 아이콘 키는 이 응답에 없어 `GET /institutions`와 institutionId로 조인한다 — 조인에 실패하면
  * 빈 문자열로 두고 BankIcon의 기본 아이콘 폴백에 맡긴다(가짜 값 금지).
- * 보유액이 0 이하인 그룹은 제외한다 — 서버가 0원 그룹을 내려줘도 "자산이 있는 곳"만 보여준다.
+ * 잔액 0원 계좌만 있는 그룹도 남긴다 — 계좌를 추가했는데 보관처에 안 보이면 등록이 안 된 것처럼 보인다
+ * (2026-10-30 사용자 요청). 서버는 계좌가 있는 기관만 그룹으로 내려주므로 빈 그룹은 오지 않는다.
  */
 export function buildDashboardInstitutions(
   groups: AssetInstitutionGroup[],
@@ -282,7 +284,6 @@ export function buildDashboardInstitutions(
   ownerNameOf?: (ownerId: string) => string,
 ): DashboardInstitutionView[] {
   return [...groups]
-    .filter((g) => g.totalValueKrw > 0)
     .sort((a, b) => b.totalValueKrw - a.totalValueKrw)
     .slice(0, limit)
     .map((g) => {

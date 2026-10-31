@@ -1,7 +1,7 @@
 // 월간 리포트 배너 — 누르면 ReportOverlay(GET /dashboard/reports)를 현재 정산월로 연다.
 // 계좌가 없는 신규 사용자에게는 숨긴다("자산이 있어야 볼 리포트가 있다"는 최소 조건).
-// hero.isEmpty는 allocation 실시간 합계까지 반영하므로 계좌 등록 첫날에도 계좌가 있으면
-// 정상 노출된다 — 의도된 동작. hero가 아직 없는 로딩/에러 상태에서도 숨겨서 데이터 도착 시
+// hero.isEmpty는 서버 hasAccounts(계좌 유무)로 가르므로 계좌 등록 첫날이나 0원 계좌뿐이어도 계좌가
+// 있으면 정상 노출된다 — 의도된 동작. hero가 아직 없는 로딩/에러 상태에서도 숨겨서 데이터 도착 시
 // 배너가 깜빡이며 나타났다 사라지는 것을 막는다.
 
 import { Icon } from '../../../components/primitives/Icon/Icon'
