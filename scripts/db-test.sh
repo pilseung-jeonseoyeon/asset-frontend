@@ -12,7 +12,8 @@ PSQL="docker exec -i supabase_db_asset-front psql -U postgres -d postgres -X -q 
 
 if [ "${1:-}" = "--no-reset" ]; then
   shift
-  for f in supabase/migrations/2026102[34]*.sql; do
+  # 000009 부터는 000003·000007 의 함수를 덮어쓰므로 그 뒤에 함께 다시 올린다(000008 은 확장을 지우고 다시 만들어 제외)
+  for f in supabase/migrations/2026102[34]*.sql supabase/migrations/2026103000000[9]_*.sql supabase/migrations/2026103000001[0-9]_*.sql; do
     echo "re-apply $f"
     $PSQL < "$f"
   done

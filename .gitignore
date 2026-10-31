@@ -85,4 +85,5 @@ supabase/
 # 서버 SQL 이 들어간 설계 · 계획 문서와 출시 런북(로컬 전용)
 docs/superpowers/plans/
 docs/superpowers/specs/2026-10-2*
+docs/superpowers/specs/2026-10-3*
 docs/release-runbook.md

@@ -129,14 +129,15 @@ DB 함수가 행마다 `create_account`를 부른다(초기 잔액 ADJUSTMENT �
 
 | 종류 | DB 함수 | 시트 | 파일명 |
 |---|---|---|---|
-| 거래 | `export_transactions(p_from, p_to)` | `transactions` — 거래일·타입·대분류·소분류·금액·계좌ID·상대계좌ID·내용·메모 | `transactions.xlsx` |
+| 거래 | `export_transactions(p_from, p_to)` | `transactions` — 거래일·타입·대분류·소분류·금액·계좌·상대계좌·내용·메모 | `transactions.xlsx` |
 | 매매 | `export_trades(p_from, p_to)` | `trades` — 체결일·종목명·티커·시장·매수/매도·수량·단가·수수료·세금·환율·메모 | `trades_{from\|all}_{to\|오늘}.xlsx`(`yyyyMMdd`) |
 | 계좌 | `export_accounts()` | `계좌` — 계좌 가져오기 양식과 같은 A~I | `accounts.xlsx` |
 
 - RPC가 `{ headers, rows }`를 돌려주고 앱이 xlsx로 만들어 저장한다(`downloadExportFile` → `buildWorkbook` → `saveFile`).
   파일명 규칙은 `exportFilename`(`export.service.ts`) — 스프링 Content-Disposition과 같다.
 - `from`·`to`는 `yyyy-MM-dd`, 양끝 포함, 생략하면 제한 없음. 거래는 거래일, 매매는 체결일 오름차순. 거래 내보내기에
-  `ADJUSTMENT`(잔액 정정)·`EXCHANGE`(환전)는 들어가지 않는다. 숫자 문자열은 꼬리 0을 뗀다(`10.00000000` → `10`).
+  `ADJUSTMENT`(잔액 정정)·`EXCHANGE`(환전)는 들어가지 않는다. 거래 내보내기의 타입은 `수입`·`지출`·`저축`·`이체`, 계좌·상대계좌는
+  계좌 **이름**(해지한 계좌도 이름 그대로)이다 — 2026-10-30에 스프링 형식(영어 enum·계좌 id)에서 바꿨다(사용자 요청). 숫자 문자열은 꼬리 0을 뗀다(`10.00000000` → `10`).
 - 계좌 내보내기는 해지하지 않은 계좌의 **통화별 현재 예수금**(원화·달러 각각 그 통화 금액 그대로 — 환율 미적용, 보유 종목 평가액 제외)이다.
 - 화면: 드롭다운 위쪽에서 기간(전체 기간 · 올해 · 최근 3개월 · 최근 1개월)을 고르고 아래에서 종류(가계부 거래 내역 ·
   주식 매매 내역 · 계좌 목록)를 누르면 바로 저장된다. 기간은 거래·매매에만 실리고 계좌 목록은 항상 전체다.
