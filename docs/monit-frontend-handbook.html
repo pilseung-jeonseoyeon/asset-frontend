@@ -2710,7 +2710,7 @@ export function DashboardLayoutA() {
 <tr><td>ETC</td><td>PENSION_ETC</td><td>연금·기타</td><td>account_balance</td><td>있음</td><td>—</td></tr>
 </tbody>
 </table></div>
-<p>유동성 기본값은 <code>assetClassFormPreset</code>이 정한다. 예적금만 '유동성 없음'이다. 적금을 '즉시 현금화 가능'으로 저장하면 비상금이 부풀고 만기 D-Day에도 잡히지 않기 때문이다. 기본값일 뿐이라 사용자가 칩으로 바꿀 수 있다. <code>assetClassOfAccountType</code>의 <code>default</code> 분기에는 <code>never</code> 대입이 있다. 서버가 새 유형을 추가하면 빌드가 깨져 이 함수를 고치게 만들고, 런타임에는 ETC로 접는다.</p>
+<p>유동성 기본값은 <code>assetClassFormPreset</code>이 정한다. 예적금과 연금·기타는 '유동성 없음'이다. 적금을 '즉시 현금화 가능'으로 저장하면 비상금이 부풀고 만기 D-Day에도 잡히지 않기 때문이다. 기본값일 뿐이라 사용자가 칩으로 바꿀 수 있다. <code>assetClassOfAccountType</code>의 <code>default</code> 분기에는 <code>never</code> 대입이 있다. 서버가 새 유형을 추가하면 빌드가 깨져 이 함수를 고치게 만들고, 런타임에는 ETC로 접는다.</p>
 
 <h4>부동산 칸</h4>
 <p>서버에는 부동산 자산군이 없다. '부동산' 칸은 <code>Assets.tsx</code>가 5개 카드 뒤에 직접 붙이는 "준비 중" 카드다. 금액 자리에는 0원 대신 '준비 중' 배지와 "곧 등록할 수 있어요"를 둔다 — 0원이라고 적으면 "부동산이 0원인 사람"으로 읽힌다. 누르면 <code>RealEstateSoonModal</code>이 "부동산 자산 등록은 아직 준비 중이에요" 안내와 '확인' 버튼을 보여준다. 트리맵과 대시보드 도넛에는 부동산이 나오지 않는다.</p>
@@ -3072,7 +3072,7 @@ resetAndClose()</code></pre>
 <li><code>html-to-image</code>는 누를 때 <code>import()</code>로 지연 로드한다(초기 청크에 넣지 않음, <a href="#ch-perf">성능</a> 참고). 지금 보이는 장 노드만 굽고, <code>data-report-export-exclude</code>가 붙은 버튼(달 이동·저장·공유)은 이미지에서 뺀다. 현재 테마와 금액 숨김 상태가 그대로 찍힌다.</li>
 <li><strong>웹폰트는 브라우저가 이미 내려받은 조각만 넣는다</strong>(<code>document.fonts</code>에서 <code>status === 'loaded'</code>). 문서의 @font-face 전부(약 3.9MB)를 넣으면 SVG를 그리느라 수십 초 멈춘다. 장에 아이콘(<code>.ms</code>)이 없으면 Material Symbols도 뺀다. 짝을 못 찾은 폰트가 하나라도 있으면 폰트 없이(시스템 글꼴로) 굽는다.</li>
 <li>저장은 <code>triggerBrowserDownload</code> → "이미지로 저장했어요". 공유는 Web Share API의 파일 공유를 쓴다. 지원하지 않는 브라우저면 다운로드로 대신하고 "이 기기에서는 공유 창을 열 수 없어 이미지로 저장했어요"를 띄운다. 사용자가 공유 창을 닫으면(AbortError) 아무 말도 하지 않는다.</li>
-<li>파일명은 <code>monit-report-YYYY-MM.png</code>다. 장을 옮기면 안내 문구가 지워진다.</li>
+<li>파일명은 <code>Monit_월간리포트_YYYY-MM.png</code>다. 장을 옮기면 안내 문구가 지워진다.</li>
 </ul>
 <div class="warn"><strong>문서형 레이아웃으로 바꾸지 말 것.</strong> 한 장짜리 문서형으로 바꿨다가 사용자 요청으로 원본 시안의 스토리 카드 형식으로 되돌린 화면이다. 카드 그림자 <code>0 60px 100px -40px rgba(0,0,0,.6)</code>는 디자인 규칙이 이 자리에만 허용한 예외다.</div>
 
@@ -3345,7 +3345,7 @@ percentText: rate === null ? null : (positive ? '+' : '−') + Math.abs(rate).to
 <h3>달러·원화 표기</h3>
 <ul>
 <li>종목 통화: <code>marketToCurrency</code> — US → USD, 그 외(KR·CRYPTO) → KRW. 가상자산은 업비트 원화 마켓 기준이라 신규 등록 때도 KRW로 고정한다(USD로 등록하면 환율이 두 번 곱해진다).</li>
-<li>달러 금액: <code>$</code> + <code>formatCurrencyAmount(n, 'USD')</code>(소수 2자리 고정). 원화: <code>formatKrw(n)</code>(소수 버림) + "원". 외화 카드는 <code>formatUsd</code>.</li>
+<li>달러 금액: <code>$</code> + <code>formatCurrencyAmount(n, 'USD')</code>(소수 2자리 고정). 원화: <code>formatKrw(n)</code>(소수 반올림) + "원". 외화 카드는 <code>formatUsd</code>.</li>
 <li>평가금액·손익·매수금액(카드·요약)은 항상 원화 환산값(<code>…Krw</code>). 현재가·매매 행 금액·수수료만 종목 통화로 적는다.</li>
 <li>수량 단위: <code>quantityUnitOf</code> — 가상자산은 "개", 그 외 "주".</li>
 <li>증감 표기: 양수 <code>+</code>, 음수는 빼기 기호 <code>−</code>(U+2212, 하이픈 아님). 색은 <code>--up</code>/<code>--down</code>(어두운 카드 위에서는 <code>--deep-up</code>/<code>--deep-down</code>). 지수 변동률은 소수 2자리, 나머지 수익률은 1자리.</li>
@@ -4062,7 +4062,7 @@ shiftYearMonth({ year: 2026, month: 1 }, -1)   // { year: 2025, month: 12 }</cod
 <tr><td><code>ACCOUNT_TYPE_LABELS</code></td><td><code>AccountType</code> 5종 → 한글(현금/예적금/주식/가상자산/연금·기타)</td><td>파일 내부만(<code>buildAccountDetailHeader</code>)</td></tr>
 <tr><td><code>INSTITUTION_TYPE_LABELS</code>, <code>INSTITUTION_TYPE_ORDER</code></td><td><code>InstitutionType</code> 10종 → 한글, 표시 순서</td><td>파일 내부만(현재 import 없음)</td></tr>
 <tr><td><code>ASSET_CLASS_ACCOUNT_TYPE_PRESET</code></td><td><code>AssetClass</code> → <code>AccountType</code> (1:1, 이름만 <code>ETC</code> ↔ <code>PENSION_ETC</code>)</td><td>AddAccountModal</td></tr>
-<tr><td><code>assetClassFormPreset</code></td><td>assetClass → <code>{ type, isLiquid }</code>. 예적금만 <code>isLiquid: false</code></td><td>AddAccountModal, AssetCategoryModal, ExchangeAddModal, QuickStockModal</td></tr>
+<tr><td><code>assetClassFormPreset</code></td><td>assetClass → <code>{ type, isLiquid }</code>. 예적금·연금·기타는 <code>isLiquid: false</code></td><td>AddAccountModal, AssetCategoryModal, ExchangeAddModal, QuickStockModal</td></tr>
 <tr><td><code>assetClassOfAccountType</code></td><td>AccountType → AssetClass (위의 역). 모르는 값은 <code>'ETC'</code></td><td>AddAccountModal, EditAccountModal</td></tr>
 <tr><td><code>ASSET_CLASS_META</code>, <code>assetClassMetaOf</code></td><td>AssetClass → <code>{ icon, color, label }</code>. color는 전부 <code>var(--accent)</code>. 모르는 값은 ETC 아이콘 + 코드값 라벨</td><td>AddAccountModal, EditAccountModal, dashboardView, reportView</td></tr>
 <tr><td><code>ASSET_CLASS_ORDER</code></td><td>카드 순서 <code>CASH → DEPOSIT → STOCK → CRYPTO → ETC</code>. '부동산' 칸은 여기 없음(화면이 따로 붙임)</td><td>AddAccountModal</td></tr>
@@ -4203,7 +4203,7 @@ shiftYearMonth({ year: 2026, month: 1 }, -1)   // { year: 2025, month: 12 }</cod
 <thead><tr><th>함수</th><th>하는 일</th><th>쓰는 곳(대표)</th></tr></thead>
 <tbody>
 <tr><td><code>formatNumber(n)</code></td><td><code>n.toLocaleString('ko-KR')</code> 그대로. 소수 자릿수 고정 없음</td><td>거의 모든 화면·뷰모델</td></tr>
-<tr><td><code>formatKrw(n)</code></td><td><code>Math.trunc</code>로 소수 버림 후 formatNumber. 수량에는 쓰지 않는다</td><td>Stocks, ExchangeHistoryModal, stocksView</td></tr>
+<tr><td><code>formatKrw(n)</code></td><td>소수 반올림(0.5는 0에서 먼 쪽) 후 formatNumber. 수량에는 쓰지 않는다</td><td>Stocks, ExchangeHistoryModal, stocksView</td></tr>
 <tr><td><code>formatCurrencyAmount(n, currency)</code></td><td>KRW는 formatKrw, 그 외(USD)는 소수 2자리 고정</td><td>assetsView, stocksView</td></tr>
 <tr><td><code>formatUsd(n)</code></td><td>'$' + 2자리, 음수는 U+2212 '−'를 '$' 앞에</td><td>Stocks, EditAccountModal, ExchangeAddModal</td></tr>
 <tr><td><code>formatKoreanUnits(n)</code></td><td>조/억/만 축약, 만 원 단위 반올림, 0인 단위 생략, 단위 사이 공백 1칸, 부호 없음</td><td>Dashboard cards/shared, Stocks, dashboardView</td></tr>
@@ -4221,7 +4221,7 @@ shiftYearMonth({ year: 2026, month: 1 }, -1)   // { year: 2025, month: 12 }</cod
 <tr><td><code>formatNumber(1234.5678)</code></td><td><code>1,234.568</code></td><td>소수 셋째 자리까지(브라우저 기본) — 금액에는 formatKrw를 쓴다</td></tr>
 <tr><td><code>formatNumber(-9876)</code></td><td><code>-9,876</code></td><td>ASCII 하이픈. 디자인상 빼기 기호 '−'(U+2212)가 필요하면 호출부가 <code>Math.abs</code> 후 직접 붙인다</td></tr>
 <tr><td><code>formatKrw(6665311.125)</code></td><td><code>6,665,311</code></td><td>해외 종목 원화 환산값의 소수 제거</td></tr>
-<tr><td><code>formatKrw(-1234.9)</code></td><td><code>-1,234</code></td><td>반올림이 아니라 0 쪽으로 버림</td></tr>
+<tr><td><code>formatKrw(-1234.5)</code></td><td><code>-1,235</code></td><td>반올림 — 0.5는 0에서 먼 쪽으로</td></tr>
 <tr><td><code>formatCurrencyAmount(77, 'USD')</code></td><td><code>77.00</code></td><td></td></tr>
 <tr><td><code>formatCurrencyAmount(77.523, 'USD')</code></td><td><code>77.52</code></td><td></td></tr>
 <tr><td><code>formatCurrencyAmount(1234.5, 'KRW')</code></td><td><code>1,234</code></td><td></td></tr>
@@ -4306,7 +4306,7 @@ shiftYearMonth({ year: 2026, month: 1 }, -1)   // { year: 2025, month: 12 }</cod
 <tr><td><code class="path">dashboardLayout.ts</code> — <code>DashboardLayout</code>, <code>DASHBOARD_LAYOUT_LABELS</code>, <code>readStoredDashboardLayout</code>, <code>storeDashboardLayout</code></td><td>A '기본' · B '추이 캔버스' · C '이번 달 흐름'. localStorage <code>monit.dashboardLayout</code>에만 저장, 없거나 이상하면 'A'</td><td>GeneralModal, initialState, Dashboard cards/shared</td></tr>
 <tr><td><code class="path">ledgerLastAccounts.ts</code> — <code>readLastUsedAccounts</code>, <code>storeLastUsedAccounts</code></td><td>거래유형별 마지막 저장 계좌 id를 localStorage <code>monit.ledger.lastAccounts</code>에. 계좌 id 숫자만 저장, 깨진 값은 무시. AppState에는 쓰지 않고 드롭다운 폴백으로만 쓴다</td><td>LedgerEntryModal</td></tr>
 <tr><td><code class="path">download.ts</code> — <code>triggerBrowserDownload({ blob, filename })</code></td><td>Blob을 <code>&lt;a download&gt;</code>로 내려받고 한 틱 뒤 URL 해제(Safari·Firefox 대응)</td><td>export/import 훅, apiBlob, reportExport, ReportOverlay</td></tr>
-<tr><td><code class="path">reportExport.ts</code> — <code>renderReportSlidePng</code>, <code>shareReportImage</code>, <code>reportImageFilename</code>, <code>REPORT_EXPORT_EXCLUDE_ATTR</code>, <code>REPORT_EXPORT_WIDTH/HEIGHT</code></td><td>리포트 카드를 1080×1920 PNG로 굽는다. <code>html-to-image</code>는 누를 때 동적 import. 폰트는 브라우저가 이미 받은 조각만 넣고(카드에 아이콘이 없으면 아이콘 폰트 제외), 짝이 안 맞으면 폰트 없이 굽는다. <code>data-report-export-exclude</code> 속성 요소는 이미지에서 뺀다. 공유는 Web Share API, 미지원이면 다운로드('downloaded'), 사용자가 닫으면 'cancelled'. 파일명 <code>monit-report-2026-09.png</code></td><td>ReportOverlay</td></tr>
+<tr><td><code class="path">reportExport.ts</code> — <code>renderReportSlidePng</code>, <code>shareReportImage</code>, <code>reportImageFilename</code>, <code>REPORT_EXPORT_EXCLUDE_ATTR</code>, <code>REPORT_EXPORT_WIDTH/HEIGHT</code></td><td>리포트 카드를 1080×1920 PNG로 굽는다. <code>html-to-image</code>는 누를 때 동적 import. 폰트는 브라우저가 이미 받은 조각만 넣고(카드에 아이콘이 없으면 아이콘 폰트 제외), 짝이 안 맞으면 폰트 없이 굽는다. <code>data-report-export-exclude</code> 속성 요소는 이미지에서 뺀다. 공유는 Web Share API, 미지원이면 다운로드('downloaded'), 사용자가 닫으면 'cancelled'. 파일명 <code>Monit_월간리포트_2026-09.png</code></td><td>ReportOverlay</td></tr>
 <tr><td><code class="path">useMediaQuery.ts</code> — <code>useIsMobile()</code></td><td><code>(max-width: 767px)</code> 여부. <code>useSyncExternalStore</code>로 첫 렌더부터 정확</td><td>레이아웃·모달·카드 30곳 이상</td></tr>
 <tr><td><code class="path">useDebouncedValue.ts</code> — <code>useDebouncedValue(value, 300)</code></td><td>입력이 멈춘 뒤 마지막 값만 넘김(글자마다 요청 방지)</td><td>Ledger, AccountHoldingsField, AddGoalModal, QuickStockModal</td></tr>
 <tr><td><code class="path">useCurrentSettlementMonth.ts</code> — <code>useCurrentSettlementMonth()</code></td><td>위 "날짜와 정산월" 참고</td><td>Ledger, MonthFlowDeepCard, MonthlySavingsCard, AddGoalModal</td></tr>

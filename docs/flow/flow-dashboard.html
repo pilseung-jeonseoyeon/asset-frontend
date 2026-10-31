@@ -659,7 +659,7 @@ sequenceDiagram
   E->>H: toBlob(node, 1080×1920, filter: data-report-export-exclude 제외, 배경색 = 카드 surface)
   H-->>E: Blob
   alt 저장
-    E->>BR: triggerBrowserDownload({blob, filename: monit-report-YYYY-MM.png})
+    E->>BR: triggerBrowserDownload({blob, filename: Monit_월간리포트_YYYY-MM.png})
     O-->>U: "이미지로 저장했어요"
   else 공유
     E->>BR: navigator.canShare({files}) ?
