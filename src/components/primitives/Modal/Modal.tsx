@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { useIsMobile } from '../../../utils/useMediaQuery'
+import { usePageScrollLock } from '../../../utils/usePageScrollLock'
 import { sheetStickyHeaderStyle } from './sheetHeader'
 import { useAppState } from '../../../state/AppStateContext'
 
@@ -172,6 +173,8 @@ export function Modal({ onClose, zIndex, width, panelStyle, children }: ModalPro
   const { state, setState } = useAppState()
   const idRef = useRef(0)
   if (idRef.current === 0) idRef.current = ++nextModalId
+  // 떠 있는 동안 뒤 페이지 스크롤을 잠근다(겹친 모달은 마지막 하나가 닫힐 때 풀린다 — usePageScrollLock).
+  usePageScrollLock()
 
   // 마운트된 동안만 스택에 등록한다 — 언마운트(모달 닫힘) 시 반드시 해제해야 다음에 열리는 모달이
   // "가장 위"를 잘못 판정하지 않는다.

@@ -33,6 +33,7 @@ import { shiftYearMonth } from '../../../utils/date'
 import { saveFile } from '../../../utils/saveFile'
 import { REPORT_EXPORT_EXCLUDE_ATTR, renderReportSlidePng, reportImageFilename, shareReportImage } from '../../../utils/reportExport'
 import { useIsMobile } from '../../../utils/useMediaQuery'
+import { usePageScrollLock } from '../../../utils/usePageScrollLock'
 import type { YearMonth } from '@/services/common.type'
 import { useGetMonthlyReport } from '@/services/dashboard'
 
@@ -349,6 +350,8 @@ export function ReportOverlay() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
   const open = state.reportOpen
+  // 공용 Modal을 쓰지 않으므로 뒤 페이지 스크롤 잠금도 직접 건다(열려 있는 동안만).
+  usePageScrollLock(open)
   const period = state.reportPeriod
   const reportSlide = state.reportSlide
   const amountsHidden = state.amountsHidden
