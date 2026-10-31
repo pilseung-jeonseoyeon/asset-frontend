@@ -7,6 +7,7 @@ import type { DashboardLayout } from '../utils/dashboardLayout'
 import type { NotificationPrefs } from '../utils/notificationPrefs'
 import type { AccountType, AssetClass, ViewScope, YearMonth } from '@/services/common.type'
 import type { OwnerTag } from '@/services/transaction'
+import type { SalarySplitLineType } from '@/services/salarySplit'
 
 export type Screen = 'dashboard' | 'asset' | 'stock' | 'ledger' | 'settings'
 export type AssetTab = 'overview' | 'accounts' | 'goals'
@@ -84,6 +85,30 @@ export interface EntryDraft {
 /** 설정 › 가족 · 커플 공유의 단계(v17 시안). home 홈 · invite 초대 코드(초대하는 사람) · code 코드 입력 ·
  *  accept 초대 확인(초대받은 사람) · linked 연결 완료 + 공유 화면 이름 · pick 공유할 계좌 선택 · done 공유 시작 완료 */
 export type ShareFlowStep = 'home' | 'invite' | 'code' | 'accept' | 'linked' | 'pick' | 'done'
+
+/** 월급 나누기 창의 받는 통장 한 줄. on=false면 이번 달만 건너뛴다(기억에는 남는다). */
+export interface SalarySplitRow {
+  accountId: number
+  type: SalarySplitLineType
+  /** 저축 소분류. 이체는 null. 저축인데 null이면 '소분류 고르기'로 보이고, 보낼 줄이면 보내기를 막는다 */
+  subcategoryId: number | null
+  /** 정수 원화 금액. 0이면 이번 달 건너뜀 */
+  amount: number
+  on: boolean
+}
+
+/** 월급 나누기를 보낸 뒤 완료 화면에 그릴 값 — 보낸 순간의 이름·잔액을 남겨, 무효화로 목록이 다시 와도 흔들리지 않게 한다. */
+export interface SalarySplitResult {
+  isoDate: string
+  /** 적은 월급. 월급을 끈 달은 null */
+  income: { amount: number; subcategoryName: string } | null
+  lines: { accountId: number; name: string; type: SalarySplitLineType; subcategoryName: string | null; amount: number; after: number | null }[]
+  /** 월급에서 남는 돈(월급을 적은 달만) */
+  remain: number | null
+  sourceName: string
+  /** 보낸 뒤 월급통장 원화 잔액 */
+  sourceAfter: number | null
+}
 
 export interface AppState {
   // navigation
@@ -268,6 +293,28 @@ export interface AppState {
    */
   entryDraftRestored: boolean
   // monthStartDay(정산월 시작일)는 서버 사용자 설정에 있다 — services/user의 useGetUserSettings 참고
+
+  // 월급 나누기(openModal 'salarySplit', 가계부 빠른 입력 줄). 계산은 data/salarySplitView.ts, 열고 닫기는
+  // state/selectors/salarySplit.ts. 창을 닫으면 아래 값을 처음으로 되돌린다(적던 값은 버린다 — 기억은 서버에
+  // 보낼 때만 바뀐다). [계좌 추가]로 다녀오는 동안에는 openModal만 바뀌어 그대로 남는다.
+  salarySplitView: 'form' | 'done'
+  /** 서버 기억으로 폼을 채웠는지 — 기억 응답이 늦게 와도 이미 고친 값을 덮지 않게 한 번만 채운다. */
+  salarySplitFilled: boolean
+  salarySplitSourceId: number | null
+  /** '수입으로 적기' — 켜면 월급이 월급통장에 수입으로 함께 적힌다 */
+  salarySplitIncomeOn: boolean
+  /** 수입 소분류. null이면 기본값(월급 › 월급, 없으면 첫 수입 소분류)을 보여 주고 보낸다 */
+  salarySplitIncomeSubcategoryId: number | null
+  /** 정수 원화 월급 */
+  salarySplitSalary: number
+  salarySplitRows: SalarySplitRow[]
+  /** 태그(▾)로 펼친 선택 줄 — 'income'(월급 줄) 또는 받는 통장 accountId */
+  salarySplitMenu: 'income' | number | null
+  /** 방금 목록에서 빠진 줄 — ✕로 뺀 줄(되돌리기 가능) 또는 월급통장을 바꿔서 빠진 줄(안내만) */
+  salarySplitRemoved: { row: SalarySplitRow; index: number; name: string; reason: 'remove' | 'source' } | null
+  /** 보내기가 해지·삭제된 통장 때문에 실패했을 때 그 통장들(이름은 보낼 때의 목록에서 남긴다) */
+  salarySplitErrorAccounts: { id: number; name: string }[]
+  salarySplitResult: SalarySplitResult | null
 
   // date-picker widget state
   datePickerPicked: Record<string, unknown>

@@ -25,6 +25,7 @@ import { formatNumber } from '../../utils/format'
 import { ledgerOwnerCaption } from '../../data/shareView'
 import { useViewScope } from '../../utils/viewScope'
 import { openNewEntryUpdater } from '../../state/selectors/entryDraft'
+import { openSalarySplitUpdater } from '../../state/selectors/salarySplit'
 import { useDebouncedValue } from '../../utils/useDebouncedValue'
 import { useIsMobile } from '../../utils/useMediaQuery'
 import { useCurrentSettlementMonth } from '../../utils/useCurrentSettlementMonth'
@@ -361,6 +362,15 @@ function EntryQuickButtons() {
         >
           <Icon name="add" size={16} />
           이체
+        </button>
+        {/* 한번에 이체하기(옛 이름 '월급 나누기', 2026-10-31 사용자 요청으로 바꿈 · A안) — 월급 수입 + 여러 통장으로 이체·저축을 한 번에. 이체 버튼과 같은 무채색(보라 강조 금지) */}
+        <button
+          onClick={() => setState(openSalarySplitUpdater)}
+          className="qbtn"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 44, padding: '0 14px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-strong)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', transition: 'transform .12s', fontFamily: 'inherit' }}
+        >
+          <Icon name="call_split" size={16} />
+          한번에 이체하기
         </button>
       </div>)
 }

@@ -49,6 +49,8 @@ import { AccountDetailModal } from '../../screens/Assets/modals/AccountDetailMod
 import { PartnerAccountDetailModal } from '../../screens/Assets/modals/PartnerAccountDetailModal'
 import { ShareFlowModal } from '../../screens/Settings/modals/share/ShareFlowModal'
 import { CategoryDetailModal } from '../../screens/Ledger/modals/CategoryDetailModal'
+import { SalarySplitModal } from '../../screens/Ledger/modals/SalarySplitModal'
+import { closeSalarySplitUpdater } from '../../state/selectors/salarySplit'
 
 const SCREEN_COMPONENTS: Record<Screen, ComponentType> = {
   dashboard: Dashboard,
@@ -196,6 +198,10 @@ export function AuthenticatedApp() {
       </ModalErrorBoundary>
       <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="카테고리 상세">
         <CategoryDetailModal />
+      </ModalErrorBoundary>
+      {/* 월급 나누기 — 닫으면 적던 값을 버리므로 오류로 닫힐 때도 같은 초기화(closeSalarySplitUpdater)를 쓴다 */}
+      <ModalErrorBoundary onReset={() => setState(closeSalarySplitUpdater)} zIndex={80} title="한번에 이체하기">
+        <SalarySplitModal />
       </ModalErrorBoundary>
       {/* 가족·커플 공유(v17). 설정 › 가족 · 커플 공유는 openModal('familyShare') 하나에서 단계(shareFlowStep)를 바꾼다.
           상대 계좌 상세는 '우리집' 자산 화면에서 연다(partnerAccountDetailId). */}

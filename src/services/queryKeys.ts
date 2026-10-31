@@ -98,6 +98,11 @@ export const queryKeys = {
     preview: (params: { targetAmount: number; targetDate: string; monthlyIncome: number }, scope: ViewScope) =>
       ['goal', 'preview', { ...params, scope }] as const,
   },
+  // 월급 나누기 기억 — 내 계좌만 다루고 정산월과도 무관해서 파라미터가 없다
+  salarySplit: {
+    all: () => ['salarySplit'] as const,
+    plan: () => ['salarySplit', 'plan'] as const,
+  },
   dashboard: {
     all: () => ['dashboard'] as const,
     summary: (scope: ViewScope) => ['dashboard', 'summary', { scope }] as const,

@@ -5,6 +5,7 @@ import { readStoredDashboardLayout } from '../utils/dashboardLayout'
 import { readStoredNotificationPrefs } from '../utils/notificationPrefs'
 import { readStoredTheme } from '../utils/theme'
 import { readStoredViewScope } from '../utils/viewScope'
+import { SALARY_SPLIT_BLANK } from './selectors/salarySplit'
 import type { AccountForm } from './types'
 import type { AppState } from './types'
 
@@ -116,6 +117,7 @@ export const initialState: AppState = {
   ledgerWho: 'all',
   entryDraft: null,
   entryDraftRestored: false,
+  ...SALARY_SPLIT_BLANK,
 
   datePickerPicked: {},
   datePickerViewingMonth: {},
