@@ -6,10 +6,12 @@ import { createClient, type SupportedStorage } from '@supabase/supabase-js'
 import { fromFunctionsError, toApiError } from './supabaseError'
 
 const url = import.meta.env.VITE_SUPABASE_URL
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-if (!url || !anonKey) {
+// 공개 키(Publishable · sb_publishable_…). 2026-10-31 이름을 VITE_SUPABASE_PUBLIC_KEY 로 바꿨고, 이미 만들어 둔
+// .env.local 이 깨지지 않게 옛 이름(VITE_SUPABASE_ANON_KEY)도 잠시 같이 읽는다.
+const publicKey = import.meta.env.VITE_SUPABASE_PUBLIC_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
+if (!url || !publicKey) {
   // 개발 중 .env.local 이 없을 때 조용히 깨지지 않도록 바로 알린다
-  throw new Error('VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY 가 비어 있어요. .env.local 을 확인해 주세요.')
+  throw new Error('VITE_SUPABASE_URL / VITE_SUPABASE_PUBLIC_KEY 가 비어 있어요. .env.local 을 확인해 주세요.')
 }
 
 const REMEMBER_KEY = 'monit.rememberMe'
@@ -66,7 +68,7 @@ export const sessionAwareStorage: SupportedStorage = {
   },
 }
 
-export const supabase = createClient(url, anonKey, {
+export const supabase = createClient(url, publicKey, {
   auth: {
     storage: sessionAwareStorage,
     flowType: 'pkce',

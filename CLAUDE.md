@@ -160,7 +160,7 @@ pnpm lint          # oxlint (.oxlintrc.json — react/typescript/oxc 플러그�
 pnpm preview       # 프로덕션 빌드 미리보기
 ```
 
-**개발 서버는 `.env.local`(gitignore됨)의 `VITE_SUPABASE_URL`·`VITE_SUPABASE_ANON_KEY`가 가리키는 Supabase에 붙습니다** — 기본은 로컬 도커 스택(`supabase start`, `http://127.0.0.1:54321`)입니다. 프록시는 없습니다(브라우저가 supabase-js로 직접 부름). 운영 프로젝트로 봐야 할 때만 두 값을 운영 것으로 바꾸세요 — **그때는 등록·삭제가 운영 데이터를 실제로 바꾸니** 테스트 계정으로 쓰세요. `.env.development` 같은 커밋되는 env 파일은 만들지 않습니다(`.env.example`이 키 목록). 시세·환율·탈퇴·연동 동기화는 Edge Function이라 로컬에서는 `supabase functions serve --env-file supabase/functions/.env`를 함께 띄워야 합니다. 자세한 건 `docs/api-conventions.md`.
+**개발 서버는 `.env.local`(gitignore됨)의 `VITE_SUPABASE_URL`·`VITE_SUPABASE_PUBLIC_KEY`(Publishable 키 `sb_publishable_…` — 2026-10-31 이름 변경, 옛 이름 `VITE_SUPABASE_ANON_KEY`도 잠시 같이 읽음)가 가리키는 Supabase에 붙습니다** — 기본은 로컬 도커 스택(`supabase start`, `http://127.0.0.1:54321`)입니다. 프록시는 없습니다(브라우저가 supabase-js로 직접 부름). 운영 프로젝트로 봐야 할 때만 두 값을 운영 것으로 바꾸세요 — **그때는 등록·삭제가 운영 데이터를 실제로 바꾸니** 테스트 계정으로 쓰세요. `.env.development` 같은 커밋되는 env 파일은 만들지 않습니다(`.env.example`이 키 목록). 시세·환율·탈퇴·연동 동기화는 Edge Function이라 로컬에서는 `supabase functions serve --env-file supabase/functions/.env`를 함께 띄워야 합니다. 자세한 건 `docs/api-conventions.md`.
 
 테스트 러너가 없으므로, 빌드(`pnpm build`)와 린트(`pnpm lint`)가 깨끗하고 실행 중인 개발 서버(`pnpm dev`)에서 직접 확인했을 때만 변경이 "완료"된 것으로 취급하세요 — 코드를 정적으로 읽은 것만으로 UI가 동작한다고 단정하지 마세요.
 

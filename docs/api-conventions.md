@@ -24,7 +24,8 @@
 
 ### 환경변수와 로컬 스택
 
-- `VITE_SUPABASE_URL`·`VITE_SUPABASE_ANON_KEY`(`src/vite-env.d.ts`) 두 개뿐입니다. `.env.local`(gitignore됨)에 두고, 키 목록은
+- `VITE_SUPABASE_URL`·`VITE_SUPABASE_PUBLIC_KEY`(`src/vite-env.d.ts`, Publishable 키 `sb_publishable_…`) 두 개뿐입니다. 옛 이름
+  `VITE_SUPABASE_ANON_KEY`도 이미 만든 `.env.local`을 위해 잠시 같이 읽습니다(2026-10-31 이름 변경). `.env.local`(gitignore됨)에 두고, 키 목록은
   `.env.example`에 있습니다. 비어 있으면 `supabase.ts`가 부팅 때 바로 예외를 던집니다(조용히 깨지지 않게).
 - **개발(`pnpm dev`)**: 기본은 로컬 도커 스택(`supabase start`, `http://127.0.0.1:54321`). 프록시는 없습니다 — 브라우저가 supabase-js로
   직접 부릅니다(CORS는 Supabase가 허용). 가입·비밀번호 찾기 코드 메일은 Mailpit(`http://127.0.0.1:54324`)에서 봅니다.
