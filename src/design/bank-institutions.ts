@@ -18,15 +18,9 @@ export interface BankInstitution {
   name: string
   tokenKey: string
   category: BankCategory
+  /** 추상 심볼. 2026-10-31부터 BankIcon은 이름 글자(bank-monograms.ts)를 그려 쓰지 않는다 — 되돌릴 때를 위해 남겨 둔다 */
   archetype: BankArchetype
 }
-
-// ds_rules_v3.md §1-7 "yellow exception": KB family (#FFB600) and Kakao family (#FFE300) base colors
-// fail 3:1 light-mode contrast at stroke-width 1.8 → raised to 2.0 for these token keys only.
-export const BANK_YELLOW_STROKE_EXCEPTIONS = new Set<string>([
-  'kb', 'kbsec', 'kbcard', 'kblife', 'kbins', 'kbsb',
-  'kakaobank', 'kakaopaysec', 'kakaopay',
-])
 
 export const BANK_INSTITUTIONS: BankInstitution[] = [
   // 은행 · 상호금융 (23)
