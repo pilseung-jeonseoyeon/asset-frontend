@@ -29,6 +29,8 @@ export interface AssetClassGroup {
   changeFromLastMonthKrw: number | null
   /** 지난달 대비 증감률(%) — 기준값이 0이면 null. */
   changeFromLastMonthPercent: number | null
+  /** 이번 정산월에 새로 등록한 계좌의 등록액 합계(원, 만든 날 평가액) — 증감에서는 빠져 있다(000018). 없거나 0원이면 null. */
+  newAccountsKrw: number | null
   accounts: DistributionAccount[]
 }
 

@@ -13,7 +13,8 @@ export interface TreemapBlock {
   label: string
   icon: string
   amountText: string
-  percent: number
+  /** '12%' 또는 '1% 미만' — 문자열로 받는다(표기 규칙은 뷰모델의 formatSharePercent). */
+  percentText: string
   widthPercent: number
   tint: string
   fg: string
@@ -44,7 +45,7 @@ function TreemapTile({ b }: { b: TreemapBlock }) {
         <div style={{ fontSize: b.showHeader ? 16 : 13, fontWeight: 700, color: b.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
           {b.label}
         </div>
-        <div style={{ fontSize: 10.5, fontWeight: 700, color: b.fg, opacity: 0.6 }}>{b.percent}%</div>
+        <div style={{ fontSize: 10.5, fontWeight: 700, color: b.fg, opacity: 0.6 }}>{b.percentText}</div>
       </div>
       {/* 금액은 폭과 무관하게 항상 보여주고, 좁으면 말줄임(87,60…)으로 잘린다 — 아예 감추는 것보다
           자릿수만이라도 보이는 편이 낫다는 판단(실기 요청). 예전에는 이 자리에 hover 툴팁으로 이름·비중·

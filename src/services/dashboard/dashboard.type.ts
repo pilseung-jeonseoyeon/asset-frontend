@@ -7,8 +7,12 @@ export interface DashboardSummaryResponse {
   totalAssetKrw: number
   /** 이번 정산월 시작일 대비 증감 (음수 가능). 기준 스냅샷이 없으면 null(0이 아니다). */
   monthChangeKrw: number | null
+  /** 이번 정산월에 새로 등록한 계좌의 등록액 합계 — monthChangeKrw 에서 뺀 금액. 없으면 null(서버 000026) */
+  monthNewAccountsKrw: number | null
   /** 올해 1월 1일 대비 증감 (음수 가능). 기준 스냅샷이 없으면 null(0이 아니다). */
   yearChangeKrw: number | null
+  /** 올해 새로 등록한 계좌의 등록액 합계 — 서버는 yearChangeKrw 에서 뺐다. 화면은 되돌려 더해 연초 대비에 포함한다(dashboardView). 없으면 null */
+  yearNewAccountsKrw: number | null
   /**
    * 이 범위에 오늘 열려 있는 계좌가 하나라도 있는지. 잔액 0원 계좌도 true다 — "계좌 없음" 빈 상태는
    * 총자산 금액이 아니라 이 값으로 가른다(0원 계좌를 추가해도 빈 상태로 보이면 안 된다).

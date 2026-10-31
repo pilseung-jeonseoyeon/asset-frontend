@@ -9,7 +9,7 @@
 
 import { HIDDEN_ACCOUNT_LABEL } from './shareView'
 import type { TreemapBlock } from '../components/primitives/Treemap/Treemap'
-import { formatNumber, formatCurrencyAmount } from '../utils/format'
+import { formatNumber, formatCurrencyAmount, formatSharePercent } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
 import { toPercentages } from './dashboardView'
 import type { LedgerTransactionRow } from './ledgerView'
@@ -76,15 +76,16 @@ export const ASSET_CLASS_ACCOUNT_TYPE_PRESET: Record<AssetClass, AccountType> = 
 /**
  * 자산군 칩을 고를 때 함께 반영할 계좌 폼 필드 — 계좌 유형과 유동성 기본값.
  *
- * 유동성 기본값: 예적금만 '유동성 없음'(묶여 있는 돈)이다. 예전엔 모든 유형이 '유동성 있음'으로 시작해,
- * 적금을 그대로 저장하면 유동성 뷰의 '즉시 현금화 가능'에 들어가 비상금이 부풀려지고 만기 D-Day에도
- * 잡히지 않았다(2026-09-26 통합테스트). 기본값일 뿐이라 사용자가 유동성 칩으로 바꿀 수 있다.
+ * 유동성 기본값: 예적금과 연금·기타는 '유동성 없음'(묶여 있는 돈)이다. 예전엔 모든 유형이 '유동성 있음'으로
+ * 시작해, 적금을 그대로 저장하면 유동성 뷰의 '즉시 현금화 가능'에 들어가 비상금이 부풀려지고 만기 D-Day에도
+ * 잡히지 않았다(2026-09-26 통합테스트). IRP·연금저축처럼 연금·기타도 대개 묶인 돈이라 같이 없음으로 둔다
+ * (2026-10-31). 기본값일 뿐이라 사용자가 유동성 칩으로 바꿀 수 있다.
  *
  * 계좌에는 표시 통화가 없다(2026-09-26 계약 변경) — 원화·달러 예수금은 등록 시 initialBalances에
  * 통화별 줄로 따로 실어 보낸다(AddAccountModal).
  */
 export function assetClassFormPreset(assetClass: AssetClass): { type: AccountType; isLiquid: boolean } {
-  return { type: ASSET_CLASS_ACCOUNT_TYPE_PRESET[assetClass], isLiquid: assetClass !== 'DEPOSIT' }
+  return { type: ASSET_CLASS_ACCOUNT_TYPE_PRESET[assetClass], isLiquid: assetClass !== 'DEPOSIT' && assetClass !== 'ETC' }
 }
 
 /**
@@ -189,7 +190,11 @@ export interface AssetClassCard {
   color: string
   count: number
   totalText: string
-  /** '지난달보다 +12,000원' — 서버 changeFromLastMonthKrw. 계좌가 없거나(null) 0이면 null(줄을 생략). */
+  /**
+   * '지난달보다 +12,000원 · 이번 달 등록 3,800,000원' — 서버 changeFromLastMonthKrw와 newAccountsKrw.
+   * 새로 등록한 계좌는 서버가 증감에서 떼어 newAccountsKrw로 따로 주므로(처음 등록한 돈이 '늘어난 돈'으로 보이지 않게) 둘을 나눠 적는다.
+   * 둘 다 없거나 0이면 null(줄을 생략).
+   */
   changeText: string | null
   accounts: AssetClassCardAccount[]
 }
@@ -218,6 +223,10 @@ export function buildAssetClassCards(groups: AssetClassGroup[]): AssetClassCard[
       const meta = assetClassMetaOf(g.assetClass)
       const accounts = mergeAccountPieces(g.accounts)
       const change = g.changeFromLastMonthKrw
+      const changeParts = [
+        change ? `지난달보다 ${signedWonText(change)}` : null,
+        g.newAccountsKrw ? `이번 달 등록 ${formatNumber(g.newAccountsKrw)}원` : null,
+      ].filter((t): t is string => t !== null)
       return {
         id: g.assetClass,
         name: assetClassLabel(g),
@@ -225,7 +234,7 @@ export function buildAssetClassCards(groups: AssetClassGroup[]): AssetClassCard[
         color: meta.color,
         count: accounts.length,
         totalText: formatNumber(g.totalValueKrw),
-        changeText: change ? `지난달보다 ${signedWonText(change)}` : null,
+        changeText: changeParts.length > 0 ? changeParts.join(' · ') : null,
         // 카테고리 내부 계좌는 금액 내림차순 — ①의 카테고리 순서 규칙과는 별개다.
         accounts: [...accounts]
           .sort((a, b) => b.valueKrw - a.valueKrw)
@@ -315,7 +324,7 @@ export function buildMapTiers(
       label: b.label,
       icon: b.icon,
       amountText: formatNumber(b.amount),
-      percent: b.displayPercent,
+      percentText: formatSharePercent(b.displayPercent, b.amount),
       widthPercent: b.percent,
       tint: RAMP[Math.min(bi, RAMP.length - 1)],
       fg: bi < 3 ? '#FFFFFF' : 'var(--text-strong)',

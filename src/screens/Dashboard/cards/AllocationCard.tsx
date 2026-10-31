@@ -42,14 +42,14 @@ export function AllocationCard() {
                   <div key={seg.label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span style={{ width: 9, height: 9, borderRadius: 4, background: seg.color }} />
                     <span style={{ color: 'var(--text-mid)', flex: 1 }}>{seg.label}</span>
-                    <b>{seg.percent}%</b>
+                    <b>{seg.percentText}</b>
                   </div>
                 ))}
             </div>
           </div>
           {topAllocation && (
             <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '0.5px solid var(--track)', fontSize: 12.5, color: 'var(--text-mid)' }}>
-              최대 비중 <b style={{ color: 'var(--text-strong)' }}>{topAllocation.label} {topAllocation.percent}%</b>
+              최대 비중 <b style={{ color: 'var(--text-strong)' }}>{topAllocation.label} {topAllocation.percentText}</b>
             </div>
           )}
         </>

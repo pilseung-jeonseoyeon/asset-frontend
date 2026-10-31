@@ -7,7 +7,7 @@
 // - "7월 이후는 예정 구간" 같은 미래 구간 표기: 서버가 예측값을 주지 않는다.
 // 추이 차트의 y축 눈금 라벨(13억/11억/9억)은 buildTrendYAxisTicks가 formatKoreanUnits로 계산한다.
 
-import { formatNumber, formatKoreanUnits } from '../utils/format'
+import { formatNumber, formatKoreanUnits, formatSharePercent } from '../utils/format'
 import { assetClassMetaOf } from './assetsView'
 import type {
   AllocationResponse,
@@ -41,6 +41,13 @@ export interface DashboardHeroView {
   /** 올해 1월 1일 대비. 음수 가능. 기준 스냅샷이 없으면 null — 배지를 그리지 말 것. */
   yearChangeKrw: number | null
   yearChangeText: string | null
+  /**
+   * '이번 달 등록 1,000,000원 제외' — 이번 정산월에 새로 등록한 계좌의 등록액. 서버가 monthChangeKrw 에서 이미 뺐고
+   * (000026) 처음 등록한 돈이 '늘어난 돈'으로 보이지 않게 따로 적는다. 없으면 null.
+   */
+  monthNewAccountsText: string | null
+  /** '올해 등록 ○원 포함' — 연초 대비(yearChangeKrw)에 들어 있는 올해 새로 등록한 계좌의 등록액. 없으면 null. */
+  yearNewAccountsText: string | null
   /** 계좌 자체가 없는 진짜 신규 사용자 — 0원을 "자산 0원"으로 단정하지 말고 빈 상태로 안내할 것. */
   isEmpty: boolean
   /**
@@ -71,14 +78,20 @@ export function buildDashboardHero(
 ): DashboardHeroView {
   const hasSnapshotHistory = summary.totalAssetKrw > 0
   const totalAssetKrw = hasSnapshotHistory ? summary.totalAssetKrw : allocationTotalKrw
+  // 연초 대비는 올해 새로 등록한 계좌도 늘어난 돈으로 센다(2026-10-31 사용자 결정 — "올해 자산 현황은 올해 등록했어도
+  // 보여줘"). 서버 yearChangeKrw 는 등록액을 뗀 값(000026)이라, 같은 응답의 등록액(yearNewAccountsKrw)을 되돌려 더한다
+  // = 지금 총자산 − 연초 총자산. 둘 다 서버가 준 원 단위 정수라 반올림 차이가 없다. '지난달보다'(month)는 그대로 등록액을 뗀다.
+  const yearChangeKrw = summary.yearChangeKrw === null ? null : summary.yearChangeKrw + (summary.yearNewAccountsKrw ?? 0)
 
   return {
     totalAssetKrw,
     totalText: formatNumber(totalAssetKrw),
     monthChangeKrw: summary.monthChangeKrw,
     monthChangeText: summary.monthChangeKrw === null ? null : signedText(summary.monthChangeKrw),
-    yearChangeKrw: summary.yearChangeKrw,
-    yearChangeText: summary.yearChangeKrw === null ? null : signedText(summary.yearChangeKrw),
+    yearChangeKrw,
+    yearChangeText: yearChangeKrw === null ? null : signedText(yearChangeKrw),
+    monthNewAccountsText: summary.monthNewAccountsKrw ? `이번 달 등록 ${formatNumber(summary.monthNewAccountsKrw)}원 제외` : null,
+    yearNewAccountsText: summary.yearNewAccountsKrw ? `올해 등록 ${formatNumber(summary.yearNewAccountsKrw)}원 포함` : null,
     isEmpty: !summary.hasAccounts,
     hasSnapshotHistory,
   }
@@ -188,6 +201,8 @@ export function buildTrendYAxisTicks(points: TrendPointResponse[]): [string, str
 export interface DonutLegendItem {
   label: string
   percent: number
+  /** 범례·캡션용 — 0%로 반올림돼도 금액이 있으면 '1% 미만'(formatSharePercent). 도넛 조각 길이는 percent를 쓴다. */
+  percentText: string
   color: string
   showLegend: boolean
 }
@@ -236,6 +251,7 @@ export function buildAllocationSegments(allocation: AllocationResponse[]): Donut
     // 나머지는 그대로 그린다.
     label: assetClassMetaOf(a.assetClass).label,
     percent: percents[i],
+    percentText: formatSharePercent(percents[i], a.totalValueKrw),
     color: RAMP[Math.min(i, RAMP.length - 1)],
     showLegend: sorted.length < 6 || i < sorted.length - 1,
   }))

@@ -1,12 +1,15 @@
 // 올해 자산 현황 카드(A안) — 연초 대비 증감 + 올해 1월~12월 총자산 추이 스파크라인.
 // y축 눈금 라벨(13억/11억/9억)은 buildTrendYAxisTicks(dashboardView.ts)가 계산한다.
+// 2026-10-31 UI/UX 검토: 라벨 열을 22px로 고정해 "5,409만"이 두 줄로 접혔다 → 글자 폭만큼 열을 넓히고 한 줄로,
+// 줄 높이 12px로 세 라벨 가운데를 그리드선(6/46/86)에 맞춘다. 축 글자는 캡션 하한 11px(디자인 규칙 4장).
+// 증감이 0이면 좋아진 것도 나빠진 것도 아니라 등락색(초록 · 빨강)을 쓰지 않는다.
 
 import { Card } from '../../../components/primitives/Card/Card'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { isoDateToDisplay } from '../../../utils/date'
 import { useDashboardHero } from '../hooks/useDashboardHero'
 import { useDashboardTrend } from '../hooks/useDashboardTrend'
-import { CARD_TITLE_STYLE, EMPTY_TEXT_STYLE, ERROR_TEXT_STYLE, TREND_MONTH_LABELS } from './cardStyles'
+import { CARD_TITLE_STYLE, EMPTY_TEXT_STYLE, ERROR_TEXT_STYLE, TREND_MONTH_LABELS, isTrendMonthLabelShown } from './cardStyles'
 import { EmptyState, KoreanUnitsCaption } from './shared'
 
 export function YearStatusCard() {
@@ -39,7 +42,7 @@ export function YearStatusCard() {
             style={{
               fontSize: 24,
               fontWeight: 700,
-              color: hero.yearChangeKrw >= 0 ? 'var(--up)' : 'var(--down)',
+              color: hero.yearChangeKrw > 0 ? 'var(--up)' : hero.yearChangeKrw < 0 ? 'var(--down)' : 'var(--text-strong)',
               letterSpacing: '-.02em',
               whiteSpace: 'nowrap',
               marginTop: 6,
@@ -48,7 +51,9 @@ export function YearStatusCard() {
             {hero.yearChangeText}원
           </div>
           <KoreanUnitsCaption amountKrw={hero.yearChangeKrw} />
-          <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400 }}>연초 대비</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-weak)', fontWeight: 400 }}>
+            연초 대비{hero.yearNewAccountsText && ` · ${hero.yearNewAccountsText}`}
+          </div>
           <div style={{ marginTop: 14 }}>
             {trendQuery.isPending ? (
               <div aria-busy style={EMPTY_TEXT_STYLE}>—</div>
@@ -75,7 +80,8 @@ export function YearStatusCard() {
                     <div
                       style={{
                         display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                        height: 92, fontSize: 9.5, color: 'var(--text-mid)', flex: 'none', width: 22,
+                        height: 92, fontSize: 11, lineHeight: '12px', color: 'var(--text-mid)', flex: 'none',
+                        whiteSpace: 'nowrap', textAlign: 'right', fontVariantNumeric: 'tabular-nums',
                       }}
                     >
                       <span>{yAxisTicks[0]}</span>
@@ -117,11 +123,14 @@ export function YearStatusCard() {
                         strokeWidth="2"
                       />
                     </svg>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-weak)', marginTop: 5 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-weak)', marginTop: 6 }}>
                       {TREND_MONTH_LABELS.map((m, i) => (
                         <span
                           key={m}
-                          style={i + 1 === currentMonth ? { fontWeight: 700, color: 'var(--accent)' } : undefined}
+                          style={{
+                            ...(i + 1 === currentMonth ? { fontWeight: 700, color: 'var(--accent)' } : null),
+                            visibility: isTrendMonthLabelShown(i + 1, currentMonth, isMobile) ? undefined : 'hidden',
+                          }}
                         >
                           {m}
                         </span>

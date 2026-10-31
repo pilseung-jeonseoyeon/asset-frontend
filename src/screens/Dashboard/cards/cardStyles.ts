@@ -30,3 +30,12 @@ export const CARD_LINK_STYLE: CSSProperties = {
 // 같은 규칙 — 두 화면의 월 축 표기가 갈라지지 않도록 문자열을 맞춰 둔다).
 export const TREND_MONTH_LABELS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
 
+/**
+ * 추이 x축 월 라벨을 보일지. 좁은 화면(폰)에서는 11px 열두 개가 붙어 버려 홀수 달만 쓰고, 이번 달은 늘 보이되
+ * 바로 옆 달은 숨겨 겹치지 않게 한다. 숨긴 라벨도 자리는 남겨(visibility) 나머지 위치가 흔들리지 않게 한다.
+ */
+export function isTrendMonthLabelShown(month: number, currentMonth: number, compact: boolean): boolean {
+  if (!compact || month === currentMonth) return true
+  return month % 2 === 1 && Math.abs(month - currentMonth) !== 1
+}
+

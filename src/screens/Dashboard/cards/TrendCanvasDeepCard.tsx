@@ -10,7 +10,7 @@ import { useIsMobile } from '../../../utils/useMediaQuery'
 import { isoDateToDisplay } from '../../../utils/date'
 import { useDashboardHero } from '../hooks/useDashboardHero'
 import { useDashboardTrend } from '../hooks/useDashboardTrend'
-import { DASHED_CTA_STYLE_DEEP, EMPTY_TEXT_STYLE_DEEP, ERROR_TEXT_STYLE_DEEP, TREND_MONTH_LABELS } from './cardStyles'
+import { DASHED_CTA_STYLE_DEEP, EMPTY_TEXT_STYLE_DEEP, ERROR_TEXT_STYLE_DEEP, TREND_MONTH_LABELS, isTrendMonthLabelShown } from './cardStyles'
 import { KoreanUnitsCaption, ShareScopeNote } from './shared'
 
 export function TrendCanvasDeepCard() {
@@ -93,18 +93,23 @@ export function TrendCanvasDeepCard() {
               <div>
                 <div style={{ fontSize: 12, color: 'var(--deep-label)', fontWeight: 500 }}>이번 달 증감</div>
                 {hero.hasSnapshotHistory && hero.monthChangeKrw !== null && hero.monthChangeText !== null ? (
-                  <div
-                    style={{
-                      fontSize: 18,
-                      fontWeight: 700,
-                      color: hero.monthChangeKrw >= 0 ? 'var(--deep-up)' : 'var(--deep-down)',
-                      letterSpacing: '-.01em',
-                      marginTop: 6,
-                    }}
-                  >
-                    {hero.monthChangeText}
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--deep-label)', marginLeft: 2 }}>원</span>
-                  </div>
+                  <>
+                    <div
+                      style={{
+                        fontSize: 18,
+                        fontWeight: 700,
+                        color: hero.monthChangeKrw >= 0 ? 'var(--deep-up)' : 'var(--deep-down)',
+                        letterSpacing: '-.01em',
+                        marginTop: 6,
+                      }}
+                    >
+                      {hero.monthChangeText}
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--deep-label)', marginLeft: 2 }}>원</span>
+                    </div>
+                    {hero.monthNewAccountsText && (
+                      <div style={{ fontSize: 11, color: 'var(--deep-label)', fontWeight: 400, marginTop: 4 }}>{hero.monthNewAccountsText}</div>
+                    )}
+                  </>
                 ) : (
                   <div style={{ ...EMPTY_TEXT_STYLE_DEEP, marginTop: 6 }}>자산 이력이 쌓이면 확인할 수 있어요</div>
                 )}
@@ -113,18 +118,23 @@ export function TrendCanvasDeepCard() {
               <div>
                 <div style={{ fontSize: 12, color: 'var(--deep-label)', fontWeight: 500 }}>연초 대비</div>
                 {hero.hasSnapshotHistory && hero.yearChangeKrw !== null && hero.yearChangeText !== null ? (
-                  <div
-                    style={{
-                      fontSize: 18,
-                      fontWeight: 700,
-                      color: hero.yearChangeKrw >= 0 ? 'var(--deep-up)' : 'var(--deep-down)',
-                      letterSpacing: '-.01em',
-                      marginTop: 6,
-                    }}
-                  >
-                    {hero.yearChangeText}
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--deep-label)', marginLeft: 2 }}>원</span>
-                  </div>
+                  <>
+                    <div
+                      style={{
+                        fontSize: 18,
+                        fontWeight: 700,
+                        color: hero.yearChangeKrw >= 0 ? 'var(--deep-up)' : 'var(--deep-down)',
+                        letterSpacing: '-.01em',
+                        marginTop: 6,
+                      }}
+                    >
+                      {hero.yearChangeText}
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--deep-label)', marginLeft: 2 }}>원</span>
+                    </div>
+                    {hero.yearNewAccountsText && (
+                      <div style={{ fontSize: 11, color: 'var(--deep-label)', fontWeight: 400, marginTop: 4 }}>{hero.yearNewAccountsText}</div>
+                    )}
+                  </>
                 ) : (
                   <div style={{ ...EMPTY_TEXT_STYLE_DEEP, marginTop: 6 }}>자산 이력이 쌓이면 확인할 수 있어요</div>
                 )}
@@ -153,7 +163,9 @@ export function TrendCanvasDeepCard() {
                     <div
                       style={{
                         display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                        height: chartHeight, fontSize: 10, color: 'var(--deep-label)', flex: 'none', whiteSpace: 'nowrap', textAlign: 'right',
+                        // 줄 높이를 그리드선 간격(viewBox 92 중 12)에 비례시켜 세 라벨 가운데를 선(6/46/86)에 맞춘다
+                        height: chartHeight, fontSize: 11, lineHeight: `${(12 * chartHeight) / 92}px`, color: 'var(--deep-label)', flex: 'none',
+                        whiteSpace: 'nowrap', textAlign: 'right', fontVariantNumeric: 'tabular-nums',
                       }}
                     >
                       <span>{yAxisTicks[0]}</span>
@@ -195,11 +207,14 @@ export function TrendCanvasDeepCard() {
                         strokeWidth="2"
                       />
                     </svg>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: isMobile ? 9 : 10.5, color: 'var(--deep-label)', marginTop: 5 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--deep-label)', marginTop: 6 }}>
                       {TREND_MONTH_LABELS.map((m, i) => (
                         <span
                           key={m}
-                          style={i + 1 === currentMonth ? { fontWeight: 700, color: 'var(--deep-value)' } : undefined}
+                          style={{
+                            ...(i + 1 === currentMonth ? { fontWeight: 700, color: 'var(--deep-value)' } : null),
+                            visibility: isTrendMonthLabelShown(i + 1, currentMonth, isMobile) ? undefined : 'hidden',
+                          }}
                         >
                           {m}
                         </span>

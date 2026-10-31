@@ -54,7 +54,7 @@ export function TotalAssetDeepCard() {
               단정하지 않되, 줄이 말없이 사라지면 "올해 자산 현황" 카드와 설명 수준이 어긋나므로
               같은 톤의 안내 문구로 대체한다(시점을 약속하지 않는다 — 배치 실행 시각 미확정). */}
           {hero.hasSnapshotHistory && hero.monthChangeKrw !== null ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, rowGap: 6, marginTop: 14 }}>
               <span style={{ fontSize: 12.5, color: 'var(--deep-label)', fontWeight: 400 }}>이번 달 증감액</span>
               <StatBadge
                 direction={hero.monthChangeKrw >= 0 ? 'up' : 'down'}
@@ -62,6 +62,9 @@ export function TotalAssetDeepCard() {
                 bg="var(--deep-chip)"
                 color={hero.monthChangeKrw >= 0 ? 'var(--deep-up)' : 'var(--deep-down)'}
               />
+              {hero.monthNewAccountsText && (
+                <span style={{ fontSize: 11.5, color: 'var(--deep-label)', fontWeight: 400 }}>{hero.monthNewAccountsText}</span>
+              )}
             </div>
           ) : (
             <div style={{ ...EMPTY_TEXT_STYLE_DEEP, marginTop: 14 }}>

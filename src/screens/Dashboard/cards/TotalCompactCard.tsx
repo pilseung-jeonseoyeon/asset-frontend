@@ -56,6 +56,9 @@ export function TotalCompactCard() {
                 <span style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>이력이 쌓이면 확인할 수 있어요</span>
               )}
             </div>
+            {hero.hasSnapshotHistory && hero.monthChangeText !== null && hero.monthNewAccountsText && (
+              <div style={{ fontSize: 11, color: 'var(--text-weak)', textAlign: 'right', marginTop: -4 }}>{hero.monthNewAccountsText}</div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
               <span style={{ color: 'var(--text-mid)' }}>연초 대비</span>
               {hero.hasSnapshotHistory && hero.yearChangeText !== null ? (
@@ -66,11 +69,14 @@ export function TotalCompactCard() {
                 <span style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>이력이 쌓이면 확인할 수 있어요</span>
               )}
             </div>
+            {hero.hasSnapshotHistory && hero.yearChangeText !== null && hero.yearNewAccountsText && (
+              <div style={{ fontSize: 11, color: 'var(--text-weak)', textAlign: 'right', marginTop: -4 }}>{hero.yearNewAccountsText}</div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
               <span style={{ color: 'var(--text-mid)' }}>최대 비중</span>
               {topAllocation ? (
                 <b>
-                  {topAllocation.label} {topAllocation.percent}%
+                  {topAllocation.label} {topAllocation.percentText}
                 </b>
               ) : (
                 <span style={{ fontSize: 11.5, color: 'var(--text-weak)' }}>이력이 쌓이면 확인할 수 있어요</span>
