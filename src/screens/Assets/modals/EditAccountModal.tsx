@@ -27,6 +27,10 @@
 // 해석되어, 다시 채우기 전에 저장을 누르면 잔액이 실수로 0원 정정된다. 안전 정수 범위를 벗어나는
 // 값도 같은 자리에서 막는다.
 //
+// **마이너스 잔액은 그대로 둔다**(2026-10-31 사용자 결정 — 지출·이체·환전처럼 정정도 마이너스를 받는다, 000032).
+// 칸에 보이는 글자(balanceKrwText)를 들고 있다가 맨 앞 '-'를 부호로 읽어 숫자로 꺼낸다 — 숫자만 남기면
+// '-50,000'에서 한 글자만 고쳐도 부호가 사라져 양수로 정정됐다. 달러 칸도 같다.
+//
 // **GET /accounts/{id}만 응답이 한 겹 감싸져 있다**(AccountDetailResponse) — accountQuery.data는
 // 계좌 자체가 아니라 { account, holdingValueKrw, totalValueKrw }다. 이 모달은 계좌 정보만 다루므로
 // .account만 꺼내 쓴다(보유 종목 평가액은 계좌 상세 모달이 쓴다).
@@ -89,6 +93,19 @@ const FIELD_BORDER_STYLE: CSSProperties = { border: '0.5px solid var(--border)',
 // 서버 ACCOUNT_NAME_DUPLICATE 와 같은 문구 — 적는 중에 먼저 보여준다.
 const NAME_TAKEN_MESSAGE = errorMessageOf('ACCOUNT_NAME_DUPLICATE')
 
+/** 맨 앞의 '-'(또는 '−')만 부호로 읽는다 — 마이너스 잔액을 그대로 고칠 수 있게(파일 상단 주석). */
+function hasLeadingMinus(text: string): boolean {
+  return /^\s*[-−]/.test(text)
+}
+
+/** 원화 잔액 칸의 글자 → 숫자. 숫자가 아직 없으면('' · '-'만) null — 비워 둔 칸과 같다. */
+function parseSignedKrwText(text: string): number | null {
+  const digits = text.replace(/[^0-9]/g, '')
+  if (!digits) return null
+  const n = Number(digits)
+  return hasLeadingMinus(text) && n !== 0 ? -n : n
+}
+
 export function EditAccountModal() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
@@ -121,7 +138,9 @@ export function EditAccountModal() {
   // 잔액은 accountForm이 아니라 별도 로컬 상태로 둔다 — PATCH /accounts/{id}가 아니라 전용 잔액 정정
   // API(PATCH /accounts/{id}/balance)로 나가는 별개의 요청이라 accountForm의 필드가 아니다.
   // number | null인 이유는 파일 상단 주석 참고 — null은 "칸을 비워둔 채", 0은 "실제로 0을 입력함".
-  const [balanceKrwInput, setBalanceKrwInput] = useState<number | null>(null)
+  // 칸의 글자('-50,000' · '-' · '')를 들고 숫자는 거기서 꺼낸다 — 마이너스 부호를 지키려고(파일 상단 주석).
+  const [balanceKrwText, setBalanceKrwText] = useState('')
+  const balanceKrwInput = parseSignedKrwText(balanceKrwText)
   // 칸을 비워둔 채 저장을 시도했을 때만 보여준다(타이핑 중간에는 아직 에러가 아니다) — nameInvalid와
   // 같은 톤. 오버플로는 반대로 값이 채워져 있는 채로 너무 크다는 뜻이라 즉시(타이핑 중에도) 알려준다.
   const [balanceEmptyError, setBalanceEmptyError] = useState(false)
@@ -208,7 +227,7 @@ export function EditAccountModal() {
     // 바꾸지 않는 한 handleSave가 이 API를 호출하지 않는다(아래 handleSave의 hasBalanceChange 참고).
     // 원화 칸은 합계(balanceKrw)가 아니라 원화 줄(예수금) 기준이다 — 달러 줄이 있는 계좌에서 합계로
     // 채우면 저장 때 달러 환산분까지 원화로 정정해 버린다.
-    setBalanceKrwInput(accountBalanceOf(account, 'KRW')?.amount ?? 0)
+    setBalanceKrwText(formatNumber(accountBalanceOf(account, 'KRW')?.amount ?? 0))
     // 편집 대상이 바뀌었으니 이전 계좌의 해지 확인 상태와 실패 메시지를 물려주지 않는다.
     setCloseConfirmOpen(false)
     setNameInvalid(false)
@@ -280,7 +299,8 @@ export function EditAccountModal() {
   const openedAtValue = pickedDate('editAccountOpened') ?? form.openedAt
   const maturityValue = pickedDate('editAccountMaturity') ?? form.maturityDate
   const todayIso = toISODate(new Date())
-  const usdValue = usdInput === '' ? null : Number(usdInput)
+  // 숫자가 하나도 없으면('' · '-' · '.') 비워 둔 칸으로 본다
+  const usdValue = /\d/.test(usdInput) ? Number(usdInput) : null
   const usdChanged = canEditUsd && usdValue !== null && usdCash !== null && Math.round(usdValue * 100) !== Math.round(usdCash * 100)
   const usdDiff = usdChanged && usdValue !== null && usdCash !== null ? (Math.round(usdValue * 100) - Math.round(usdCash * 100)) / 100 : 0
 
@@ -435,16 +455,17 @@ export function EditAccountModal() {
                 <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }}>₩</span>
                 <input
                   type="text" inputMode="numeric" placeholder="0"
-                  value={balanceKrwInput === null ? '' : formatNumber(balanceKrwInput)}
+                  value={balanceKrwText}
                   onChange={(e) => {
-                    // 빈 문자열은 0이 아니라 "아직 값을 안 씀"으로 남긴다 — 파일 상단 주석 참고.
-                    const digits = e.target.value.replace(/[^0-9]/g, '')
+                    // 빈 문자열은 0이 아니라 "아직 값을 안 씀"으로 남긴다 — 파일 상단 주석 참고. 맨 앞 '-'는 부호로 지킨다.
+                    const raw = e.target.value
+                    const digits = raw.replace(/[^0-9]/g, '')
                     if (digits && Number(digits) > MAX_KRW_AMOUNT) {
                       setIsBalanceOverflow(true)
                       return
                     }
                     setIsBalanceOverflow(false)
-                    setBalanceKrwInput(digits ? Number(digits) : null)
+                    setBalanceKrwText(`${hasLeadingMinus(raw) ? '-' : ''}${digits ? formatNumber(Number(digits)) : ''}`)
                     if (balanceEmptyError) setBalanceEmptyError(false)
                     clearSaveErrors()
                   }}
@@ -485,7 +506,7 @@ export function EditAccountModal() {
                         return
                       }
                       setUsdOverflow(false)
-                      setUsdInput(next)
+                      setUsdInput(`${hasLeadingMinus(e.target.value) ? '-' : ''}${next}`)
                       if (balanceEmptyError) setBalanceEmptyError(false)
                       clearSaveErrors()
                     }}
@@ -504,7 +525,7 @@ export function EditAccountModal() {
               )}
               {usdOverflow ? (
                 <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>{MAX_USD_AMOUNT_MESSAGE}</div>
-              ) : balanceEmptyError && canEditUsd && usdInput === '' ? (
+              ) : balanceEmptyError && canEditUsd && usdValue === null ? (
                 <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>달러 예수금을 입력해주세요 — 없으면 0을 적어주세요</div>
               ) : usdChanged ? (
                 <div style={{ fontSize: 11.5, color: 'var(--text-mid)', fontWeight: 600, marginTop: 6 }}>
