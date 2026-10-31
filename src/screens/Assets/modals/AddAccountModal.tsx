@@ -63,7 +63,7 @@
 // 되살리지 말 것. 목록 조회 실패(isError)는 빈 목록과 구분해 '불러오지 못했어요' + 다시 시도로
 // 보여준다(describeQueryError).
 
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Icon } from '../../../components/primitives/Icon/Icon'
 import { Modal } from '../../../components/primitives/Modal/Modal'
@@ -79,12 +79,14 @@ import { MAX_KRW_AMOUNT, MAX_KRW_AMOUNT_MESSAGE, MAX_USD_AMOUNT, MAX_USD_AMOUNT_
 import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate } from '../../../utils/date'
 import { ASSET_CLASS_META, ASSET_CLASS_ORDER, assetClassFormPreset, assetClassOfAccountType } from '../../../data/assetsView'
 import { describeQueryError } from '../../../data/ledgerView'
+import { isAccountNameTaken } from '../../../data/accountView'
+import { errorMessageOf } from '@/services/errorMessages'
 import { AccountHoldingsField } from './AccountHoldingsField'
 import type { DraftHolding } from './AccountHoldingsField'
 import { ConnectAccountView } from './ConnectAccountView'
-import { PROVIDER_META, providerLabelsFor, providersFor } from '../../../data/connectionView'
+import { CONNECTION_UI_ENABLED, PROVIDER_META, providerLabelsFor, providersFor } from '../../../data/connectionView'
 import { useGetInstitutions } from '@/services/institution'
-import { usePostAccount } from '@/services/account'
+import { useGetAccounts, usePostAccount } from '@/services/account'
 import { isExchangeRateMissing } from '@/services/stock'
 import type { CreateAccountRequest, InitialBalanceRequest } from '@/services/account'
 import type { AssetClass, Market } from '@/services/common.type'
@@ -140,11 +142,13 @@ const AMOUNT_INPUT_STYLE: CSSProperties = {
 const AMOUNT_PREFIX_STYLE: CSSProperties = { fontSize: 15, fontWeight: 700, color: 'var(--text-weak)' }
 const FIELD_HINT_STYLE: CSSProperties = { fontSize: 11.5, color: 'var(--text-mid)', marginTop: 6 }
 const FIELD_ERROR_STYLE: CSSProperties = { fontSize: 11.5, color: 'var(--down)', marginTop: 6 }
+// 서버 ACCOUNT_NAME_DUPLICATE 와 같은 문구 — 적는 중에 먼저 보여준다.
+const NAME_TAKEN_MESSAGE = errorMessageOf('ACCOUNT_NAME_DUPLICATE')
 const TEXT_INPUT_STYLE: CSSProperties = {
   width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit',
   outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box',
 }
-// GeneralModal.tsx의 재시도 배너와 동일한 텍스트 버튼 규격.
+// SystemSettingsModal.tsx의 재시도 배너와 동일한 텍스트 버튼 규격.
 const RETRY_BTN_STYLE: CSSProperties = {
   border: 'none', background: 'transparent', padding: 0, fontSize: 12, fontWeight: 700,
   color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit',
@@ -167,13 +171,22 @@ export function AddAccountModal() {
   const isOpen = state.openModal === 'addAccount'
   const form = state.accountForm
   const institutionsQuery = useGetInstitutions({ enabled: isOpen })
-  const institutions = institutionsQuery.data ?? []
+  // 서버는 id 순으로 내려주므로 고르기 쉽게 가나다순으로 다시 늘어놓는다 — 한글 이름이 먼저,
+  // 영문으로 시작하는 이름(KB·NH 등)은 그 뒤에 ABC순으로 온다('ko' 정렬 규칙). '없음'은 계속 맨 아래.
+  const institutions = useMemo(
+    () => [...(institutionsQuery.data ?? [])].sort((a, b) => a.name.localeCompare(b.name, 'ko')),
+    [institutionsQuery.data],
+  )
   const postAccount = usePostAccount()
+  // 같은 이름 검사용(사용 중인 내 계좌) — 자산 화면이 이미 받아 둔 캐시라 보통 새로 부르지 않는다.
+  const accountsQuery = useGetAccounts({}, { enabled: isOpen })
   // 좁은 폭에서는 절반씩 나눈 두 필드(특히 Dropdown 팝오버)가 서로를 가리거나 잘리므로 세로로
   // 쌓는다 — 데스크톱은 기존 그대로 좌우 2열.
   const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
 
   const [nameInvalid, setNameInvalid] = useState(false)
+  // 같은 이름인 채로 저장을 눌렀는지 — 저장 버튼 위 요약에만 쓴다(validationNote). 이름을 고치면 내린다.
+  const [savedWithTakenName, setSavedWithTakenName] = useState(false)
   const [institutionMissing, setInstitutionMissing] = useState(false)
   // "없음을 명시적으로 골랐다" — institutionId가 null인 두 상태(미선택 / 없음)를 가르는 유일한 근거다.
   const [institutionNone, setInstitutionNone] = useState(false)
@@ -251,13 +264,19 @@ export function AddAccountModal() {
   // 만기일은 '지난 날짜' 힌트에만 쓴다 — 필수가 아니라 검증 플래그가 없다.
   const maturityPickedNow = state.datePickerPicked['addAccountMaturity'] as { y: number; m: number; d: number } | undefined
   const showInstitutionError = institutionMissing && form.institutionId === null && !institutionNone
+  // 사용 중인 계좌와 이름이 같으면 적는 즉시 알린다(엑셀 가져오기가 계좌를 이름으로 찾아서 — accountView.isAccountNameTaken).
+  // 서버 트리거도 같은 규칙으로 막으니 목록을 못 받았을 때는 저장 응답의 ACCOUNT_NAME_DUPLICATE 문구가 대신 뜬다.
+  const nameTaken = isAccountNameTaken(accountsQuery.data, form.name)
   // 저장 버튼 바로 위에 띄우는 요약. 화면 밖 필드에서 실패했을 때 "왜 저장이 안 됐는지"를 누른 자리
   // 에서 바로 읽을 수 있어야 한다 — 스크롤 이동만으로는 애니메이션이 끝날 때까지 이유를 알 수 없다.
+  // 같은 이름 안내는 이름 칸 아래에 적는 즉시 뜨므로, 여기에는 그 상태로 저장을 눌렀을 때만 띄운다(같은 말이 두 번 보이지 않게).
   const validationNote = nameInvalid
     ? '계좌 이름을 입력해주세요'
-    : showInstitutionError
-      ? '금융기관을 선택해주세요'
-      : null
+    : nameTaken && savedWithTakenName
+      ? NAME_TAKEN_MESSAGE
+      : showInstitutionError
+        ? '금융기관을 선택해주세요'
+        : null
 
   if (!isOpen) return null
 
@@ -279,6 +298,7 @@ export function AddAccountModal() {
     // 이 모달은 AppShell에 항상 마운트되어 있어 닫아도 언마운트되지 않는다. 로컬 상태와 mutation
     // 에러를 직접 지우지 않으면 다음에 "계좌 추가"를 열었을 때 지난 실패 메시지가 그대로 보인다.
     setNameInvalid(false)
+    setSavedWithTakenName(false)
     setInstitutionMissing(false)
     setInstitutionNone(false)
     setAmountTooLarge(null)
@@ -296,7 +316,7 @@ export function AddAccountModal() {
   /**
    * 유형 칩 적용. 계좌 이름·금융기관·원화 금액은 유형과 무관한 사용자 의도라 그대로 두고,
    * 새 유형이 쓰지 않는 필드만 비운다(화면에서 사라지는 값이 다음 유형의 저장에 묻어 나가지 않게).
-   * 유동성은 유형마다 기본값이 달라(예적금만 '유동성 없음', assetClassFormPreset) 칩을 바꿀 때 그 기본값으로
+   * 유동성은 유형마다 기본값이 달라(예적금·연금·기타는 '유동성 없음', assetClassFormPreset) 칩을 바꿀 때 그 기본값으로
    * 다시 맞춘다 — 유형을 고른 뒤 유동성 칩으로 바꾸면 그 선택이 저장된다.
    */
   const applyAssetClass = (assetClass: AssetClass) => {
@@ -341,14 +361,16 @@ export function AddAccountModal() {
     const maturityDate = maturityPicked ? pickedToISODate(maturityPicked) : (form.maturityDate ?? undefined)
     setNameInvalid(missingName)
     setInstitutionMissing(missingInstitution)
-    if (missingName || missingInstitution) {
+    setSavedWithTakenName(nameTaken)
+    const nameBlocked = missingName || nameTaken
+    if (nameBlocked || missingInstitution) {
       // 첫 번째로 걸린 필드를 화면 한가운데로 데려온다. block:'center'인 이유는 이 모달의 헤더가
       // sticky라(유형 칩 포함 모바일에서 190~235px) 'start'로 맞추면 필드가 그 뒤에 숨기 때문이다.
-      const target = missingName ? nameRef.current : institutionRef.current
+      const target = nameBlocked ? nameRef.current : institutionRef.current
       target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       // 이름 칸만 포커스까지 옮긴다 — 기관은 드롭다운이라 포커스가 팝오버를 열어버린다.
       // preventScroll: 위 smooth 스크롤과 겹쳐 화면이 두 번 튀지 않게.
-      if (missingName) nameRef.current?.focus({ preventScroll: true })
+      if (nameBlocked) nameRef.current?.focus({ preventScroll: true })
       return
     }
     // 적어 두고 '추가'를 안 누른 종목이 있으면 저장하지 않는다 — 그대로 보내면 그 종목만 빠진 채 계좌가
@@ -443,12 +465,16 @@ export function AddAccountModal() {
 
   // 스크롤해도 닫기 버튼과 유형 칩이 항상 보이게 패널 위쪽에 고정한다(파일 상단 주석 참고).
   // 좌우 음수 마진으로 패널 패딩만큼 밖으로 번지게 해서, 스크롤된 내용이 옆으로 비쳐 보이지 않게 한다.
-  // 모바일에서는 Modal이 그래버를 top:0에 sticky로 붙여두므로, 그 블록 높이만큼 아래에 붙인다 —
+  // 위쪽도 같다 — sticky는 패널의 content box 위로 못 올라가서, 데스크톱 패널의 위 패딩(30px) 띠로 스크롤된
+  // 내용(연동 배너 등)이 제목 위에 비쳐 보였다(Modal 그래버 블록 주석과 같은 원인). 그래서 데스크톱은 위 패딩만큼
+  // 음수 마진·음수 top으로 끌어올리고 같은 양을 padding-top으로 돌려줘, 처음 위치는 그대로 둔다.
+  // 모바일에서는 Modal이 그래버를 top:0에 sticky로 붙여두므로(패널 위 패딩은 0), 그 블록 높이만큼 아래에 붙인다 —
   // top:0으로 두면 이 헤더가 그래버 블록 뒤로 들어가 윗부분이 잘린다.
   const gutter = isMobile ? 18 : 30
+  const lift = isMobile ? 0 : 30 // 데스크톱 패널의 위 패딩(Modal basePanelStyle padding 30)
   const stickyTopStyle: CSSProperties = {
-    position: 'sticky', top: isMobile ? SHEET_GRABBER_BLOCK_PX : 0, zIndex: 2, background: 'var(--surface)',
-    margin: `0 ${-gutter}px 18px`, padding: `2px ${gutter}px 14px`,
+    position: 'sticky', top: isMobile ? SHEET_GRABBER_BLOCK_PX : -lift, zIndex: 2, background: 'var(--surface)',
+    margin: `${-lift}px ${-gutter}px 18px`, padding: `${2 + lift}px ${gutter}px 14px`,
   }
   // 저장 버튼은 다른 17개 모달과 마찬가지로 콘텐츠 맨 끝에 둔다. 한때 하단에도 sticky를 걸어봤으나,
   // Modal 패널의 padding이 스크롤 영역 안쪽에 있어 sticky bottom이 그 padding만큼 위로 붙으면서 바로
@@ -460,7 +486,8 @@ export function AddAccountModal() {
   // 목록에서 역산하므로, 지원 기관이 늘거나 줄어도 이 조건을 따로 고칠 필요가 없다.
   // '준비 중'(supported: false) 기관은 세지 않는다 — 가상자산처럼 후보가 전부 준비 중이면 배너가
   // 기관 이름 없이 뜨고, '연동하기'가 막혀 있어야 할 키 입력 화면으로 바로 들어가 버린다.
-  const connectProviders = providersFor(selectedAssetClass).filter((p) => PROVIDER_META[p].supported)
+  // 연동 화면을 끈 동안(CONNECTION_UI_ENABLED)은 후보를 비워 배너가 아예 뜨지 않게 한다.
+  const connectProviders = CONNECTION_UI_ENABLED ? providersFor(selectedAssetClass).filter((p) => PROVIDER_META[p].supported) : []
   const openConnect = () => {
     // 후보가 하나뿐이면(가상자산 = 업비트) 칩 하나짜리 선택 화면을 거치게 하지 않고 바로 키 입력으로.
     if (connectProviders.length === 1) setState({ connectView: 'form', connectProvider: connectProviders[0] })
@@ -573,10 +600,13 @@ export function AddAccountModal() {
             onChange={(e) => {
               patchForm({ name: e.target.value })
               if (nameInvalid) setNameInvalid(false)
+              if (savedWithTakenName) setSavedWithTakenName(false)
             }}
             style={TEXT_INPUT_STYLE}
+            aria-invalid={nameInvalid || nameTaken}
           />
           {nameInvalid && <div style={FIELD_ERROR_STYLE}>계좌 이름을 입력해주세요</div>}
+          {!nameInvalid && nameTaken && <div role="alert" style={FIELD_ERROR_STYLE}>{NAME_TAKEN_MESSAGE}</div>}
         </div>
 
         {fields.usdBalance ? (

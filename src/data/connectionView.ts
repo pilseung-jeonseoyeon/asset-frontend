@@ -91,6 +91,14 @@ export const CONNECTION_KEY_MAX_LENGTH = 255
 export const CONNECTION_GUIDE_URL = '/guide/connections.html'
 
 /**
+ * API 키 연동 화면을 보일지. 지금은 끈다(2026-10-31 사용자 결정 — "아직 연동은 신경 쓰면 안 되겠다").
+ * 끄면 계좌 추가의 연동 배너(AddAccountModal)와 설정 → 데이터 관리의 '증권사·거래소 연동' 행(DataModal)이 함께 숨는다 —
+ * 배너만 숨기면 그 행의 빈 상태 안내("계좌 추가에서 연동할 수 있어요")가 없는 길을 가리키게 된다.
+ * 코드·서버는 그대로라 true로 바꾸면 둘 다 돌아온다.
+ */
+export const CONNECTION_UI_ENABLED = false
+
+/**
  * 연동 실패 문구. 서버 message도 사용자에게 보여줄 수 있는 한국어지만, 원인별로 "그래서 뭘 해야
  * 하는지"가 빠져 있다 — 특히 키가 틀린 것과 허용 IP를 등록하지 않은 것이 같은 코드로 오기 때문에
  * 두 가능성을 함께 짚어줘야 사용자가 헤매지 않는다.

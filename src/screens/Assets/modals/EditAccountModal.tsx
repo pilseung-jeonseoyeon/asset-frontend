@@ -42,7 +42,7 @@
 // 포함하지 않으므로 '평가액'이라고 부르지 않는다**(그 값은 계좌 상세 모달의 총 평가액이다).
 // 환차익/환차손은 서버 응답에 없으므로 그리지 않는다.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DatePicker } from '../../../components/primitives/DatePicker/DatePicker'
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate } from '../../../utils/date'
@@ -69,7 +69,9 @@ import {
   hasUsdBalance,
 } from '../../../data/assetsView'
 import { ApiError } from '@/services/api'
-import { useDeleteAccount, useGetAccount, usePatchAccount, usePatchAccountBalance } from '@/services/account'
+import { useDeleteAccount, useGetAccount, useGetAccounts, usePatchAccount, usePatchAccountBalance } from '@/services/account'
+import { isAccountNameTaken } from '../../../data/accountView'
+import { errorMessageOf } from '@/services/errorMessages'
 import type { UpdateAccountRequest } from '@/services/account'
 
 function chipStyle(active: boolean): CSSProperties {
@@ -84,6 +86,8 @@ function chipStyle(active: boolean): CSSProperties {
 
 const LABEL_STYLE: CSSProperties = { fontSize: 12.5, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 8 }
 const FIELD_BORDER_STYLE: CSSProperties = { border: '0.5px solid var(--border)', borderRadius: 10, padding: '13px 16px' }
+// 서버 ACCOUNT_NAME_DUPLICATE 와 같은 문구 — 적는 중에 먼저 보여준다.
+const NAME_TAKEN_MESSAGE = errorMessageOf('ACCOUNT_NAME_DUPLICATE')
 
 export function EditAccountModal() {
   const { state, setState } = useAppState()
@@ -95,10 +99,22 @@ export function EditAccountModal() {
   const fieldRowStyle: CSSProperties = { display: 'flex', gap: 14, flexDirection: isMobile ? 'column' : 'row' }
 
   const accountQuery = useGetAccount(isOpen ? accountId : null)
+  // 같은 이름 검사용(사용 중인 내 계좌 목록 — 자산 화면이 받아 둔 캐시)
+  const accountsQuery = useGetAccounts({}, { enabled: isOpen })
   const patchAccount = usePatchAccount()
   const patchAccountBalance = usePatchAccountBalance()
   const deleteAccount = useDeleteAccount()
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
+  // 해지 확인 상자는 모달 맨 아래에 펼쳐져, 데스크톱 90vh 패널에서는 '해지할게요'·'취소'가 화면 밖으로 잘렸다
+  // (눌러도 반응이 없는 것처럼 보임). 펼치는 순간 상자가 보이도록 스크롤하고, 포커스는 '취소'에 둔다 —
+  // 파괴적인 '해지할게요'에 두면 Enter 한 번에 해지된다. preventScroll: smooth 스크롤과 겹쳐 두 번 튀지 않게.
+  const closeConfirmRef = useRef<HTMLDivElement>(null)
+  const closeCancelRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!closeConfirmOpen) return
+    closeConfirmRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    closeCancelRef.current?.focus({ preventScroll: true })
+  }, [closeConfirmOpen])
   // 이름 필드도 AddAccountModal의 nameInvalid와 같은 패턴으로 검증한다 — 이름을 비운 채
   // 저장을 누르면 handleSave가 조용히 return해 아무 반응이 없었다.
   const [nameInvalid, setNameInvalid] = useState(false)
@@ -112,6 +128,9 @@ export function EditAccountModal() {
 
   // 상세 응답은 { account, ... } 한 겹 안에 들어 있다(파일 상단 주석) — 이 모달은 계좌 정보만 쓴다.
   const account = accountQuery.data?.account
+  // 이름을 바꿀 때만 검사한다 — 이 규칙(000029) 전부터 이름이 겹쳐 있던 계좌도 이름을 그대로 두면 잔액·기관은 고칠 수 있다(서버도 같음).
+  const nameTaken =
+    account !== undefined && form.name.trim() !== account.name.trim() && isAccountNameTaken(accountsQuery.data, form.name, account.id)
   // 표시할 자산군은 서버가 내려준 계좌 유형에서 역산한다(이제 1:1이라 접히는 세부 타입이 없다).
   const selectedAssetClass = assetClassOfAccountType(form.type)
   const assetClassMeta = assetClassMetaOf(selectedAssetClass)
@@ -270,7 +289,7 @@ export function EditAccountModal() {
 
     const missingName = !form.name.trim()
     setNameInvalid(missingName)
-    if (missingName) return
+    if (missingName || nameTaken) return // 이름 칸 아래 안내가 이미 떠 있다
 
     // 잔액 칸을 비워 둔 채 저장하면 0원 정정이 되지 않게 막는다(파일 상단 주석).
     if (balanceKrwInput === null) {
@@ -386,8 +405,12 @@ export function EditAccountModal() {
                 if (nameInvalid) setNameInvalid(false)
               }}
               style={{ width: '100%', ...FIELD_BORDER_STYLE, fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', outline: 'none', color: 'var(--text-strong)', boxSizing: 'border-box' }}
+              aria-invalid={nameInvalid || nameTaken}
             />
             {nameInvalid && <div style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>계좌 이름을 입력해주세요</div>}
+            {!nameInvalid && nameTaken && (
+              <div role="alert" style={{ fontSize: 11.5, color: 'var(--down)', marginTop: 6 }}>{NAME_TAKEN_MESSAGE}</div>
+            )}
           </div>
           <div style={fieldRowStyle}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -599,7 +622,8 @@ export function EditAccountModal() {
                 계좌 해지
               </button>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--fill-subtle)', borderRadius: 10, padding: 14 }}>
+              // scrollMarginBottom: 패널의 아래 패딩(데스크톱 42 · 모바일 20)까지 보이게 — 없으면 상자가 패널 끝에 딱 붙어 멈춘다.
+              <div ref={closeConfirmRef} style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--fill-subtle)', borderRadius: 10, padding: 14, scrollMarginBottom: isMobile ? 20 : 42 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)' }}>정말 해지할까요?</div>
                 <div style={{ fontSize: 11.5, color: 'var(--text-weak)', lineHeight: 1.6 }}>
                   해지한 계좌는 자산 구성 계산에서 제외돼요. 이 작업은 되돌릴 수 없어요.
@@ -620,6 +644,7 @@ export function EditAccountModal() {
                     {deleteAccount.isPending ? '해지 중…' : '해지할게요'}
                   </button>
                   <button
+                    ref={closeCancelRef}
                     onClick={() => setCloseConfirmOpen(false)}
                     className="qbtn"
                     style={{ flex: 1, padding: 11, borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-mid)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
