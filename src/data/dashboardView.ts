@@ -51,10 +51,8 @@ export interface DashboardHeroView {
   /** 계좌 자체가 없는 진짜 신규 사용자 — 0원을 "자산 0원"으로 단정하지 말고 빈 상태로 안내할 것. */
   isEmpty: boolean
   /**
-   * summary(스냅샷 기반)에 이력이 있는지 여부. false면 `totalAssetKrw`는 allocation 실시간 합계로
-   * 보완한 값이라 `monthChangeKrw`/`yearChangeKrw`는 계산 근거(전일/연초 스냅샷)가 없다 —
-   * 이 값이 false일 때는 증감 관련 UI(월 증감 배지, 올해 자산 추이)를 그리지 말 것
-   * (계좌 생성 첫날 스냅샷 부재).
+   * 총자산이 0원이 아닌가. false(0원 계좌뿐 — 막 가입한 사람 등)일 때는 증감 관련 UI(월 증감 배지, 올해 자산 추이)
+   * 대신 '이력이 쌓이면' 안내를 보인다. 마이너스 총자산은 true라 증감도 그대로 보인다.
    */
   hasSnapshotHistory: boolean
 }
@@ -66,18 +64,13 @@ function signedText(n: number): string {
 }
 
 /**
- * `summary.totalAssetKrw === 0`은 "계좌 없음"과 "스냅샷이 아직 없는 계좌 등록 첫날"을 구분하지
- * 못한다. 같은 화면의 `GET /dashboard/allocation`은 잔액을 실시간
- * 집계하므로, summary가 0이어도 allocation 합계가 양수면 계좌가 있다고 판정하고 총자산 표시값을
- * allocation 합계로 보완한다. summary가 양수면(정상 스냅샷 보유) 그대로 summary 값을 쓴다.
+ * 총자산은 서버 summary 값을 그대로 쓴다 — summary 는 실시간 계산이라(000026) 마이너스 총자산도 그대로 보인다
+ * (2026-10-31 사용자 결정. 스냅샷 시절엔 0 이하를 '이력 없음'으로 보고 도넛 합계로 바꿔 마이너스가 '0원'이 됐다).
  * 빈 상태(isEmpty)는 금액이 아니라 서버 `hasAccounts`로 가른다 — 잔액 0원 계좌만 있어도 "0원"을 보여준다.
  */
-export function buildDashboardHero(
-  summary: DashboardSummaryResponse,
-  allocationTotalKrw: number,
-): DashboardHeroView {
-  const hasSnapshotHistory = summary.totalAssetKrw > 0
-  const totalAssetKrw = hasSnapshotHistory ? summary.totalAssetKrw : allocationTotalKrw
+export function buildDashboardHero(summary: DashboardSummaryResponse): DashboardHeroView {
+  const totalAssetKrw = summary.totalAssetKrw
+  const hasSnapshotHistory = totalAssetKrw !== 0
   // 연초 대비는 올해 새로 등록한 계좌도 늘어난 돈으로 센다(2026-10-31 사용자 결정 — "올해 자산 현황은 올해 등록했어도
   // 보여줘"). 서버 yearChangeKrw 는 등록액을 뗀 값(000026)이라, 같은 응답의 등록액(yearNewAccountsKrw)을 되돌려 더한다
   // = 지금 총자산 − 연초 총자산. 둘 다 서버가 준 원 단위 정수라 반올림 차이가 없다. '지난달보다'(month)는 그대로 등록액을 뗀다.
@@ -85,7 +78,8 @@ export function buildDashboardHero(
 
   return {
     totalAssetKrw,
-    totalText: formatNumber(totalAssetKrw),
+    // 마이너스는 배지와 같은 '−'(U+2212)로 — 큰 숫자에서 붙임표 '-'는 너무 짧아 보인다
+    totalText: totalAssetKrw < 0 ? `−${formatNumber(-totalAssetKrw)}` : formatNumber(totalAssetKrw),
     monthChangeKrw: summary.monthChangeKrw,
     monthChangeText: summary.monthChangeKrw === null ? null : signedText(summary.monthChangeKrw),
     yearChangeKrw,
@@ -95,15 +89,6 @@ export function buildDashboardHero(
     isEmpty: !summary.hasAccounts,
     hasSnapshotHistory,
   }
-}
-
-/**
- * allocation 응답의 실시간 총자산 합계. summary가 0일 때 히어로 판정을 보완하는 데 쓴다.
- * `buildAllocationSegments`와 같은 기준(0/음수 항목 제외)으로 합산해야 히어로 총자산과 도넛 합계가
- * 어긋나지 않는다 — 스펙상 음수가 실제 오는지는 미확정이지만 방어적으로 통일한다.
- */
-export function sumAllocationKrw(allocation: AllocationResponse[]): number {
-  return allocation.filter((a) => a.totalValueKrw > 0).reduce((sum, a) => sum + a.totalValueKrw, 0)
 }
 
 // ---------- 총자산 추이 스파크라인 ----------
