@@ -224,6 +224,9 @@ export function QuickStockModal() {
     setStockId(null)
     setSelectedStockLabel('')
     setStockMissing(false)
+    // 시장마다 고를 수 있는 계좌가 다르다(가상자산 ↔ 증권) — 남겨 두면 칸은 비어 보이는데 저장은 안 보이는 계좌로 나간다
+    setAccountId(null)
+    setAccountMissing(false)
   }
 
   const pickSearchResult = (id: number, name: string, ticker: string) => {
