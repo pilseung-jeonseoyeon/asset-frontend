@@ -40,6 +40,7 @@ export const initialState: AppState = {
   scopeHintOpen: false,
   shareFlowStep: 'home',
   sharePickMode: 'onboard',
+  shareInvitationId: null,
   partnerAccountDetailId: null,
   reportOpen: false,
   reportPeriod: null,

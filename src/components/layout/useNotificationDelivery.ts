@@ -9,6 +9,7 @@
 // | 다른 탭·앱을 보는 중 · 맥·PC 알림 켬            | 안 띄움(돌아와도)                    | 띄움       |
 // | 다른 탭·앱을 보는 중 · 맥·PC 알림 꺼짐/허락 없음  | 돌아오면 "자리를 비운 사이 N개" 한 장   | -         |
 // | 재연결로 못 받은 알림을 채울 때                  | 안 띄움(useNotificationStream이 안 넘김) | 안 띄움 |
+// | 읽음 상태로 온 알림(내가 한 일의 기록 — 공유 수락)  | 안 띄움(목록에만 남음)                | 안 띄움 |
 //
 // "보고 있음" = 탭이 보이고(visibilityState) 창에 포커스가 있음. 다른 앱을 쓰는 동안 옆 모니터에 모닛이 떠
 // 있어도 보고 있지 않은 것으로 친다.
@@ -97,6 +98,7 @@ export function useNotificationDelivery() {
   }
 
   const deliver = (nf: NotificationResponse) => {
+    if (nf.read) return
     setState((prev) => ({ notificationBellRing: prev.notificationBellRing + 1 }))
 
     if (isLooking()) {

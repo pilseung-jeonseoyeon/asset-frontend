@@ -2,12 +2,12 @@
 // 연결 해제 확인은 같은 창 안에서 내용을 바꿔 보여준다(ShareFlowModal).
 
 import { Icon } from '../../../../components/primitives/Icon/Icon'
-import { formatRemaining, formatShareDate, shareHistoryLabel } from '../../../../data/shareView'
+import { formatRemaining, formatShareDate, inviteDeadlineLabel, shareHistoryLabel } from '../../../../data/shareView'
 import { FlowHeader, SharedAccountRow, SpaceNameField } from './shareParts'
 import { COUNT_STYLE, ERROR_TEXT_STYLE, MUTED_TEXT_STYLE, SECTION_TITLE_STYLE, SMALL_BTN_STYLE } from './shareStyles'
 import type { AccountResponse } from '@/services/account'
 import type { InstitutionResponse } from '@/services/institution'
-import type { ShareStatusResponse } from '@/services/share'
+import type { ReceivedShareInvitation, ShareStatusResponse } from '@/services/share'
 
 const MEMBER_CARD_STYLE = {
   display: 'flex', alignItems: 'center', gap: 12, border: '0.5px solid var(--border)', borderRadius: 10, padding: 14, marginTop: 10,
@@ -18,6 +18,8 @@ interface ShareHomeViewProps {
   /** GET /accounts?scope=SHARED (연결 중일 때만) */
   sharedAccounts: AccountResponse[]
   institutions: InstitutionResponse[]
+  /** 내 이메일로 온 초대(get_share_invitations().received) — 연결 중이면 비어 있다 */
+  receivedInvitations: ReceivedShareInvitation[]
   myUserId: string | null
   /** 초대 코드 남은 시간(ms) — PENDING일 때만 의미 */
   inviteRemainingMs: number
@@ -28,6 +30,7 @@ interface ShareHomeViewProps {
   onInvite: () => void
   onCancelInvite: () => void
   onEnterCode: () => void
+  onOpenInvitation: (invitationId: number) => void
   onUnlink: () => void
   onManageAccounts: () => void
 }
@@ -113,11 +116,33 @@ export function ShareHomeView(props: ShareHomeViewProps) {
           <section>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <div style={SECTION_TITLE_STYLE}>
-                받은 초대<span style={COUNT_STYLE}>0</span>
+                받은 초대<span style={COUNT_STYLE}>{props.receivedInvitations.length}</span>
               </div>
               <button type="button" onClick={props.onEnterCode} style={SMALL_BTN_STYLE}>초대 코드 입력</button>
             </div>
-            <div style={{ ...MUTED_TEXT_STYLE, marginTop: 8 }}>받은 초대가 없어요. 초대 코드를 받았다면 입력해 주세요.</div>
+            {props.receivedInvitations.length === 0 ? (
+              <div style={{ ...MUTED_TEXT_STYLE, marginTop: 8 }}>받은 초대가 없어요. 초대 코드를 받았다면 입력해 주세요.</div>
+            ) : (
+              props.receivedInvitations.map((inv) => (
+                <div key={inv.id} style={MEMBER_CARD_STYLE}>
+                  <span style={{ width: 38, height: 38, borderRadius: 8, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+                    <Icon name="mail" size={20} />
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.inviterName}님의 초대</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 2 }}>{inviteDeadlineLabel(inv.expiresAt)} · 수락하면 서로 고른 계좌를 함께 봐요</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="qbtn"
+                    onClick={() => props.onOpenInvitation(inv.id)}
+                    style={{ ...SMALL_BTN_STYLE, border: 'none', background: 'var(--accent)', color: '#fff' }}
+                  >
+                    확인
+                  </button>
+                </div>
+              ))
+            )}
           </section>
         )}
 

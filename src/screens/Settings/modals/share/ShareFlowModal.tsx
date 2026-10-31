@@ -2,7 +2,10 @@
 // 공유 시작 완료)을 한 모달 안에서 단계(AppState.shareFlowStep)로 바꿔 그린다. openModal 'familyShare'로 열린다.
 //   여는 곳: 설정 카드(홈), 상단 '공유' 안내 팝오버의 [공유 추가](홈), 연결됨 알림의 버튼(연결 완료).
 //   초대 코드는 창이 열려 있는 동안 만료되면 새로 받는다. 초대한 사람이 기다리는 사이 상대가 수락하면(알림 →
-//   공유 상태 다시 받음) 저절로 '연결 완료' 단계로 넘어간다.
+//   공유 상태 다시 받음) 저절로 '연결 완료' 단계로 넘어가고, 거절하면(SHARE_DECLINED 알림) 대기 안내가 거절 안내로 바뀐다.
+//   받은 쪽의 [거절]은 decline_share_code 로 초대한 사람에게 알린다(코드는 만료까지 남아 다시 수락할 수 있다).
+//   이메일 초대(7일): 초대 코드 단계에서 보내고, 받은 쪽은 알림 · 홈의 '받은 초대'에서 '초대 확인' 단계를 연다
+//   (AppState.shareInvitationId — 코드로 들어오면 null). 같은 확인 창에서 respond_share_invite 로 수락 · 거절한다.
 // 항상 마운트되는 모달이라 닫을 때 로컬 상태·mutation 을 직접 초기화한다(docs/architecture.md).
 
 import { useEffect, useState } from 'react'
@@ -12,7 +15,7 @@ import { Modal } from '../../../../components/primitives/Modal/Modal'
 import { Skeleton } from '../../../../components/primitives/Skeleton/Skeleton'
 import { useAppState } from '../../../../state/AppStateContext'
 import { useAuthStore } from '../../../../stores/auth'
-import { SHARE_CODE_LENGTH, shareHistoryLabel } from '../../../../data/shareView'
+import { SHARE_CODE_LENGTH, SHARE_CODE_TTL_MS, inviteDeadlineLabel, shareHistoryLabel } from '../../../../data/shareView'
 import { useViewScope } from '../../../../utils/viewScope'
 import { ShareCodeView } from './ShareCodeView'
 import { ShareHomeView } from './ShareHomeView'
@@ -24,13 +27,19 @@ import { ERROR_TEXT_STYLE, PRIMARY_BTN_STYLE, SECONDARY_BTN_STYLE } from './shar
 import { useSpaceNameDraft } from './useSpaceNameDraft'
 import { useGetAccounts } from '@/services/account'
 import { useGetInstitutions } from '@/services/institution'
+import { useGetNotifications } from '@/services/notification'
 import {
   useAcceptShareCode,
   useCancelShareCode,
+  useCancelShareInvite,
   useCheckShareCode,
+  useDeclineShareCode,
+  useGetShareInvitations,
   useGetShareStatus,
   useIssueShareCode,
   usePatchShareSpaceName,
+  useRespondShareInvite,
+  useSendShareInvite,
   useSetSharedAccounts,
   useUnlinkShare,
 } from '@/services/share'
@@ -41,6 +50,7 @@ const WIDTH_BY_STEP: Record<ShareFlowStep, number> = {
   home: 520, invite: 480, code: 460, accept: 460, linked: 480, pick: 500, done: 460,
 }
 const EMPTY_CELLS = Array.from({ length: SHARE_CODE_LENGTH }, () => '')
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
 function messageOf(e: unknown): string {
   return e instanceof Error && e.message ? e.message : '잠시 후 다시 시도해 주세요.'
@@ -61,11 +71,18 @@ export function ShareFlowModal() {
   const sharedAccounts = sharedAccountsQuery.data ?? []
   const myAccountsQuery = useGetAccounts({}, { enabled: isOpen && step === 'pick' })
   const institutions = useGetInstitutions({ enabled: isOpen }).data ?? []
+  const { notifications } = useGetNotifications(undefined, { enabled: isOpen })
+  const invitationsQuery = useGetShareInvitations({ enabled: isOpen })
+  const invitations = invitationsQuery.invitations
 
   const issue = useIssueShareCode()
   const cancel = useCancelShareCode()
   const check = useCheckShareCode()
   const accept = useAcceptShareCode()
+  const decline = useDeclineShareCode()
+  const sendInvite = useSendShareInvite()
+  const cancelInvite = useCancelShareInvite()
+  const respond = useRespondShareInvite()
   const unlink = useUnlinkShare()
   const setShared = useSetSharedAccounts()
   const patchName = usePatchShareSpaceName()
@@ -78,6 +95,8 @@ export function ShareFlowModal() {
   const [unlinkConfirm, setUnlinkConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [nameError, setNameError] = useState<string | null>(null)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteEmailError, setInviteEmailError] = useState<string | null>(null)
   const spaceName = useSpaceNameDraft(status?.spaceName ?? '우리집', (name) =>
     patchName.mutate(name, { onSuccess: () => setNameError(null), onError: (e) => setNameError(messageOf(e)) }),
   )
@@ -88,6 +107,11 @@ export function ShareFlowModal() {
     .filter((i): i is ShareInvite => i !== null)
     .sort((a, b) => Date.parse(b.expiresAt) - Date.parse(a.expiresAt))[0] ?? null
   const remainingMs = invite ? Date.parse(invite.expiresAt) - now : 0
+  // 기다리는 사이 상대가 거절하면(지금 코드가 만들어진 뒤 온 SHARE_DECLINED 알림) 대기 안내 대신 거절 안내를 보인다.
+  // 코드는 서버에 남아 상대가 마음을 바꾸면 수락할 수 있다. 새 코드가 나오면(만료 · 재발급) 다시 기다리는 상태로 돌아간다.
+  const declinedTitle = invite
+    ? (notifications.find((n) => n.type === 'SHARE_DECLINED' && Date.parse(n.createdAt) >= Date.parse(invite.expiresAt) - SHARE_CODE_TTL_MS)?.title ?? null)
+    : null
   const ticking = isOpen && (step === 'invite' || (step === 'home' && status?.status === 'PENDING'))
 
   // 남은 시간 표시를 1초마다 갱신(단계에 들어올 때 바로 한 번)
@@ -125,14 +149,28 @@ export function ShareFlowModal() {
     setUnlinkConfirm(false)
     setError(null)
     setNameError(null)
+    setInviteEmail('')
+    setInviteEmailError(null)
     spaceName.reset()
-    ;[issue, cancel, check, accept, unlink, setShared, patchName].forEach((m) => m.reset())
-    setState({ openModal: null, shareFlowStep: 'home', sharePickMode: 'onboard' })
+    ;[issue, cancel, check, accept, decline, sendInvite, cancelInvite, respond, unlink, setShared, patchName].forEach((m) => m.reset())
+    setState({ openModal: null, shareFlowStep: 'home', sharePickMode: 'onboard', shareInvitationId: null })
   }
   const openPick = (mode: 'onboard' | 'manage') => {
     setDraft(new Map((status?.myAccounts ?? []).map((m) => [m.accountId, m.includeHistory])))
     setError(null)
     setState({ shareFlowStep: 'pick', sharePickMode: mode })
+  }
+  // 이메일 초대로 연 '초대 확인' — 받은 목록에서 찾는다(만료 · 취소됐으면 null)
+  const invitationId = state.shareInvitationId
+  const invitation = invitationId !== null ? (invitations?.received.find((i) => i.id === invitationId) ?? null) : null
+  const sendEmailInvite = () => {
+    const email = inviteEmail.trim()
+    if (!EMAIL_PATTERN.test(email)) {
+      setInviteEmailError('이메일 형식을 확인해 주세요.')
+      return
+    }
+    setInviteEmailError(null)
+    sendInvite.mutate(email, { onSuccess: () => setInviteEmail('') })
   }
   const partnerName = status?.partner?.name ?? null
   const space = status?.spaceName ?? '우리집'
@@ -206,6 +244,24 @@ export function ShareFlowModal() {
         code={code}
         remainingMs={Math.max(0, remainingMs)}
         copied={code !== null && copiedCode === code}
+        declinedTitle={declinedTitle}
+        email={{
+          value: inviteEmail,
+          onChange: (v) => {
+            setInviteEmail(v)
+            setInviteEmailError(null)
+            if (!sendInvite.isIdle) sendInvite.reset()
+          },
+          onSend: sendEmailInvite,
+          sending: sendInvite.isPending,
+          sent: sendInvite.isSuccess,
+          error: inviteEmailError
+            ?? (sendInvite.isError ? messageOf(sendInvite.error) : null)
+            ?? (cancelInvite.isError ? messageOf(cancelInvite.error) : null),
+          list: invitations?.sent ?? [],
+          onCancel: (id) => cancelInvite.mutate(id),
+          cancellingId: cancelInvite.isPending ? (cancelInvite.variables ?? null) : null,
+        }}
         busy={issue.isPending}
         error={issue.isError ? messageOf(issue.error) : null}
         onBack={() => goto('home')}
@@ -235,7 +291,8 @@ export function ShareFlowModal() {
           check.mutate(code, {
             onSuccess: (r) => {
               setChecked({ code, inviterName: r.inviterName })
-              goto('accept')
+              setError(null)
+              setState({ shareFlowStep: 'accept', shareInvitationId: null })
             },
             onError: (e) => setError(messageOf(e)),
           })
@@ -244,12 +301,47 @@ export function ShareFlowModal() {
         onClose={close}
       />
     )
+  } else if (effectiveStep === 'accept' && invitationId !== null && !invitation) {
+    // 이메일 초대로 열었는데 받은 목록에 없다 — 불러오는 중이거나, 만료 · 취소됐거나, 초대한 사람이 다른 사람과 연결됨
+    body = invitationsQuery.isPending ? (
+      <>
+        <FlowHeader onClose={close} />
+        <div aria-busy style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Skeleton height={120} />
+          <Skeleton height={48} />
+        </div>
+      </>
+    ) : (
+      <>
+        <FlowHeader onClose={close} />
+        {invitationsQuery.isError ? (
+          <CenteredIntro icon="error" title="초대를 불러오지 못했어요">
+            잠시 후 다시 시도해 주세요.
+          </CenteredIntro>
+        ) : (
+          <CenteredIntro icon="schedule" title="초대가 만료됐거나 취소됐어요">
+            초대한 사람에게 다시 보내 달라고 하거나, 초대 코드를 받아 입력해 주세요.
+          </CenteredIntro>
+        )}
+        <div style={{ marginTop: 22 }}>
+          {invitationsQuery.isError ? (
+            <button type="button" className="pill-btn" onClick={() => void invitationsQuery.refetch()} style={PRIMARY_BTN_STYLE}>다시 시도</button>
+          ) : (
+            <button type="button" className="pill-btn" onClick={() => setState({ shareFlowStep: 'home', shareInvitationId: null })} style={PRIMARY_BTN_STYLE}>
+              공유 홈으로
+            </button>
+          )}
+        </div>
+      </>
+    )
   } else if (effectiveStep === 'accept') {
+    const accepting = accept.isPending || (respond.isPending && respond.variables?.accept === true)
+    const declining = respond.isPending && respond.variables?.accept === false
     body = (
       <>
         <FlowHeader onClose={close} />
         <StepBars step={2} />
-        <CenteredIntro icon="mail" title={`${checked?.inviterName ?? ''}님이 함께 보자고 초대했어요`}>
+        <CenteredIntro icon="mail" title={`${invitation?.inviterName ?? checked?.inviterName ?? ''}님이 함께 보자고 초대했어요`}>
           수락하면 두 사람이 각자 고른 계좌만 공유 화면에서 함께 볼 수 있어요.
         </CenteredIntro>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--fill-subtle)', borderRadius: 10, padding: 16, marginTop: 20 }}>
@@ -260,35 +352,53 @@ export function ShareFlowModal() {
             </div>
           ))}
         </div>
+        {invitation && (
+          <div style={{ fontSize: 11.5, color: 'var(--text-weak)', textAlign: 'center', marginTop: 14 }}>{inviteDeadlineLabel(invitation.expiresAt)} 유효한 초대예요</div>
+        )}
         {error && <div role="alert" style={ERROR_TEXT_STYLE}>{error}</div>}
         <div style={{ marginTop: 22 }}>
           <button
             type="button"
             className="pill-btn"
-            disabled={accept.isPending || !checked}
-            onClick={() =>
-              checked &&
-              accept.mutate(checked.code, {
-                onSuccess: () => goto('linked'),
-                onError: (e) => setError(messageOf(e)),
-              })
-            }
+            disabled={accepting || declining || (!invitation && !checked)}
+            onClick={() => {
+              const onError = (e: unknown) => setError(messageOf(e))
+              if (invitation) {
+                respond.mutate(
+                  { invitationId: invitation.id, accept: true },
+                  { onSuccess: () => setState({ shareFlowStep: 'linked', shareInvitationId: null }), onError },
+                )
+              } else if (checked) {
+                accept.mutate(checked.code, { onSuccess: () => goto('linked'), onError })
+              }
+            }}
             style={PRIMARY_BTN_STYLE}
           >
-            {accept.isPending ? '연결하는 중…' : '수락하고 연결'}
+            {accepting ? '연결하는 중…' : '수락하고 연결'}
           </button>
         </div>
         <button
           type="button"
           className="pill-btn"
+          disabled={accepting || declining}
           onClick={() => {
+            if (invitation) {
+              // 이메일 초대 거절은 받은 목록에서 빠질 때까지 기다렸다가 홈으로(곧바로 가면 홈에 그 초대가 잠깐 남아 보인다)
+              respond.mutate(
+                { invitationId: invitation.id, accept: false },
+                { onSettled: () => { setError(null); setState({ shareFlowStep: 'home', shareInvitationId: null }) } },
+              )
+              return
+            }
+            // 코드 거절은 초대한 사람에게 알리기만 한다 — 실패해도(그새 만료 등) 이 창은 그대로 홈으로 돌아간다
+            if (checked) decline.mutate(checked.code)
             setCells(EMPTY_CELLS)
             setChecked(null)
             goto('home')
           }}
           style={{ ...SECONDARY_BTN_STYLE, marginTop: 8 }}
         >
-          거절
+          {declining ? '거절하는 중…' : '거절'}
         </button>
       </>
     )
@@ -387,6 +497,7 @@ export function ShareFlowModal() {
         status={status}
         sharedAccounts={sharedAccounts}
         institutions={institutions}
+        receivedInvitations={invitations?.received ?? []}
         myUserId={myUserId}
         inviteRemainingMs={Math.max(0, remainingMs)}
         spaceName={{ value: spaceName.value, onChange: spaceName.setValue, onCommit: spaceName.commit, error: nameError }}
@@ -398,6 +509,10 @@ export function ShareFlowModal() {
         onEnterCode={() => {
           setCells(EMPTY_CELLS)
           goto('code')
+        }}
+        onOpenInvitation={(id) => {
+          setError(null)
+          setState({ shareFlowStep: 'accept', shareInvitationId: id })
         }}
         onUnlink={() => {
           setError(null)

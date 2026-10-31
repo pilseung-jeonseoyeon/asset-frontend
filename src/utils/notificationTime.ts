@@ -27,6 +27,16 @@ export function formatNotificationTime(createdAtUtc: string, now: Date = new Dat
     : `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`
 }
 
+/** 알림 줄 아래 시간 — 오늘이면 '방금' · 'N분 전' · 'N시간 전', 그 전은 formatNotificationTimeInGroup(어제 묶음은 시각, 더 오래되면 날짜). */
+export function formatNotificationAgo(createdAtUtc: string, now: Date = new Date()): string {
+  const date = new Date(createdAtUtc)
+  if (!isSameDay(date, now)) return formatNotificationTimeInGroup(createdAtUtc, now)
+  const minutes = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 60_000))
+  if (minutes < 1) return '방금'
+  if (minutes < 60) return `${minutes}분 전`
+  return `${Math.floor(minutes / 60)}시간 전`
+}
+
 /** 날짜 묶음(오늘/어제) 안에서는 날짜를 다시 적지 않고 시각만 쓴다. 그보다 오래되면 위와 같은 날짜 표기. */
 export function formatNotificationTimeInGroup(createdAtUtc: string, now: Date = new Date()): string {
   const full = formatNotificationTime(createdAtUtc, now)

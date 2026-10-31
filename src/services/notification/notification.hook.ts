@@ -137,7 +137,7 @@ export function useNotificationStream({ onNotification }: NotificationStreamOpti
           if (nf) {
             insertIntoNotificationLists(queryClient, nf)
             onNotificationRef.current?.(nf)
-            if (nf.type === 'SHARE_ACCEPTED' || nf.type === 'SHARE_ENDED') refreshScopedData()
+            if (nf.type.startsWith('SHARE_') && nf.type !== 'SHARE_DECLINED' && nf.type !== 'SHARE_INVITED') refreshScopedData()
           }
           refreshNotifications()
         },

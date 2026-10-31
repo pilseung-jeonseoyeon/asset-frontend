@@ -49,6 +49,12 @@ export function formatShareDate(iso: string): string {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** 이메일 초대 기한 — "11월 7일까지"(초대는 7일 유효, 서버 계산). */
+export function inviteDeadlineLabel(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getMonth() + 1}월 ${d.getDate()}일까지`
+}
+
 /** 공유 계좌 줄의 이력 표기(시안 v16). */
 export function shareHistoryLabel(includeHistory: boolean): string {
   return includeHistory ? '이전 내역 포함 공유' : '공유 시작일 이후 내역만 공유'

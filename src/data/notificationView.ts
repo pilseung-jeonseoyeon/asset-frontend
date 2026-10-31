@@ -1,8 +1,10 @@
 // 알림 뷰모델 — 헤더 알림 패널(NotificationPanel)과 새 알림 배너(NotificationBanner)가 쓴다.
 // 서버는 알림 종류(type)와 심각도(severity)만 주고 아이콘·색은 주지 않는다("표현은 클라이언트 자유").
-// 아이콘은 종류로, 색은 심각도로 정한다. 목표 달성만 좋은 소식이라 심각도와 무관하게 초록(up)으로 둔다.
+// 아이콘은 종류로 정한다. 색은 2026-10-31 알림 목록 A안(캔버스 "Monit 알림 목록 시안")부터 답이 필요한 알림(이메일 초대)에만
+// 액센트를 쓰고 나머지는 무채색이다 — "색은 의미 있을 때만 작게", 등락색(초록 · 빨강)은 시세 전용(secret/ds_rules_v3.md 0장 · 1-4)이라
+// 목표 달성 · 만기 경고에도 쓰지 않는다. 급한 정도는 문구(내일 · D-3 · 오늘)가 말한다.
 
-import type { NotificationResponse, NotificationSeverity, NotificationType } from '@/services/notification'
+import type { NotificationResponse, NotificationType } from '@/services/notification'
 
 const TYPE_ICON: Record<NotificationType, string> = {
   MATURITY: 'savings',
@@ -10,9 +12,15 @@ const TYPE_ICON: Record<NotificationType, string> = {
   PAYMENT_DUE: 'event_upcoming',
   GOAL_ACHIEVED: 'emoji_events',
   SYSTEM: 'campaign',
-  // 계좌 공유 — 초대는 편지(시안 6번), 그 뒤는 사람이 들어오고 나가는 아이콘.
+  // 가족·커플 공유 — 연결은 고리가 이어지고 끊기는 아이콘, 계좌·목표·거래는 그 대상의 아이콘.
+  SHARE_INVITED: 'mail',
   SHARE_ACCEPTED: 'link',
+  SHARE_DECLINED: 'person_remove',
   SHARE_ENDED: 'link_off',
+  SHARE_ACCOUNT_ADDED: 'account_balance_wallet',
+  SHARE_ACCOUNT_REMOVED: 'visibility_off',
+  SHARE_GOAL_CHANGED: 'flag',
+  SHARE_ENTRIES: 'receipt_long',
 }
 
 export interface NotificationTone {
@@ -20,39 +28,43 @@ export interface NotificationTone {
   fg: string
 }
 
-const SEVERITY_TONE: Record<NotificationSeverity, NotificationTone> = {
-  INFO: { bg: 'var(--accent-soft)', fg: 'var(--accent)' },
-  WARN: { bg: 'var(--down-chip)', fg: 'var(--down)' },
-  CRITICAL: { bg: 'var(--down)', fg: '#FFFFFF' },
-}
-const GOAL_TONE: NotificationTone = { bg: 'var(--up-chip)', fg: 'var(--up)' }
+const NEUTRAL_TONE: NotificationTone = { bg: 'var(--fill-subtle)', fg: 'var(--text-mid)' }
+const ANSWER_TONE: NotificationTone = { bg: 'var(--accent-soft)', fg: 'var(--accent)' }
 
 export function notificationIconOf(type: NotificationType): string {
   return TYPE_ICON[type] ?? 'notifications'
 }
 
-export function notificationToneOf(nf: Pick<NotificationResponse, 'type' | 'severity'>): NotificationTone {
-  // 누군가 참여했다는 소식도 목표 달성처럼 좋은 소식이라 초록으로 둔다.
-  if (nf.type === 'GOAL_ACHIEVED' || nf.type === 'SHARE_ACCEPTED') return GOAL_TONE
-  return SEVERITY_TONE[nf.severity] ?? SEVERITY_TONE.INFO
+export function notificationToneOf(nf: Pick<NotificationResponse, 'type'>): NotificationTone {
+  return nf.type === 'SHARE_INVITED' ? ANSWER_TONE : NEUTRAL_TONE
 }
 
-/** 여러 건을 한 장으로 묶은 배너의 본문("결제 예정 1 · 자동 기록 2")에 쓰는 짧은 종류 이름. */
+/** 짧은 종류 이름 — 알림 줄 아래의 "결제 예정 · 6시간 전", 묶음 배너 본문("결제 예정 1 · 자동 기록 2")에 쓴다. */
 const TYPE_KIND_LABEL: Record<NotificationType, string> = {
   MATURITY: '만기',
   RECURRING_EXPENSE: '자동 기록',
   PAYMENT_DUE: '결제 예정',
   GOAL_ACHIEVED: '목표 달성',
   SYSTEM: '공지',
+  SHARE_INVITED: '가족 · 커플 공유',
   SHARE_ACCEPTED: '가족 · 커플 공유',
+  SHARE_DECLINED: '가족 · 커플 공유',
   SHARE_ENDED: '가족 · 커플 공유',
+  SHARE_ACCOUNT_ADDED: '가족 · 커플 공유',
+  SHARE_ACCOUNT_REMOVED: '가족 · 커플 공유',
+  SHARE_GOAL_CHANGED: '가족 · 커플 공유',
+  SHARE_ENTRIES: '가족 · 커플 공유',
+}
+
+export function notificationKindLabelOf(type: NotificationType): string {
+  return TYPE_KIND_LABEL[type] ?? '알림'
 }
 
 /** 종류별 개수를 처음 나온 순서대로 이어 붙인다. 예: "결제 예정 1 · 자동 기록 2". */
 export function notificationKindSummaryOf(list: Pick<NotificationResponse, 'type'>[]): string {
   const counts = new Map<string, number>()
   for (const nf of list) {
-    const label = TYPE_KIND_LABEL[nf.type] ?? '알림'
+    const label = notificationKindLabelOf(nf.type)
     counts.set(label, (counts.get(label) ?? 0) + 1)
   }
   return [...counts].map(([label, count]) => `${label} ${count}`).join(' · ')

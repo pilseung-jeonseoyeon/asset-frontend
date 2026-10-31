@@ -1,7 +1,7 @@
 import { ApiError } from '../api'
 import { errorMessageOf } from '../errorMessages'
 import { currentUserId, rpc, supabase, unwrapResult } from '../supabase'
-import type { ShareCodeCheckResponse, ShareInvite, SharedAccountRequest, ShareStatusResponse } from './share.type'
+import type { ShareCodeCheckResponse, ShareInvitationsResponse, ShareInvite, SharedAccountRequest, ShareStatusResponse } from './share.type'
 
 // 공유 RPC(security definer)만 부른다 — 공유 테이블은 RLS 정책이 없어 직접 읽을 수 없다.
 // 틀린 초대 코드는 서버가 시도 기록을 남겨야 해서 예외 대신 { error } 로 돌려준다 → 여기서 ApiError 로 바꾼다.
@@ -32,6 +32,34 @@ export async function checkShareCode(code: string) {
 /** 수락하고 연결. 응답은 연결된 뒤의 공유 상태. */
 export async function acceptShareCode(code: string) {
   return throwIfCodeError(await rpc<ShareStatusResponse | { error: string }>('accept_share_code', { p_code: code }))
+}
+
+/** 초대 거절 → 초대한 사람에게 SHARE_DECLINED 알림. 코드는 만료까지 남는다(마음이 바뀌면 다시 수락). 틀린 코드는 SHARE_CODE_INVALID. */
+export async function declineShareCode(code: string) {
+  throwIfCodeError(await rpc<Record<string, never> | { error: string }>('decline_share_code', { p_code: code }))
+}
+
+/** 이메일 초대 목록(받은 · 보낸). */
+export async function getShareInvitations() {
+  return rpc<ShareInvitationsResponse>('get_share_invitations')
+}
+
+/**
+ * 이메일로 초대 보내기(7일). 가입 여부가 드러나지 않게 결과는 늘 같은 목록이다 — 가입 · 미연결인 사람에게만 알림이 간다.
+ * 내 이메일 SHARE_INVITE_SELF, 형식 오류 INVALID_INPUT, 10분에 새 초대 5건 초과 SHARE_INVITE_LIMIT, 연결 중 SHARE_ALREADY_LINKED.
+ */
+export async function sendShareInvite(email: string) {
+  return rpc<ShareInvitationsResponse>('send_share_invite', { p_email: email })
+}
+
+/** 보낸 초대 취소(받는 사람의 초대 알림도 지워진다). */
+export async function cancelShareInvite(invitationId: number) {
+  return rpc<ShareInvitationsResponse>('cancel_share_invite', { p_id: invitationId })
+}
+
+/** 받은 초대에 답하기 → 공유 상태. 만료 · 취소됨 SHARE_INVITE_NOT_FOUND. 거절하면 초대한 사람에게 SHARE_DECLINED 알림. */
+export async function respondShareInvite(invitationId: number, accept: boolean) {
+  return rpc<ShareStatusResponse>('respond_share_invite', { p_id: invitationId, p_accept: accept })
 }
 
 export async function unlinkShare() {

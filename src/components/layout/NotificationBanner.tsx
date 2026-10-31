@@ -6,10 +6,11 @@
 // - 배너에는 알림 id만 있고 내용은 알림 목록 캐시에서 찾는다(AppState.notificationBanners 주석). 못 찾으면
 //   (목록을 다시 받는 사이 사라진 경우 등) 그 장은 그리지 않는다.
 // - 맨 앞 한 장만 보이고 나머지는 뒤로 겹쳐 보인다(최대 2장) + "N개 더 · 알림 모두 보기".
-// - 6초 뒤 다 함께 올라가며 사라진다. 버튼이 있는 알림(공유 연결됨)이 맨 앞이면 10초. 마우스를 올리거나
+// - 6초 뒤 다 함께 올라가며 사라진다. 버튼이 있는 알림(공유 연결됨 · 초대 받음)이 맨 앞이면 10초. 마우스를 올리거나
 //   키보드로 머물거나 탭을 떠나 있는 동안은 시간이 멈춘다. 새 알림이 오면 처음부터 다시 센다.
 // - 누르면 알림 패널이 열리고 그 알림이 펼쳐진 채 읽음 처리된다(다른 화면으로 이동하지 않는다는 패널 규칙 그대로).
 //   공유 연결됨(SHARE_ACCEPTED)의 [확인하기]는 설정 › 가족 · 커플 공유를 연다(공유할 계좌를 아직 안 골랐으면 이름·계좌 고르기 단계).
+//   이메일 초대(SHARE_INVITED)의 [초대 확인]은 그 초대의 '초대 확인' 단계를 연다(만료 · 취소됐으면 그 창이 알려 준다).
 // - 모바일은 위로 밀어 닫을 수 있고(아래 작은 막대가 그 표시), X도 함께 둔다.
 // - z-index 75: 헤더 드롭다운(60)·전역 드롭다운 캐처(70) 위, 모달(80+) 아래. 입력 창이 열려 있으면 애초에
 //   띄우지 않고 미룬다(useNotificationDelivery).
@@ -48,9 +49,9 @@ function resolve(banner: NotificationBannerItem, byId: Map<number, NotificationR
   return { banner, kind: 'summary', list, count: banner.notificationIds.length, reason: banner.reason }
 }
 
-/** 버튼(확인하기)이 붙는 알림 — 상대가 내 초대 코드로 연결한 알림. */
+/** 버튼이 붙는 알림 — 상대가 내 초대로 연결함(확인하기) · 이메일 초대를 받음(초대 확인). */
 function hasShareAction(nf: NotificationResponse): boolean {
-  return nf.type === 'SHARE_ACCEPTED'
+  return nf.type === 'SHARE_ACCEPTED' || (nf.type === 'SHARE_INVITED' && nf.linkId !== null)
 }
 
 const SR_ONLY_STYLE: CSSProperties = {
@@ -291,13 +292,17 @@ export function NotificationBanner() {
                     className="qbtn"
                     onClick={() => {
                       markRead(front.nf)
+                      if (front.nf.type === 'SHARE_INVITED') {
+                        setState({ openModal: 'familyShare', shareFlowStep: 'accept', shareInvitationId: front.nf.linkId, notificationBanners: [] })
+                        return
+                      }
                       // 공유할 계좌를 아직 안 골랐으면 '연결 완료(이름 · 계좌 고르기)', 골랐으면 홈(알림 패널과 같은 규칙)
                       const picked = (shareStatus?.myAccounts.length ?? 0) > 0
                       setState({ openModal: 'familyShare', shareFlowStep: picked ? 'home' : 'linked', notificationBanners: [] })
                     }}
                     style={{ ...PRIMARY_BUTTON_STYLE, flex: isMobile ? 1 : undefined, minHeight: isMobile ? 40 : 34 }}
                   >
-                    확인하기
+                    {front.nf.type === 'SHARE_INVITED' ? '초대 확인' : '확인하기'}
                   </button>
                   <button
                     type="button"

@@ -110,6 +110,8 @@ export interface AppState {
   shareFlowStep: ShareFlowStep
   /** 공유할 계좌 선택 창이 처음 설정(연결 직후)인지, 홈의 '공유 계좌 관리'인지. */
   sharePickMode: 'onboard' | 'manage'
+  /** 'accept' 단계를 이메일 초대로 열었을 때 그 초대 id(알림 · 공유 홈의 받은 초대). 코드로 들어오면 null */
+  shareInvitationId: number | null
   /** '우리집'에서 연 상대 계좌의 읽기 전용 상세(PartnerAccountDetailModal). null이면 닫혀 있음. */
   partnerAccountDetailId: number | null
   reportOpen: boolean

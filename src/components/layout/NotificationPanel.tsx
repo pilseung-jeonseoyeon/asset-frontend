@@ -12,12 +12,19 @@
 // - 별도 알림함(전체 알림 화면)은 없다 — 이 패널 안에서 20건씩 받아 맨 아래 '더 보기'로 이어 붙인다.
 // - **예외: 공유 연결됨 카드(SHARE_ACCEPTED, 가족·커플 공유 v17)에는 버튼이 하나 있다.** 아직 연결 중이면
 //   설정 › 가족 · 커플 공유를 연다 — 공유할 계좌를 아직 안 골랐으면 '연결 완료(이름 · 계좌 고르기)' 단계, 골랐으면 홈.
+//   이메일 초대 카드(SHARE_INVITED)도 그 초대가 아직 받은 목록에 있으면 [초대 확인] — '초대 확인' 단계를 연다.
 //
 // 2026-10-16 새 알림 도착 표시(NotificationBanner · useNotificationDelivery):
 // - 배너·맥 알림을 눌러 열면 그 알림(AppState.notificationFocusId)을 펼치고 보이게 스크롤한다.
 // - 패널이 열려 있는 동안 새로 온 줄은 잠깐 연보라로 반짝였다가 원래 색으로 돌아간다(.notif-fresh). 기준은 패널을
 //   처음 그렸을 때의 가장 최신 id — '더 보기'로 불러온 예전 알림은 반짝이지 않는다.
 // - 목록 맨 위에 맥·PC 알림 안내 카드(NotificationPermissionAsk)가 조건이 맞을 때만 보인다.
+//
+// 2026-10-31 A안(사용자 결정 — 캔버스 "Monit 알림 목록 시안"의 'A · 한 줄 목록'):
+// - 안 읽은 줄에만 깔던 회색 칸을 없애고 줄 사이를 얇은 구분선으로 나눈다. 안 읽음은 왼쪽 작은 점 + 굵은 제목.
+// - 아이콘은 무채색 32px 타일 하나로 통일하고, 답이 필요한 이메일 초대만 액센트(notificationToneOf).
+// - 본문은 한 줄(누르면 전부 펼침), 아래 줄에 '종류 · 시간'("결제 예정 · 6시간 전"). 본문은 text-mid로 한 단계 진하게.
+// - 버튼은 그 알림 칸 안(제목과 같은 시작선)에 둔다 — 칸 밖으로 떨어져 보이던 문제. 줄 전체(버튼 포함)가 한 hover 영역이다.
 
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -25,11 +32,11 @@ import { Icon } from '../primitives/Icon/Icon'
 import { Skeleton } from '../primitives/Skeleton/Skeleton'
 import { NotificationPermissionAsk } from './NotificationPermissionAsk'
 import { useAppState } from '../../state/AppStateContext'
-import { formatNotificationTimeInGroup } from '../../utils/notificationTime'
-import { groupNotificationsByDay, notificationIconOf, notificationToneOf } from '../../data/notificationView'
+import { formatNotificationAgo } from '../../utils/notificationTime'
+import { groupNotificationsByDay, notificationIconOf, notificationKindLabelOf, notificationToneOf } from '../../data/notificationView'
 import type { NotificationResponse } from '@/services/notification'
 import { useGetNotifications, usePatchAllNotificationsRead, usePatchNotificationRead } from '@/services/notification'
-import { useGetShareStatus } from '@/services/share'
+import { useGetShareInvitations, useGetShareStatus } from '@/services/share'
 
 /** 제목·본문이 길어도 목록 리듬이 무너지지 않게 지정한 줄 수에서 …로 자른다. */
 const clampLines = (lines: number): CSSProperties => ({
@@ -69,6 +76,7 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
   const groups = groupNotificationsByDay(notifQuery.notifications)
   const hasNotifs = groups.length > 0
   const { shareStatus } = useGetShareStatus()
+  const { invitations } = useGetShareInvitations()
 
   // 여러 개를 동시에 펼쳐 둘 수 있다. 패널을 닫으면(언마운트) 모두 접힌 상태로 돌아간다.
   // 배너·맥 알림을 눌러 열었으면 그 알림은 펼친 채로 시작한다.
@@ -97,6 +105,18 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
   }
 
   const shareActionOf = (nf: NotificationResponse): ShareAction | undefined => {
+    if (nf.type === 'SHARE_INVITED') {
+      const invitationId = nf.linkId
+      if (invitationId === null || !invitations?.received.some((i) => i.id === invitationId)) return undefined
+      return {
+        label: '초대 확인',
+        onOpen: () => {
+          markRead(nf)
+          onClose()
+          setState({ openModal: 'familyShare', shareFlowStep: 'accept', shareInvitationId: invitationId })
+        },
+      }
+    }
     if (nf.type !== 'SHARE_ACCEPTED' || shareStatus?.status !== 'LINKED') return undefined
     const picked = shareStatus.myAccounts.length > 0
     return {
@@ -130,7 +150,7 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
         position: 'fixed',
         inset: 0,
         zIndex: 60,
-        background: 'var(--canvas)',
+        background: 'var(--surface)',
         display: 'flex',
         flexDirection: 'column',
         padding: 'calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom))',
@@ -139,18 +159,18 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
         position: 'absolute',
         top: 50,
         right: 0,
-        width: 'min(392px, calc(100vw - 32px))',
+        // A안(2026-10-31) 뒤 본문이 한 줄이라 392px에서는 금방 잘렸다 — 사용자 요청으로 넓힌다.
+        width: 'min(500px, calc(100vw - 32px))',
         maxHeight: 'min(520px, calc(100vh - 96px))',
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--surface)',
         border: '0.5px solid var(--border)',
-        borderRadius: 14,
+        borderRadius: 10,
         boxShadow: 'var(--shadow-pop)',
         zIndex: 60,
         overflow: 'hidden',
       }
-  const surface = isMobile ? 'var(--canvas)' : 'var(--surface)'
 
   return (
     <div
@@ -168,8 +188,7 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 8,
-          padding: isMobile ? '2px 4px 12px' : '16px 18px 12px',
-          borderBottom: isMobile ? undefined : '0.5px solid var(--border)',
+          padding: isMobile ? '2px 4px 6px' : '10px 10px 2px 18px',
           flex: 'none',
         }}
       >
@@ -190,11 +209,7 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
           <span style={{ fontSize: isMobile ? 17 : 15, fontWeight: 700, color: 'var(--text-strong)' }}>알림</span>
           {notifQuery.unreadCount > 0 && (
             <span
-              style={{
-                minWidth: 20, height: 20, padding: '0 6px', borderRadius: 999, boxSizing: 'border-box',
-                background: 'var(--accent)', color: '#FFFFFF', fontSize: 11, fontWeight: 700,
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              }}
+              style={{ fontSize: isMobile ? 14 : 13, fontWeight: 700, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}
               aria-label={`안 읽은 알림 ${notifQuery.unreadCount}개`}
             >
               {notifQuery.unreadCount > 99 ? '99+' : notifQuery.unreadCount}
@@ -207,7 +222,10 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
             onClick={handleMarkAllRead}
             disabled={patchAllNotificationsRead.isPending}
             aria-busy={patchAllNotificationsRead.isPending}
-            style={{ ...TEXT_BUTTON_STYLE, opacity: patchAllNotificationsRead.isPending ? 0.6 : 1 }}
+            style={{
+              ...TEXT_BUTTON_STYLE, fontSize: 12.5, color: 'var(--text-mid)', minHeight: 36, padding: '0 8px',
+              opacity: patchAllNotificationsRead.isPending ? 0.6 : 1,
+            }}
           >
             {patchAllNotificationsRead.isPending ? '처리 중…' : '모두 읽음'}
           </button>
@@ -222,7 +240,7 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
           flex: 1,
           minHeight: 0,
           overflowY: 'auto',
-          padding: isMobile ? '0 0 8px' : '4px 8px 10px',
+          padding: isMobile ? '0 0 8px' : '0 8px 10px',
           // 목록이 없을 때(로딩 제외) 문구를 세로 가운데로 — 전체화면에서 맨 위에 붙어 있으면 허전하다.
           ...(isMobile && !hasNotifs && !notifQuery.isPending ? { display: 'flex', alignItems: 'center', justifyContent: 'center' } : null),
         }}
@@ -230,8 +248,8 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
         {notifQuery.isPending ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 10 }}>
             {[0, 1, 2].map((i) => (
-              <div key={i} style={{ display: 'flex', gap: 12, padding: '12px 10px' }}>
-                <Skeleton width={36} height={36} radius={10} />
+              <div key={i} style={{ display: 'flex', gap: 12, padding: '14px 10px 14px 14px' }}>
+                <Skeleton width={32} height={32} radius={8} />
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7, paddingTop: 2 }}>
                   <Skeleton width="72%" height={13} />
                   <Skeleton width="92%" height={11} />
@@ -253,18 +271,18 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
               <section key={group.label} aria-label={group.label}>
                 <div
                   style={{
-                    position: 'sticky', top: 0, zIndex: 1, background: surface,
-                    fontSize: 11.5, fontWeight: 700, color: 'var(--text-weak)', padding: '12px 10px 6px',
+                    position: 'sticky', top: 0, zIndex: 1, background: 'var(--surface)',
+                    fontSize: 12, fontWeight: 600, color: 'var(--text-mid)', padding: '14px 14px 4px',
                   }}
                 >
                   {group.label}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {group.items.map((nf) => (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {group.items.map((nf, index) => (
                     <NotificationRow
                       key={nf.id}
                       nf={nf}
-                      isMobile={isMobile}
+                      divider={index > 0}
                       expanded={expandedIds.has(nf.id)}
                       fresh={newestIdAtOpen !== null && nf.id > newestIdAtOpen}
                       onClick={() => handleClick(nf)}
@@ -301,7 +319,7 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
             <div>
               <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>새로운 알림이 없어요</div>
               <div style={{ fontSize: 12, color: 'var(--text-weak)', marginTop: 4, lineHeight: 1.5 }}>
-                만기·결제 예정·목표 달성 소식을 여기서 알려드릴게요
+                만기·결제 예정·공유 소식을 여기서 알려드릴게요
               </div>
             </div>
           </div>
@@ -313,77 +331,69 @@ export function NotificationPanel({ isMobile, onClose }: NotificationPanelProps)
 
 interface NotificationRowProps {
   nf: NotificationResponse
-  isMobile: boolean
+  /** 같은 날짜 묶음의 두 번째 줄부터 위에 얇은 구분선 */
+  divider: boolean
   /** 펼치면 제목·본문을 줄 수 제한 없이 전부 보여준다. */
   expanded: boolean
   /** 패널이 열린 사이 새로 온 줄 — 잠깐 연보라로 반짝인다. */
   fresh: boolean
   onClick: () => void
-  /** 공유 연결됨 카드에만 있는 버튼. */
+  /** 공유 연결됨 · 이메일 초대 카드에만 있는 버튼. */
   shareAction?: ShareAction
 }
 
-// 접힌 상태의 줄 수. 제목 2줄 + 본문 2줄이면 긴 알림도 행 높이가 일정하게 유지된다.
+// 접힌 상태의 줄 수. 제목 2줄 + 본문 1줄 — 본문 전체는 누르면 펼쳐 본다.
 const TITLE_LINES = 2
-const BODY_LINES = 2
+const BODY_LINES = 1
+// 줄 왼쪽 여백(안 읽음 점 자리 포함) + 아이콘 32 + 간격 12 — 본문 · 구분선 · 버튼의 시작선
+const ROW_PAD_LEFT = 14
+const TEXT_INSET = ROW_PAD_LEFT + 32 + 12
 
-const INVITE_BTN_BASE_STYLE: CSSProperties = {
-  flex: 1, padding: '9px 12px', minHeight: 36, borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-}
-
-function NotificationRow({ nf, isMobile, expanded, fresh, onClick, shareAction }: NotificationRowProps) {
+function NotificationRow({ nf, divider, expanded, fresh, onClick, shareAction }: NotificationRowProps) {
   const tone = notificationToneOf(nf)
   const unread = !nf.read
-  const row = (
-    <button
-      className={fresh ? 'notif-row notif-fresh' : 'notif-row'}
-      data-notification-id={nf.id}
-      onClick={onClick}
-      aria-expanded={expanded}
-      aria-label={`${unread ? '안 읽음, ' : ''}${nf.title}${nf.body ? `, ${nf.body}` : ''}`}
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 12,
-        width: '100%',
-        padding: isMobile ? '14px 12px' : '12px 10px',
-        borderRadius: 12,
-        border: 'none',
-        background: unread ? 'var(--fill-subtle)' : 'transparent',
-        cursor: 'pointer',
-        textAlign: 'left',
-        fontFamily: 'inherit',
-      }}
-    >
-      <span
-        style={{ position: 'relative', width: 36, height: 36, flex: 'none' }}
+  const meta = `${notificationKindLabelOf(nf.type)} · ${formatNotificationAgo(nf.createdAt)}`
+  return (
+    <div className={fresh ? 'notif-row notif-fresh' : 'notif-row'} style={{ position: 'relative', borderRadius: 10 }}>
+      {divider && (
+        <span aria-hidden style={{ position: 'absolute', top: 0, left: TEXT_INSET, right: 10, height: 0.5, background: 'var(--border)' }} />
+      )}
+      <button
+        data-notification-id={nf.id}
+        onClick={onClick}
+        aria-expanded={expanded}
+        aria-label={`${unread ? '안 읽음, ' : ''}${nf.title}${nf.body ? `, ${nf.body}` : ''}, ${meta}`}
+        style={{
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 12,
+          width: '100%',
+          padding: `14px 10px ${shareAction ? 10 : 14}px ${ROW_PAD_LEFT}px`,
+          border: 'none',
+          background: 'transparent',
+          cursor: 'pointer',
+          textAlign: 'left',
+          fontFamily: 'inherit',
+          color: 'inherit',
+        }}
       >
+        {/* 안 읽음 점 — 아이콘 왼쪽 여백에, 제목 첫 줄 높이에 맞춘다. */}
+        {unread && (
+          <span aria-hidden style={{ position: 'absolute', left: 4, top: 27, width: 6, height: 6, borderRadius: 999, background: 'var(--accent)' }} />
+        )}
         <span
           style={{
-            width: 36, height: 36, borderRadius: 11, background: tone.bg, color: tone.fg,
+            width: 32, height: 32, flex: 'none', marginTop: 1, borderRadius: 8, background: tone.bg, color: tone.fg,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            // 읽은 알림은 칩을 흐리게 해 안 읽은 것이 먼저 눈에 들어오게 한다.
-            opacity: unread ? 1 : 0.55,
           }}
         >
-          <Icon name={notificationIconOf(nf.type)} size={19} ariaHidden />
+          <Icon name={notificationIconOf(nf.type)} size={18} ariaHidden />
         </span>
-        {/* 안 읽음 점 — 모든 행에서 같은 자리(칩 오른쪽 위). 테두리는 행 배경색으로 칩과 떼어 보이게 한다. */}
-        {unread && (
-          <span
-            aria-hidden
-            style={{
-              position: 'absolute', top: -3, right: -3, width: 10, height: 10, boxSizing: 'border-box',
-              borderRadius: 999, background: 'var(--accent)', border: '2px solid var(--fill-subtle)',
-            }}
-          />
-        )}
-      </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
-              flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.4,
+              fontSize: 13.5, lineHeight: 1.45,
               fontWeight: unread ? 700 : 500,
               color: unread ? 'var(--text-strong)' : 'var(--text-mid)',
               ...(expanded ? null : clampLines(TITLE_LINES)),
@@ -393,43 +403,38 @@ function NotificationRow({ nf, isMobile, expanded, fresh, onClick, shareAction }
           >
             {nf.title}
           </div>
-          <span style={{ fontSize: 11, color: 'var(--text-weak)', whiteSpace: 'nowrap', flex: 'none', paddingTop: 2 }}>
-            {formatNotificationTimeInGroup(nf.createdAt)}
-          </span>
+          {nf.body && (
+            <div
+              style={{
+                fontSize: 12.5, color: 'var(--text-mid)', marginTop: 2, lineHeight: 1.5,
+                ...(expanded ? null : clampLines(BODY_LINES)),
+                wordBreak: 'keep-all',
+                overflowWrap: 'anywhere',
+                whiteSpace: expanded ? 'pre-line' : undefined,
+              }}
+            >
+              {nf.body}
+            </div>
+          )}
+          <div style={{ fontSize: 11.5, color: 'var(--text-weak)', marginTop: 6 }}>{meta}</div>
         </div>
-        {nf.body && (
-          <div
+      </button>
+      {/* 버튼은 위 <button> 안에 넣지 않는다(상호작용 요소 중첩 금지). 같은 칸 안, 제목과 같은 시작선에 둔다. */}
+      {shareAction && (
+        <div style={{ padding: `0 10px 14px ${TEXT_INSET}px` }}>
+          <button
+            type="button"
+            className="tap-44 qbtn"
+            onClick={shareAction.onOpen}
             style={{
-              fontSize: 12, color: 'var(--text-weak)', marginTop: 3, lineHeight: 1.45,
-              ...(expanded ? null : clampLines(BODY_LINES)),
-              wordBreak: 'keep-all',
-              overflowWrap: 'anywhere',
-              whiteSpace: expanded ? 'pre-line' : undefined,
+              height: 34, padding: '0 14px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff',
+              fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
             }}
           >
-            {nf.body}
-          </div>
-        )}
-      </div>
-    </button>
-  )
-  if (!shareAction) return row
-
-  // 버튼은 행(<button>) 안에 넣지 않는다 — 상호작용 요소를 중첩하면 안 된다. 행 아래에 형제로 두고
-  // 왼쪽을 아이콘 칩 폭만큼 들여 제목과 시작선을 맞춘다(12 + 36 + 12 / 10 + 36 + 12).
-  return (
-    <div>
-      {row}
-      <div style={{ padding: isMobile ? '0 12px 12px 60px' : '0 10px 10px 58px' }}>
-        <button
-          type="button"
-          className="tap-44 qbtn"
-          onClick={shareAction.onOpen}
-          style={{ ...INVITE_BTN_BASE_STYLE, flex: 'none', border: 'none', background: 'var(--accent)', color: '#fff' }}
-        >
-          {shareAction.label}
-        </button>
-      </div>
+            {shareAction.label}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

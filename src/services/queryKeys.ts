@@ -123,5 +123,6 @@ export const queryKeys = {
   share: {
     all: () => ['share'] as const,
     status: () => ['share', 'status'] as const,
+    invitations: () => ['share', 'invitations'] as const,
   },
 } as const

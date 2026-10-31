@@ -48,6 +48,29 @@ export interface ShareCodeCheckResponse {
   expiresAt: string
 }
 
+/** 내 로그인 이메일로 온 이메일 초대(살아 있는 것만). 7일 유효 */
+export interface ReceivedShareInvitation {
+  id: number
+  inviterName: string
+  /** ISO-8601 */
+  expiresAt: string
+}
+
+/** 내가 보낸 이메일 초대(살아 있고 거절되지 않은 것). 가입 여부와 상관없이 보낸 그대로 보인다 */
+export interface SentShareInvitation {
+  id: number
+  /** 소문자로 저장된 이메일 */
+  email: string
+  /** ISO-8601 */
+  expiresAt: string
+}
+
+/** 이메일 초대 목록. 내가 연결 중이면 received는 비어 있다 */
+export interface ShareInvitationsResponse {
+  received: ReceivedShareInvitation[]
+  sent: SentShareInvitation[]
+}
+
 /** 공유할 계좌 저장 요청의 한 줄 — 목록 전체를 보낸다(빠진 계좌는 공유 해제) */
 export interface SharedAccountRequest {
   accountId: number

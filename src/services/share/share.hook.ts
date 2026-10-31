@@ -4,10 +4,15 @@ import { queryKeys } from '../queryKeys'
 import {
   acceptShareCode,
   cancelShareCode,
+  cancelShareInvite,
   checkShareCode,
+  declineShareCode,
+  getShareInvitations,
   getShareStatus,
   issueShareCode,
   patchShareSpaceName,
+  respondShareInvite,
+  sendShareInvite,
   setSharedAccounts,
   unlinkShare,
 } from './share.service'
@@ -26,6 +31,17 @@ export function useGetShareStatus(options?: QueryOptions) {
     staleTime: 30_000,
   })
   return { ...query, shareStatus: query.data ?? null }
+}
+
+/** 이메일 초대 목록(받은 · 보낸). 알림이 올 때마다 share 쿼리째 무효화된다(useNotificationStream). */
+export function useGetShareInvitations(options?: QueryOptions) {
+  const query = useQuery({
+    queryKey: queryKeys.share.invitations(),
+    queryFn: getShareInvitations,
+    enabled: options?.enabled,
+    staleTime: 30_000,
+  })
+  return { ...query, invitations: query.data ?? null }
 }
 
 /**
@@ -72,6 +88,41 @@ export function useAcceptShareCode() {
   return useMutation({
     mutationFn: (code: string) => acceptShareCode(code),
     onSuccess: () => invalidateScopedData(queryClient),
+  })
+}
+
+/** 거절은 내 상태를 바꾸지 않는다(초대한 사람에게 알림만) — 무효화할 쿼리가 없다. */
+export function useDeclineShareCode() {
+  return useMutation({ mutationFn: (code: string) => declineShareCode(code) })
+}
+
+export function useSendShareInvite() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (email: string) => sendShareInvite(email),
+    onSuccess: (data) => queryClient.setQueryData(queryKeys.share.invitations(), data),
+  })
+}
+
+export function useCancelShareInvite() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (invitationId: number) => cancelShareInvite(invitationId),
+    onSuccess: (data) => queryClient.setQueryData(queryKeys.share.invitations(), data),
+  })
+}
+
+/** 수락하면 연결이라 범위 쿼리 전부, 거절하면 공유(초대 목록) · 알림(읽음 처리됨)만 다시 받는다. */
+export function useRespondShareInvite() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ invitationId, accept }: { invitationId: number; accept: boolean }) => respondShareInvite(invitationId, accept),
+    onSuccess: (data, { accept }) => {
+      queryClient.setQueryData(queryKeys.share.status(), data)
+      if (accept) invalidateScopedData(queryClient)
+      else void queryClient.invalidateQueries({ queryKey: queryKeys.share.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notification.all() })
+    },
   })
 }
 
