@@ -35,6 +35,7 @@ export function useRestoreSession() {
   const markAnonymous = useAuthStore((s) => s.markAnonymous)
   const applyRestoredSession = useAuthStore((s) => s.applyRestoredSession)
   const signOut = useAuthStore((s) => s.signOut)
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     if (status !== 'unknown') return
@@ -75,15 +76,27 @@ export function useRestoreSession() {
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        if (useAuthStore.getState().status === 'authenticated') signOut()
+        if (useAuthStore.getState().status === 'authenticated') {
+          signOut()
+          // 직접 로그아웃(usePostLogout)과 같다 — 남기면 이 탭에서 다음에 로그인하는 사람이 이전 사람의 데이터를 잠깐 본다
+          queryClient.clear()
+        }
         return
       }
       if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION')) {
+        const { status: current, userId } = useAuthStore.getState()
+        // 다른 탭에서 다른 계정으로 바꿨다 — 이 탭의 화면 · 캐시 · 열린 창은 이전 사람 것이다. 섞이지 않게 새로 불러온다
+        // (새로 열면 저장된 세션으로 새 계정이 복원된다).
+        if (current === 'authenticated' && userId !== null && userId !== session.user.id) {
+          queryClient.clear()
+          window.location.reload()
+          return
+        }
         applyRestoredSession(session, useAuthStore.getState().authGeneration)
       }
     })
     return () => data.subscription.unsubscribe()
-  }, [applyRestoredSession, signOut])
+  }, [applyRestoredSession, signOut, queryClient])
 
   return status
 }
