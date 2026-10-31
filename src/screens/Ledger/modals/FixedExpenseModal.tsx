@@ -29,7 +29,7 @@ import { useEntityDropdown, type DropdownState } from '../../../state/selectors/
 import { useDatePicker } from '../../../state/selectors/datePicker'
 import { pickedToISODate } from '../../../utils/date'
 import { MAX_KRW_AMOUNT, MAX_KRW_AMOUNT_MESSAGE, formatNumber, parseAmount } from '../../../utils/format'
-import { DEFAULT_SUBSCRIPTION_ICON, findSubcategoryById } from '../../../data/ledgerView'
+import { DEFAULT_SUBSCRIPTION_ICON, findSubcategoryById, findSubcategoryByName, SUBSCRIPTION_DEFAULT_CATEGORY } from '../../../data/ledgerView'
 import { SubscriptionIconPicker } from './SubscriptionIconPicker'
 import { ApiError } from '@/services/api'
 import { useGetAccounts, type AccountResponse } from '@/services/account'
@@ -91,7 +91,9 @@ export function FixedExpenseModal() {
   if (!isOpen) return null
 
   const categories = categoriesQuery.categories
+  // 아직 안 고른 구독은 '통신비 · 구독료'를 기본으로 보여준다(2026-10-31 사용자 요청). 소분류를 지웠으면 첫 항목으로.
   const selected = findSubcategoryById(categories, state.recurringSubcategoryId)
+    ?? (state.recurringType === 'subscription' ? findSubcategoryByName(categories, SUBSCRIPTION_DEFAULT_CATEGORY) : null)
   const effectiveCategory = selected?.category ?? categories[0] ?? null
   const effectiveSubcategory = selected?.subcategory ?? effectiveCategory?.subcategories[0] ?? null
   const subOptions = effectiveCategory?.subcategories ?? []

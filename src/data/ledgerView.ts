@@ -84,6 +84,18 @@ export function findSubcategoryById(
   return null
 }
 
+/** 구독 추가 창의 기본 카테고리 — 대분류는 서버 시드 고정, 소분류는 사용자가 지웠을 수 있다. */
+export const SUBSCRIPTION_DEFAULT_CATEGORY = { category: '통신비', subcategory: '구독료' } as const
+
+export function findSubcategoryByName(
+  categories: CategoryResponse[],
+  names: { category: string; subcategory: string },
+): { category: CategoryResponse; subcategory: SubcategoryResponse } | null {
+  const category = categories.find((c) => c.name === names.category)
+  const subcategory = category?.subcategories.find((s) => s.name === names.subcategory)
+  return category && subcategory ? { category, subcategory } : null
+}
+
 // ---------- 이번달/올해 수지 하이라이트 (deep-card hero) ----------
 
 function periodDeltaLabel(period: LedgerPeriod): string {
