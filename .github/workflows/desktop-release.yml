@@ -4,7 +4,7 @@
 # 필요한 저장소 설정:
 #   Variables: VITE_SUPABASE_URL, VITE_SUPABASE_PUBLIC_KEY   (운영 Supabase — Publishable 키 sb_publishable_…, 공개 가능)
 #   Secrets(선택, 맥 서명·공증): CSC_LINK(.p12 base64), CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
-#   없으면 서명 없이 빌드한다(첫 실행 때 "우클릭 → 열기", 자동 업데이트는 릴리스 페이지 열기로 대체).
+#   없으면 임시(ad-hoc) 서명으로 빌드한다(첫 실행 때 '그래도 열기', 자동 업데이트는 릴리스 페이지 열기로 대체). 빈 시크릿은 빌드 단계에서 지운다.
 name: desktop-release
 
 on:
@@ -54,4 +54,11 @@ jobs:
           test -n "$VITE_SUPABASE_PUBLIC_KEY" || { echo "::error::VITE_SUPABASE_PUBLIC_KEY variable is empty"; exit 1; }
 
       - name: Build and publish (draft release)
-        run: pnpm build:desktop --publish always
+        shell: bash
+        run: |
+          # 등록 안 된 시크릿은 빈 문자열로 들어온다. 빈 CSC_LINK 를 electron-builder 가 인증서 파일 경로로 읽어
+          # 프로젝트 폴더를 열다 "not a file" 로 멈추므로(2026-10-31 첫 릴리스에서 실제로 실패), 비어 있는 서명 값은 아예 지운다.
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!name}" ] || unset "$name"
+          done
+          pnpm build:desktop --publish always
