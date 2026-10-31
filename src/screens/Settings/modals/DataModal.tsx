@@ -4,7 +4,7 @@
 // 파일 올리기 · 결과 요약). 서버는 한 행이라도 틀리면 아무것도 등록하지 않으므로 결과는
 // 'N건 등록' 또는 '틀린 행 목록 + 고쳐서 다시 올리기' 둘 중 하나다 — 계약은 docs/excel-import.md.
 // - '전체 내역 내보내기'(GET /export/excel/transactions, GET /export/excel/trades): 눌러서 거래/매매
-// 중 하나를 고르는 인라인 드롭다운(CustomModal.tsx의 월 시작일 드롭다운과 같은 수동 구현 패턴).
+// 중 하나를 고르는 인라인 드롭다운(system/LedgerSection.tsx의 월 시작일 드롭다운과 같은 수동 구현 패턴).
 // 가져오기·내보내기 모두 '계좌'도 다룬다(2026-09-26 — /import/excel/accounts, /export/excel/accounts). 계좌
 // 내보내기 파일은 가져오기 양식과 같은 열이라 그대로 다시 올릴 수 있다. 거래·매매 내보내기는 기간(전체 ·
 // 올해 · 최근 3개월 · 최근 1개월)을 고를 수 있고, 계좌 내보내기는 기간 개념이 없어 항상 전체다.
@@ -27,6 +27,9 @@ import type { ExportFileParams, ExportKind } from '@/services/export'
 import type { ImportKind } from '@/services/import'
 import { SegmentedTab } from '../../../components/primitives/SegmentedTab/SegmentedTab'
 import { recentMonthsRange, toISODate } from '../../../utils/date'
+import { CONNECTION_UI_ENABLED } from '../../../data/connectionView'
+import { duplicateAccountNames } from '../../../data/accountView'
+import { useGetAccounts } from '@/services/account'
 import { useDownloadImportTemplate, useUploadImportFile } from '@/services/import'
 import { ConnectionsSection } from './ConnectionsSection'
 
@@ -107,6 +110,9 @@ const IMPORT_ACCOUNT_GUIDE: { kind: string; account: string; counterparty: strin
 ]
 
 const IMPORT_TABLE_HEAD_STYLE = { fontSize: 10.5, fontWeight: 700, color: 'var(--text-weak)' } as const
+const DUPLICATE_NOTE_STYLE: CSSProperties = {
+  fontSize: 11.5, lineHeight: 1.6, color: 'var(--text-strong)', background: 'var(--down-chip)', borderRadius: 8, padding: '10px 12px',
+}
 
 function ComingSoonRow({ action }: { action: ComingSoonAction }) {
   return (
@@ -142,6 +148,9 @@ export function DataModal() {
   const template = useDownloadImportTemplate()
   const upload = useUploadImportFile()
   const [importOpen, setImportOpen] = useState(false)
+  // 가져오기 패널을 펼쳤을 때만 계좌 목록을 본다(같은 이름 계좌 사전 안내).
+  const accountsQuery = useGetAccounts({}, { enabled: state.openModal === 'data' && importOpen })
+  const duplicateNames = duplicateAccountNames(accountsQuery.data)
   const [importKind, setImportKind] = useState<ImportKind>('transactions')
   const [exportRange, setExportRange] = useState<ExportRange>('all')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -266,6 +275,16 @@ export function DataModal() {
                   </Fragment>
                 ))}
               </div>
+              {/* 같은 이름 계좌(000029 전부터 겹쳐 있던 것)로 적은 줄은 서버가 어느 계좌인지 못 정해 파일 전체가 막힌다 —
+                  올리고 나서 틀린 행으로 알기 전에 미리 알린다. */}
+              {duplicateNames.length > 0 && (
+                <div role="note" style={DUPLICATE_NOTE_STYLE}>
+                  <b style={{ color: 'var(--down)' }}>이름이 같은 계좌가 있어요</b> —{' '}
+                  {duplicateNames.map((d) => `‘${d.name}’ ${d.count}개`).join(', ')}.
+                  {' '}이 이름으로 적은 줄은 어느 계좌인지 정할 수 없어 올라가지 않아요. 자산 화면에서 계좌 이름을 서로 다르게 바꾼 뒤
+                  양식을 다시 내려받아 주세요.
+                </div>
+              )}
               </>)}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
@@ -344,8 +363,9 @@ export function DataModal() {
 
         {/* 증권사·거래소 연동 관리. 엑셀 가져오기 바로 아래 — 둘 다 "외부에서 데이터를
             끌어오는 수단"이라 같은 묶음으로 읽힌다. 새 연동 등록은 여기가 아니라 계좌 추가 모달에
-            있다(등록의 결과물이 계좌라서). 여기는 목록·재동기화·해제 전용이다. */}
-        <ConnectionsSection />
+            있다(등록의 결과물이 계좌라서). 여기는 목록·재동기화·해제 전용이다.
+            연동 화면을 끈 동안(CONNECTION_UI_ENABLED)은 등록 배너와 함께 숨긴다. */}
+        {CONNECTION_UI_ENABLED && <ConnectionsSection />}
 
         <div style={{ position: 'relative' }}>
           <button
@@ -411,7 +431,7 @@ export function DataModal() {
                   style={EXPORT_OPTION_BTN_STYLE}
                 >
                   {opt.label}
-                  {opt.kind === 'accounts' && <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-weak)', marginLeft: 6 }}>기간과 무관 · 등록 시점 원금</span>}
+                  {opt.kind === 'accounts' && <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-weak)', marginLeft: 6 }}>기간과 무관 · 오늘 잔액</span>}
                 </button>
               ))}
             </div>

@@ -118,7 +118,7 @@ export const ERROR_SPECS: Record<string, ErrorSpec> = {
   TRADE_NOT_FOUND: { status: 404, message: '매매 기록을 찾을 수 없습니다.' },
   TRANSACTION_NOT_FOUND: { status: 404, message: '거래를 찾을 수 없습니다.' },
   TRANSFER_ACCOUNT_NOT_ALLOWED: { status: 400, message: '수입/지출/잔액 조정/환전 거래는 상대 계좌를 지정할 수 없습니다.' },
-  TRANSFER_ACCOUNT_REQUIRED: { status: 400, message: '이체 거래는 상대 계좌가 필수입니다.' },
+  TRANSFER_ACCOUNT_REQUIRED: { status: 400, message: '이체·저축 거래는 상대 계좌가 필수입니다.' },
   UNAUTHENTICATED: { status: 401, message: '인증이 필요합니다.' },
   UNAUTHORIZED: { status: 401, message: '인증이 필요합니다.' },
   USER_NOT_FOUND: { status: 404, message: '사용자를 찾을 수 없습니다.' },

@@ -11,8 +11,8 @@ import type { ImportKind, ImportTemplateResult, ImportTransactionsResult } from 
 // ExcelConstants · LedgerFacadeService · AccountFacadeService 와 같다 — 예전에 받아 둔 양식 파일도 그대로 올라간다.
 
 const TEMPLATE_FILENAME: Record<ImportKind, string> = {
-  transactions: 'transactions_template.xlsx',
-  accounts: 'accounts_template.xlsx',
+  transactions: 'Monit_가계부_템플릿.xlsx',
+  accounts: 'Monit_계좌_템플릿.xlsx',
 }
 
 /** 양식 2번 시트 — 입력 시트의 이름 칸은 이 시트의 값과 정확히 같아야 한다. */

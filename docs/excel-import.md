@@ -23,14 +23,15 @@
   파일은 **5MB**까지 — 앱이 올리기 전에 막는다(`INVALID_INPUT`).
 - 셀 읽기 규칙(`src/utils/xlsx/readSheet.ts`, 스프링 `cellText`와 같다): 날짜 서식의 숫자 셀은 `yyyy-MM-dd`(엑셀 일련번호를
   직접 연·월·일로 풀어 시간대 때문에 하루가 밀리지 않는다), 숫자 셀은 지수 없는 평문(`12000` · `500.02`), 문자열은 앞뒤 공백을
-  떼고, 수식 셀은 저장된 결과값을 읽는다.
+  떼고, 수식 셀은 저장된 결과값을 읽는다. 퍼센트 서식의 숫자 셀만 스프링과 달리 **보이는 숫자**로 읽는다(`4%` → `4` —
+  엑셀은 `4%`를 0.04로 저장해 그대로 넘기면 연이율이 0.04%가 됐다, 2026-10-31. 따옴표·`\%`로 쓴 글자 `%`는 100배 하지 않는다).
 
 ## 양식 내려받기
 
 | 종류 | 파일명 | 1번 시트 | 2번 시트 `등록된 이름` |
 |---|---|---|---|
-| 거래 | `transactions_template.xlsx` | `거래내역` — A~I 헤더 + 예시 1행 | A열 `계좌`(해지 안 한 계좌명) / C~E열 `구분`·`대분류`·`소분류`(내 소분류 조합 전부) |
-| 계좌 | `accounts_template.xlsx` | `계좌` — A~I 헤더 + 예시 1행 | A열 `유형`(현금·예적금·주식·가상자산·연금·기타) / C열 `기관`(등록된 기관명 전체) |
+| 거래 | `Monit_가계부_템플릿.xlsx` | `거래내역` — A~I 헤더 + 예시 1행 | A열 `계좌`(해지 안 한 계좌명) / C~E열 `구분`·`대분류`·`소분류`(내 소분류 조합 전부) |
+| 계좌 | `Monit_계좌_템플릿.xlsx` | `계좌` — A~I 헤더 + 예시 1행 | A열 `유형`(현금·예적금·주식·가상자산·연금·기타) / C열 `기관`(등록된 기관명 전체) |
 
 앱이 `get_accounts`·`get_categories`·`institutions`에서 이름을 읽어 두 시트짜리 파일을 만든다(`downloadImportTemplate`).
 입력 시트의 이름 칸은 `등록된 이름` 시트의 값과 정확히 같아야 한다(앞뒤 공백만 무시). 거래 양식의 예시 행은 내 첫 계좌와
@@ -66,7 +67,12 @@ A~H열이 편한가계부와 같고, I열(상대계좌)만 모닛이 덧붙인 �
 | 저축 | 출금 계좌 | **입금 계좌**(저축액이 쌓이는 곳) |
 | 이체 | 출금 계좌 | **입금 계좌**(받는 곳) |
 
-저축에 I열을 비우면 출금만 잡혀 총자산이 줄어들므로 DB가 막는다(`TRANSFER_ACCOUNT_REQUIRED`). 같은 표가 가져오기 패널에도 있다
+계좌·상대계좌는 **사용 중인 계좌 이름**으로 찾는다(해지한 계좌는 같은 이름의 사용 중 계좌가 없을 때만 — 000022). 사용 중인 계좌끼리
+이름이 같으면 어느 계좌인지 정할 수 없어 `IMPORT_ACCOUNT_AMBIGUOUS`라, 2026-10-31부터 계좌 등록·수정·계좌 가져오기에서 같은 이름을
+막는다(`ACCOUNT_NAME_DUPLICATE`, 000029). 그 전부터 겹쳐 있던 계좌가 있으면 가져오기 패널이 이름과 개수를 미리 알린다.
+
+저축에 I열을 비우면 출금만 잡혀 총자산이 줄어들므로 DB가 막는다(`TRANSFER_ACCOUNT_REQUIRED` — 줄 오류 문구는 "이체·저축 거래는
+상대계좌(I열)가 필수입니다.", 000030). 같은 표가 가져오기 패널에도 있다
 (`DataModal.tsx`의 `IMPORT_ACCOUNT_GUIDE`).
 
 ### 에러
@@ -76,7 +82,8 @@ A~H열이 편한가계부와 같고, I열(상대계좌)만 모닛이 덧붙인 �
 - 행 단위(결과의 `errors`): `IMPORT_DATE_INVALID` `IMPORT_AMOUNT_INVALID` `IMPORT_TYPE_INVALID` `IMPORT_DESCRIPTION_INVALID`
   `IMPORT_ACCOUNT_NOT_FOUND` `IMPORT_ACCOUNT_AMBIGUOUS` `IMPORT_TRANSFER_ACCOUNT_NOT_FOUND` `IMPORT_CATEGORY_NOT_FOUND`
   `IMPORT_SUBCATEGORY_NOT_FOUND`, 또는 일반 거래 등록과 같은 규칙 코드(`SUBCATEGORY_REQUIRED` 등 — 3단계 트리거).
-  문구는 `private.import_message`가 붙인다(`src/services/errorMessages.ts`와 같은 문장). 화면은 코드로 분기하지 않고 `message`만 보여준다.
+  문구는 `private.import_message`가 붙인다(`src/services/errorMessages.ts`와 같은 문장 — 규칙 코드 중 `TRANSFER_ACCOUNT_REQUIRED`만
+  가져오기 쪽에 고칠 열 '(I열)'을 더 적는다). 화면은 코드로 분기하지 않고 `message`만 보여준다.
 
 ## 계좌 가져오기 — `import_accounts(p_rows jsonb)`
 
@@ -129,12 +136,14 @@ DB 함수가 행마다 `create_account`를 부른다(초기 잔액 ADJUSTMENT �
 
 | 종류 | DB 함수 | 시트 | 파일명 |
 |---|---|---|---|
-| 거래 | `export_transactions(p_from, p_to)` | `transactions` — 거래일·타입·대분류·소분류·금액·계좌·상대계좌·내용·메모 | `transactions.xlsx` |
-| 매매 | `export_trades(p_from, p_to)` | `trades` — 체결일·종목명·티커·시장·매수/매도·수량·단가·수수료·세금·환율·메모 | `trades_{from\|all}_{to\|오늘}.xlsx`(`yyyyMMdd`) |
-| 계좌 | `export_accounts()` | `계좌` — 계좌 가져오기 양식과 같은 A~I | `accounts.xlsx` |
+| 거래 | `export_transactions(p_from, p_to)` | `거래내역` — 거래일·타입·대분류·소분류·금액·계좌·상대계좌·내용·메모 | `Monit_가계부_거래내역_{기간}.xlsx` |
+| 매매 | `export_trades(p_from, p_to)` | `매매내역` — 체결일·종목명·티커·시장·매수/매도·수량·단가·수수료·세금·환율·메모 | `Monit_주식_매매내역_{기간}.xlsx` |
+| 계좌 | `export_accounts()` | `계좌` — 계좌 가져오기 양식과 같은 A~I | `Monit_계좌_목록_{내려받은 날}.xlsx` |
 
 - RPC가 `{ headers, rows }`를 돌려주고 앱이 xlsx로 만들어 저장한다(`downloadExportFile` → `buildWorkbook` → `saveFile`).
-  파일명 규칙은 `exportFilename`(`export.service.ts`) — 스프링 Content-Disposition과 같다.
+  파일명 규칙은 `exportFilename`(`export.service.ts`, 2026-10-31 사용자 결정 — `Monit_` + 한글, 날짜는 `yyyyMMdd`):
+  `{기간}`은 기간을 고르면 `{from}-{to}`(예: `20260731-20261031`, `to`를 생략하면 내려받은 날), 전체 기간이면
+  `전체_{to 또는 내려받은 날}`이다. 시트 이름도 한글(`거래내역` · `매매내역` · `계좌`).
 - `from`·`to`는 `yyyy-MM-dd`, 양끝 포함, 생략하면 제한 없음. 거래는 거래일, 매매는 체결일 오름차순. 거래 내보내기에
   `ADJUSTMENT`(잔액 정정)·`EXCHANGE`(환전)는 들어가지 않는다. 거래 내보내기의 타입은 `수입`·`지출`·`저축`·`이체`, 계좌·상대계좌는
   계좌 **이름**(해지한 계좌도 이름 그대로)이다 — 2026-10-30에 스프링 형식(영어 enum·계좌 id)에서 바꿨다(사용자 요청). 숫자 문자열은 꼬리 0을 뗀다(`10.00000000` → `10`).

@@ -103,7 +103,7 @@ export async function renderReportSlidePng(node: HTMLElement): Promise<Blob> {
 }
 
 export function reportImageFilename(year: number, month: number): string {
-  return `monit-report-${year}-${String(month).padStart(2, '0')}.png`
+  return `Monit_월간리포트_${year}-${String(month).padStart(2, '0')}.png`
 }
 
 export type ShareOutcome = 'shared' | 'downloaded' | 'cancelled'

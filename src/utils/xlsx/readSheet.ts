@@ -32,7 +32,7 @@ interface ReadSheetOptions {
 /**
  * 엑셀 파일의 시트 하나를 "문자열 칸" 행 배열로 읽는다. 셀 해석 규칙은 스프링 `cellText`와 같다:
  * 날짜 서식의 숫자 셀은 `yyyy-MM-dd`, 숫자 셀은 지수 없는 평문(`12000` · `500.02`), 문자열은 앞뒤 공백 제거,
- * 수식 셀은 저장된 결과값. 날짜·금액·이름의 **의미** 해석은 하지 않는다 — DB 함수가 한 곳에서 한다.
+ * 수식 셀은 저장된 결과값. 퍼센트 서식의 숫자 셀만 스프링과 달리 보이는 숫자(`4%` → `4`)로 읽는다. 날짜·금액·이름의 **의미** 해석은 하지 않는다 — DB 함수가 한 곳에서 한다.
  */
 export async function readSheet(file: File, { sheetName, columnCount }: ReadSheetOptions): Promise<SheetData> {
   const XLSX = await loadXlsx()
@@ -87,6 +87,8 @@ function cellText(XLSX: XlsxModule, cell: CellObject | undefined, date1904: bool
         const date = (XLSX.SSF as Ssf).parse_date_code(value, { date1904 })
         return date ? isoDate(date.y, date.m, date.d) : ''
       }
+      // 엑셀에 '4%'를 적으면 0.04 에 퍼센트 서식이 붙는다 — 보이는 숫자(4)를 넘긴다. 그대로 넘기면 연이율이 0.04%로 저장된다.
+      if (typeof cell.z === 'string' && isPercentFormat(cell.z)) return plainNumber(value * 100)
       return plainNumber(value)
     }
     case 'd':
@@ -104,6 +106,11 @@ function cellText(XLSX: XlsxModule, cell: CellObject | undefined, date1904: bool
 
 function isoDate(y: number, m: number, d: number): string {
   return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+/** 퍼센트 서식(`0%` · `0.0%`)인가. 따옴표 안의 글자와 `\%`는 서식이 아니라 그냥 글자라 100배 하지 않는다(엑셀과 같은 규칙). */
+function isPercentFormat(format: string): boolean {
+  return format.replace(/"[^"]*"|\\./g, '').includes('%')
 }
 
 /** 12000 → "12000", 500.02 → "500.02". 지수 표기·천 단위 구분 없이(스프링 BigDecimal.toPlainString 과 같은 결과). */
