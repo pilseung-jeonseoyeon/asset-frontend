@@ -3,7 +3,7 @@
 // 둔다 — 선례: `src/components/primitives/usePopoverAnchor.ts`.
 //
 // 서버가 정본이고 이 훅이 유일한 반영 경로다(설계 결정 1·3번, synthetic-sleeping-wigderson.md).
-// GeneralModal의 pickTheme은 낙관적으로 AppState를 먼저 바꾸고, 실패하면 usePatchUserSettings의
+// 시스템 관리 → 화면 탭(DisplaySection)의 pickTheme은 낙관적으로 AppState를 먼저 바꾸고, 실패하면 usePatchUserSettings의
 // onError가 캐시를 되돌리는데, 그 되돌아간 캐시 값을 여기서 다시 읽어 AppState·localStorage를
 // 원래대로 복원한다 — 롤백 로직이 화면과 훅 두 군데로 갈라지지 않는다.
 

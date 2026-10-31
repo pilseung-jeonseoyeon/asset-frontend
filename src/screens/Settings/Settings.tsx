@@ -1,9 +1,9 @@
-// 설정 화면(카드 4개 그리드 + 화면 맨 아래 약관 링크·저작권 표시).
+// 설정 화면(카드 3개 한 줄 + 화면 맨 아래 약관 링크·저작권 표시).
 // 약관 링크는 필요한 사람만 찾아보는 정보라 카드 바로 밑이 아니라 화면 바닥에 작게 붙인다
 // (2026-09-26 사용자 결정). 루트를 flex: 1 세로 flex로 두고 푸터에 marginTop: 'auto'를 줘서 바닥으로
 // 민다 — 부모 main이 세로 flex라서 가능하다(AuthenticatedApp.tsx). 모바일 하단 탭바는 main의 아래
 // padding이 이미 비켜 준다.
-// 모달 5개(general/data/custom/categorySettings/familyShare)는 다른 모달과 마찬가지로
+// 모달 4개(system/data/categorySettings/familyShare)는 다른 모달과 마찬가지로
 // AppShell 레벨에 마운트된다(모달을 화면 안에 중첩하지 않는 이유는 AppShell.tsx 주석 참고).
 // 하단의 약관 링크는 가입 때 동의한 문서(data/termsContent.ts)를 언제든 다시 볼 수 있게 한다 —
 // 앱 스토어 심사가 "앱 안에서 약관·개인정보 안내에 닿을 수 있을 것"을 요구하고, 회원이 동의한
@@ -27,9 +27,9 @@ interface SettingsCardDef {
 }
 
 const CARDS: SettingsCardDef[] = [
-  { icon: 'tune', title: '일반 및 디스플레이', description: '앱의 시각적인 테마와 기본적인 사용 환경을 세팅합니다.', modal: 'general' },
+  // 시스템 관리 — 옛 '일반 및 디스플레이'와 '자산 · 가계부 맞춤 설정'을 합친 창. 안에서 화면 · 알림 · 자산 · 가계부 묶음으로 한 번에 나열한다(2026-10-31, SystemSettingsModal)
+  { icon: 'settings', title: '시스템 관리', description: '화면 · 알림 · 자산 · 가계부 설정을 한곳에서 바꿔요.', modal: 'system' },
   { icon: 'database', title: '데이터 관리 및 백업', description: '기록을 안전하게 이관하고 보존합니다.', modal: 'data' },
-  { icon: 'dashboard_customize', title: '자산 · 가계부 맞춤 설정', description: '라이프스타일에 맞게 자산 관리 기준을 조율합니다.', modal: 'custom' },
   // 가족·커플 공유(v17) — 연결·초대 코드·공유할 계좌를 모두 여기서(ShareFlowModal). 연결 중이면 설명이 바뀐다(아래).
   { icon: 'group', title: '가족 · 커플 공유', description: '함께 보는 구성원과 계좌, 받은 초대를 한곳에서 관리합니다.', modal: 'familyShare' },
 ]
@@ -49,8 +49,8 @@ export function Settings() {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      {/* 카드가 넷이 되면서 2×2로 둔다 — 3열이면 마지막 카드 하나만 둘째 줄에 홀로 남는다. 900px 이하는 .rgrid-cards가 1열로 접는다. */}
-      <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 20, alignItems: 'stretch' }}>
+      {/* 카드 셋을 한 줄로 둔다(2열이면 마지막 카드 하나만 둘째 줄에 홀로 남는다). 900px 이하는 .rgrid-cards가 1열로 접는다. */}
+      <div className="rgrid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20, alignItems: 'stretch' }}>
         {CARDS.map((card) => (
           // 카드 전체가 하나의 버튼이다 — 예전 <section onClick>은 Tab으로 포커스가 가지 않아 키보드로 열 수 없었다.
           <button

@@ -55,7 +55,7 @@ export function Switch({ checked, onChange, disabled, label }: SwitchProps) {
       onClick={() => onChange(!checked)}
       style={{
         // 데스크톱은 패딩 없이 트랙 그대로가 버튼 크기다. 모바일은 44px 터치 타깃 확보를 위해
-        // 세로로만 패딩을 준다 — GeneralModal.tsx 헤더 주석이 명시한 기존 방침(데스크톱 불변,
+        // 세로로만 패딩을 준다 — system/DisplaySection.tsx 헤더 주석이 명시한 기존 방침(데스크톱 불변,
         // 모바일만 세로 확장)과 동일하게 트랙 자체의 시각 크기는 바꾸지 않는다.
         padding: isMobile ? '10px 0' : 0,
         border: 'none',

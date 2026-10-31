@@ -29,9 +29,8 @@ import { Ledger } from '../../screens/Ledger/Ledger'
 import { LedgerEntryModal } from '../../screens/Ledger/modals/LedgerEntryModal'
 import { FixedExpenseModal } from '../../screens/Ledger/modals/FixedExpenseModal'
 import { Settings } from '../../screens/Settings/Settings'
-import { GeneralModal } from '../../screens/Settings/modals/GeneralModal'
+import { SystemSettingsModal } from '../../screens/Settings/modals/SystemSettingsModal'
 import { DataModal } from '../../screens/Settings/modals/DataModal'
-import { CustomModal } from '../../screens/Settings/modals/CustomModal'
 import { CategorySettingsModal } from '../../screens/Settings/modals/CategorySettingsModal'
 import { Assets } from '../../screens/Assets/Assets'
 import { QuickStockModal } from '../../screens/Assets/modals/QuickStockModal'
@@ -63,7 +62,7 @@ export function AuthenticatedApp() {
   const { state, setState } = useAppState()
   const isMobile = useIsMobile()
   // 이 컴포넌트는 AppShell 게이팅상 인증된 상태에서만 마운트되므로(기존 401 회피 규칙 유지),
-  // 서버 사용자 설정의 theme을 AppState로 미러링해도 안전하다. 부수 효과로 CustomModal 등에서
+  // 서버 사용자 설정의 theme을 AppState로 미러링해도 안전하다. 부수 효과로 시스템 관리 창 등에서
   // 서버 설정이 필요한 다른 행(월 시작일 등)도 이 시점에 미리 페치되어 잠깐의 기본값 깜빡임이 준다.
   useSyncUserTheme()
 
@@ -147,14 +146,11 @@ export function AuthenticatedApp() {
       <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="고정 지출 · 구독 추가">
         <FixedExpenseModal />
       </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="일반 및 디스플레이">
-        <GeneralModal />
+      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="시스템 관리">
+        <SystemSettingsModal />
       </ModalErrorBoundary>
       <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="데이터 관리 및 백업">
         <DataModal />
-      </ModalErrorBoundary>
-      <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="자산 · 가계부 맞춤 설정">
-        <CustomModal />
       </ModalErrorBoundary>
       <ModalErrorBoundary onReset={closeOpenModal} zIndex={80} title="카테고리 설정">
         <CategorySettingsModal />

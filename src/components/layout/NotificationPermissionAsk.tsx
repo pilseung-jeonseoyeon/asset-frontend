@@ -6,7 +6,7 @@
 // - 보이는 조건: 맥·PC 알림을 지원하는 브라우저 + 아직 허락 전('default') + 설정이 꺼져 있음 + '다음에'를 누른 지
 //   30일이 지났음. 폰은 지원하지 않아 보이지 않는다(src/utils/desktopNotification.ts).
 // - 허용 → 설정을 켜고 시험 알림 1건. 차단 → 푸는 곳을 안내하고 카드는 닫을 수 있다.
-// 같은 설정은 설정 → 일반 및 디스플레이에도 있다(NotificationSettingsSection).
+// 같은 설정은 설정 → 시스템 관리 → 알림 탭에도 있다(NotificationSettingsSection).
 
 import { useState } from 'react'
 import { Icon } from '../primitives/Icon/Icon'
@@ -80,7 +80,7 @@ export function NotificationPermissionAsk() {
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-mid)', marginTop: 3, lineHeight: 1.5, wordBreak: 'keep-all' }}>
           {blocked
-            ? '주소창 왼쪽 아이콘 → 알림 → 허용으로 바꾸면 켜져요. 설정 → 일반 및 디스플레이에서도 볼 수 있어요.'
+            ? '주소창 왼쪽 아이콘 → 알림 → 허용으로 바꾸면 켜져요. 설정 → 시스템 관리 → 알림에서도 볼 수 있어요.'
             : '다른 탭이나 앱을 보고 있어도 맥·PC 알림으로 알려드려요. 모닛 탭은 열어 두셔야 해요.'}
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 10, alignItems: 'center' }}>

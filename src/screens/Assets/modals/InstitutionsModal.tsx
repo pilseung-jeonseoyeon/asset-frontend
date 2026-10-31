@@ -25,7 +25,7 @@ import { useGetInstitutions } from '@/services/institution'
 import { useProfileName } from '@/services/user'
 import type { CSSProperties } from 'react'
 
-// GeneralModal.tsx/AddAccountModal.tsx의 재시도 배너와 동일한 텍스트 버튼 규격.
+// SystemSettingsModal.tsx/AddAccountModal.tsx의 재시도 배너와 동일한 텍스트 버튼 규격.
 const RETRY_BTN_STYLE: CSSProperties = {
   border: 'none', background: 'transparent', padding: 0, fontSize: 12, fontWeight: 700,
   color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit', marginLeft: 8,

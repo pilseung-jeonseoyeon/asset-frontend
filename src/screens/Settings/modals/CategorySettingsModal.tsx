@@ -64,12 +64,12 @@ export function CategorySettingsModal() {
     closeModal()
   }
 
-  const backToCustom = () => {
+  const backToSystemSettings = () => {
     setDeleteTarget(null)
     setAddError(null)
     postSubcategory.reset()
     deleteSubcategory.reset()
-    setState({ openModal: 'custom', addingCategoryGroup: null })
+    setState({ openModal: 'system', addingCategoryGroup: null })
   }
 
   const startAdd = (key: string) => {
@@ -144,7 +144,7 @@ export function CategorySettingsModal() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, ...sheetStickyHeaderStyle(isMobile, 8) }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
           <button
-            onClick={backToCustom}
+            onClick={backToSystemSettings}
             title="뒤로"
             style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: 'var(--track)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
           >

@@ -1,7 +1,7 @@
 // 자산 목표 추가·수정 모달. GET/PUT /goals에 연결돼 있다. z-index 80, 너비 440px, maxHeight 86vh.
 // 상단이 '우리집'(가족·커플 공유 v17)이면 두 사람이 같이 보는 공유 목표를 고친다(useViewScope의 범위).
-// 닫으면 `addGoalReturnTo`로 돌아간다(이 모달을 연 화면/모달 — 대시보드는 null, 설정의 CustomModal은
-// 'custom'을 넘긴다). closeAddAccount와 같은 return-to 패턴이다.
+// 닫으면 `addGoalReturnTo`로 돌아간다(이 모달을 연 화면/모달 — 대시보드는 null, 설정 → 시스템 관리의 '자산' 묶음은
+// 'system'을 넘긴다). closeAddAccount와 같은 return-to 패턴이다.
 //
 // 목표 자산 / 월평균 수입은 로컬 폼 상태(useState) + formatNumber/parseAmount로 제어되는 입력이다.
 // 월평균 수입의 초기 제안값은 서버가 주지 않아 GET /transactions/summaries/monthly의 최근 3개월

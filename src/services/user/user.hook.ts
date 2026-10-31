@@ -150,18 +150,18 @@ function withRestoredFields<T extends object>(target: T, source: T, keys: (keyof
 
 // mutationKey 없이 queryClient.isMutating()을 부르면 앱 전역 mutation(예: 가계부
 // 거래 저장)까지 세어, 이 화면과 무관한 요청 때문에 onSuccess의 setQueryData가 부당하게
-// 건너뛰어진다. GeneralModal의 두 usePatchUserSettings() 인스턴스가 이 키를 공유해야 서로를
+// 건너뛰어진다. 시스템 관리 창의 usePatchUserSettings() 인스턴스들이 이 키를 공유해야 서로를
 // "겹치는 설정 저장"으로 인식할 수 있으므로, 훅 밖 모듈 스코프 상수로 고정한다.
 const SETTINGS_MUTATION_KEY = queryKeys.user.settings()
 
 /**
  * 낙관적 업데이트: 누르는 즉시 캐시(따라서 그걸 구독하는 화면)를 바꾸고, 실패하면 여기서
- * 되돌린다(onError). 화면(GeneralModal 등)은 실패 롤백을 직접 하지 않는다 — 캐시가 되돌아가면
+ * 되돌린다(onError). 화면(시스템 관리 창 등)은 실패 롤백을 직접 하지 않는다 — 캐시가 되돌아가면
  * useSyncUserTheme 같은 구독 훅이 AppState·localStorage까지 자동으로 따라 복원하므로, 롤백
  * 코드가 훅 하나와 화면 여러 곳으로 갈라지지 않는다.
  *
- * 같은 필드 집합을 여러 mutation 인스턴스가 동시에 건드릴 수 있어(예: GeneralModal의 테마·환율
- * 자동 갱신이 각각 독립된 usePatchUserSettings() 인스턴스를 씀), onError/onSuccess 모두 "이
+ * 같은 필드 집합을 여러 mutation 인스턴스가 동시에 건드릴 수 있어(예: 시스템 관리 창의 테마·월 시작일·
+ * D-Day 알림이 각각 독립된 usePatchUserSettings() 인스턴스를 씀), onError/onSuccess 모두 "이
  * mutation이 실제로 보낸 필드"만 건드리고 서로 겹치는 나머지 필드는 건드리지 않는다.
  */
 export function usePatchUserSettings() {
