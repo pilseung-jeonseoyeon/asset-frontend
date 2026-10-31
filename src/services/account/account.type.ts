@@ -43,6 +43,11 @@ export interface AccountResponse {
   sortOrder: number
   /** 해지 시각 — 활성 계좌는 null */
   closedAt: string | null
+  /**
+   * 잔액 기준일 'YYYY-MM-DD'(등록 시 initialBalanceDate, 기본 등록일). 이 날짜 이전 거래는 가계부에는 나오지만
+   * 이 계좌 잔액에는 세지 않는다(서버 000026 — 등록할 때 적은 잔액에 이미 들어 있으므로).
+   */
+  balanceStartDate: string
   /** 지금 공유 중이면 공유 설정(GET /accounts만 채운다). 공유 중이 아니거나 다른 응답이면 null/없음. */
   share?: AccountShareInfo | null
 }

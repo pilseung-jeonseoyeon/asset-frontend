@@ -46,3 +46,52 @@ export function accountInstitutionLabel(
   if (!account) return ''
   return accountInstitutionMeta(account, institutions)?.institutionName ?? account.institutionName ?? '기관 없음'
 }
+
+/**
+ * 잔액 기준일 전 날짜를 고른 기록의 안내 문구(서버 000026 — 기준일 전 거래는 기록에는 남고 잔액에는 세지 않는다).
+ * 가계부 입력·환전 창이 고른 계좌·날짜로 부르고, keptIn 은 기록이 남는 곳('가계부'·'환전 내역')이다. 해당 계좌가 없으면 null.
+ * 계좌가 둘(저축·이체)이고 기준일이 서로 다르면 날짜는 빼고 '등록하기 전 날짜라'로 적는다.
+ */
+export function balanceStartNoteText(accounts: (AccountResponse | undefined)[], isoDate: string, keptIn: string): string | null {
+  const before = accounts.filter((a): a is AccountResponse => !!a && isoDate < a.balanceStartDate)
+  if (before.length === 0) return null
+  const names = before.map((a) => a.name).join(' · ')
+  const dates = new Set(before.map((a) => a.balanceStartDate))
+  const lead = dates.size === 1
+    ? `${names} 계좌는 ${monthDayText(before[0].balanceStartDate)}에 등록해서`
+    : `${names} 계좌를 등록하기 전 날짜라`
+  return `${lead} 이 기록은 잔액에 반영되지 않아요. ${keptIn}에는 남아요.`
+}
+
+function monthDayText(iso: string): string {
+  const [, m, d] = iso.split('-').map(Number)
+  return `${m}월 ${d}일`
+}
+
+/**
+ * 사용 중인 계좌끼리 이름이 겹치는지 — 서버 트리거(000029, ACCOUNT_NAME_DUPLICATE)와 같은 규칙: 앞뒤 공백만 무시하고
+ * 대소문자는 구분, 해지한 계좌와는 겹쳐도 된다. 엑셀 거래 가져오기가 계좌를 이름으로 찾아서 같은 이름을 막는다(2026-10-31 사용자 결정).
+ * accounts 는 `useGetAccounts()`(내 사용 중 계좌) 결과, excludeId 는 수정 중인 계좌 자신.
+ */
+export function isAccountNameTaken(accounts: readonly AccountResponse[] | undefined, name: string, excludeId?: number): boolean {
+  const target = name.trim()
+  if (!target || !accounts) return false
+  return accounts.some((a) => a.id !== excludeId && a.closedAt === null && a.name.trim() === target)
+}
+
+/**
+ * 사용 중인 계좌 중 이름이 겹친 것 — 위 규칙이 생기기 전부터 겹쳐 있던 계좌. 이 이름으로 적은 엑셀 줄은 어느 계좌인지 정할 수 없어
+ * 올리기가 막히므로(IMPORT_ACCOUNT_AMBIGUOUS) 가져오기 창에서 미리 알린다. 가나다순.
+ */
+export function duplicateAccountNames(accounts: readonly AccountResponse[] | undefined): { name: string; count: number }[] {
+  const counts = new Map<string, number>()
+  for (const a of accounts ?? []) {
+    if (a.closedAt !== null) continue
+    const name = a.name.trim()
+    counts.set(name, (counts.get(name) ?? 0) + 1)
+  }
+  return [...counts]
+    .filter(([, count]) => count > 1)
+    .map(([name, count]) => ({ name, count }))
+    .sort((x, y) => x.name.localeCompare(y.name, 'ko'))
+}

@@ -33,12 +33,12 @@ import { assetClassFormPreset } from '../../../data/assetsView'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useEntityDropdown } from '../../../state/selectors/dropdown'
 import { useDatePicker } from '../../../state/selectors/datePicker'
-import { formatNumber, formatUsd, sanitizeDecimalInput } from '../../../utils/format'
+import { formatNumber, formatRate, formatUsd, sanitizeDecimalInput } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate } from '../../../utils/date'
 import { useGetAccounts, type AccountResponse } from '@/services/account'
 import { useGetInstitutions } from '@/services/institution'
 import { BankIcon } from '../../../components/primitives/BankIcon/BankIcon'
-import { accountInstitutionLabel, accountInstitutionMeta } from '../../../data/accountView'
+import { accountInstitutionLabel, accountInstitutionMeta, balanceStartNoteText } from '../../../data/accountView'
 import { useGetExchangeSummary, usePostExchange } from '@/services/exchange'
 import type { CreateExchangeRequest } from '@/services/exchange'
 import type { ForeignExchangeSide } from '@/services/common.type'
@@ -139,6 +139,11 @@ export function ExchangeAddModal() {
   // 저장 후 외화 카드에 찍힐 보유 달러(음수). 소수 2자리 오차를 없애려고 센트 단위로 뺀다.
   const heldAfterSell = heldUsd !== null ? (Math.round(heldUsd * 100) - Math.round(foreignAmount * 100)) / 100 : null
 
+  const pickedExchangeDate = state.datePickerPicked['exchangeDate'] as { y: number; m: number; d: number } | undefined
+  const exchangeIsoDate = pickedExchangeDate ? pickedToISODate(pickedExchangeDate) : todayISO
+  // 계좌를 등록하기 전 날짜의 환전은 예수금에 반영되지 않는다(서버 000026) — 스위치 설명을 그 안내로 바꾼다
+  const balanceStartNote = settleCash ? balanceStartNoteText([selectedAccount], exchangeIsoDate, '환전 내역') : null
+
   const handleSave = (confirmedOverSell = false) => {
     const missingAccount = !accountId
     const missingAmount = !foreignAmountStr || !foreignAmount || !rateStr || !rate
@@ -150,8 +155,7 @@ export function ExchangeAddModal() {
       return
     }
 
-    const picked = state.datePickerPicked['exchangeDate'] as { y: number; m: number; d: number } | undefined
-    const exchangedAt = picked ? pickedToISODate(picked) : todayISO
+    const exchangedAt = exchangeIsoDate
 
     const body: CreateExchangeRequest = {
       accountId: accountId as number,
@@ -212,7 +216,7 @@ export function ExchangeAddModal() {
               <input
                 type="text" inputMode="decimal"
                 // 예전엔 고정값 '1,380.00'이 보여 실제 환율처럼 읽혔다 — 오늘 고시 환율(서버)을 안내로 쓴다.
-                placeholder={currentRate ? formatNumber(currentRate) : '0.00'}
+                placeholder={currentRate ? formatRate(currentRate) : '0.00'}
                 value={rateStr}
                 onChange={(e) => {
                   setRateStr(sanitizeDecimalInput(e.target.value, 2))
@@ -279,9 +283,9 @@ export function ExchangeAddModal() {
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-mid)' }}>예수금에 반영</div>
             <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3, lineHeight: 1.5 }}>
-              {settleCash
+              {balanceStartNote ?? (settleCash
                 ? side === 'BUY' ? '계좌의 원화 예수금이 줄고 달러 예수금이 늘어요' : '계좌의 달러 예수금이 줄고 원화 예수금이 늘어요'
-                : '예수금은 그대로 두고 환전 기록만 남겨요'}
+                : '예수금은 그대로 두고 환전 기록만 남겨요')}
             </div>
           </div>
           <Switch label="예수금에 반영" checked={settleCash} onChange={setSettleCash} disabled={postExchange.isPending} />

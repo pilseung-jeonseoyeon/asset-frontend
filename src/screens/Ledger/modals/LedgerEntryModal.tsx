@@ -55,7 +55,7 @@ import { ApiError } from '@/services/api'
 import { useGetAccounts, type AccountResponse } from '@/services/account'
 import { useGetInstitutions } from '@/services/institution'
 import { BankIcon } from '../../../components/primitives/BankIcon/BankIcon'
-import { accountInstitutionLabel, accountInstitutionMeta } from '../../../data/accountView'
+import { accountInstitutionLabel, accountInstitutionMeta, balanceStartNoteText } from '../../../data/accountView'
 import { useGetCategories } from '@/services/category'
 import { useDeleteTransaction, useGetTransactions, usePostTransaction, usePutTransaction } from '@/services/transaction'
 import type { CreateTransactionRequest, OwnerTag, UpdateTransactionRequest } from '@/services/transaction'
@@ -182,6 +182,11 @@ export function LedgerEntryModal() {
   const entryDateDisplay = state.entryDateOverride || entryDateDefault
   const [entryNavY, entryNavM] = entryDateDisplay.split('.').map(Number)
   const entryDateDropdown = useDatePicker('entry', entryDateDisplay, { y: entryNavY, m: entryNavM })
+  // 저장할 거래 날짜(ISO) — 달력에서 고른 날이 있으면 그 날, 아니면 표시값(오늘 또는 수정 중인 거래의 날짜)
+  const pickedEntryDate = state.datePickerPicked['entry'] as { y: number; m: number; d: number } | undefined
+  const entryIsoDate = pickedEntryDate ? pickedToISODate(pickedEntryDate) : entryDateDisplay.replaceAll('.', '-')
+  // 계좌를 등록하기 전 날짜면 잔액에는 안 들어간다고 알려준다(서버 000026)
+  const balanceStartNote = balanceStartNoteText([needsTransferAccount ? withdrawAccount : undefined, entryAccount], entryIsoDate, '가계부')
 
   const activeMutation = isEditing ? updateTransaction : createTransaction
   const saveError = activeMutation.error
@@ -374,8 +379,7 @@ export function LedgerEntryModal() {
     }
     if (hasError) return
 
-    const picked = state.datePickerPicked['entry'] as { y: number; m: number; d: number } | undefined
-    const transactionDate = picked ? pickedToISODate(picked) : entryDateDisplay.replaceAll('.', '-')
+    const transactionDate = entryIsoDate
     const type = ENTRY_TYPE_TO_TRANSACTION_TYPE[entryType]
     // 새 거래가 저장되면 이 유형의 계좌를 기기에 기억해 다음 입력의 기본값으로 쓴다(위 폴백 주석).
     // 수정(updateTransaction)은 기억하지 않는다 — 옛 거래를 고치는 건 "요즘 쓰는 계좌"가 아니다.
@@ -737,25 +741,28 @@ export function LedgerEntryModal() {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 14 }}>
-          <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-            <div style={LABEL_STYLE}>{ledgerEntryAcctLabel}</div>
-            <Dropdown
-              dropdown={ledgerEntryAccountDropdown}
-              maxHeight={180}
-              selectedMeta={accountInstitutionLabel(entryAccount, institutions)}
-              selectedLeading={entryAccount && accountLeadingIcon(entryAccount, 24)}
-              placeholder={entryListEmpty ? NO_ACCOUNT_PLACEHOLDER : undefined}
-              footer={addAccountFooter(selectableAccounts.length > 0, entryListEmpty)}
-            />
-            {/* 계좌 목록을 못 받으면 칸이 빈 채로 저장만 막힌다(listLoadFailed) — 이유를 칸 아래에 적는다. */}
-            {accountsQuery.error && <div style={ERROR_STYLE}>{accountsQuery.error.message}</div>}
-            {transferAccountErrorMessage && <div style={ERROR_STYLE}>{transferAccountErrorMessage}</div>}
+        <div>
+          <div style={{ display: 'flex', gap: 14 }}>
+            <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+              <div style={LABEL_STYLE}>{ledgerEntryAcctLabel}</div>
+              <Dropdown
+                dropdown={ledgerEntryAccountDropdown}
+                maxHeight={180}
+                selectedMeta={accountInstitutionLabel(entryAccount, institutions)}
+                selectedLeading={entryAccount && accountLeadingIcon(entryAccount, 24)}
+                placeholder={entryListEmpty ? NO_ACCOUNT_PLACEHOLDER : undefined}
+                footer={addAccountFooter(selectableAccounts.length > 0, entryListEmpty)}
+              />
+              {/* 계좌 목록을 못 받으면 칸이 빈 채로 저장만 막힌다(listLoadFailed) — 이유를 칸 아래에 적는다. */}
+              {accountsQuery.error && <div style={ERROR_STYLE}>{accountsQuery.error.message}</div>}
+              {transferAccountErrorMessage && <div style={ERROR_STYLE}>{transferAccountErrorMessage}</div>}
+            </div>
+            <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+              <div style={LABEL_STYLE}>날짜</div>
+              <DatePicker dp={entryDateDropdown} />
+            </div>
           </div>
-          <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-            <div style={LABEL_STYLE}>날짜</div>
-            <DatePicker dp={entryDateDropdown} />
-          </div>
+          {balanceStartNote && <div style={{ ...ERROR_STYLE, color: 'var(--text-mid)' }}>{balanceStartNote}</div>}
         </div>
 
         {genericErrorMessage && <div style={ERROR_STYLE}>{genericErrorMessage}</div>}

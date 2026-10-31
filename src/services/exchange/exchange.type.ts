@@ -12,6 +12,7 @@ export interface ExchangeResponse {
   foreignAmount: number
   /** KRW 정수 */
   krwAmount: number
+  /** 환전할 때 적은 환율(소수 둘째 자리, 000025). 그 전 기록은 원화 ÷ 외화로 채워 둠 */
   rate: number
   exchangedAt: string
   memo: string | null

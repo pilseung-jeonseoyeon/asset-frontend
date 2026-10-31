@@ -26,11 +26,12 @@ import { Switch } from '../../../components/primitives/Switch/Switch'
 import { useAppState } from '../../../state/AppStateContext'
 import { useIsMobile } from '../../../utils/useMediaQuery'
 import { useDatePicker } from '../../../state/selectors/datePicker'
-import { formatNumber, formatKrw, sanitizeDecimalInput } from '../../../utils/format'
+import { formatNumber, formatKrw, formatRate, sanitizeDecimalInput } from '../../../utils/format'
 import { isoDateToDisplay, isoDateToViewingMonth, pickedToISODate, toISODate } from '../../../utils/date'
 import { useGetAccounts } from '@/services/account'
 import { useDeleteExchange, useGetExchanges, usePutExchange } from '@/services/exchange'
-import type { UpdateExchangeRequest } from '@/services/exchange'
+import type { ExchangeResponse, UpdateExchangeRequest } from '@/services/exchange'
+import { balanceStartNoteText } from '../../../data/accountView'
 import type { ForeignExchangeSide } from '@/services/common.type'
 
 const LABEL_STYLE: CSSProperties = { fontSize: 12.5, fontWeight: 600, color: 'var(--text-mid)', marginBottom: 8 }
@@ -149,7 +150,17 @@ export function ExchangeHistoryModal() {
   const foreignAmount = Number(foreignAmountStr) || 0
   const rate = Number(rateStr) || 0
   const krwAmountEstimate = Math.round(foreignAmount * rate)
-  const accountName = accountsQuery.data?.find((a) => a.id === editing?.accountId)?.name ?? '—'
+  const editingAccount = accountsQuery.data?.find((a) => a.id === editing?.accountId)
+  const accountName = editingAccount?.name ?? '—'
+  const pickedEditDate = state.datePickerPicked['exchangeEditDate'] as { y: number; m: number; d: number } | undefined
+  const editIsoDate = pickedEditDate ? pickedToISODate(pickedEditDate) : editing?.exchangedAt ?? todayISO
+  // 계좌를 등록하기 전 날짜의 환전은 예수금에 반영되지 않는다(서버 000026) — 스위치 설명을 그 안내로 바꾼다
+  const balanceStartNote = settleCash ? balanceStartNoteText([editingAccount], editIsoDate, '환전 내역') : null
+  // 목록 줄: 계좌 등록 전 날짜의 환전은 '예수금에 반영'이 켜져 있어도 예수금을 옮기지 않았다
+  const isBeforeAccountStart = (r: ExchangeResponse) => {
+    const start = accountsQuery.data?.find((a) => a.id === r.accountId)?.balanceStartDate
+    return start !== undefined && r.exchangedAt < start
+  }
   // 로컬 폼 상태가 이 editing 대상으로 아직 동기화되지 않았으면(useEffect가 커밋 후에 돈다) 이전
   // 세션의 값이 한 프레임 보이지 않도록 로딩으로 취급한다.
   const isEditFormReady = editing !== null && syncedId === editing.id
@@ -160,8 +171,7 @@ export function ExchangeHistoryModal() {
     setAmountMissing(missingAmount)
     if (missingAmount) return
 
-    const picked = state.datePickerPicked['exchangeEditDate'] as { y: number; m: number; d: number } | undefined
-    const exchangedAt = picked ? pickedToISODate(picked) : editing.exchangedAt
+    const exchangedAt = editIsoDate
 
     // 외화 금액·환율을 그대로 두고(날짜·방향만 고침) 저장하면 서버가 가진 원화 금액을 그대로 보낸다 — 외화 × 환율로
     // 다시 계산해 덮으면 반올림 오차로 정본 원화 금액이 1원씩 바뀔 수 있다(2026-09-26 통합테스트).
@@ -227,7 +237,7 @@ export function ExchangeHistoryModal() {
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: r.side === 'BUY' ? 'var(--accent)' : 'var(--text-strong)' }}>{sideLabel(r.side)}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3 }}>
-                      {isoDateToDisplay(r.exchangedAt)} · {formatNumber(r.rate)}원{!r.settleCash && ' · 예수금 미반영'}
+                      {isoDateToDisplay(r.exchangedAt)} · {formatRate(r.rate)}원{!r.settleCash ? ' · 예수금 미반영' : isBeforeAccountStart(r) ? ' · 계좌 등록 전' : ''}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flex: 'none' }}>
@@ -312,9 +322,9 @@ export function ExchangeHistoryModal() {
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-mid)' }}>예수금에 반영</div>
                 <div style={{ fontSize: 11, color: 'var(--text-weak)', marginTop: 3, lineHeight: 1.5 }}>
-                  {settleCash
+                  {balanceStartNote ?? (settleCash
                     ? side === 'BUY' ? '계좌의 원화 예수금이 줄고 달러 예수금이 늘어요' : '계좌의 달러 예수금이 줄고 원화 예수금이 늘어요'
-                    : '예수금은 그대로 두고 환전 기록만 남겨요'}
+                    : '예수금은 그대로 두고 환전 기록만 남겨요')}
                 </div>
               </div>
               <Switch label="예수금에 반영" checked={settleCash} onChange={setSettleCash} disabled={isBusy} />
