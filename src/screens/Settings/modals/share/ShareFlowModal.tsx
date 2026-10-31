@@ -505,7 +505,8 @@ export function ShareFlowModal() {
         error={cancel.isError ? messageOf(cancel.error) : null}
         onClose={close}
         onInvite={() => goto('invite')}
-        onCancelInvite={() => cancel.mutate()}
+        // 방금 받은 코드(issue.data)도 같이 버린다 — 남기면 다시 '초대' 단계에 들어갔을 때 취소한 코드가 살아 있는 것처럼 보인다
+        onCancelInvite={() => cancel.mutate(undefined, { onSuccess: () => issue.reset() })}
         onEnterCode={() => {
           setCells(EMPTY_CELLS)
           goto('code')
