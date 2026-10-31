@@ -73,7 +73,7 @@ export const queryKeys = {
   },
   stock: {
     all: () => ['stock'] as const,
-    search: (keyword: string) => ['stock', 'search', { keyword }] as const,
+    search: (keyword: string, markets?: readonly string[]) => ['stock', 'search', { keyword, markets: markets ?? null }] as const,
     sectors: () => ['stock', 'sectors'] as const,
     holdings: (market?: Market) => ['stock', 'holdings', { market }] as const,
     holdingGroups: (by: 'sector' | 'market') => ['stock', 'holdingGroups', { by }] as const,

@@ -9,29 +9,20 @@ import type {
   HoldingResponse,
   StockResponse,
   StockSectorResponse,
-  UpdateStockRequest,
 } from './stock.type'
 
 const STOCK_COLUMNS = 'id, ticker, name, market, sector, currency'
 
-/** 종목 검색 — 이름·티커 부분일치(대소문자 무시), 시장·이름 순. 키워드가 비면 전체(StockRepositoryImpl.search). */
-export async function getStocks(keyword?: string) {
-  let query = supabase.from('stocks').select(STOCK_COLUMNS).order('market').order('name')
-  const kw = keyword?.trim().replace(/[,()"\\]/g, '') // PostgREST or 필터 구문을 깨는 문자는 뺀다
-  if (kw) query = query.or(`name.ilike.%${kw}%,ticker.ilike.%${kw}%`)
-  return unwrapResult(await query.returns<StockResponse[]>())
+/**
+ * 종목 검색 — 이름·티커 부분일치(대소문자 무시). 서버(search_stocks, 000021)가 정확히 같음 → 앞글자 같음 → 포함 순,
+ * 같은 단계 안에서는 시가총액 큰 순으로 매겨 최대 50개를 준다. markets를 주면 그 시장만(자르기 전에 거른다).
+ */
+export async function getStocks(keyword?: string, markets?: readonly Market[]) {
+  return rpc<StockResponse[]>('search_stocks', { p_keyword: keyword?.trim() || null, p_markets: markets?.length ? markets : null })
 }
 
 export async function getStockSectors() {
   return rpc<StockSectorResponse[]>('get_stock_sectors')
-}
-
-export async function putStock(stockId: number, body: UpdateStockRequest) {
-  const rows = unwrapResult(
-    await supabase.from('stocks').update({ name: body.name, sector: body.sector }).eq('id', stockId).select(STOCK_COLUMNS).returns<StockResponse[]>(),
-  )
-  if (!rows || rows.length === 0) throw new ApiError('STOCK_NOT_FOUND', errorMessageOf('STOCK_NOT_FOUND'), 404)
-  return rows[0]
 }
 
 /** 종목 등록(전역 마스터). 같은 시장·티커가 있으면 STOCK_DUPLICATE. */

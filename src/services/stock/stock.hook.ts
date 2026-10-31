@@ -11,9 +11,8 @@ import {
   getStocks,
   getStockSectors,
   postStock,
-  putStock,
 } from './stock.service'
-import type { CreateStockRequest, UpdateStockRequest } from './stock.type'
+import type { CreateStockRequest } from './stock.type'
 
 interface QueryOptions {
   enabled?: boolean
@@ -45,10 +44,10 @@ export function useFxRateFallback(error: unknown, refetch: () => unknown): void 
   }, [missing, refetch])
 }
 
-export function useGetStocks(keyword: string, options?: QueryOptions) {
+export function useGetStocks(keyword: string, options?: QueryOptions & { markets?: readonly Market[] }) {
   const query = useQuery({
-    queryKey: queryKeys.stock.search(keyword),
-    queryFn: () => getStocks(keyword || undefined),
+    queryKey: queryKeys.stock.search(keyword, options?.markets),
+    queryFn: () => getStocks(keyword || undefined, options?.markets),
     enabled: options?.enabled,
   })
   return { ...query, stocks: query.data ?? [] }
@@ -120,14 +119,3 @@ export function usePostStock() {
   })
 }
 
-/** 종목명·섹터 수정. 보유 종목·그룹 수익률(stock)과 매매 내역의 종목명(trade)이 함께 바뀐다. */
-export function usePutStock() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, body }: { id: number; body: UpdateStockRequest }) => putStock(id, body),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.stock.all() })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.trade.all() })
-    },
-  })
-}

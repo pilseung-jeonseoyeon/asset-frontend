@@ -15,7 +15,7 @@ export type LedgerPeriod = 'month' | 'year'
 export type LedgerRange = 'month' | 'week'
 export type StockGroupTab = 'sector' | 'country'
 /** 주식 화면 상단의 시장 탭. 표시 문구는 data/stocksView.ts의 STOCK_MARKET_TAB_LABELS. */
-export type StockMarketTab = 'all' | 'domestic' | 'foreign'
+export type StockMarketTab = 'all' | 'domestic' | 'foreign' | 'crypto'
 export type AccountModalView = 'main' | 'profile' | 'password'
 /** 계좌 추가 모달 안의 API 연동 서브뷰 단계. 'none'이면 일반 계좌 폼. */
 export type ConnectView = 'none' | 'provider' | 'form' | 'result'
@@ -159,8 +159,6 @@ export interface AppState {
   // trade edit (Stocks 화면 — 매매 내역 수정, GET /trades에 단건 조회가 없어 목록 캐시에서 id로 찾는다)
   /** 수정 대상 tradeId(서버 id). null이면 매매 수정 모달이 닫혀 있음. */
   editingTradeId: number | null
-  /** 종목 정보(이름·섹터) 수정 모달 대상 — StockEditModal. */
-  editingStockId: number | null
 
   // exchange history (Stocks 화면 — 환전 내역 목록/수정)
   /** 환전 내역 모달 안에서 수정 대상 exchangeId. null이면 목록 뷰. */

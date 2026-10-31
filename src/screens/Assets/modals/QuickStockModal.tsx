@@ -117,7 +117,7 @@ export function QuickStockModal() {
   // 글자마다 검색 요청이 나가고 응답 순서가 뒤섞이지 않게, 타이핑이 잠시 멈춘 뒤의 값으로만 조회한다.
   const debouncedKeyword = useDebouncedValue(keyword.trim())
   const isKeywordSettling = keyword.trim() !== debouncedKeyword
-  const searchQuery = useGetStocks(debouncedKeyword, { enabled: isOpen && stockModeBuy && !stockId })
+  const searchQuery = useGetStocks(debouncedKeyword, { enabled: isOpen && stockModeBuy && !stockId, markets: [market] })
   const searchResults = searchQuery.stocks.filter((s) => s.market === market)
   const holdingsQuery = useGetHoldings(market, { enabled: isOpen && stockModeSell })
   // 매도 수량 상한은 전 계좌 합계가 아니라 **고른 계좌의** 보유량이다 — 합계로 잡으면 그 종목이 없거나 적은
@@ -386,6 +386,8 @@ export function QuickStockModal() {
                           style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 8, border: 'none', background: 'transparent', fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)', cursor: 'pointer', fontFamily: 'inherit' }}
                         >
                           {s.name} <span style={{ color: 'var(--text-weak)', fontWeight: 600 }}>{s.ticker}</span>
+                          {/* 내가 '새 종목으로 등록'한 개인 종목(나에게만 보인다 — 000020) */}
+                          {s.isPersonal && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: 'var(--text-weak)' }}>내 종목</span>}
                         </button>
                       ))
                     ) : (
@@ -417,7 +419,13 @@ export function QuickStockModal() {
 
         {stockModeBuy && newStockMode && (
           <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)' }}>새 종목 등록</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)' }}>새 종목 등록</div>
+              {/* 직접 등록한 종목은 공용 목록에 섞이지 않고 등록한 사람에게만 보인다(000020) — 잘못 적어도 다른 사람에게 번지지 않는다. */}
+              <div style={{ fontSize: 11.5, color: 'var(--text-weak)', lineHeight: 1.6 }}>
+                직접 등록한 종목은 나에게만 보여요. 티커가 틀리면 현재가를 가져오지 못하니 증권사 앱의 종목 코드를 그대로 적어 주세요.
+              </div>
+            </div>
             <div style={fieldRowStyle}>
               <div style={{ flex: 1 }}>
                 <div style={LABEL_STYLE}>티커</div>

@@ -158,7 +158,7 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint, 
   // 글자마다 검색 요청이 나가고 응답 순서가 뒤섞이지 않게, 타이핑이 잠시 멈춘 뒤의 값으로만 조회한다.
   const debouncedKeyword = useDebouncedValue(keyword.trim())
   const isKeywordSettling = keyword.trim() !== debouncedKeyword
-  const searchQuery = useGetStocks(debouncedKeyword, { enabled: enabled && showResults })
+  const searchQuery = useGetStocks(debouncedKeyword, { enabled: enabled && showResults, markets })
   const results = searchQuery.stocks.filter((s) => markets.includes(s.market))
   const addedIds = new Set(items.map((h) => h.stockId))
 
@@ -433,6 +433,7 @@ export function AccountHoldingsField({ markets, enabled, items, onChange, hint, 
                         {showMarketBadge && (
                           <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-weak)', flexShrink: 0 }}>{marketBadge(s.market)}</span>
                         )}
+                        {s.isPersonal && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-weak)', flexShrink: 0 }}>내 종목</span>}
                         {already && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-weak)', flexShrink: 0 }}>담음</span>}
                       </button>
                     )

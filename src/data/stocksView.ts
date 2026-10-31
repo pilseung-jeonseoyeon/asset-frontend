@@ -22,7 +22,7 @@
 // 자릿수를 다르게 내려보낸다(KOSPI/S&P는 2자리인데 NASDAQ만 3자리로 온 적이 있음).
 
 import type { StockBuyMarket, StockMarketTab } from '../state/types'
-import { formatNumber, formatKrw, formatCurrencyAmount } from '../utils/format'
+import { formatNumber, formatKrw, formatCurrencyAmount, formatSharePercent } from '../utils/format'
 import { isoDateToDisplay } from '../utils/date'
 import { toPercentages } from './dashboardView'
 import type { ClosedHoldingResponse, HoldingGroupResponse, HoldingResponse } from '@/services/stock'
@@ -66,11 +66,12 @@ function marketIndexOrderIndex(symbol: string): number {
 export function stockMarketTabToMarket(tab: StockMarketTab): Market | undefined {
   if (tab === 'domestic') return 'KR'
   if (tab === 'foreign') return 'US'
+  if (tab === 'crypto') return 'CRYPTO'
   return undefined
 }
 
 /** 주식 화면 시장 탭의 표시 문구(빈 상태 문장 등에서 쓴다). */
-export const STOCK_MARKET_TAB_LABELS: Record<StockMarketTab, string> = { all: '전체', domestic: '국내', foreign: '해외' }
+export const STOCK_MARKET_TAB_LABELS: Record<StockMarketTab, string> = { all: '전체', domestic: '국내', foreign: '해외', crypto: '가상자산' }
 
 /** QuickStockModal의 stockBuyMarket('domestic'/'overseas')을 서버 Market으로 변환한다. */
 export function buyMarketToMarket(stockBuyMarket: StockBuyMarket): Market {
@@ -179,6 +180,8 @@ export function buildGroupReturns(groups: HoldingGroupResponse[], by: 'sector' |
 export interface SectorSegmentView {
   label: string
   percent: number
+  /** 범례·캡션용 — 0%로 반올림돼도 평가액이 있으면 '1% 미만'(formatSharePercent). */
+  percentText: string
   color: string
 }
 
@@ -194,6 +197,7 @@ export function buildSectorComposition(groups: HoldingGroupResponse[]): SectorSe
   return sorted.map((g, i) => ({
     label: g.groupKey,
     percent: percents[i],
+    percentText: formatSharePercent(percents[i], g.totalValuationKrw),
     color: RAMP[Math.min(i, RAMP.length - 1)],
   }))
 }
@@ -357,7 +361,9 @@ export function buildPortfolioSummary(holdings: HoldingResponse[], totalAssetKrw
     pnlPositive,
     returnRateText: returnRateAvailable ? `${returnRatePositive ? '+' : '−'}${Math.abs(returnRate).toFixed(1)}%` : null,
     holdingCount: holdings.length,
-    sharePercentText: sharePercent !== null ? `${sharePercent.toFixed(1)}%` : null,
+    // 평가액이 있는데 0.0%로 반올림되면 '0.1% 미만'(가상자산 탭처럼 작은 비중 — 가계부 증감률과 같은 표기).
+    sharePercentText:
+      sharePercent === null ? null : sharePercent.toFixed(1) === '0.0' && totalValue > 0 ? '0.1% 미만' : `${sharePercent.toFixed(1)}%`,
   }
 }
 

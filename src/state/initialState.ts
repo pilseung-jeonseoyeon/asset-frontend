@@ -71,7 +71,6 @@ export const initialState: AppState = {
   stockTradeMode: 'buy',
 
   editingTradeId: null,
-  editingStockId: null,
   editingExchangeId: null,
 
   editingAccountId: null,

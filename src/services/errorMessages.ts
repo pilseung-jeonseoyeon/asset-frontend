@@ -103,7 +103,7 @@ export const ERROR_SPECS: Record<string, ErrorSpec> = {
   SHARE_CODE_UNAVAILABLE: { status: 503, message: '초대 코드를 만들지 못했어요. 잠시 후 다시 시도해 주세요.' },
   SHARE_NOT_LINKED: { status: 409, message: '연결된 구성원이 없어요.' },
   SHARE_SELF_INVITE: { status: 400, message: '내가 만든 초대 코드예요. 상대방이 입력해야 연결돼요.' },
-  STOCK_DUPLICATE: { status: 409, message: '이미 등록된 종목입니다.' },
+  STOCK_DUPLICATE: { status: 409, message: '이미 목록에 있는 종목이에요. 티커나 종목명으로 검색해서 골라 주세요.' },
   STOCK_NOT_FOUND: { status: 404, message: '종목을 찾을 수 없습니다.' },
   STOCK_PRICE_FETCH_FAILED: { status: 503, message: '시세 정보를 가져오지 못했습니다.' },
   SUBCATEGORY_DUPLICATE_NAME: { status: 409, message: '같은 대분류 안에 동일한 이름의 소분류가 이미 있습니다.' },

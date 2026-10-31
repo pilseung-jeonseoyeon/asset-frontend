@@ -9,6 +9,8 @@ export interface StockResponse {
   market: Market
   sector: string | null
   currency: Currency
+  /** 검색(search_stocks)에만 실린다 — 내가 '새 종목으로 등록'한 개인 종목이면 true(나에게만 보인다, 000020). */
+  isPersonal?: boolean
 }
 
 export interface CreateStockRequest {
@@ -88,11 +90,4 @@ export interface ClosedHoldingResponse {
 export interface StockSectorResponse {
   code: string
   name: string
-}
-
-/** PUT /stocks/{stockId} — 종목명과 섹터만 고칠 수 있다(티커·시장·통화는 수정 불가). sector는 GET /stocks/sectors의
- * name만 허용되고(밖이면 400 INVALID_SECTOR), null이면 섹터를 지운다(그룹 수익률에서는 '기타'). */
-export interface UpdateStockRequest {
-  name: string
-  sector: string | null
 }

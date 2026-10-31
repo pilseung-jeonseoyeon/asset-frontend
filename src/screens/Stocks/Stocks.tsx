@@ -26,7 +26,7 @@ import { Skeleton } from '../../components/primitives/Skeleton/Skeleton'
 import { useViewScope } from '../../utils/viewScope'
 import { useAppState } from '../../state/AppStateContext'
 import { stockDeepTabStyle, stockLightTabStyle } from '../../state/selectors/stockTabStyles'
-import { formatNumber, formatKrw, formatKoreanUnits, formatUsd } from '../../utils/format'
+import { formatKrw, formatKoreanUnits, formatRate, formatUsd } from '../../utils/format'
 import { isoDateToDisplay } from '../../utils/date'
 import { useIsMobile } from '../../utils/useMediaQuery'
 import type { MarketIndexView } from '../../data/stocksView'
@@ -166,6 +166,7 @@ function PersonalStocks() {
   const showAllStocks = () => setState({ stockMarketTab: 'all' })
   const showDomesticStocks = () => setState({ stockMarketTab: 'domestic' })
   const showForeignStocks = () => setState({ stockMarketTab: 'foreign' })
+  const showCryptoStocks = () => setState({ stockMarketTab: 'crypto' })
 
   const openBuy = () => setState({ openModal: 'quickStock', stockTradeMode: 'buy' })
   const openSell = () => setState({ openModal: 'quickStock', stockTradeMode: 'sell' })
@@ -178,7 +179,7 @@ function PersonalStocks() {
   // 모바일은 타일 그리드 대신 제목 옆 한 줄 전광판으로 대체한다(MarketIndexTicker 주석).
   const showIndexTicker = isMobile && !indicesQuery.isPending && !indicesQuery.error && indexViews.length > 0
 
-  // 이 화면의 전체/국내/해외 탭은 딥 카드(포트폴리오 요약)와 보유 종목 그리드가 공유한다 — 소스에서도
+  // 이 화면의 전체/국내/해외/가상자산 탭은 딥 카드(포트폴리오 요약)와 보유 종목 그리드가 공유한다 — 소스에서도
   // 두 블록이 같은 stockTab을 읽는다.
   const holdingsQuery = useGetHoldings(market)
   const holdingCards = buildHoldingCards(holdingsQuery.holdings)
@@ -189,8 +190,8 @@ function PersonalStocks() {
   const groupsByTab = useGetHoldingGroups(state.stockGroupTab === 'country' ? 'market' : 'sector')
   const groupReturns = buildGroupReturns(groupsByTab.groups, state.stockGroupTab === 'country' ? 'market' : 'sector')
   // 그룹별 수익률·섹터 비중은 서버(GET /stocks/holdings/groups)가 시장 필터를 받지 않아 항상 전체 보유
-  // 기준이다 — 국내/해외 탭을 보고 있을 때 헷갈리지 않게 캡션에 그 사실을 붙인다.
-  const allHoldingsNote = stockMarketTab === 'all' ? '' : ' · 국내·해외 전체 보유 기준'
+  // 기준이다 — 국내/해외/가상자산 탭을 보고 있을 때 헷갈리지 않게 캡션에 그 사실을 붙인다.
+  const allHoldingsNote = stockMarketTab === 'all' ? '' : ' · 전체 보유 기준'
   const groupReturnCaption = (state.stockGroupTab === 'sector' ? '보유 섹터별 평가 수익률' : '시장별(국내·해외·가상자산) 평가 수익률') + allHoldingsNote
 
   // 섹터 비중 도넛은 그룹별 수익률 탭과 무관하게 항상 섹터 기준이다. by='sector' 쿼리는 React Query가
@@ -289,6 +290,7 @@ function PersonalStocks() {
             <button onClick={showAllStocks} style={stockDeepTabStyle(stockMarketTab === 'all')}>전체</button>
             <button onClick={showDomesticStocks} style={stockDeepTabStyle(stockMarketTab === 'domestic')}>국내 주식</button>
             <button onClick={showForeignStocks} style={stockDeepTabStyle(stockMarketTab === 'foreign')}>해외 주식</button>
+            <button onClick={showCryptoStocks} style={stockDeepTabStyle(stockMarketTab === 'crypto')}>가상자산</button>
           </div>
           {holdingsQuery.isPending ? (
             <div aria-busy style={EMPTY_TEXT_STYLE_DEEP}>—</div>
@@ -449,7 +451,7 @@ function PersonalStocks() {
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-weak)' }}>평단가 (가중평균)</div>
                   <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4, color: 'var(--text-strong)' }}>
-                    {exchangeSummary.data.weightedAvgRate === null ? '—' : `${formatNumber(exchangeSummary.data.weightedAvgRate)}원`}
+                    {exchangeSummary.data.weightedAvgRate === null ? '—' : `${formatRate(exchangeSummary.data.weightedAvgRate)}원`}
                   </div>
                 </div>
               </div>
@@ -481,6 +483,7 @@ function PersonalStocks() {
             <button onClick={showAllStocks} style={{ ...stockLightTabStyle(stockMarketTab === 'all'), whiteSpace: 'nowrap' }}>전체</button>
             <button onClick={showDomesticStocks} style={{ ...stockLightTabStyle(stockMarketTab === 'domestic'), whiteSpace: 'nowrap' }}>국내 주식</button>
             <button onClick={showForeignStocks} style={{ ...stockLightTabStyle(stockMarketTab === 'foreign'), whiteSpace: 'nowrap' }}>해외 주식</button>
+            <button onClick={showCryptoStocks} style={{ ...stockLightTabStyle(stockMarketTab === 'crypto'), whiteSpace: 'nowrap' }}>가상자산</button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <button
@@ -581,18 +584,9 @@ function PersonalStocks() {
                         {h.marketLabel}
                       </span>
                     </div>
-                    {/* 종목명·섹터를 잘못 등록했을 때 고치는 입구 — 섹터 라벨을 누르면 종목 정보 수정 창이 열린다. */}
-                    <button
-                      type="button"
-                      className="mini-hov"
-                      onClick={() => setState({ openModal: 'stockEdit', editingStockId: h.stockId })}
-                      title="종목 정보 수정"
-                      aria-label={`${h.name} 종목 정보 수정`}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, border: 'none', background: 'transparent', padding: '2px 4px', borderRadius: 6, fontSize: 11, color: 'var(--text-weak)', cursor: 'pointer', fontFamily: 'inherit' }}
-                    >
-                      {h.sector}
-                      <Icon name="edit" size={12} />
-                    </button>
+                    {/* 섹터는 모닛이 제공하는 공용 값이라 보여주기만 한다 — 예전의 종목 정보 수정 창은 없앴다(2026-10-31,
+                        한 사람이 고치면 모든 사용자에게 바뀌는 전역 마스터라서). */}
+                    <span style={{ padding: '2px 4px', fontSize: 11, color: 'var(--text-weak)' }}>{h.sector}</span>
                   </div>
                   {h.ticker && <div style={{ fontSize: 10.5, color: 'var(--text-weak)', marginBottom: 4 }}>{h.ticker}</div>}
                   {h.priceMissing ? (
@@ -692,7 +686,11 @@ function PersonalStocks() {
           <div style={ERROR_TEXT_STYLE}>{tradesQuery.error.message}</div>
         ) : tradeRows.length === 0 ? (
           <div style={EMPTY_TEXT_STYLE}>
-            {stockMarketTab === 'all' ? '매매 기록이 없어요' : `${STOCK_MARKET_TAB_LABELS[stockMarketTab]} 주식 매매 기록이 없어요`}
+            {stockMarketTab === 'all'
+              ? '매매 기록이 없어요'
+              : stockMarketTab === 'crypto'
+                ? '가상자산 매매 기록이 없어요'
+                : `${STOCK_MARKET_TAB_LABELS[stockMarketTab]} 주식 매매 기록이 없어요`}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -803,7 +801,7 @@ function PersonalStocks() {
                     <div key={seg.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ width: 9, height: 9, borderRadius: 4, background: seg.color }} />
                       <span style={{ color: 'var(--text-mid)', flex: 1 }}>{seg.label}</span>
-                      <b>{seg.percent}%</b>
+                      <b>{seg.percentText}</b>
                     </div>
                   ))}
                 </div>
@@ -811,7 +809,7 @@ function PersonalStocks() {
               {topSector && (
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: '0.5px solid var(--track)', fontSize: 12.5, color: 'var(--text-mid)' }}>
                   최대 비중 <b style={{ color: 'var(--text-strong)' }}>{topSector.label}</b>{' '}
-                  <b style={{ color: 'var(--text-strong)' }}>{topSector.percent}%</b>
+                  <b style={{ color: 'var(--text-strong)' }}>{topSector.percentText}</b>
                 </div>
               )}
             </>
